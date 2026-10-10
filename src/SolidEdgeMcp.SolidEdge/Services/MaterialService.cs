@@ -65,8 +65,8 @@ public static class MaterialService
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         MatTable table = Table(context);
         string lib = FindLibrary(table, name, library);
+        // El material cambia densidad y aspecto, no la topología: las caras y aristas siguen válidas (comprobado).
         table.ApplyMaterialToDoc(document, name, lib);
-        context.ModelChanged(document, "the material changed");
         table.GetCurrentMaterialName(document, out string applied);
         if (!string.Equals(applied, name, StringComparison.Ordinal))
         {
