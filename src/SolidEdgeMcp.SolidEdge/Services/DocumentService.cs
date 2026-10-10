@@ -162,9 +162,25 @@ public static class DocumentService
         context.Handles.InvalidateScope(documentHandle, "its document was closed");
         context.Handles.Remove(documentHandle, "the document was closed");
 
+        // Las piezas que cargó un conjunto o un plano se descargan con él: sus handles también se liberan.
+        Documents documents = context.Application.Documents;
+        var open = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        for (int i = 1; i <= documents.Count; i++)
+        {
+            open.Add(documents.Item(i));
+        }
+
+        foreach ((string id, object value) in context.Handles.OfKind("doc"))
+        {
+            if (!open.Contains(value))
+            {
+                context.Handles.InvalidateScope(id, "its document was closed");
+                context.Handles.Remove(id, "the document was closed");
+            }
+        }
+
         // Solid Edge puede quedarse sin documento activo aunque queden otros abiertos; se activa el último, como en la interfaz.
         SolidEdgeDocument? active = TryActive(context);
-        Documents documents = context.Application.Documents;
         if (active is null && documents.Count > 0 && documents.Item(documents.Count) is SolidEdgeDocument last)
         {
             last.Activate();
