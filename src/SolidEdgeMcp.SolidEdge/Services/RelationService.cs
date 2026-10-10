@@ -136,10 +136,7 @@ public static class RelationService
             object? planar = null;
             if (spec.Type is "planar" or "insert")
             {
-                Array none1 = new double[3];
-                Array none2 = new double[3];
-                planar = relations.AddPlanar(first.Reference, second.Reference, spec.Align, ref none1, ref none2);
-                created.Add(planar);
+                planar = AddPlanar(relations, first, second, spec.Align, created);
                 SetPlanar((PlanarRelation3d)planar, first, second, offset, spec.Align);
             }
 
@@ -198,6 +195,40 @@ public static class RelationService
             occurrence = AssemblyService.Describe(context, assembly, moving, AssemblyService.GroundedIds(assembly)),
             ungrounded,
         };
+    }
+
+    /// <summary>
+    /// Crea la relación plana. Si otras relaciones ya impiden girar la pieza y Solid Edge interpreta
+    /// <c>NormalsAligned</c> en el sentido que exigiría una simetría, la relación queda insatisfecha y cambiar después
+    /// <c>NormalsAligned</c> no la recupera (comprobado en Solid Edge 2026): se borra y se crea con el valor contrario.
+    /// </summary>
+    private static PlanarRelation3d AddPlanar(Relations3d relations, Side first, Side second, bool align, List<object> created)
+    {
+        PlanarRelation3d relation = Create(align);
+        if (DetailedStatus(relation) != "unsatisfied")
+        {
+            return relation;
+        }
+
+        created.Remove(relation);
+        TryDelete(relation);
+        relation = Create(!align);
+        if (DetailedStatus(relation) == "unsatisfied")
+        {
+            throw new ToolException("relation_failed", "The planar relation cannot be satisfied together with the occurrence's other relations.",
+                "Check the relations that hold the occurrence (se_relations list with 'occurrence') and that this one does not contradict them.");
+        }
+
+        return relation;
+
+        PlanarRelation3d Create(bool normalsAligned)
+        {
+            Array none1 = new double[3];
+            Array none2 = new double[3];
+            PlanarRelation3d added = relations.AddPlanar(first.Reference, second.Reference, normalsAligned, ref none1, ref none2);
+            created.Add(added);
+            return added;
+        }
     }
 
     /// <summary>Ajusta orientación (enfrentadas o alineadas) y signo del desplazamiento comprobando el resultado.</summary>

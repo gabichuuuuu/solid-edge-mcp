@@ -87,4 +87,41 @@ se_assembly {"action":"show","occurrence":"{{p3.handle}}"}
 ?~ dl.deleted pin.par
 se_documents {"action":"save_as","path":"{{work}}\\a06.asm","overwrite":true}
 se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# Tres relaciones planas fijan del todo un bloque 20x20x30 sobre una base 120x80x10 (fija): apoyo en z=10, enrase en x=0 y
+# cara -Y a 30 de la de la base -> origen (0,30,10). Con el giro ya bloqueado, Solid Edge deja la tercera insatisfecha si
+# interpreta NormalsAligned al revés; la herramienta la vuelve a crear con el valor contrario (encargo e2e de Claude).
+@pq = se_documents {"action":"new","kind":"part"}
+@kq = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kq.sketch}}","points":[0,0,120,80]}
+se_sketch {"action":"close","sketch":"{{kq.sketch}}"}
+se_extrude {"sketch":"{{kq.sketch}}","distance":10}
+se_documents {"action":"save_as","path":"{{work}}\\a06_base.par","overwrite":true}
+@pr = se_documents {"action":"new","kind":"part"}
+@kr = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kr.sketch}}","points":[0,0,20,20]}
+se_sketch {"action":"close","sketch":"{{kr.sketch}}"}
+se_extrude {"sketch":"{{kr.sketch}}","distance":30}
+se_documents {"action":"save_as","path":"{{work}}\\a06_cube.par","overwrite":true}
+se_documents {"action":"close","document":"{{pr.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{pq.handle}}","saveChanges":false}
+@a2 = se_documents {"action":"new","kind":"assembly"}
+@ob = se_assembly {"action":"insert","path":"{{work}}\\a06_base.par","origin":[0,0,0],"ground":true}
+@oc = se_assembly {"action":"insert","path":"{{work}}\\a06_cube.par","origin":[-40,20,50],"ground":false}
+@fbt = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[0,0,1]}
+@fbx = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[-1,0,0]}
+@fby = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[0,-1,0]}
+@fcb = se_geometry {"action":"faces","source":"{{oc.handle}}","direction":[0,0,-1]}
+@fcx = se_geometry {"action":"faces","source":"{{oc.handle}}","direction":[-1,0,0]}
+@fcy = se_geometry {"action":"faces","source":"{{oc.handle}}","direction":[0,-1,0]}
+se_relations {"action":"add","type":"planar","occurrence1":"{{oc.handle}}","element1":"{{fcb.items[0].handle}}","occurrence2":"{{ob.handle}}","element2":"{{fbt.items[0].handle}}","align":false}
+se_relations {"action":"add","type":"planar","occurrence1":"{{oc.handle}}","element1":"{{fcx.items[0].handle}}","occurrence2":"{{ob.handle}}","element2":"{{fbx.items[0].handle}}","align":true}
+@q3 = se_relations {"action":"add","type":"planar","occurrence1":"{{oc.handle}}","element1":"{{fcy.items[0].handle}}","occurrence2":"{{ob.handle}}","element2":"{{fby.items[0].handle}}","align":true,"offset":-30}
+?= q3.relations[0].status solved
+?= q3.occurrence.status fully_constrained
+?= q3.occurrence.origin[0] 0
+?= q3.occurrence.origin[1] 30
+?= q3.occurrence.origin[2] 10
+@i3 = se_interference {}
+?= i3.status none
+se_documents {"action":"close","document":"{{a2.handle}}","saveChanges":false}
 se_documents {"action":"list"}
