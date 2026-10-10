@@ -93,7 +93,7 @@ public static partial class FeatureService
             }
         }
 
-        HoleData data = CreateHoleData(model, spec, holeType);
+        HoleData data = CreateHoleData(model, spec, holeType, depth);
         double before = model.Volume();
         double current = before;
         bool warning = false;
@@ -312,17 +312,26 @@ public static partial class FeatureService
         return dot > 0 ? FeaturePropertyConstants.igLeft : FeaturePropertyConstants.igRight;
     }
 
-    private static HoleData CreateHoleData(ModelDocument model, HoleSpec spec, FeaturePropertyConstants type)
+    private static HoleData CreateHoleData(ModelDocument model, HoleSpec spec, FeaturePropertyConstants type, double depth)
     {
         HoleDataCollection collection = model.HoleData;
         if (spec.Type == "tapped")
         {
             (double nominal, double pitch, string description) = ParseMetricThread(spec.Thread);
             double drill = spec.Diameter is { } d ? Units.MmToM(Units.RequirePositive(d, "diameter")) : nominal - pitch;
-            return collection.Add(type, drill,
-                ThreadMinorDiameter: nominal - 1.0825 * pitch,
-                ThreadExternalDiameter: nominal,
-                ThreadDescription: description);
+            // Comprobado: en un agujero finito Solid Edge da la operación por fallida si la rosca queda con
+            // ThreadDepthMethod igNone (lo que deja Add por defecto); se rosca toda la profundidad del agujero.
+            return depth > 0
+                ? collection.Add(type, drill,
+                    ThreadMinorDiameter: nominal - 1.0825 * pitch,
+                    ThreadDepthMethod: FeaturePropertyConstants.igFinite,
+                    ThreadDepth: depth,
+                    ThreadExternalDiameter: nominal,
+                    ThreadDescription: description)
+                : collection.Add(type, drill,
+                    ThreadMinorDiameter: nominal - 1.0825 * pitch,
+                    ThreadExternalDiameter: nominal,
+                    ThreadDescription: description);
         }
 
         double diameter = Units.MmToM(Units.RequirePositive(spec.Diameter ?? throw ToolException.InvalidArgument("se_hole requires 'diameter' (mm)."), "diameter"));
@@ -348,7 +357,14 @@ public static partial class FeatureService
                     throw ToolException.InvalidArgument("'countersinkDiameter' must be larger than 'diameter'.");
                 }
 
-                double angle = Units.DegToRad(Units.RequirePositive(spec.CountersinkAngle, "countersinkAngle"));
+                // HoleData.CountersinkAngle va en grados, no en radianes como el resto del API (comprobado: por
+                // defecto vale 82 y con 90 el volumen coincide con el cono de 90°).
+                double angle = Units.RequirePositive(spec.CountersinkAngle, "countersinkAngle");
+                if (angle >= 180)
+                {
+                    throw ToolException.InvalidArgument("'countersinkAngle' (degrees) must be below 180.");
+                }
+
                 return collection.Add(type, diameter, CountersinkDiameter: csd, CountersinkAngle: angle);
             }
 
