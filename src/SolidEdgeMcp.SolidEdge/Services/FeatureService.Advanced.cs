@@ -319,8 +319,8 @@ public static partial class FeatureService
         {
             (double nominal, double pitch, string description) = ParseMetricThread(spec.Thread);
             double drill = spec.Diameter is { } d ? Units.MmToM(Units.RequirePositive(d, "diameter")) : nominal - pitch;
-            // Comprobado: en un agujero finito Solid Edge da la operación por fallida si la rosca queda con
-            // ThreadDepthMethod igNone (lo que deja Add por defecto); se rosca toda la profundidad del agujero.
+            // Comprobado: un agujero roscado finito falla si Add no recibe ThreadDepthMethod y ThreadDepth; con
+            // igFinite y la profundidad del agujero se crea (aunque HoleData.ThreadDepthMethod se lea después como igNone).
             return depth > 0
                 ? collection.Add(type, drill,
                     ThreadMinorDiameter: nominal - 1.0825 * pitch,
