@@ -71,6 +71,13 @@ public enum MovingSide
     Left,
 }
 
+/// <summary>Lado del espesor de la pestaña o brida de contorno; 'symmetric' no existe en chapa.</summary>
+public enum SheetDirection
+{
+    Normal,
+    Reverse,
+}
+
 public enum BendPosition
 {
     Inside,
@@ -125,7 +132,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
         CornerType cornerType = CornerType.Round,
         [Description("break_corner: round radius or chamfer setback in mm.")] double? size = null,
         [Description("contour_flange: extent along the sketch normal in mm.")] double? width = null,
-        [Description("tab: side of the thickness (normal or reverse); contour_flange: only normal.")] FeatureDirection direction = FeatureDirection.Normal,
+        [Description("tab: side of the thickness (normal or reverse); contour_flange: only normal.")] SheetDirection direction = SheetDirection.Normal,
         [Description("contour_flange: side of the chain where the thickness goes, walking from its first point, seen from the side the sketch normal points to.")] ChainSide materialSide = ChainSide.Right,
         [Description("set_settings: material thickness in mm.")] double? thickness = null,
         [Description("set_settings: default bend radius in mm.")] double? bendRadius = null,
