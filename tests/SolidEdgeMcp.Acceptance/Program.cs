@@ -189,7 +189,8 @@ static string Shorten(string text) => text.Length <= 300 ? text : text[..300] + 
 
 static string Resolve(Dictionary<string, JsonElement> vars, string path)
 {
-    string[] parts = path.Split('.');
+    // Los puntos dentro de un filtro ([?name="a.par"]) no separan tramos.
+    string[] parts = Regex.Split(path, @"\.(?![^\[]*\])");
     JsonElement current = vars[parts[0]];
     foreach (string part in parts.Skip(1))
     {
