@@ -32,7 +32,42 @@ se_material {"action":"libraries"}
 @va = se_variables {"action":"add","name":"Thick","value":10}
 @vg = se_variables {"action":"get","name":"Thick"}
 ?= vg.value 10
-se_variables {"action":"delete","name":"Thick"}
+# límites (fuera de ellos Solid Edge conserva el valor sin avisar: la herramienta da value_rejected), comentario, exponer y renombrar
+@lr = se_variables {"action":"limits","name":"Thick","min":5,"max":20}
+?= lr.limits.type range
+?= lr.limits.max 20
+! [value_rejected] se_variables {"action":"set","name":"Thick","value":25}
+@s20 = se_variables {"action":"set","name":"Thick","value":20}
+?= s20.variable.value 20
+se_variables {"action":"limits","name":"Thick","min":5,"max":20,"minExclusive":true}
+! [value_rejected] se_variables {"action":"set","name":"Thick","value":5}
+@lv = se_variables {"action":"limits","name":"Thick","values":[10,20,30]}
+?= lv.limits.type values
+?= lv.limits.values[2] 30
+! [value_rejected] se_variables {"action":"set","name":"Thick","value":25}
+se_variables {"action":"set","name":"Thick","value":30}
+! [invalid_argument] se_variables {"action":"limits","name":"Thick","min":5,"max":20,"values":[10]}
+@lb = se_variables {"action":"limits","name":"Thick","min":20,"max":30,"minExclusive":true,"maxExclusive":true}
+?= lb.limits.minExclusive true
+! [value_rejected] se_variables {"action":"set","name":"Thick","value":20}
+@lm = se_variables {"action":"limits","name":"Thick","min":20}
+?= lm.limits.min 20
+se_variables {"action":"set","name":"Thick","value":200}
+se_variables {"action":"limits","name":"Thick"}
+@s25 = se_variables {"action":"set","name":"Thick","value":25}
+?= s25.variable.value 25
+@cm = se_variables {"action":"comment","name":"Thick","comment":"espesor de la placa"}
+?~ cm.comment espesor de la placa
+@ex = se_variables {"action":"expose","name":"Thick","exposeName":"Espesor"}
+?= ex.exposedAs Espesor
+@rn = se_variables {"action":"rename","name":"Thick","newName":"Espesor2"}
+?= rn.name Espesor2
+! [not_found] se_variables {"action":"get","name":"Thick"}
+@dims = se_variables {"action":"list","kind":"dimension","filter":"ExtrudedProtrusion*"}
+@rd = se_variables {"action":"rename","name":"{{dims.variables[0].name}}","newName":"Espesor_placa"}
+?= rd.kind dimension
+?= rd.value 10
+se_variables {"action":"delete","name":"Espesor2"}
 se_properties {"action":"set","name":"Project","value":"MCP acceptance"}
 @pl = se_properties {"action":"list","set":"Custom"}
 ?~ pl MCP acceptance
@@ -42,6 +77,8 @@ se_properties {"action":"set","set":"SummaryInformation","name":"Title","value":
 ?~ pa A02 title
 ?~ pa ProjectInformation
 se_properties {"action":"delete","name":"Project"}
+# cambiar una variable caduca las caras: se vuelven a consultar
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
 se_selection {"action":"set","handles":["{{top2.items[0].handle}}"]}
 @sel = se_selection {"action":"get"}
 ?= sel.count 1

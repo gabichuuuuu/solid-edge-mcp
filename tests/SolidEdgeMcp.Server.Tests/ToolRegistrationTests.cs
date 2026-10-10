@@ -101,6 +101,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_options", """{"action":"set_units","unitType":"distance","unit":"inch","precision":3}""")]
     [InlineData("se_ui", """{"action":"state","window":"doc:2","state":"maximized"}""")]
     [InlineData("se_ui", """{"action":"ribbon","environment":"SheetMetal","tab":"Home"}""")]
+    [InlineData("se_variables", """{"action":"limits","name":"Thick","min":5,"max":20,"maxExclusive":true}""")]
+    [InlineData("se_variables", """{"action":"limits","name":"Thick","values":[10,20,30]}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();

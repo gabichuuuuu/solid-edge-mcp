@@ -14,6 +14,10 @@ public enum VariableAction
     Set,
     Add,
     Delete,
+    Rename,
+    Comment,
+    Expose,
+    Limits,
 }
 
 public enum VariableKind
@@ -57,7 +61,9 @@ public sealed class DataTools(ToolRunner runner)
     [Description("""
         Variable table (user variables and dimensions). Values in mm, degrees, mm2, mm3 (formulas use Solid Edge syntax).
         list (filter with * wildcards, kind all|user|dimension) | get (name) | set (name; value or formula; the model updates and the volume change is returned) |
-        add (name, value or formula, units distance|angle|area|volume|mass|scalar) | delete (user variable).
+        add (name, value or formula, units distance|angle|area|volume|mass|scalar) | delete (user variable) | rename (name, newName; formulas follow) | comment (name, comment) |
+        expose (name, expose true/false, exposeName: publishes it for assemblies and part families) | limits (name; min and max = range, minExclusive/maxExclusive optional; or values = allowed values; neither = remove the limits).
+        A value outside the limits is rejected (value_rejected). get/list return the formula, comment, exposed name and limits.
         Example: {"action":"set","name":"Length","value":120}.
         """)]
     public Task<CallToolResult> Variables(
@@ -70,6 +76,15 @@ public sealed class DataTools(ToolRunner runner)
         [Description("For add.")] VariableUnits units = VariableUnits.Distance,
         int offset = 0,
         int limit = 100,
+        [Description("For rename: the new name.")] string? newName = null,
+        [Description("For comment: the comment text.")] string? comment = null,
+        [Description("For expose: true publishes the variable, false withdraws it.")] bool expose = true,
+        [Description("For expose: published name (default: the variable name).")] string? exposeName = null,
+        [Description("For limits: lower end of the range (tool units).")] double? min = null,
+        [Description("For limits: upper end of the range (tool units).")] double? max = null,
+        [Description("For limits: the only allowed values (tool units).")] double[]? values = null,
+        [Description("For limits: the range excludes min.")] bool minExclusive = false,
+        [Description("For limits: the range excludes max.")] bool maxExclusive = false,
         [Description("Document handle; default: active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -87,6 +102,14 @@ public sealed class DataTools(ToolRunner runner)
                 ToolRunner.Require(name, "name", "add"), value, formula, FeatureTools.Snake(units)), cancellationToken),
             VariableAction.Delete => runner.RunAsync(tool, actionName, c => VariableService.Delete(c, document,
                 ToolRunner.Require(name, "name", "delete")), cancellationToken),
+            VariableAction.Rename => runner.RunAsync(tool, actionName, c => VariableService.Rename(c, document,
+                ToolRunner.Require(name, "name", "rename"), ToolRunner.Require(newName, "newName", "rename")), cancellationToken),
+            VariableAction.Comment => runner.RunAsync(tool, actionName, c => VariableService.Comment(c, document,
+                ToolRunner.Require(name, "name", "comment"), comment ?? ""), cancellationToken),
+            VariableAction.Expose => runner.RunAsync(tool, actionName, c => VariableService.Expose(c, document,
+                ToolRunner.Require(name, "name", "expose"), expose, exposeName), cancellationToken),
+            VariableAction.Limits => runner.RunAsync(tool, actionName, c => VariableService.Limits(c, document,
+                ToolRunner.Require(name, "name", "limits"), min, max, values, minExclusive, maxExclusive), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

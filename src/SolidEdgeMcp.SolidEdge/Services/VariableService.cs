@@ -23,6 +23,12 @@ public static class VariableService
     private const int VarTypeVariable = 2;
     private const int VarTypeBoth = 3;
 
+    // Bits de la condición de rango de una variable (SetValueRangeValues), medidos en Solid Edge 2026.
+    private const int RangeMinExclusive = 1;
+    private const int RangeMinInclusive = 2;
+    private const int RangeMaxExclusive = 4;
+    private const int RangeMaxInclusive = 8;
+
     public static object List(SeContext context, string? documentHandle, string? filter, string kind, int offset, int limit)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
@@ -73,7 +79,20 @@ public static class VariableService
         else
         {
             double v = Units.RequireFinite(value ?? throw ToolException.InvalidArgument("Action 'set' requires 'value' or 'formula'."), "value");
-            Late.Set(item, "Value", ToDatabase(v, UnitsOf(item)));
+            int units = UnitsOf(item);
+            double target = ToDatabase(v, units);
+            Late.Set(item, "Value", target);
+
+            // Fuera de sus límites (rango o lista de valores) Solid Edge conserva el valor anterior sin dar error.
+            double now = Convert.ToDouble(Late.Get(item, "Value"), CultureInfo.InvariantCulture);
+            if (Math.Abs(now - target) > 1e-9 * Math.Max(1, Math.Abs(target)))
+            {
+                throw new ToolException("value_rejected",
+                    $"Solid Edge kept '{name}' at {Math.Round(FromDatabase(now, units), 9)} {UnitLabel(units)} instead of {v} {UnitLabel(units)}.",
+                    LimitsOf(item, units) is { } limits
+                        ? $"The value must respect the variable's limits ({JsonText(limits)}); change them with action 'limits'."
+                        : "The value may not produce a valid model; try another one.");
+            }
         }
 
         context.ModelChanged(document, $"the variable '{name}' changed");
@@ -136,6 +155,125 @@ public static class VariableService
         return new { deleted = name };
     }
 
+    /// <summary>Cambia el nombre de una variable o cota; Solid Edge actualiza las fórmulas que la usan.</summary>
+    public static object Rename(SeContext context, string? documentHandle, string name, string newName)
+    {
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        object item = Find(document, name);
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            throw ToolException.InvalidArgument("Action 'rename' requires 'newName'.");
+        }
+
+        try
+        {
+            ((Variables)document.Variables).PutName(item, newName);
+        }
+        catch (COMException ex)
+        {
+            throw new ToolException("variable_failed", $"Solid Edge rejected the name '{newName}': {ex.Message}",
+                "Use a unique name that starts with a letter and has no spaces or operators.", ex);
+        }
+
+        if (!string.Equals(NameOf(item), newName, StringComparison.Ordinal))
+        {
+            throw new ToolException("variable_failed", $"Solid Edge kept the name '{NameOf(item)}'.", "Use a unique name that starts with a letter.");
+        }
+
+        return Describe(context, document, item);
+    }
+
+    /// <summary>Comentario de la variable (columna «Comentario» de la tabla de variables).</summary>
+    public static object Comment(SeContext context, string? documentHandle, string name, string comment)
+    {
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        object item = Find(document, name);
+        try
+        {
+            Late.Call(item, "SetComment", comment);
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            throw new ToolException("not_supported", $"'{name}' does not accept a comment: {ComErrors.Unwrap(ex).Message}", null, ex);
+        }
+
+        return Describe(context, document, item);
+    }
+
+    /// <summary>Publica la variable con un nombre para usarla desde conjuntos o familias de piezas (Expose).</summary>
+    public static object Expose(SeContext context, string? documentHandle, string name, bool expose, string? exposeName)
+    {
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        object item = Find(document, name);
+        try
+        {
+            Late.Set(item, "Expose", expose ? 1 : 0);
+            if (expose && !string.IsNullOrWhiteSpace(exposeName))
+            {
+                Late.Set(item, "ExposeName", exposeName);
+            }
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            throw new ToolException("not_supported", $"'{name}' cannot be exposed: {ComErrors.Unwrap(ex).Message}", null, ex);
+        }
+
+        return Describe(context, document, item);
+    }
+
+    /// <summary>
+    /// Límites de la variable: rango (min y max) o lista de valores permitidos; sin ninguno, los quita. Condiciones
+    /// de rango: máscara de bits (RangeMin*/RangeMax*); un rango puede tener solo min o solo max.
+    /// </summary>
+    public static object Limits(SeContext context, string? documentHandle, string name, double? min, double? max, double[]? values,
+        bool minExclusive, bool maxExclusive)
+    {
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        object item = Find(document, name);
+        int units = UnitsOf(item);
+        try
+        {
+            if (values is { Length: > 0 })
+            {
+                if (min is not null || max is not null)
+                {
+                    throw ToolException.InvalidArgument("Give either 'values' (allowed values) or 'min' and 'max' (range), not both.");
+                }
+
+                Array list = values.Select(v => ToDatabase(Units.RequireFinite(v, "values"), units)).ToArray();
+                Late.CallByRef(item, "SetDiscreteValues", [list], 0);
+            }
+            else if (min is not null || max is not null)
+            {
+                if (min is not null && max is not null && min >= max)
+                {
+                    throw ToolException.InvalidArgument("The range needs min < max.");
+                }
+
+                int condition = (min is null ? 0 : minExclusive ? RangeMinExclusive : RangeMinInclusive)
+                    | (max is null ? 0 : maxExclusive ? RangeMaxExclusive : RangeMaxInclusive);
+                Late.Call(item, "SetValueRangeValues", ToDatabase(min ?? 0, units), condition, ToDatabase(max ?? 0, units));
+            }
+            else
+            {
+                Late.Call(item, "ClearLimitsOrDiscreteValues");
+            }
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            throw new ToolException("not_supported", $"Solid Edge did not accept limits on '{name}': {ComErrors.Unwrap(ex).Message}",
+                "Limits apply to user variables and driving dimensions.", ex);
+        }
+
+        bool wanted = values is { Length: > 0 } || min is not null || max is not null;
+        if ((LimitsOf(item, units) is not null) != wanted)
+        {
+            throw new ToolException("variable_failed", $"Solid Edge did not {(wanted ? "set" : "clear")} the limits of '{name}'.");
+        }
+
+        return Describe(context, document, item);
+    }
+
     private static object Query(SolidEdgeDocument document, string criterion, int varType)
     {
         var variables = (Variables)document.Variables;
@@ -195,9 +333,79 @@ public static class VariableService
             unit = UnitLabel(units),
             formula = Late.TryGetString(item, "Formula") is { Length: > 0 } f ? f : null,
             readOnly = Late.TryGet(item, "IsReadOnly") as bool?,
+            comment = TryCall(item, "GetComment") as string is { Length: > 0 } c ? c : null,
+            exposedAs = Late.TryGet(item, "Expose") is int e && e != 0 ? Late.TryGetString(item, "ExposeName") ?? NameOf(item) : null,
+            limits = LimitsOf(item, units),
             handle = context.Register(item, item is Dimension ? "dimension" : "variable", document),
         };
     }
+
+    /// <summary>Límites de la variable (rango o lista de valores) en unidades de las herramientas, o <c>null</c>.</summary>
+    private static object? LimitsOf(object item, int units)
+    {
+        object?[] has;
+        try
+        {
+            has = Late.CallByRef(item, "HasVariableLimit", [false, 0], 0, 1);
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            return null;
+        }
+
+        if (has[0] is not true)
+        {
+            return null;
+        }
+
+        int kind = Convert.ToInt32(has[1], CultureInfo.InvariantCulture);
+        if (kind == (int)VariableLimitValueConstant.igMinMaxLimit)
+        {
+            object?[] range = Late.CallByRef(item, "GetValueRangeValues", [0.0, 0, 0.0], 0, 1, 2);
+            int condition = Convert.ToInt32(range[1], CultureInfo.InvariantCulture);
+            bool hasMin = (condition & (RangeMinExclusive | RangeMinInclusive)) != 0;
+            bool hasMax = (condition & (RangeMaxExclusive | RangeMaxInclusive)) != 0;
+            return new
+            {
+                type = "range",
+                min = hasMin ? Math.Round(FromDatabase(Convert.ToDouble(range[0], CultureInfo.InvariantCulture), units), 9) : (double?)null,
+                max = hasMax ? Math.Round(FromDatabase(Convert.ToDouble(range[2], CultureInfo.InvariantCulture), units), 9) : (double?)null,
+                minExclusive = (condition & RangeMinInclusive) == 0 && (condition & RangeMinExclusive) != 0 ? true : (bool?)null,
+                maxExclusive = (condition & RangeMaxInclusive) == 0 && (condition & RangeMaxExclusive) != 0 ? true : (bool?)null,
+                unit = UnitLabel(units),
+            };
+        }
+
+        double[]? values = null;
+        try
+        {
+            // Por IDispatch el parámetro de salida tiene que llegar como matriz de double (con null da DISP_E_TYPEMISMATCH).
+            if (Late.CallByRef(item, "GetDiscreteValues", [new double[] { 0.0 }], 0)[0] is Array list)
+            {
+                values = list.Cast<object>().Select(v => Math.Round(FromDatabase(Convert.ToDouble(v, CultureInfo.InvariantCulture), units), 9)).ToArray();
+            }
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            // Sin lista legible: se indica solo el tipo de límite.
+        }
+
+        return new { type = "values", values, unit = UnitLabel(units) };
+    }
+
+    private static object? TryCall(object target, string method)
+    {
+        try
+        {
+            return Late.Call(target, method);
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            return null;
+        }
+    }
+
+    private static string JsonText(object value) => System.Text.Json.JsonSerializer.Serialize(value);
 
     /// <summary>Tipo de unidad (<see cref="UnitTypeConstants"/>): de la variable o, en cotas, según su tipo.</summary>
     private static int UnitsOf(object item)
