@@ -11,7 +11,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// independientes (como el comando Boceto de la interfaz): cada operación usa una copia enlazada
 /// de su perfil, así que el boceto sobrevive si la operación falla y se borra.
 /// </summary>
-public static class SketchService
+public static partial class SketchService
 {
     private const int LineStart = 0;
     private const int LineEnd = 1;
@@ -275,5 +275,12 @@ public static class SketchService
         lines = profile.Lines2d.Count,
         circles = profile.Circles2d.Count,
         arcs = profile.Arcs2d.Count,
+        ellipses = NonZero(profile.Ellipses2d.Count),
+        splines = NonZero(profile.BSplineCurves2d.Count),
+        points = NonZero(profile.Points2d.Count),
+        relations = NonZero(((Relations2d)profile.Relations2d).Count),
+        dimensions = NonZero(((Dimensions)profile.Dimensions).Count),
     };
+
+    private static int? NonZero(int count) => count == 0 ? null : count;
 }
