@@ -44,7 +44,7 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
     public Task<CallToolResult> Documents(
         DocumentAction action,
         [Description("Document handle (e.g. 'doc:1'); default: active document.")] string? document = null,
-        [Description("For 'new': part | sheet_metal | assembly | draft | weldment.")] DocumentKind? kind = null,
+        [Description("For 'new': part | sheet_metal | assembly | draft | weldment (without a .pwd template, as Solid Edge 2026 installs none, an assembly from the weldment assembly template).")] DocumentKind? kind = null,
         [Description("For 'new': template file (optional; allowed folders or the Solid Edge template folder).")] string? template = null,
         [Description("For 'open', 'save_as', 'save_copy_as': absolute file path.")] string? path = null,
         [Description("For 'save_as'/'save_copy_as': replace an existing file.")] bool overwrite = false,

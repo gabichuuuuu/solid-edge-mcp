@@ -60,9 +60,21 @@ public static class DocumentService
     public static DocumentInfo New(SeContext context, string kind, string? template)
     {
         (string progId, DocumentTypeConstants type) = DocumentKinds.ForNew(kind);
-        object created = string.IsNullOrWhiteSpace(template)
-            ? context.Application.Documents.Add(progId)
-            : context.Application.Documents.Add(progId, CheckTemplate(context, template, type));
+        object created;
+        if (!string.IsNullOrWhiteSpace(template))
+        {
+            created = context.Application.Documents.Add(progId, CheckTemplate(context, template, type));
+        }
+        else if (type == DocumentTypeConstants.igWeldmentDocument && WeldmentAssemblyTemplate(context) is { } weldment)
+        {
+            // Comprobado en Solid Edge 2026: no trae plantilla .pwd (la plantilla por defecto es solo la carpeta y
+            // Add falla con STG_E_PATHNOTFOUND); la soldadura es un conjunto creado con «<unidades> weldment.asm».
+            created = context.Application.Documents.Add("SolidEdge.AssemblyDocument", weldment);
+        }
+        else
+        {
+            created = context.Application.Documents.Add(progId);
+        }
         var document = (SolidEdgeDocument)created;
         return Describe(context, document, document);
     }
@@ -365,6 +377,31 @@ public static class DocumentService
             }
 
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Plantilla de soldadura en forma de conjunto (junto a la plantilla de conjunto por defecto) si no hay
+    /// plantilla .pwd instalada; null si existe la .pwd o no se encuentra ninguna.
+    /// </summary>
+    private static string? WeldmentAssemblyTemplate(SeContext context)
+    {
+        try
+        {
+            if (File.Exists(context.Application.GetDefaultTemplatePath(DocumentTypeConstants.igWeldmentDocument)))
+            {
+                return null;
+            }
+
+            string? folder = System.IO.Path.GetDirectoryName(
+                context.Application.GetDefaultTemplatePath(DocumentTypeConstants.igAssemblyDocument));
+            return folder is not null && Directory.Exists(folder)
+                ? Directory.EnumerateFiles(folder, "*weldment*.asm").Order(StringComparer.OrdinalIgnoreCase).FirstOrDefault()
+                : null;
+        }
+        catch (COMException)
+        {
+            return null;
         }
     }
 
