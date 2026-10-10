@@ -261,7 +261,9 @@ se_sheetmetal {"action":"tab","sketch":"{{q2.sketch}}"}
 @gm2 = se_geometry {"action":"summary"}
 se_documents {"action":"close","document":"{{m2.handle}}","saveChanges":false}
 #    Dobladillos abierto, en S y bucle cerrado, cada uno en su chapa (pestaña + brida de 20 en y=0, borde superior en z=21).
-#    Valores de Solid Edge de referencia (el cerrado de A05 suma 957.508)
+#    Abierto: pliegue de 180° con r = 1 (pi*(r + t/2)*t*w = 471.239) + tramo recto de 8 - t = 7 -> +1171.239.
+#    En S: dos pliegues de 180° (942.478) + tramos rectos de 7 y 6 -> +2242.478.
+#    Bucle cerrado: valor de referencia de Solid Edge (como el cerrado de A05, +957.508), sin fórmula sencilla.
 @m3 = se_documents {"action":"new","kind":"sheet_metal"}
 @q3 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{q3.sketch}}","points":[0,0,100,60]}
@@ -308,7 +310,8 @@ se_sketch {"action":"close","sketch":"{{q6.sketch}}","open":true}
 ?= cfl.volume 11071.239 0.01
 se_documents {"action":"close","document":"{{m6.handle}}","saveChanges":false}
 #    Formas en una pestaña 100x60: recorte normal 20x10 (por espesor, plano medio y holgura: -200 cada uno en zona plana),
-#    embutido 'normal', cordón en V, desvío 'outside', plegados 'outside' y 'symmetric' con el lado móvil a la izquierda
+#    embutido 'normal' y cordón en V (valores de referencia de Solid Edge: formas 3D con los radios y la conicidad por
+#    defecto, sin fórmula sencilla), desvío 'outside', plegados 'outside' y 'symmetric' con el lado móvil a la izquierda
 @m7 = se_documents {"action":"new","kind":"sheet_metal"}
 @q7 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{q7.sketch}}","points":[0,0,100,60]}
