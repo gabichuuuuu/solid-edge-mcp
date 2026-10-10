@@ -24,7 +24,7 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 | Función | Vía | Estado |
 |---|---|---|
 | Conectar, arrancar Solid Edge con licencia, reconectar | Alto nivel `se_session` | ✔ |
-| Crear pieza, chapa, conjunto, plano, soldadura (plantilla opcional) | `se_documents new` | ✔ |
+| Crear pieza, chapa, conjunto, plano, soldadura (plantilla opcional; sin plantilla `.pwd`, como en Solid Edge 2026, la soldadura es un conjunto con la plantilla de soldadura) | `se_documents new` | ✔ |
 | Abrir, activar, guardar, guardar como, guardar copia, cerrar | `se_documents` | ✔ |
 | Deshacer, rehacer, recalcular | `se_documents undo/redo/recompute` | ✔ (solo lo que Solid Edge registra; ver nota) |
 | Propiedades del documento (resumen, personalizadas) | `se_properties` | ✔ |

@@ -110,8 +110,8 @@ dotnet test --project tests\SolidEdgeMcp.Server.Tests\SolidEdgeMcp.Server.Tests.
 
 Los tests no necesitan Solid Edge. La validación de las herramientas se hace contra Solid Edge
 real con la batería de aceptación (`tests/SolidEdgeMcp.Acceptance`): guiones de llamadas MCP
-(`scripts/A01`–`A09`, de sesión a conjuntos, planos y capa COM) con volúmenes, medidas y errores
-esperados calculados a mano. Cada guion crea y cierra sin guardar sus documentos:
+(`scripts/A01`–`A09`, de sesión a conjuntos, planos y capa COM; `A10`, los valores de orientación,
+dirección y tipo que no usan los demás) con volúmenes, medidas y errores esperados calculados a mano. Cada guion crea y cierra sin guardar sus documentos:
 
 ```powershell
 dotnet build SolidEdgeMcp.slnx
