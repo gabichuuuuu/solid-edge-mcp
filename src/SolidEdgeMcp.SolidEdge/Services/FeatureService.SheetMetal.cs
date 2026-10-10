@@ -167,13 +167,14 @@ public static partial class FeatureService
 
         Profile profile = SketchService.Resolve(context, sketch);
         double extent = Units.MmToM(Units.RequirePositive(width ?? throw ToolException.InvalidArgument("contour_flange requires 'width' (mm): the extent along the sketch normal."), "width"));
-        // igSymmetric se ignora en Solid Edge 2026 (sale igual que igRight), así que no se ofrece.
-        FeaturePropertyConstants projection = direction switch
+        // Solid Edge 2026 ignora el lado de proyección (1, 2, 3, 7 y 8 dan el mismo sólido): el ancho crece siempre hacia la
+        // normal del boceto.
+        if (direction != "normal")
         {
-            "normal" => FeaturePropertyConstants.igRight,
-            "reverse" => FeaturePropertyConstants.igLeft,
-            _ => throw ToolException.InvalidArgument($"Direction '{direction}' is not valid for a contour flange.", "Use normal or reverse."),
-        };
+            throw ToolException.InvalidArgument("Solid Edge always extends a base contour flange along the sketch normal.",
+                "Use direction 'normal' and draw the sketch on a plane whose normal points the way the width should grow (se_refplane, or the opposite face).");
+        }
+
         // Comprobado con una U recorrida desde su primer punto y vista desde el lado de la normal del boceto: igRight pone
         // el espesor a la izquierda del recorrido (al contrario que el lado móvil de desvíos y pliegues).
         FeaturePropertyConstants thicknessSide = materialSide switch
@@ -183,13 +184,18 @@ public static partial class FeatureService
             _ => throw ToolException.InvalidArgument($"Unknown materialSide '{materialSide}'.", "Use left or right."),
         };
         double bend = BendRadius(sheet, radius);
+        // En síncrono la brida de contorno base queda como una pestaña y una brida por cada tramo más (no en ContourFlanges).
+        HashSet<string> before = FeatureNames(model);
+        List<object> parts = [];
         object result = Synchronous(context, model, "contour flange", 1, sketch, [() =>
         {
             Model created = model.Models.AddBaseContourFlange(profile, (int)thicknessSide, (int)FeaturePropertyConstants.igFinite,
-                (int)projection, extent, bend);
-            return LastFeature(model, created.ContourFlanges);
+                (int)FeaturePropertyConstants.igRight, extent, bend);
+            parts = NewFeatures(model, before);
+            return parts.FirstOrDefault() ?? LastFeature(model, created.ContourFlanges);
         }],
-        "Check that the sketch is one open chain (se_sketch 'close' with open=true) and that the bend radius fits its corners.");
+        "Check that the sketch is one open chain (se_sketch 'close' with open=true) and that the bend radius fits its corners.",
+        () => parts);
         TryHide(profile);
         return result;
     }
@@ -432,8 +438,9 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Recorte normal a la chapa en todo su espesor. Con dirección «auto» se prueba hacia la normal del boceto y, si no
-    /// quita material, hacia el otro lado. No se usa igBoth: deja el cuerpo ilegible (E_FAIL) en Solid Edge 2026.
+    /// Recorte normal a la chapa en todo su espesor. Con dirección «auto» corta hacia el material si el boceto está sobre
+    /// una cara de la chapa; si no, prueba hacia la normal del boceto y, si no quita material, hacia el otro lado (el lado
+    /// sin material no da error ni efecto). No se usa igBoth: deja el cuerpo ilegible (E_FAIL) en Solid Edge 2026.
     /// </summary>
     private static object NormalCutout(SeContext context, ModelDocument model, Profile sketchProfile, string sketch, string direction, string method)
     {
@@ -472,8 +479,8 @@ public static partial class FeatureService
 
     /// <summary>
     /// Lado del plano del boceto hacia el material cuando el plano coincide con una cara plana del cuerpo (el material queda
-    /// al lado contrario de su normal exterior); <c>null</c> si no coincide con ninguna. Evita tantear: sobre el plano local
-    /// de una cara, al borrar el intento fallido Solid Edge se lleva el plano y el segundo intento falla también.
+    /// al lado contrario de su normal exterior); <c>null</c> si no coincide con ninguna. Evita un intento fallido, que
+    /// cuesta una operación creada y borrada.
     /// </summary>
     private static FeaturePropertyConstants? TowardsMaterial(ModelDocument model, Profile profile)
     {
@@ -595,7 +602,7 @@ public static partial class FeatureService
     /// modo y cada operación es una transacción): en síncrono, borrar una brida no devuelve la placa que recortó.
     /// </summary>
     private static object Synchronous(SeContext context, ModelDocument model, string what, int expectedSign, string? sketch,
-        IReadOnlyList<Func<object?>> steps, string nextStep)
+        IReadOnlyList<Func<object?>> steps, string nextStep, Func<IReadOnlyList<object>>? parts = null)
     {
         int undoStart = UndoCount(model);
         bool switched = model.EnsureSynchronous();
@@ -652,10 +659,11 @@ public static partial class FeatureService
             warnings.Add("The document could not return to ordered modeling.");
         }
 
+        IReadOnlyList<object> all = parts?.Invoke() is { Count: > 0 } split ? split : created;
         return new
         {
             feature = Describe(context, model, created[0]),
-            features = created.Count > 1 ? created.Select(f => Describe(context, model, f)).ToList() : null,
+            features = all.Count > 1 ? all.Select(f => Describe(context, model, f)).ToList() : null,
             volume = Geo.Mm3(final),
             volumeChange = Geo.Mm3(current - start),
             modelingMode = model.ModelingMode,
@@ -720,10 +728,20 @@ public static partial class FeatureService
         int count = Late.Count(collection);
         return count > 0
             ? Late.Call(collection, "Item", count)
-            : Late.Items(model.EdgebarFeatures).Reverse().FirstOrDefault(f => InteropCatalog.GetTypeName(f) is not { } type
-                || !(type.EndsWith(".Sketch", StringComparison.Ordinal) || type.EndsWith(".Profile", StringComparison.Ordinal)
-                    || type.EndsWith(".ProfileSet", StringComparison.Ordinal) || type.EndsWith(".RefPlane", StringComparison.Ordinal)));
+            : Late.Items(model.EdgebarFeatures).Reverse().FirstOrDefault(IsSolidFeature);
     }
+
+    /// <summary>Nombres de las operaciones de la barra, para localizar después las que añade una llamada.</summary>
+    private static HashSet<string> FeatureNames(ModelDocument model) =>
+        Late.Items(model.EdgebarFeatures).Select(f => Late.TryGetString(f, "Name")).OfType<string>().ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>Operaciones de la barra (sin bocetos ni planos) que no estaban en <paramref name="before"/>.</summary>
+    private static List<object> NewFeatures(ModelDocument model, HashSet<string> before) =>
+        Late.Items(model.EdgebarFeatures).Where(f => IsSolidFeature(f) && Late.TryGetString(f, "Name") is { } name && !before.Contains(name)).ToList();
+
+    private static bool IsSolidFeature(object feature) => InteropCatalog.GetTypeName(feature) is not { } type
+        || !(type.EndsWith(".Sketch", StringComparison.Ordinal) || type.EndsWith(".Profile", StringComparison.Ordinal)
+            || type.EndsWith(".ProfileSet", StringComparison.Ordinal) || type.EndsWith(".RefPlane", StringComparison.Ordinal));
 
     private static SheetMetalDocument Sheet(ModelDocument model) => model.Document as SheetMetalDocument
         ?? throw new ToolException("wrong_document_type", $"'{model.Document.Name}' is not a sheet metal document.",

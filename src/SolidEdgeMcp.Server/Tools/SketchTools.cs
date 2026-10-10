@@ -34,7 +34,7 @@ public sealed class SketchTools(ToolRunner runner)
     [McpServerTool(Name = "se_sketch", Title = "Sketch (profile)", Destructive = true, OpenWorld = false)]
     [Description("""
         2D sketches (profiles) for part features, in mm, in the sketch's own x/y coordinates.
-        create (plane: '1' = XY/top (normal +Z), '2' = YZ/right (+X), '3' = XZ/front (-Y), or a refplane / planar face handle) returns the sketch handle and its frame (origin, xAxis, yAxis, normal in model coordinates) |
+        create (plane: '1' = XY/top (normal +Z), '2' = YZ/right (+X), '3' = XZ/front (-Y), or a refplane / planar face handle) returns the sketch handle and its frame (origin, xAxis, yAxis, normal in model coordinates). Sketch x/y are measured from the frame origin along xAxis/yAxis: on a face the origin is not the model origin (model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis) |
         line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners [x1,y1,x2,y2]) | polyline (points [x1,y1,x2,y2,...], closed) | circle (center [x,y], radius) | arc (center, start, end; counter-clockwise) |
         axis (element = line handle; revolution axis for se_revolve, set it before close) | close (validates closed loops, or one open chain with open=true for contour flanges, bend/jog lines and paths; required before a feature) | info | delete.
         Example: create {"plane":"1"} → rectangle {"sketch":"sketch:5","points":[0,0,100,50]} → close → se_extrude.

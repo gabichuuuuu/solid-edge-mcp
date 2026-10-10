@@ -102,7 +102,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
         Sheet metal (.psm): settings, base, edge features and flat pattern. Lengths in mm, angles in degrees.
         settings: thickness, bend radius, relief width/depth, neutral factor | set_settings: changes any of them (the model updates).
         tab: closed sketch with ONE outline (se_sketch close) -> base tab with the document thickness (first feature) or an extra tab drawn on the plane of a sheet face; direction normal|reverse = side of the thickness. Cut holes afterwards (se_sheetmetal_form normal_cutout).
-        contour_flange: open sketch (se_sketch close with open=true) -> base contour flange: width along the sketch normal (direction normal|reverse), materialSide right|left of the chain, radius.
+        contour_flange: open sketch (se_sketch close with open=true) -> base contour flange (Solid Edge keeps it as a tab plus one flange per further segment, all returned in 'features'): width always grows along the sketch normal, materialSide right|left of the chain, radius.
         flange: one flange per edge (straight edges on the sheet faces, from se_geometry 'edges'); it rises from the face of the edge, away from the material (top edge -> up). length from that face; angle between flange and sheet (90 = perpendicular, smaller folds it back over the sheet); side inside (default: flange outer face flush with the edge) | outside (inner face at the edge) | bend_outside (bend starts at the edge); radius.
         hem: one hem per edge (usually the free edge of a flange). hemType closed | open | s_flange (radius2, length2) | closed_loop; length of the folded part; radius; side. Solid Edge may fail (RPC_E_SERVERFAULT) on an edge that meets another hem; the call is then undone.
         break_corner: cornerType round | chamfer with 'size' on corner edges through the thickness (se_geometry 'edges' with direction = sheet normal).
@@ -125,7 +125,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
         CornerType cornerType = CornerType.Round,
         [Description("break_corner: round radius or chamfer setback in mm.")] double? size = null,
         [Description("contour_flange: extent along the sketch normal in mm.")] double? width = null,
-        [Description("tab: side of the thickness; contour_flange: side of the width (normal or reverse).")] FeatureDirection direction = FeatureDirection.Normal,
+        [Description("tab: side of the thickness (normal or reverse); contour_flange: only normal.")] FeatureDirection direction = FeatureDirection.Normal,
         [Description("contour_flange: side of the chain where the thickness goes, walking from its first point, seen from the side the sketch normal points to.")] ChainSide materialSide = ChainSide.Right,
         [Description("set_settings: material thickness in mm.")] double? thickness = null,
         [Description("set_settings: default bend radius in mm.")] double? bendRadius = null,

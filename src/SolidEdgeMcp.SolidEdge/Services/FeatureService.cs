@@ -403,7 +403,7 @@ public static partial class FeatureService
 
             string kept = sketch is null ? "" : $" The sketch '{sketch}' is kept: call the tool again with it.";
             throw new ToolException("feature_failed", $"{name} was {(undoneByCaller ? "undone" : "deleted")} because {problem}.{kept}",
-                "Check the sketch position and the direction ('normal' follows the sketch normal returned by se_sketch 'create'; try 'reverse' or 'symmetric'), the extent, and that the geometry intersects the part.");
+                "Check that the geometry meets the part (sketch x/y are measured from the frame origin returned by se_sketch 'create', which on a face is not the model origin), the direction ('normal' follows the sketch normal; try another one) and the extent.");
         }
 
         return (after, status);
