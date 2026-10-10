@@ -28,7 +28,9 @@ damages the document in Solid Edge 2026 (do not use).
 | Open, activate, save, save as, save a copy, close | `se_documents` | ✔ |
 | Undo, redo, recalculate | `se_documents undo/redo/recompute` | ✔ (only what Solid Edge records; see the note) |
 | Document properties (summary, custom) | `se_properties` | ✔ |
-| Variables, dimensions and formulas | `se_variables` | ✔ |
+| Variables, dimensions and formulas; rename, comment, expose (assemblies, part families) and limits (range or allowed values) | `se_variables` | ✔ |
+| Solid Edge options (the Options dialog and global settings) and document options; document display units | `se_options` | ✔ |
+| Windows (list, activate, arrange, state), environments, ribbon tabs, groups and command ids | `se_ui` | ✔ |
 | Feature tree; suppress, delete, rename | `se_feature_tree`, `se_feature_edit` | ✔ |
 | Geometry (body, faces, edges with filters) | `se_geometry` | ✔ |
 | Measure distances and angles (in part and in assembly) | `se_measure` | ✔ |
@@ -52,6 +54,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Line, rectangle, polyline, circle, arc, ellipse, spline, point, corner fillet | `se_sketch` | ✔ |
 | Revolve axis (also one side of the profile: a copy is used and the profile stays closed) | `se_sketch axis` | ✔ |
 | Validate a closed profile or an open chain | `se_sketch close` | ✔ |
+| List the elements of a sketch (with keypoints) and its relations and dimensions | `se_sketch info`, `se_sketch_constraint list` | ✔ |
 | Project model edges onto the sketch | `se_sketch project` | ✔ |
 | 2D relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions (length, true distance, interior angle, radius, diameter) | `se_sketch_constraint` | ✔ |
 | Sketch text and chamfer | COM (`Profile.TextProfiles`, `Lines2d`…) | · |
@@ -115,7 +118,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Function | Route | Status |
 |---|---|---|
 | Insert, move, rotate, fix, replace, show/hide, suppress, delete components | `se_assembly` | ✔ |
-| Flush, axial, insert, angle, tangent relations; list and delete | `se_relations` | ✔ |
+| Planar (mate and flush), axial, insert, parallel (axes at a distance), tangent, angle (with a measurement plane) and rigid set relations; list and delete | `se_relations` | ✔ |
 | Faces, edges and summary (volume and exact box, also rotated) of each occurrence in assembly coordinates (own handles; the occurrence is inferred in relations and measurements) | `se_geometry source` = occurrence | ✔ |
 | Interferences | `se_interference` | ✔ |
 | Bill of materials | `se_bom` | ✔ |
@@ -133,7 +136,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Dimensions (length, distance, diameter, radius, angle) with automatic placement; retrieve dimensions | `se_drawing` | ✔ |
 | Parts list | `se_drawing parts_list` | ✔ |
 | Update views | `se_drawing update` | ✔ |
-| Balloons, centerlines, center marks, text boxes, notes | COM (`Sheet.Balloons`, `CenterLines`, `CenterMarks`, `TextBoxes`, `Leaders`) | · |
+| Text, balloons, callouts, center marks, centerlines and leaders attached to the views; list and delete | `se_annotation` | ✔ |
 | Surface finish, welds, geometric tolerances, datums | COM (`SurfaceFinishSymbols`, `WeldSymbols`, `FeatureControlFrames`, `DatumFrames`) | · |
 | Hole tables, bend tables, blocks | COM (`HoleTables`, `DraftBendTables`, `Blocks`) | · |
 | 2D geometry on the sheet | COM (`Sheet.Lines2d`, `Circles2d`, `Arcs2d`…) | · |

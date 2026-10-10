@@ -8,7 +8,21 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_annotation`: text, balloons, callouts, centre marks, centre lines and leaders on drawings,
+  attached to the views and checked after they are created.
+- `se_relations`: parallel (axes at a distance), tangent, angle and rigid set relations.
+- `se_variables`: rename, comment, expose and limit variables.
+- `se_options`: read and change Solid Edge options and document units.
+- `se_ui`: windows, environments and ribbon tabs, groups and commands.
+- `se_sketch info` and `se_sketch_constraint list`: elements of a sketch with their keypoints, and
+  its relations with their elements.
+- Acceptance scripts A11 (options and units) and A12 (user interface); A06 and A07 cover the new
+  relations and annotations.
 - License: the project is released under the MIT License ([LICENSE](LICENSE)).
+
+### Changed
+
+- Code comments, scripts and documentation are in English.
 
 ## [0.1.0-alpha] - unreleased
 

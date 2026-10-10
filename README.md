@@ -1,14 +1,15 @@
 # solid_edge_mcp
 
-**Local [MCP](https://modelcontextprotocol.io) server to operate Solid Edge from Claude Code,
+**Unofficial local [MCP](https://modelcontextprotocol.io) server to operate Solid Edge from Claude Code,
 Claude Desktop, Codex or any other MCP client.**
 
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Solid Edge 2026](https://img.shields.io/badge/Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![40 tools](https://img.shields.io/badge/tools-40-2F6FEB)
+![43 tools](https://img.shields.io/badge/tools-43-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 It lets an AI assistant work in Solid Edge through COM with the breadth of a person: querying
 models, drawing sketches, creating part and sheet metal features, building assemblies, making
@@ -81,7 +82,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-40 tools, grouped by area.
+43 tools, grouped by area.
 
 | Area | Tool | What it does |
 |---|---|---|
@@ -89,15 +90,17 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_session` | Status, connect (attaches to the open Solid Edge or starts it visibly) and disconnect. |
 | **Documents** | `se_documents` | Create a part, sheet metal, assembly, drawing or weldment; open, activate, save, save as or copy, close; undo and redo what Solid Edge records; recalculate. |
 | **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set and delete. |
-| | `se_variables` | Variables and dimensions: list, read, set a value or formula (returns the volume change), create and delete. |
+| | `se_variables` | Variables and dimensions: list, read, set a value or formula (returns the volume change), create, delete, rename, comment, expose and limit. |
 | | `se_material` | Material libraries: current material, properties and assignment (updates density and mass). |
 | **Query** | `se_feature_tree` | Features in order with their status, the modeling mode and the volume. |
 | | `se_geometry` | Summary, faces and edges with handles and filters; in assemblies, per occurrence and in assembly coordinates. |
 | | `se_measure` | Minimum distance and angle between faces, edges, planes or occurrences, also in assemblies. |
 | | `se_physical` | Volume, area, mass, center of gravity and inertia, with the given density or the material's. |
 | | `se_selection` | Read, replace, extend or clear the active selection. |
-| **View** | `se_view` | Capture the view as an image, framing (on drawings, the whole sheet with the title block), orientation and display mode. Does not change the model. |
-| **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, points, corner fillet, edge projection, revolve axis and validated close. |
+| **View and application** | `se_view` | Capture the view as an image, framing (on drawings, the whole sheet with the title block), orientation and display mode. Does not change the model. |
+| | `se_options` | Solid Edge options and document units: list, read and change them; returns the previous value so it can be restored. |
+| | `se_ui` | Windows, environments and ribbon: list, activate and arrange windows; list environments and the tabs, groups and commands of the ribbon. |
+| **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, points, corner fillet, edge projection, revolve axis and validated close; list the elements and relations of a sketch. |
 | | `se_sketch_constraint` | Geometric relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions that move the geometry. |
 | | `se_ref_plane` | Reference planes: list, and create offset or angled ones. |
 | **Part** | `se_extrude` | Boss or cut by extrusion: blind, through all or up to next; normal, reversed or symmetric. |
@@ -113,10 +116,11 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), tab, contour flange, flange, hem, corner break and flat pattern with cut size. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
 | **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences. |
-| | `se_relations` | Flush, axial and insert mates, checked geometrically; list and delete. |
+| | `se_relations` | Planar (mate and flush), axial, insert, parallel, tangent, angle and rigid set relations, checked geometrically; list and delete. |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
 | **Drawings** | `se_drawing` | Sheets; base, projected, auxiliary, section and detail views; dimensions and dimensions retrieved from the model; parts list; update. |
+| | `se_annotation` | Text, balloons, callouts, centre marks, centre lines and leaders attached to the views; list and delete. |
 | **Export** | `se_export` | Part, sheet metal and assembly to STEP, IGES, Parasolid, STL, JT, SAT, 3MF or PDF; drawings to PDF, DXF, DWG, IGES or TIF; sheet metal flat pattern to DXF or DWG. |
 | **Full API access** | `se_com_describe` | Properties and methods, with the types of their parameters, of any API object or interface. |
 | | `se_com_get` | Reads a property of an API object; objects come back as handles. |
@@ -127,8 +131,8 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_command` | Searches for and runs interface commands, as if the person clicked them. |
 
 Each tool declares its MCP annotations (read-only, destructive…) so the client can decide when to
-ask for approval. What has no specific tool (threads, ribs, booleans, assembly patterns, drawing
-annotations…) is done with `se_com_*` or `se_command`; details are in
+ask for approval. What has no specific tool (booleans between bodies, assembly patterns, surfaces, weld
+symbols…) is done with `se_com_*` or `se_command`; details are in
 [docs/COBERTURA.md](docs/COBERTURA.md).
 
 ## Architecture
@@ -138,7 +142,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 40 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 43 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -153,7 +157,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 40 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 43 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -272,14 +276,14 @@ tool_timeout_sec = 300
 
 ## Validation
 
-Results (unit tests run on 2026-10-11; acceptance suite last run on 2026-10-10):
+Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 44/44.
-- Acceptance suite against real Solid Edge 2026: **871 calls and 227 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 49/49.
+- Acceptance suite against real Solid Edge 2026: **998 calls and 318 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
-  script). All of them pass with the Debug executable and with the published one.
-- Coverage by value: the 40 tools have correct calls, and `A10` runs every value of the action,
+  script). All of them pass with the Debug executable.
+- Coverage by value: the 43 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -292,10 +296,12 @@ Results (unit tests run on 2026-10-11; acceptance suite last run on 2026-10-10):
 | `A04` | Sketches and dimensions |
 | `A05` | Sheet metal |
 | `A06` | Assemblies |
-| `A07` | Drawings and export to PDF, DXF and DWG |
+| `A07` | Drawings, annotations and export to PDF, DXF and DWG |
 | `A08` | COM layer and commands |
 | `A09` | Faces per occurrence and measurements in an assembly |
 | `A10` | Enumeration variants |
+| `A11` | Options and document units |
+| `A12` | Windows, environments and ribbon |
 
 ## Known limitations
 
@@ -318,13 +324,13 @@ Results (unit tests run on 2026-10-11; acceptance suite last run on 2026-10-10):
 ```text
 solid_edge_mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (40 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (43 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A10 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A12 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COBERTURA.md (coverage by function and route)
@@ -350,7 +356,8 @@ one in `C:\Program Files\dotnet`.
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
 calls (`scripts/A01`–`A09`, from session to assemblies, drawings and the COM layer; `A10`, the
-orientation, direction and type values that the others do not use), with volumes, measurements and
+orientation, direction and type values that the others do not use; `A11`–`A12`, options and user
+interface), with volumes, measurements and
 expected errors calculated by hand. Each script creates and closes its documents without saving:
 
 ```powershell
@@ -384,7 +391,7 @@ Commits follow Conventional Commits, in English.
 - **Alpha (0.1.0).** Working, registered in Claude Code and Codex, and validated end to end. Change
   history in [CHANGELOG.md](CHANGELOG.md).
 - **Next:** more high-level tools for families that today go through COM (threads, ribs, rib
-  networks, lips, grilles, booleans between bodies, assembly patterns, drawing annotations) and MCP
+  networks, lips, grilles, booleans between bodies, assembly patterns, drawing symbols) and MCP
   prompts for common workflows.
 - **Pending:** continuous integration (CI).
 
@@ -394,7 +401,9 @@ Released under the [MIT License](LICENSE). Copyright (c) 2026 Gabriel Spoleto Co
 
 ## Trademarks and disclaimer
 
-Solid Edge and Siemens are trademarks of Siemens Digital Industries Software. This project is
-independent and is not affiliated with, sponsored by or endorsed by Siemens. The COM interop and the
-API dumps are generated locally from your own Solid Edge installation; they are not distributed with
-this repository.
+Solid Edge is a trademark or registered trademark of Siemens Industry Software Inc. or its
+subsidiaries or affiliates. Siemens is a registered trademark of Siemens Trademark GmbH & Co. KG.
+Other trademarks belong to their respective owners. This project is independent and is not
+affiliated with, sponsored by or endorsed by Siemens. The COM interop and the API dumps are
+generated locally from your own Solid Edge installation; they are not distributed with this
+repository, and no prebuilt binaries are distributed because a build contains that interop.
