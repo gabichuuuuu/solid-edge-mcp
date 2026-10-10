@@ -14,9 +14,21 @@ public static class InspectService
     public static readonly IReadOnlyList<string> FaceTypes = ["all", "plane", "cylinder", "cone", "sphere", "torus"];
     public static readonly IReadOnlyList<string> EdgeTypes = ["all", "line", "circle", "spline"];
 
-    public static object Summary(SeContext context, string? documentHandle)
+    public static object Summary(SeContext context, string? documentHandle, string? source = null)
     {
-        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        if (!string.IsNullOrWhiteSpace(source))
+        {
+            return OccurrenceSummary(context, source);
+        }
+
+        SolidEdgeDocument target = context.GetDocument(documentHandle);
+        if (target is AssemblyDocument)
+        {
+            throw new ToolException("wrong_document_type", $"'{SeContext.SafeName(target)}' is an assembly; its summary is per occurrence.",
+                "Pass 'source' = an occurrence handle (se_assembly list) for the summary of its part in assembly coordinates.");
+        }
+
+        ModelDocument model = ModelDocument.From(target);
         string document = context.DocumentHandle(model.Document);
         if (model.TryModel()?.Body is not Body body)
         {
@@ -39,6 +51,41 @@ public static class InspectService
             edges = Late.Count(body.Edges[FeatureTopologyQueryTypeConstants.igQueryAll]),
             vertices = Late.Count(body.Vertices),
             modelingMode = model.ModelingMode,
+        };
+    }
+
+    /// <summary>
+    /// Resumen del cuerpo de la pieza de una ocurrencia. La caja es la de <c>Occurrence.Range</c>, en coordenadas del
+    /// conjunto y exacta también con la pieza girada (comprobado en Solid Edge 2026).
+    /// </summary>
+    private static object OccurrenceSummary(SeContext context, string source)
+    {
+        if (context.Handles.Resolve(source, "source") is not Occurrence occurrence)
+        {
+            throw ToolException.InvalidArgument("For 'summary', 'source' must be an assembly occurrence handle (se_assembly list).",
+                "Omit 'source' for the summary of a part or sheet metal document.");
+        }
+
+        ModelDocument part = AssemblyService.PartOf(occurrence);
+        if (part.TryModel()?.Body is not Body body)
+        {
+            return new { occurrence = source, name = occurrence.Name, solid = false, volume = 0.0 };
+        }
+
+        occurrence.Range(out double x0, out double y0, out double z0, out double x1, out double y1, out double z1);
+        double[] lo = [Geo.Mm(x0), Geo.Mm(y0), Geo.Mm(z0)];
+        double[] hi = [Geo.Mm(x1), Geo.Mm(y1), Geo.Mm(z1)];
+        return new
+        {
+            occurrence = source,
+            name = occurrence.Name,
+            solid = body.IsSolid,
+            volume = Geo.Mm3(body.Volume),
+            boundingBox = new { min = lo, max = hi, size = hi.Zip(lo, (a, b) => Geo.R(a - b)).ToArray() },
+            faces = Late.Count(body.Faces[FeatureTopologyQueryTypeConstants.igQueryAll]),
+            edges = Late.Count(body.Edges[FeatureTopologyQueryTypeConstants.igQueryAll]),
+            vertices = Late.Count(body.Vertices),
+            coordinates = "assembly",
         };
     }
 

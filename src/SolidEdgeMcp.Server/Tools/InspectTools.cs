@@ -29,12 +29,12 @@ public sealed class InspectTools(ToolRunner runner)
         faces (handle, type, area mm2, bounding box, outward normal of planes, radius and axis of cylinders) |
         edges (handle, type, start/end points, length, direction of lines, centre and radius of circles).
         'source' limits faces/edges to a feature (handle from se_feature_tree) or, for edges, to a face; 'direction' selects by orientation (e.g. [0,0,1]: top faces / vertical edges).
-        In an assembly, 'source' = an occurrence handle (se_assembly) lists the faces/edges of its part in assembly coordinates, with handles tied to that occurrence: use them for se_relations and se_measure (they stay valid when the occurrence moves; query again for new coordinates).
+        In an assembly, 'source' = an occurrence handle (se_assembly) gives the summary or the faces/edges of its part in assembly coordinates, with handles tied to that occurrence: use them for se_relations and se_measure (they stay valid when the occurrence moves; query again for new coordinates).
         Face and edge handles expire when the model changes.
         """)]
     public Task<CallToolResult> Geometry(
         GeometryAction action = GeometryAction.Summary,
-        [Description("Feature handle (faces/edges of that feature), face handle (its edges) or assembly occurrence handle (its part, in assembly coordinates); default: whole body.")] string? source = null,
+        [Description("Feature handle (faces/edges of that feature), face handle (its edges) or assembly occurrence handle (its part, in assembly coordinates; also for summary); default: whole body.")] string? source = null,
         [Description("Filter. Faces: all | plane | cylinder | cone | sphere | torus. Edges: all | line | circle | spline.")] string type = "all",
         [Description("Filter [x,y,z]: faces = planar faces whose outward normal points this way; edges = straight edges parallel to it.")] double[]? direction = null,
         int offset = 0,
@@ -46,7 +46,7 @@ public sealed class InspectTools(ToolRunner runner)
         string name = action.ToString();
         return action switch
         {
-            GeometryAction.Summary => runner.RunAsync(tool, name, c => InspectService.Summary(c, document), cancellationToken),
+            GeometryAction.Summary => runner.RunAsync(tool, name, c => InspectService.Summary(c, document, source), cancellationToken),
             GeometryAction.Faces => runner.RunAsync(tool, name, c => InspectService.Faces(c, document, source, type, direction, offset, limit), cancellationToken),
             GeometryAction.Edges => runner.RunAsync(tool, name, c => InspectService.Edges(c, document, source, type, direction, offset, limit), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),

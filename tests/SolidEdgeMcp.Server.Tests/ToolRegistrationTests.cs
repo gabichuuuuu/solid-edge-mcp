@@ -86,6 +86,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sheetmetal", """{"action":"hem","edges":["edge:1"],"hemType":"s_flange","length":10,"side":"bend_outside"}""")]
     [InlineData("se_sheetmetal", """{"action":"tab","sketch":"sketch:1","direction":"reverse"}""")]
     [InlineData("se_documents", """{"action":"new","kind":"weldment"}""")]
+    [InlineData("se_geometry", """{"action":"summary","source":"occurrence:3"}""")]
     [InlineData("se_sheetmetal_form", """{"action":"normal_cutout","sketch":"sketch:1","method":"mid_plane","direction":"auto"}""")]
     [InlineData("se_material", """{"action":"apply","name":"Aluminum, 6061-T6","library":"Materials"}""")]
     [InlineData("se_loft_sweep", """{"action":"loft","operation":"cut","sketches":["sketch:1","sketch:2"],"origins":[0,0,5,0]}""")]

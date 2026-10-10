@@ -41,6 +41,18 @@ se_documents {"action":"close","document":"{{nd.handle}}","saveChanges":false}
 @c1c = se_geometry {"action":"faces","source":"{{p1.handle}}","type":"cylinder"}
 ?= c1c.items[0].axisPoint[0] 10
 ?= c1c.items[0].axisPoint[1] 10
+# resumen por ocurrencia en coordenadas del conjunto: pasador pi*3²*20 = 565.487 en x 7..13, z 0..20; el 2º, girado 90°
+# alrededor de Y, ocupa 20 en X y 6 en Z. Sin 'source', un conjunto no tiene resumen; una cara no vale como 'source'.
+@gs1 = se_geometry {"action":"summary","source":"{{p1.handle}}"}
+?= gs1.volume 565.487 0.01
+?= gs1.boundingBox.min[0] 7
+?= gs1.boundingBox.max[2] 20
+se_assembly {"action":"rotate","occurrence":"{{p2.handle}}","axis":[300,0,0,300,1,0],"angle":90}
+@gs2 = se_geometry {"action":"summary","source":"{{p2.handle}}"}
+?= gs2.boundingBox.size[0] 20
+?= gs2.boundingBox.size[2] 6
+! [wrong_document_type] se_geometry {"action":"summary"}
+! [invalid_argument] se_geometry {"action":"summary","source":"{{c1.items[0].handle}}"}
 # mezclar la cara de una ocurrencia con otra ocurrencia es un error claro
 ! [invalid_argument] se_relations {"action":"add","type":"axial","occurrence1":"{{p2.handle}}","element1":"{{c1.items[0].handle}}","element2":"{{hole.items[0].handle}}"}
 se_selection {"action":"set","handles":["{{c2.items[0].handle}}"]}
