@@ -68,6 +68,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_ui", """{"action":"arrange","style":"grid"}""", "'style' must be one of:")]
     [InlineData("se_relations", """{"action":"add","type":"gear"}""", "'type' must be one of:")]
     [InlineData("se_annotation", """{"action":"note","text":"A"}""", "'action' must be one of:")]
+    [InlineData("se_part_feature", """{"action":"thread","faces":["face:1"]}""", "'action' must be one of:")]
+    [InlineData("se_part_feature", """{"action":"rib","sketch":"sketch:1","thickness":6,"side":"left"}""", "'side' must be one of:")]
     [InlineData("se_annotation", """{"action":"list","kind":"weld"}""", "'kind' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
@@ -96,6 +98,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_material", """{"action":"apply","name":"Aluminum, 6061-T6","library":"Materials"}""")]
     [InlineData("se_loft_sweep", """{"action":"loft","operation":"cut","sketches":["sketch:1","sketch:2"],"origins":[0,0,5,0]}""")]
     [InlineData("se_loft_sweep", """{"action":"helix","sketches":["sketch:1"],"axis":"refaxis:2","pitch":8,"turns":5,"hand":"left"}""")]
+    [InlineData("se_part_feature", """{"action":"rib","sketch":"sketch:1","thickness":6,"side":"symmetric","depth":10}""")]
+    [InlineData("se_part_feature", """{"action":"mirror_body","plane":"2"}""")]
     [InlineData("se_sketch", """{"action":"ellipse","sketch":"sketch:1","center":[0,0],"radius":20,"minorRadius":10,"angle":30}""")]
     [InlineData("se_sketch", """{"action":"fillet","sketch":"sketch:1","elements":["line2d:2","line2d:3"],"radius":5}""")]
     [InlineData("se_sketch_constraint", """{"action":"dimension","sketch":"sketch:1","dimension":"distance","elements":["line2d:2","line2d:4"],"keypoints":[0,1],"value":30}""")]

@@ -75,10 +75,14 @@ damages the document in Solid Edge 2026 (do not use).
 | Draft | `Drafts` | `se_draft` | ✔ |
 | Loft, sweep, helix (boss and cut) | `LoftedProtrusions`, `SweptProtrusions`, `HelixProtrusions`… | `se_loft_sweep` | ✔ |
 | Loft with guide curves or tangencies, sweep along several paths, conical or variable-pitch helix, thin wall | `LoftedProtrusions.Add`, `AddWithThinWall`, `HelixProtrusions.AddFinite` (optional) | COM | · |
-| Thread, rib, web network, lip, vent, mounting boss | `Threads`, `Ribs`, `WebNetworks`, `Lips`, `Vents`, `MountingBossCollection` | COM | · |
-| Thicken, split, boolean operations between bodies | `Thickens`, `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |
+| Rib from an open sketch (up to the part or to a finite depth; symmetric or to one side) | `Ribs` | `se_part_feature rib` | ✔ |
+| Thread on a cylinder | `Threads` | — | ✘ `Threads.Add` returns E_INVALIDARG for every combination tried (faces or edges as ends, `HoleData` from `Add` or `AddEx` with the ISO Metric table); use `se_hole` tapped (cosmetic) or a helix cut with `se_loft_sweep` (physical) |
+| Web network, lip, vent, mounting boss | `WebNetworks`, `Lips`, `Vents`, `MountingBossCollection` | COM | · |
+| Thicken faces (the side that adds material by default) | `Thickens` | `se_part_feature thicken` | ✔ |
+| Split, boolean operations between bodies | `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |
 | Primitives (box, cylinder, sphere), tubes, slots | `BoxFeatures`, `CylinderFeatures`, `SphereFeatures`, `TubeFeatures`, `Slots` | COM | · |
-| Copied part, part mirror, body scale | `CopiedParts`, `MirrorParts`, `ScaleBodyFeatures` | COM | · |
+| Mirror the whole body about a plane, keeping the original | `MirrorParts` | `se_part_feature mirror_body` | ✔ |
+| Copied part, body scale | `CopiedParts`, `ScaleBodyFeatures` | COM | · |
 | User-defined pattern, pattern along a curve | `UserDefinedPatterns`, `PatternParts` | COM | · |
 
 ## Synchronous modeling and surfaces

@@ -161,4 +161,46 @@ se_sketch {"action":"close","sketch":"{{h.sketch}}"}
 @hx = se_loft_sweep {"action":"helix","sketches":["{{h.sketch}}"],"axis":"{{ha.axis}}","pitch":8,"turns":5}
 ?= hx.volume 3948.50 0.05
 se_documents {"action":"close","document":"{{dX.handle}}","saveChanges":false}
+# Other part features (se_part_feature). Rib: L section (80x10 + 10x50) extruded 60 symmetric = 78000; the line (10,40)-(50,10)
+#   closes the triangle (10,10)-(10,40)-(50,10) of area 600 with the inner corner, 6 thick -> +3600. Its distance to the corner
+#   is 24, so a 10 deep rib leaves out a similar triangle of height 14: 600*(1-(14/24)^2)*6 = +2375. A rib to one side of the
+#   plane has the same volume
+@dB = se_documents {"action":"new","kind":"part"}
+@kB = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"polyline","sketch":"{{kB.sketch}}","points":[0,0,80,0,80,10,10,10,10,60,0,60],"closed":true}
+se_sketch {"action":"close","sketch":"{{kB.sketch}}"}
+@eB = se_extrude {"sketch":"{{kB.sketch}}","distance":60,"direction":"symmetric"}
+?= eB.volume 78000 0.01
+@kr = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"line","sketch":"{{kr.sketch}}","points":[10,40,50,10]}
+se_sketch {"action":"close","sketch":"{{kr.sketch}}","open":true}
+@rb = se_part_feature {"action":"rib","sketch":"{{kr.sketch}}","thickness":6}
+?= rb.volumeChange 3600 0.01
+se_feature_edit {"action":"delete","feature":"{{rb.feature.handle}}"}
+@rb2 = se_part_feature {"action":"rib","sketch":"{{kr.sketch}}","thickness":6,"side":"normal"}
+?= rb2.volumeChange 3600 0.01
+se_feature_edit {"action":"delete","feature":"{{rb2.feature.handle}}"}
+@rb3 = se_part_feature {"action":"rib","sketch":"{{kr.sketch}}","thickness":6,"depth":10}
+?= rb3.volumeChange 2375 0.01
+! [invalid_argument] se_part_feature {"action":"rib","thickness":6}
+se_documents {"action":"close","document":"{{dB.handle}}","saveChanges":false}
+# Thicken the top face of a 50x50x10 block by 5 -> +12500 = 37500 (inwards a solid gains nothing: 'reverse' fails, and the
+#   failed attempt expires the face handles);
+#   mirror the body about YZ (x = 0, a face of the block) -> 75000
+@dT = se_documents {"action":"new","kind":"part"}
+@kT = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kT.sketch}}","points":[0,0,50,50]}
+se_sketch {"action":"close","sketch":"{{kT.sketch}}"}
+se_extrude {"sketch":"{{kT.sketch}}","distance":10}
+@fT = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+! [feature_failed] se_part_feature {"action":"thicken","faces":["{{fT.items[0].handle}}"],"thickness":5,"side":"reverse"}
+@fT2 = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@th = se_part_feature {"action":"thicken","faces":["{{fT2.items[0].handle}}"],"thickness":5}
+?= th.volumeChange 12500 0.01
+?= th.direction normal
+@mb = se_part_feature {"action":"mirror_body","plane":"2"}
+?= mb.volume 75000 0.01
+@sT = se_geometry {"action":"summary"}
+?= sT.boundingBox.size[0] 100
+se_documents {"action":"close","document":"{{dT.handle}}","saveChanges":false}
 se_documents {"action":"list"}

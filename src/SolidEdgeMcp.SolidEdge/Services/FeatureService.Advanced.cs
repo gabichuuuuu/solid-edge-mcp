@@ -379,7 +379,7 @@ public static partial class FeatureService
         Match match = Regex.Match(thread ?? "", @"^\s*M\s*(\d+(?:[.,]\d+)?)\s*(?:[xX×]\s*(\d+(?:[.,]\d+)?))?\s*$");
         if (!match.Success)
         {
-            throw ToolException.InvalidArgument("A tapped hole requires 'thread' as a metric size such as 'M6' or 'M10x1.25'.");
+            throw ToolException.InvalidArgument("'thread' must be a metric size such as 'M6' or 'M10x1.25'.");
         }
 
         double nominal = double.Parse(match.Groups[1].Value.Replace(',', '.'), CultureInfo.InvariantCulture);
