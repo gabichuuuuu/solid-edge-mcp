@@ -5,12 +5,14 @@
 param(
     [string[]]$Names = @('A'),
     [string]$Configuration = 'Debug',
-    [string]$Policy = (Join-Path $env:LOCALAPPDATA 'SolidEdgeMcp\policy.json')
+    [string]$Policy = (Join-Path $env:LOCALAPPDATA 'SolidEdgeMcp\policy.json'),
+    # Otro ejecutable del servidor, p. ej. publish\SolidEdgeMcp.Server.exe para validar la publicación.
+    [string]$Server
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
-$server = Join-Path $root "src\SolidEdgeMcp.Server\bin\$Configuration\net10.0-windows\SolidEdgeMcp.Server.exe"
+$server = if ($Server) { (Resolve-Path $Server).Path } else { Join-Path $root "src\SolidEdgeMcp.Server\bin\$Configuration\net10.0-windows\SolidEdgeMcp.Server.exe" }
 # La solución compila los tests para x64 (bin\x64\...); compilando solo el proyecto, la salida va a bin\...
 $runner = "bin\x64\$Configuration", "bin\$Configuration" |
     ForEach-Object { Join-Path $PSScriptRoot "$_\net10.0-windows\SolidEdgeMcp.Acceptance.exe" } |
