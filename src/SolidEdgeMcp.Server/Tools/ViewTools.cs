@@ -32,7 +32,7 @@ public sealed class ViewTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_view", Title = "Solid Edge view", ReadOnly = false, Destructive = false, OpenWorld = false)]
     [Description("""
-        Window view of a document. capture: returns an image of the current view (width/height in pixels, optional path to also save it as .png/.jpg/.bmp in an allowed folder). fit: zoom to fit. orient: standard view (iso, front, top...) and fit. render_mode: set the display mode (SeRenderModeType name, e.g. seRenderModeSmoothBoundary, seRenderModeSmooth, seRenderModeVHL, seRenderModeWireframe).
+        Window view of a document. capture: returns an image of the current view (width/height in pixels, optional path to also save it as .png/.jpg/.bmp in an allowed folder). fit: zoom to fit. orient: standard view (iso, front, top...) and fit. render_mode: set the display mode (SeRenderModeType name: seRenderModeSmooth, seRenderModeSmoothVHL, seRenderModeVHL, seRenderModeOutline, seRenderModeWireframe, seRenderModePhong).
         Changes only the display, never the model.
         """)]
     public Task<CallToolResult> View(

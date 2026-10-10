@@ -79,9 +79,20 @@ public static class ViewService
                 $"Use one of: {string.Join(", ", Enum.GetNames<SeRenderModeType>().Where(n => n != nameof(SeRenderModeType.seRenderModeUndefined)))}.");
         }
 
+        SeRenderModeType previous = window.View.RenderModeType;
         window.View.RenderModeType = value;
         window.View.Update();
-        return new { renderMode = window.View.RenderModeType.ToString() };
+        SeRenderModeType applied = window.View.RenderModeType;
+        if (applied != value)
+        {
+            // Comprobado en Solid Edge 2026: Boundary y SmoothBoundary se cambian sin aviso por Smooth.
+            window.View.RenderModeType = previous;
+            window.View.Update();
+            throw new ToolException("not_supported", $"Solid Edge does not offer '{value}' in this window (it switched to '{applied}'); the previous mode was kept.",
+                "Use seRenderModeSmooth, seRenderModeSmoothVHL, seRenderModeVHL, seRenderModeOutline, seRenderModeWireframe or seRenderModePhong.");
+        }
+
+        return new { renderMode = applied.ToString() };
     }
 
     public static CapturedImage Capture(SeContext context, string? handle, int width, int height, string? savePath, bool fit = true)
