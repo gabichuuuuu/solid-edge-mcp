@@ -77,7 +77,7 @@ public sealed class SketchTools(ToolRunner runner)
         line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners [x1,y1,x2,y2]) | polyline (points [x1,y1,x2,y2,...], closed, default true) | circle (center [x,y], radius) | arc (center, start, end; counter-clockwise) |
         ellipse (center, radius = semi-major axis, minorRadius, angle of the major axis in degrees) | spline (cubic through points [x1,y1,...] >= 3; closed, default false) | point (points [x,y]) |
         fillet (elements = two elements meeting at a corner, radius; trims both; points [x,y] inside the corner, default for two lines: their common corner) | project (elements = model edge handles from se_geometry, included and linked into the sketch) |
-        axis (element = line handle; revolution axis for se_revolve, set it before close) | close (validates closed loops, or one open chain with open=true for contour flanges, bend/jog lines and paths; required before a feature) | info | delete.
+        axis (element = line handle; revolution axis for se_revolve, set it before close; a side of the profile can be used: a copy becomes the axis) | close (validates closed loops, or one open chain with open=true for contour flanges, bend/jog lines and paths; required before a feature) | info | delete.
         Example: create {"plane":"1"} → rectangle {"sketch":"sketch:5","points":[0,0,100,50]} → close → se_extrude.
         """)]
     public Task<CallToolResult> Sketch(

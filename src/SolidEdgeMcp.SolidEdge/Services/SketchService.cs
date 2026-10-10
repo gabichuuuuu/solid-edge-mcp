@@ -93,13 +93,64 @@ public static partial class SketchService
         return new { element = context.RegisterBeside(arc, "arc2d", sketch) };
     }
 
-    /// <summary>Línea del boceto como eje de revolución; devuelve el handle del eje.</summary>
+    /// <summary>
+    /// Línea del boceto como eje de revolución; devuelve el handle del eje. Solid Edge saca del contorno la línea
+    /// que convierte en eje: si es un lado del contorno, este queda abierto y la revolución falla (comprobado), así
+    /// que se usa como eje una copia de la línea y el lado se conserva.
+    /// </summary>
     public static object Axis(SeContext context, string sketch, string element)
     {
         Profile profile = Resolve(context, sketch);
         Line2d line = context.Handles.Resolve<Line2d>(element, "element");
+        string? copy = null;
+        if (IsConnected(profile, line))
+        {
+            ((double X, double Y) start, (double X, double Y) end) = Ends(line);
+            line = profile.Lines2d.AddBy2Points(start.X, start.Y, end.X, end.Y);
+            copy = context.RegisterBeside(line, "line2d", sketch);
+        }
+
         object axis = profile.SetAxisOfRevolution(line);
-        return new { axis = context.RegisterBeside(axis, "refaxis", sketch) };
+        return new
+        {
+            axis = context.RegisterBeside(axis, "refaxis", sketch),
+            axisLine = copy,
+            note = copy is null ? null : "The line is a side of the profile: a copy of it is the axis, so the profile stays closed.",
+        };
+    }
+
+    /// <summary>Indica si algún otro segmento o arco del boceto empieza o acaba en un extremo de la línea.</summary>
+    private static bool IsConnected(Profile profile, Line2d line)
+    {
+        const double tolerance = 1e-9;
+        ((double X, double Y) a, (double X, double Y) b) = Ends(line);
+        bool Touches(double x, double y) =>
+            Math.Abs(x - a.X) + Math.Abs(y - a.Y) < tolerance || Math.Abs(x - b.X) + Math.Abs(y - b.Y) < tolerance;
+
+        Lines2d lines = profile.Lines2d;
+        for (int i = 1; i <= lines.Count; i++)
+        {
+            ((double X, double Y) s, (double X, double Y) e) = Ends(lines.Item(i));
+            bool same = (Touches(s.X, s.Y) && Touches(e.X, e.Y)) && Math.Abs(s.X - e.X) + Math.Abs(s.Y - e.Y) > tolerance;
+            if (!same && (Touches(s.X, s.Y) || Touches(e.X, e.Y)))
+            {
+                return true;
+            }
+        }
+
+        Arcs2d arcs = profile.Arcs2d;
+        for (int i = 1; i <= arcs.Count; i++)
+        {
+            Arc2d arc = arcs.Item(i);
+            arc.GetStartPoint(out double x1, out double y1);
+            arc.GetEndPoint(out double x2, out double y2);
+            if (Touches(x1, y1) || Touches(x2, y2))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
