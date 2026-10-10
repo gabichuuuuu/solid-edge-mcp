@@ -172,7 +172,10 @@ public static partial class ComValues
     {
         if (json.TryGetProperty("handle", out JsonElement handle))
         {
-            object resolved = context.Handles.Resolve(handle.GetString(), argumentName);
+            string? id = handle.GetString();
+            object resolved = id is GenericCom.ApplicationTarget or GenericCom.ActiveDocumentTarget
+                ? GenericCom.ResolveTarget(context, id)
+                : context.Handles.Resolve(id, argumentName);
             if (type != typeof(object) && !type.IsInstanceOfType(resolved))
             {
                 throw new ToolException("handle_wrong_type",

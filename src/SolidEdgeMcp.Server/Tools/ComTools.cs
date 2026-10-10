@@ -57,7 +57,7 @@ public sealed class ComTools(ToolRunner runner)
     [McpServerTool(Name = "se_com_invoke", Title = "Call API method", Destructive = true, OpenWorld = false)]
     [Description("""
         Calls any method of a Solid Edge API object with positional arguments (JSON array). API units: metres and radians; collections start at 1.
-        Objects: {"handle":"..."}. Typed values when needed: {"type":"double[]","value":[0,0,0]} (also int, short, bool, string, int[], object[]). Omit or null trailing optional arguments.
+        Objects: {"handle":"..."} (also {"handle":"app"} or {"handle":"active_document"}). Typed values when needed: {"type":"double[]","value":[0,0,0]} (also int, short, bool, string, int[], object[]). Omit or null trailing optional arguments.
         Returns the result and any ref/out arguments. File paths must be inside the allowed folders.
         Example: {"target":"refplanes:4","method":"Item","arguments":[1]}.
         """)]

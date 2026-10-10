@@ -82,7 +82,18 @@ public static class ComErrors
                 "Use se_com_describe on the object to list its members.", ex);
         }
 
-        if (ex is not COMException com)
+        // .NET convierte algunos HRESULT de COM en otras excepciones (E_NOTIMPL, E_INVALIDARG, E_POINTER,
+        // E_NOINTERFACE). NotImplementedException nunca sale de este código; las demás solo se tratan como COM
+        // si vienen de una llamada por reflexión (envueltas en TargetInvocationException).
+        bool fromCall = !ReferenceEquals(ex, exception);
+        Exception? com = ex switch
+        {
+            COMException => ex,
+            NotImplementedException => ex,
+            ArgumentException or NullReferenceException or InvalidCastException when fromCall => ex,
+            _ => null,
+        };
+        if (com is null)
         {
             return ex;
         }
