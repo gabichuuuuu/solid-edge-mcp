@@ -116,7 +116,14 @@ esperados calculados a mano. Cada guion crea y cierra sin guardar sus documentos
 ```powershell
 dotnet build SolidEdgeMcp.slnx
 .\tests\SolidEdgeMcp.Acceptance\run.ps1            # todos; o p. ej. run.ps1 A03 A09
+.\tests\SolidEdgeMcp.Acceptance\run.ps1 -Server publish\SolidEdgeMcp.Server.exe   # la publicación
 ```
+
+Para republicar mientras una sesión usa el servidor (`publish/` bloqueado), publica en otra
+carpeta y sustituye solo los archivos que cambien, moviendo los antiguos a una subcarpeta: Windows
+permite renombrar un ejecutable o una DLL cargados, pero no sobrescribirlos. Es seguro si los
+archivos que cambian ya están cargados en ese proceso (normalmente solo `SolidEdgeMcp.*`); la
+sesión sigue con la versión antigua hasta que reinicie el servidor.
 
 Sintaxis de los guiones en la cabecera de `tests/SolidEdgeMcp.Acceptance/Program.cs`.
 
