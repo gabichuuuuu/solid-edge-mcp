@@ -315,10 +315,16 @@ public static class GenericCom
                 {
                     args[i] = null;
                 }
+                else if (i < supplied.Length && !parameter.ParameterType.IsValueType)
+                {
+                    // null explícito en un parámetro de objeto obligatorio: Nothing, como en VB (p. ej. el plano de
+                    // extensión de un solevado sin extensión).
+                    args[i] = null;
+                }
                 else
                 {
                     throw ToolException.InvalidArgument($"'{memberName}' requires argument {i + 1} ('{name}').",
-                        "Use se_com_describe to see the signature.");
+                        "Use se_com_describe to see the signature; pass null explicitly for an object argument that is not used (Nothing).");
                 }
 
                 continue;
