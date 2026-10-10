@@ -36,6 +36,11 @@ se_variables {"action":"delete","name":"Thick"}
 se_properties {"action":"set","name":"Project","value":"MCP acceptance"}
 @pl = se_properties {"action":"list","set":"Custom"}
 ?~ pl MCP acceptance
+# sin 'set', todos los conjuntos (alguno trae propiedades sin nombre; antes daba internal_error)
+se_properties {"action":"set","set":"SummaryInformation","name":"Title","value":"A02 title"}
+@pa = se_properties {"action":"list"}
+?~ pa A02 title
+?~ pa ProjectInformation
 se_properties {"action":"delete","name":"Project"}
 se_selection {"action":"set","handles":["{{top2.items[0].handle}}"]}
 @sel = se_selection {"action":"get"}

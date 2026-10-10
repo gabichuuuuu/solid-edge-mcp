@@ -33,7 +33,8 @@ public static class PropertyService
             for (int j = 1; j <= properties.Count && budget > 0; j++, budget--)
             {
                 Property property = properties.Item(j);
-                values[property.Name] = ValueOf(property);
+                // Algunos conjuntos tienen propiedades sin nombre: se identifican por su posición.
+                values[string.IsNullOrEmpty(property.Name) ? $"#{j}" : property.Name] = ValueOf(property);
             }
 
             result.Add(new { set = properties.Name, count = properties.Count, properties = values });
