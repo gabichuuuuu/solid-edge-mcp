@@ -1,0 +1,57 @@
+# A11: opciones de Solid Edge y unidades (se_options). Las opciones de aplicación cambiadas se restauran a su valor leído.
+# Pieza: con la distancia en pulgadas, una extrusión 40x20x10 sigue midiéndose en mm: V = 8000.
+@lst = se_options {"action":"list","filter":"UndoSteps"}
+?~ lst PartandAsmUndoSteps
+?~ lst ProfileUndoSteps
+@u0 = se_options {"action":"get","name":"seApplicationGlobalProfileUndoSteps"}
+@u1 = se_options {"action":"set","name":"ProfileUndoSteps","value":42}
+?= u1.value 42
+?= u1.previous {{u0.value}}
+@u2 = se_options {"action":"set","name":"ProfileUndoSteps","value":{{u0.value}}}
+?= u2.value {{u0.value}}
+@c0 = se_options {"action":"get","name":"ColorBackground"}
+@c1 = se_options {"action":"set","name":"ColorBackground","value":"#102030"}
+?= c1.color #102030
+?= c1.value 3153936
+@c2 = se_options {"action":"set","name":"ColorBackground","value":"{{c0.color}}"}
+?= c2.value {{c0.value}}
+@sys = se_options {"action":"get","name":"SystemInfo"}
+?~ sys.value Solid Edge version
+! [invalid_argument] se_options {"action":"set","name":"ProfileUndoSteps","value":"many"}
+! [not_found] se_options {"action":"get","name":"NoSuchOption"}
+! [invalid_argument] se_options {"action":"set","name":"ColorBackground","value":"#12345"}
+# Opciones y unidades de una pieza
+@d = se_documents {"action":"new","kind":"part"}
+@po = se_options {"action":"list","scope":"document"}
+?= po.scope part
+?~ po AccuracyForDensity
+@pu = se_options {"action":"set","scope":"document","name":"UpdatePhysicalPropertiesOnSave","value":false}
+?= pu.value false
+@un = se_options {"action":"units"}
+?= un.units[?type="distance"].unit millimeter
+@su = se_options {"action":"set_units","unitType":"distance","unit":"inch","precision":3}
+?= su.current.unit inch
+?= su.current.precision 3
+?= su.previous.unit millimeter
+! [invalid_argument] se_options {"action":"set_units","unitType":"distance","unit":"parsec"}
+! [not_found] se_options {"action":"set_units","unitType":"warp","unit":"inch"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,40,20]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@x = se_extrude {"sketch":"{{k.sketch}}","distance":10}
+?= x.volume 8000
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# Opciones de chapa, conjunto y plano
+@s = se_documents {"action":"new","kind":"sheet_metal"}
+@so = se_options {"action":"get","scope":"document","name":"NeutralFactor"}
+?= so.value 0.33 0.5
+se_documents {"action":"close","document":"{{s.handle}}","saveChanges":false}
+@m = se_documents {"action":"new","kind":"assembly"}
+@mo = se_options {"action":"list","scope":"document","filter":"Tube"}
+?= mo.scope assembly
+se_documents {"action":"close","document":"{{m.handle}}","saveChanges":false}
+@r = se_documents {"action":"new","kind":"draft"}
+@ro = se_options {"action":"set","scope":"document","name":"SelectToolTextFilter","value":false}
+?= ro.value false
+se_documents {"action":"close","document":"{{r.handle}}","saveChanges":false}
+se_documents {"action":"list"}

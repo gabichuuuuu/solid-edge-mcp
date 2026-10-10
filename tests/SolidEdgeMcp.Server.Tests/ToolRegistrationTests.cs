@@ -64,6 +64,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_loft_sweep", """{"action":"helix","sketches":["sketch:1"],"hand":"clockwise"}""", "'hand' must be one of:")]
     [InlineData("se_sketch_constraint", """{"action":"relation","sketch":"sketch:1","relation":"perpendicular_to"}""", "'relation' must be one of:")]
     [InlineData("se_sketch_constraint", """{"action":"dimension","sketch":"sketch:1","type":"length"}""", "has no argument 'type'")]
+    [InlineData("se_options", """{"action":"get","scope":"global"}""", "'scope' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -95,6 +96,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sketch", """{"action":"fillet","sketch":"sketch:1","elements":["line2d:2","line2d:3"],"radius":5}""")]
     [InlineData("se_sketch_constraint", """{"action":"dimension","sketch":"sketch:1","dimension":"distance","elements":["line2d:2","line2d:4"],"keypoints":[0,1],"value":30}""")]
     [InlineData("se_sketch_constraint", """{"action":"relation","sketch":"sketch:1","relation":"connect","elements":["line2d:2","arc2d:3"],"keypoints":[1,1]}""")]
+    [InlineData("se_options", """{"action":"set","scope":"application","name":"ColorBackground","value":"#FFFFFF"}""")]
+    [InlineData("se_options", """{"action":"set_units","unitType":"distance","unit":"inch","precision":3}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();
