@@ -1,0 +1,80 @@
+# A02: placa 100x60x10 con 4 agujeros Ø6,6 -> V = 60000 - 4*pi*3.3^2*10 = 58631.52 mm3
+# Datos, consulta, vista, selección, edición de operaciones, documentos y exportación.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+@r = se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"info","sketch":"{{k.sketch}}"}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":10}
+?= e.volume 60000
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@h = se_hole {"plane":"{{top.items[0].handle}}","centers":[10,10,10,90,10,10,10,50,10,90,50,10],"diameter":6.6}
+?= h.volume 58631.52 0.05
+@g = se_geometry {"action":"summary"}
+?= g.faces 10
+?= g.boundingBox.size[0] 100
+@tree = se_feature_tree {}
+@ph = se_physical {"density":7850}
+?= ph.volume 58631.52 0.05
+@cyl = se_geometry {"action":"faces","type":"cylinder"}
+?= cyl.count 4
+@m = se_measure {"action":"distance","first":"{{cyl.items[0].handle}}","second":"{{cyl.items[1].handle}}"}
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@side = se_geometry {"action":"faces","direction":[1,0,0]}
+@ma = se_measure {"action":"angle","first":"{{top2.items[0].handle}}","second":"{{side.items[0].handle}}"}
+@edges = se_geometry {"action":"edges","source":"{{top2.items[0].handle}}","type":"line"}
+?= edges.count 4
+se_material {"action":"libraries"}
+@ml = se_material {"action":"list","filter":"Steel"}
+@ap = se_material {"action":"apply","name":"Steel"}
+@cur = se_material {"action":"current"}
+@vl = se_variables {"action":"list"}
+@va = se_variables {"action":"add","name":"Thick","value":10}
+@vg = se_variables {"action":"get","name":"Thick"}
+?= vg.value 10
+se_variables {"action":"delete","name":"Thick"}
+se_properties {"action":"set","name":"Project","value":"MCP acceptance"}
+@pl = se_properties {"action":"list","set":"Custom"}
+?~ pl MCP acceptance
+se_properties {"action":"delete","name":"Project"}
+se_selection {"action":"set","handles":["{{top2.items[0].handle}}"]}
+@sel = se_selection {"action":"get"}
+?= sel.count 1
+se_selection {"action":"clear"}
+se_view {"action":"orient","orientation":"iso"}
+se_view {"action":"render_mode","mode":"seRenderModeSmoothVHL"}
+! [not_supported] se_view {"action":"render_mode","mode":"seRenderModeSmoothBoundary"}
+se_view {"action":"fit"}
+@cap = se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\plate.png"}
+@sup = se_feature_edit {"feature":"{{h.feature.handle}}","action":"suppress"}
+?= sup.volume 58973.64 0.05
+@uns = se_feature_edit {"feature":"{{h.feature.handle}}","action":"unsuppress"}
+?= uns.volume 58631.52 0.05
+se_feature_edit {"feature":"{{e.feature.handle}}","action":"rename","name":"Base"}
+@tr2 = se_feature_tree {}
+?~ tr2 Base
+se_documents {"action":"recompute"}
+se_documents {"action":"save_as","path":"{{work}}\\plate.par","overwrite":true}
+se_export {"path":"{{work}}\\plate.stp","overwrite":true}
+se_export {"path":"{{work}}\\plate.stl","overwrite":true}
+se_export {"path":"{{work}}\\plate.x_t","overwrite":true}
+se_export {"path":"{{work}}\\plate.igs","overwrite":true}
+se_documents {"action":"save_copy_as","path":"{{work}}\\plate_copy.par","overwrite":true}
+! se_documents {"action":"save_as","path":"{{work}}\\plate.par"}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@o = se_documents {"action":"open","path":"{{work}}\\plate_copy.par"}
+@inf = se_documents {"action":"info"}
+@ph2 = se_physical {}
+?= ph2.volume 58631.52 0.05
+# deshacer y rehacer: borrar un agujero y recuperarlo
+@tr3x = se_feature_tree {}
+@del = se_feature_edit {"feature":"{{tr3x.features[8].handle}}","action":"delete"}
+?= del.volume 58973.64 0.05
+se_documents {"action":"undo"}
+@ph3 = se_physical {}
+?= ph3.volume 58631.52 0.05
+se_documents {"action":"redo"}
+@ph4 = se_physical {}
+?= ph4.volume 58973.64 0.05
+se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
+se_documents {"action":"list"}

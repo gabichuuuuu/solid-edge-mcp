@@ -1,0 +1,90 @@
+# A06: conjunto (se_assembly, se_relations, se_interference, se_bom, se_geometry con source = ocurrencia). Recetas de t34, t35, t38 y t40. Bloque 100x60x20 con agujero pasante Ø10 en (50,30): 120000 - pi*5²*20 = 118429.204. Pasador Ø10x40 centrado en el origen: pi*5²*40 = 3141.593
+@b = se_documents {"action":"new","kind":"part"}
+@bs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{bs.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{bs.sketch}}"}
+se_extrude {"sketch":"{{bs.sketch}}","distance":20}
+@bt = se_geometry {"action":"faces","direction":[0,0,1]}
+@bh = se_hole {"plane":"{{bt.items[0].handle}}","centers":[50,30,20],"diameter":10}
+?= bh.volume 118429.204 0.01
+se_documents {"action":"save_as","path":"{{work}}\\blk.par","overwrite":true}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{ps.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+@pe = se_extrude {"sketch":"{{ps.sketch}}","distance":40}
+?= pe.volume 3141.593 0.01
+se_documents {"action":"save_as","path":"{{work}}\\pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# Conjunto: bloque (fijo por defecto) en el origen y pasador en (200,0,0). Caras por ocurrencia en coordenadas del conjunto: agujero = cilindro r=5
+@a = se_documents {"action":"new","kind":"assembly"}
+@blk = se_assembly {"action":"insert","path":"{{work}}\\blk.par"}
+?= blk.grounded true
+@pin = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[200,0,0]}
+@ls = se_assembly {"action":"list"}
+?= ls.count 2
+@c1 = se_geometry {"action":"faces","source":"{{blk.handle}}","type":"cylinder"}
+?= c1.items[0].radius 5
+@bot1 = se_geometry {"action":"faces","source":"{{blk.handle}}","direction":[0,0,-1]}
+@bot2 = se_geometry {"action":"faces","source":"{{pin.handle}}","direction":[0,0,-1]}
+# Plana (bases alineadas en z=0) y axial (pasador en el agujero, eje en (50,30)); cada relación caduca las caras: se piden de nuevo. Después: fijación del bloque + plana + axial = 3 relaciones (t34.out); pasador Ø10 en agujero Ø10 -> sin interferencia (t34.out, t35.out)
+@r1 = se_relations {"action":"add","type":"planar","occurrence1":"{{pin.handle}}","element1":"{{bot2.items[0].handle}}","occurrence2":"{{blk.handle}}","element2":"{{bot1.items[0].handle}}","align":true}
+?= r1.relations[0].status solved
+@c1b = se_geometry {"action":"faces","source":"{{blk.handle}}","type":"cylinder"}
+@c2b = se_geometry {"action":"faces","source":"{{pin.handle}}","type":"cylinder"}
+@r2 = se_relations {"action":"add","type":"axial","occurrence1":"{{pin.handle}}","element1":"{{c2b.items[0].handle}}","occurrence2":"{{blk.handle}}","element2":"{{c1b.items[0].handle}}"}
+?= r2.occurrence.origin[0] 50
+@rl = se_relations {"action":"list"}
+?= rl.count 3
+@i0 = se_interference {}
+?= i0.status none
+# 2º pasador con relación 'insert' (base sobre la cara superior z=20, coaxial) -> origen z=20; solape con el 1º en z 20..40: pi*5²*20 = 1570.796
+@pin2 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[300,0,0]}
+@top1 = se_geometry {"action":"faces","source":"{{blk.handle}}","direction":[0,0,1]}
+@c1c = se_geometry {"action":"faces","source":"{{blk.handle}}","type":"cylinder"}
+@c3 = se_geometry {"action":"faces","source":"{{pin2.handle}}","type":"cylinder"}
+@bot3 = se_geometry {"action":"faces","source":"{{pin2.handle}}","direction":[0,0,-1]}
+@r3 = se_relations {"action":"add","type":"insert","occurrence1":"{{pin2.handle}}","element1":"{{bot3.items[0].handle}}","occurrence2":"{{blk.handle}}","element2":"{{top1.items[0].handle}}","axis1":"{{c3.items[0].handle}}","axis2":"{{c1c.items[0].handle}}"}
+?= r3.occurrence.origin[2] 20
+@i1 = se_interference {"occurrences":["{{pin2.handle}}"],"against":["{{pin.handle}}"]}
+?= i1.status confirmed
+?= i1.pairs[0].volume 1570.796 0.01
+! [occurrence_held] se_assembly {"action":"move","occurrence":"{{pin2.handle}}","delta":[0,0,10]}
+# BOM de primer nivel: blk 1 + pin 2 = 3. Borrar la relación axial devuelve su tipo.
+@bm = se_bom {}
+?= bm.lines[?item="pin"].quantity 2
+?= bm.totalQuantity 3
+@dr = se_relations {"action":"delete","relation":"{{r2.relations[0].handle}}"}
+?= dr.type axial
+# Pasador libre en (0,0,100): +10 en x -> x=10; al origen con ángulos (90,0,0) y giro de 90° en Z -> ángulos (90,0,90) (t34.out). Fijar y liberar (efecto definido de la acción; 'unground' sin receta previa), ocultar, mostrar y sustituir por el bloque
+@p3 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[0,0,100],"ground":false}
+@m1 = se_assembly {"action":"move","occurrence":"{{p3.handle}}","delta":[10,0,0]}
+?= m1.origin[0] 10
+se_assembly {"action":"move","occurrence":"{{p3.handle}}","origin":[0,0,0],"angles":[90,0,0]}
+@m3 = se_assembly {"action":"rotate","occurrence":"{{p3.handle}}","axis":[0,0,0,0,0,1],"angle":90}
+?= m3.angles[2] 90
+@g = se_assembly {"action":"ground","occurrence":"{{p3.handle}}"}
+?= g.occurrence.grounded true
+@ug = se_assembly {"action":"unground","occurrence":"{{p3.handle}}"}
+?= ug.occurrence.grounded false
+@h = se_assembly {"action":"hide","occurrence":"{{p3.handle}}"}
+?= h.visible false
+se_assembly {"action":"show","occurrence":"{{p3.handle}}"}
+@rp = se_assembly {"action":"replace","occurrence":"{{p3.handle}}","path":"{{work}}\\blk.par"}
+?~ rp.name blk.par
+# BOM plana: blk 2 (bloque + sustituido) y pin 2 -> 4. Suprimir el 1er pasador: BOM de primer nivel 3 y su handle caduca.
+@bf = se_bom {"structure":"flat"}
+?= bf.lines[?item="blk"].quantity 2
+?= bf.totalQuantity 4
+@sup = se_assembly {"action":"suppress","occurrence":"{{pin.handle}}"}
+@bs2 = se_bom {}
+?= bs2.totalQuantity 3
+! [handle_expired] se_assembly {"action":"hide","occurrence":"{{pin.handle}}"}
+@back = se_assembly {"action":"unsuppress","occurrence":"{{sup.handle}}"}
+?~ back.name pin.par
+@dl = se_assembly {"action":"delete","occurrence":"{{pin2.handle}}"}
+?~ dl.deleted pin.par
+se_documents {"action":"save_as","path":"{{work}}\\a06.asm","overwrite":true}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+se_documents {"action":"list"}

@@ -1,0 +1,16 @@
+# A01: servidor, sesión, constantes, órdenes, capa COM y rechazos de argumentos
+@info = se_server_info {}
+se_session {"action":"status"}
+se_session {"action":"connect"}
+@st = se_session {"action":"status"}
+@k = se_com_constants {"query":"igRight"}
+@cmd = se_command {"action":"find","query":"ISOView","environment":"Part"}
+@desc = se_com_describe {"type":"SolidEdgePart.ExtrudedProtrusions","filter":"AddFinite","limit":10}
+@ver = se_com_get {"target":"app","member":"Version"}
+@docs = se_com_items {"target":"app","member":"Documents"}
+! [invalid_argument] se_documents {"action":"saveas"}
+! [invalid_argument] se_extrude {"sketch":"sketch:1","distance":"20mm"}
+! se_documents {"action":"open","path":"C:\\Windows\\win.ini"}
+! se_export {"path":"C:\\Windows\\Temp\\x.stp"}
+! [handle_not_found] se_sketch {"action":"info","sketch":"sketch:99999"}
+se_documents {"action":"list"}

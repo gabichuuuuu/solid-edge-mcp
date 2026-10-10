@@ -1,0 +1,56 @@
+# A09: caras de cada ocurrencia, relaciones sin indicar la ocurrencia, medidas en conjunto y liberación de handles.
+# Placa 100x60x10 con un agujero Ø6,6 en (10,10) y pasador Ø6 x 20: holgura radial 3,3 - 3 = 0,3 mm.
+@pd = se_documents {"action":"new","kind":"part"}
+@pk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{pk.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
+se_extrude {"sketch":"{{pk.sketch}}","distance":10}
+@pt = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{pt.items[0].handle}}","centers":[10,10,10],"diameter":6.6}
+se_documents {"action":"save_as","path":"{{work}}\\a09_plate.par","overwrite":true}
+se_documents {"action":"close","document":"{{pd.handle}}","saveChanges":false}
+@nd = se_documents {"action":"new","kind":"part"}
+@nk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{nk.sketch}}","center":[0,0],"radius":3}
+se_sketch {"action":"close","sketch":"{{nk.sketch}}"}
+se_extrude {"sketch":"{{nk.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\a09_pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{nd.handle}}","saveChanges":false}
+@s0 = se_session {"action":"status"}
+@a = se_documents {"action":"new","kind":"assembly"}
+@pl = se_assembly {"action":"insert","path":"{{work}}\\a09_plate.par","origin":[0,0,0],"ground":true}
+@p1 = se_assembly {"action":"insert","path":"{{work}}\\a09_pin.par","origin":[200,0,0]}
+@p2 = se_assembly {"action":"insert","path":"{{work}}\\a09_pin.par","origin":[300,0,0]}
+# cada ocurrencia del mismo .par tiene sus propios handles, estables entre consultas
+@c1 = se_geometry {"action":"faces","source":"{{p1.handle}}","type":"cylinder"}
+@c2 = se_geometry {"action":"faces","source":"{{p2.handle}}","type":"cylinder"}
+@c1b = se_geometry {"action":"faces","source":"{{p1.handle}}","type":"cylinder"}
+?= c1b.items[0].handle {{c1.items[0].handle}}
+?= c2.items[0].axisPoint[0] 300
+@hole = se_geometry {"action":"faces","source":"{{pl.handle}}","type":"cylinder"}
+# coaxial y enrasado con la cara inferior sin occurrence1/occurrence2: se deducen de los handles
+@ax = se_relations {"action":"add","type":"axial","element1":"{{c1.items[0].handle}}","element2":"{{hole.items[0].handle}}"}
+@b1 = se_geometry {"action":"faces","source":"{{p1.handle}}","direction":[0,0,-1]}
+@bp = se_geometry {"action":"faces","source":"{{pl.handle}}","direction":[0,0,-1]}
+@fl = se_relations {"action":"add","type":"planar","element1":"{{b1.items[0].handle}}","element2":"{{bp.items[0].handle}}","align":true}
+# los handles siguen valiendo tras moverse la ocurrencia; medidas en coordenadas del conjunto
+@md = se_measure {"action":"distance","first":"{{c1.items[0].handle}}","second":"{{hole.items[0].handle}}"}
+?= md.distance 0.3
+@ma = se_measure {"action":"angle","first":"{{b1.items[0].handle}}","second":"{{bp.items[0].handle}}"}
+?= ma.angle 0
+@c1c = se_geometry {"action":"faces","source":"{{p1.handle}}","type":"cylinder"}
+?= c1c.items[0].axisPoint[0] 10
+?= c1c.items[0].axisPoint[1] 10
+# mezclar la cara de una ocurrencia con otra ocurrencia es un error claro
+! [invalid_argument] se_relations {"action":"add","type":"axial","occurrence1":"{{p2.handle}}","element1":"{{c1.items[0].handle}}","element2":"{{hole.items[0].handle}}"}
+se_selection {"action":"set","handles":["{{c2.items[0].handle}}"]}
+@sel = se_selection {"action":"get"}
+?= sel.count 1
+se_selection {"action":"clear"}
+@if = se_interference {}
+?= if.status none
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# al cerrar el conjunto se liberan sus handles y los de las piezas que cargó
+@s1 = se_session {"action":"status"}
+?= s1.liveHandles {{s0.liveHandles}}
+se_documents {"action":"list"}

@@ -5,6 +5,9 @@
     <Project Path="src/SolidEdgeMcp.SolidEdge/SolidEdgeMcp.SolidEdge.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SolidEdgeMcp.Acceptance/SolidEdgeMcp.Acceptance.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="tests/SolidEdgeMcp.Core.Tests/SolidEdgeMcp.Core.Tests.csproj">
       <Platform Project="x64" />
     </Project>

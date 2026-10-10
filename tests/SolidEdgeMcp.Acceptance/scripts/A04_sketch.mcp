@@ -1,0 +1,90 @@
+# A04: bocetos (se_sketch) y restricciones (se_sketch_constraint); receta validada en t123.out. Cada pieza se cierra sin guardar.
+# A: elipse a=20 b=10 a 30°, h=10 -> V = pi*a*b*h = 6283.185 (Body.Volume lee ~0,4 % alto: tol 0,5 % = 31.4). G: proyectar su arista superior en un boceto sobre la cara z=10 (la elipse proyectada conserva el giro de 30°) y extruir 5 -> +pi*20*10*5 = 3141.593; total 9424.778 (tol 0,5 % = 47.1)
+@dA = se_documents {"action":"new","kind":"part"}
+@kA = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"ellipse","sketch":"{{kA.sketch}}","center":[0,0],"radius":20,"minorRadius":10,"angle":30}
+se_sketch {"action":"close","sketch":"{{kA.sketch}}"}
+@xA = se_extrude {"sketch":"{{kA.sketch}}","distance":10}
+?= xA.volume 6283.185 31.4
+@tA = se_geometry {"action":"faces","direction":[0,0,1]}
+@eA = se_geometry {"action":"edges","source":"{{tA.items[0].handle}}"}
+@kG = se_sketch {"action":"create","plane":"{{tA.items[0].handle}}"}
+@pG = se_sketch {"action":"project","sketch":"{{kG.sketch}}","elements":["{{eA.items[0].handle}}"]}
+?= pG.elements[0].geometry.angle 30
+se_sketch {"action":"close","sketch":"{{kG.sketch}}"}
+@xG = se_extrude {"sketch":"{{kG.sketch}}","distance":5}
+?= xG.volume 9424.778 47.1
+se_documents {"action":"close","document":"{{dA.handle}}","saveChanges":false}
+# B: rectángulo 40x20, redondeo r5 en la esquina (40,0): A = 800 - (r² - pi*r²/4) = 794.635 -> V = 7946.350. Error: redondeo de las paralelas [1] (x=40) y [3] (x=0)
+@dB = se_documents {"action":"new","kind":"part"}
+@kB = se_sketch {"action":"create","plane":"1"}
+@rB = se_sketch {"action":"rectangle","sketch":"{{kB.sketch}}","points":[0,0,40,20]}
+se_sketch {"action":"fillet","sketch":"{{kB.sketch}}","elements":["{{rB.elements[0]}}","{{rB.elements[1]}}"],"radius":5}
+! [fillet_failed] se_sketch {"action":"fillet","sketch":"{{kB.sketch}}","elements":["{{rB.elements[1]}}","{{rB.elements[3]}}"],"radius":5}
+se_sketch {"action":"close","sketch":"{{kB.sketch}}"}
+@xB = se_extrude {"sketch":"{{kB.sketch}}","distance":10}
+?= xB.volume 7946.350 0.01
+se_documents {"action":"close","document":"{{dB.handle}}","saveChanges":false}
+# C: rectángulo 40x20; distancia [0]-[2] = 30 y longitud de [0] = 50 -> 50x30x10 = 15000; variable de la distancia = 25 -> 50x25x10 = 12500 (cambio -2500). Error: cota de longitud sobre una cota. H: el mismo rectángulo en el plano 3 (normal (0,-1,0)), sin operación: distancia 30 -> [2] queda en y=30 (t123.out)
+@dC = se_documents {"action":"new","kind":"part"}
+@kC = se_sketch {"action":"create","plane":"1"}
+@rC = se_sketch {"action":"rectangle","sketch":"{{kC.sketch}}","points":[0,0,40,20]}
+@vC1 = se_sketch_constraint {"action":"dimension","sketch":"{{kC.sketch}}","dimension":"distance","elements":["{{rC.elements[0]}}","{{rC.elements[2]}}"],"value":30}
+se_sketch_constraint {"action":"dimension","sketch":"{{kC.sketch}}","dimension":"length","elements":["{{rC.elements[0]}}"],"value":50}
+! [invalid_argument] se_sketch_constraint {"action":"dimension","sketch":"{{kC.sketch}}","dimension":"length","elements":["{{vC1.dimension}}"]}
+se_sketch {"action":"close","sketch":"{{kC.sketch}}"}
+@xC = se_extrude {"sketch":"{{kC.sketch}}","distance":10}
+?= xC.volume 15000
+@sC = se_variables {"action":"set","name":"{{vC1.variable}}","value":25}
+?= sC.volumeChange -2500
+@kH = se_sketch {"action":"create","plane":"3"}
+@rH = se_sketch {"action":"rectangle","sketch":"{{kH.sketch}}","points":[0,0,40,20]}
+@vH = se_sketch_constraint {"action":"dimension","sketch":"{{kH.sketch}}","dimension":"distance","elements":["{{rH.elements[0]}}","{{rH.elements[2]}}"],"value":30}
+?= vH.elements[1].start[1] 30
+se_documents {"action":"close","document":"{{dC.handle}}","saveChanges":false}
+# E: triángulo (0,0)(40,0)(0,30), [0] horizontal y fija, [2] vertical; ángulo [0]-[1] = 45 (medido antes atan(30/40) = 36.8699) -> cateto vertical 40*tan45 = 40; V = 40*40/2*10 = 8000. Error: ángulo de 200 (> 180)
+@dE = se_documents {"action":"new","kind":"part"}
+@kE = se_sketch {"action":"create","plane":"1"}
+@pE = se_sketch {"action":"polyline","sketch":"{{kE.sketch}}","points":[0,0,40,0,0,30]}
+se_sketch_constraint {"action":"relation","sketch":"{{kE.sketch}}","relation":"horizontal","elements":["{{pE.elements[0]}}"]}
+se_sketch_constraint {"action":"relation","sketch":"{{kE.sketch}}","relation":"vertical","elements":["{{pE.elements[2]}}"]}
+se_sketch_constraint {"action":"relation","sketch":"{{kE.sketch}}","relation":"fix","elements":["{{pE.elements[0]}}"]}
+@aE = se_sketch_constraint {"action":"dimension","sketch":"{{kE.sketch}}","dimension":"angle","elements":["{{pE.elements[0]}}","{{pE.elements[1]}}"],"value":45}
+?= aE.measured 36.8699 0.001
+! [invalid_argument] se_sketch_constraint {"action":"dimension","sketch":"{{kE.sketch}}","dimension":"angle","elements":["{{pE.elements[0]}}","{{pE.elements[1]}}"],"value":200}
+se_sketch {"action":"close","sketch":"{{kE.sketch}}"}
+@xE = se_extrude {"sketch":"{{kE.sketch}}","distance":10}
+?= xE.volume 8000
+se_documents {"action":"close","document":"{{dE.handle}}","saveChanges":false}
+# K: boceto sin operación. Tangente: la horizontal (y=7) baja a y=r=5; simétrico respecto a x=60: (55,3) -> (65,3); diámetro 30 en un círculo r10 -> r=15; lista: 8 relaciones añadidas - 1 borrada = 7. Errores: paralela con un solo elemento; borrar algo que no es relación.
+@dK = se_documents {"action":"new","kind":"part"}
+@kK = se_sketch {"action":"create","plane":"1"}
+@c1 = se_sketch {"action":"circle","sketch":"{{kK.sketch}}","center":[0,0],"radius":5}
+@c2 = se_sketch {"action":"circle","sketch":"{{kK.sketch}}","center":[1,1],"radius":8}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"fix","elements":["{{c1.element}}"]}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"concentric","elements":["{{c1.element}}","{{c2.element}}"]}
+@eqK = se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"equal","elements":["{{c1.element}}","{{c2.element}}"]}
+@l1 = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[-20,7,20,9]}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"horizontal","elements":["{{l1.element}}"]}
+@tg = se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"tangent","elements":["{{l1.element}}","{{c1.element}}"]}
+?= tg.elements[0].start[1] 5
+@l2 = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[30,0,35,20]}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"perpendicular","elements":["{{l1.element}}","{{l2.element}}"]}
+@l3 = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[40,0,48,22]}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"parallel","elements":["{{l2.element}}","{{l3.element}}"]}
+@ax = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[60,-10,60,10]}
+@p1 = se_sketch {"action":"point","sketch":"{{kK.sketch}}","points":[55,3]}
+@p2 = se_sketch {"action":"point","sketch":"{{kK.sketch}}","points":[66,2]}
+@sy = se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"symmetric","elements":["{{ax.element}}","{{p1.element}}","{{p2.element}}"]}
+?= sy.elements[2].point[0] 65
+@c3 = se_sketch {"action":"circle","sketch":"{{kK.sketch}}","center":[100,0],"radius":10}
+@vD = se_sketch_constraint {"action":"dimension","sketch":"{{kK.sketch}}","dimension":"diameter","elements":["{{c3.element}}"],"value":30}
+?= vD.elements[0].radius 15
+se_sketch {"action":"spline","sketch":"{{kK.sketch}}","points":[10,0,0,10,-10,0,0,-10],"closed":true}
+! [invalid_argument] se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"parallel","elements":["{{l2.element}}"]}
+! [handle_wrong_type] se_sketch_constraint {"action":"delete","constraint":"{{l2.element}}"}
+se_sketch_constraint {"action":"delete","constraint":"{{eqK.relation}}"}
+@lK = se_sketch_constraint {"action":"list","sketch":"{{kK.sketch}}"}
+?= lK.relations 7
+se_documents {"action":"close","document":"{{dK.handle}}","saveChanges":false}
+se_documents {"action":"list"}

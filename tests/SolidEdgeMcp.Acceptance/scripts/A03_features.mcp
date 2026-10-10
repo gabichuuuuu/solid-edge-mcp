@@ -1,0 +1,164 @@
+# A03: operaciones de pieza con volúmenes calculados a mano
+# R: revolución de un rectángulo 20x40 en XZ alrededor de su lado x=0 -> cilindro r20 h40 = pi*400*40 = 50265.482
+@dR = se_documents {"action":"new","kind":"part"}
+@kR = se_sketch {"action":"create","plane":"3"}
+@rR = se_sketch {"action":"rectangle","sketch":"{{kR.sketch}}","points":[0,0,20,40]}
+@aR = se_sketch {"action":"axis","sketch":"{{kR.sketch}}","element":"{{rR.elements[3]}}"}
+se_sketch {"action":"close","sketch":"{{kR.sketch}}"}
+@vR = se_revolve {"sketch":"{{kR.sketch}}","axis":"{{aR.axis}}"}
+?= vR.volume 50265.482 0.01
+# redondeo r3 en la arista circular superior: -2*pi*19.32990*1.931417 = -234.578 -> 50030.904
+@cR = se_geometry {"action":"edges","type":"circle"}
+@ro = se_round {"edges":["{{cR.items[?center=[0,0,40]].handle}}"],"radius":3}
+?= ro.volume 50030.904 0.05
+# chaflán 2 en la arista circular inferior: -2*pi*19.33333*2 = -242.950 -> 49787.954
+@cR2 = se_geometry {"action":"edges","type":"circle"}
+@ch = se_chamfer {"edges":["{{cR2.items[?center=[0,0,0]].handle}}"],"distance":2}
+?= ch.volume 49787.954 0.05
+# revolución parcial de corte: rectángulo x 5..25, z 15..25 girado 90° alrededor del eje Z -> -(pi*(20^2-5^2)/4)*10 = -2945.243
+@kR3 = se_sketch {"action":"create","plane":"3"}
+@rR3 = se_sketch {"action":"rectangle","sketch":"{{kR3.sketch}}","points":[5,15,25,25]}
+@lR3 = se_sketch {"action":"line","sketch":"{{kR3.sketch}}","points":[0,0,0,40]}
+@aR3 = se_sketch {"action":"axis","sketch":"{{kR3.sketch}}","element":"{{lR3.element}}"}
+se_sketch {"action":"close","sketch":"{{kR3.sketch}}"}
+@cut = se_revolve {"sketch":"{{kR3.sketch}}","axis":"{{aR3.axis}}","operation":"cut","angle":90}
+?= cut.volumeChange -2945.243 0.05
+se_documents {"action":"close","document":"{{dR.handle}}","saveChanges":false}
+# S: vaciado de paredes 2 mm abierto por arriba en una caja 50x50x30 -> 75000 - 46*46*28 = 15752
+@dS = se_documents {"action":"new","kind":"part"}
+@kS = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kS.sketch}}","points":[0,0,50,50]}
+se_sketch {"action":"close","sketch":"{{kS.sketch}}"}
+se_extrude {"sketch":"{{kS.sketch}}","distance":30}
+@tS = se_geometry {"action":"faces","direction":[0,0,1]}
+@sh = se_shell {"thickness":2,"openFaces":["{{tS.items[0].handle}}"]}
+?= sh.volume 15752 0.01
+se_documents {"action":"close","document":"{{dS.handle}}","saveChanges":false}
+# D: desmoldeo 5° de las cuatro caras laterales de una caja 40x40x20 desde abajo -> tronco: 20/3*(1600+a^2+40a), a=40-40*tan5 = 36.500489 -> 29282.04
+@dD = se_documents {"action":"new","kind":"part"}
+@kD = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kD.sketch}}","points":[0,0,40,40]}
+se_sketch {"action":"close","sketch":"{{kD.sketch}}"}
+se_extrude {"sketch":"{{kD.sketch}}","distance":20}
+@f1 = se_geometry {"action":"faces","direction":[1,0,0]}
+@f2 = se_geometry {"action":"faces","direction":[-1,0,0]}
+@f3 = se_geometry {"action":"faces","direction":[0,1,0]}
+@f4 = se_geometry {"action":"faces","direction":[0,-1,0]}
+@dr = se_draft {"plane":"1","faces":["{{f1.items[0].handle}}","{{f2.items[0].handle}}","{{f3.items[0].handle}}","{{f4.items[0].handle}}"],"angle":5}
+?= dr.volume 29282.0 0.5
+se_documents {"action":"close","document":"{{dD.handle}}","saveChanges":false}
+# P: placa 100x60x10; agujero r5 en (10,10) por vaciado pasante; patrón 3x2 cada 30/40 -> 60000 - 6*785.398 = 55287.611
+@dP = se_documents {"action":"new","kind":"part"}
+@kP = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kP.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kP.sketch}}"}
+se_extrude {"sketch":"{{kP.sketch}}","distance":10}
+@kP2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kP2.sketch}}","center":[10,10],"radius":5}
+se_sketch {"action":"close","sketch":"{{kP2.sketch}}"}
+@cP = se_extrude {"sketch":"{{kP2.sketch}}","operation":"cut","extent":"through_all"}
+?= cP.volume 59214.602 0.01
+@pr = se_pattern {"type":"rectangular","features":["{{cP.feature.handle}}"],"plane":"1","countX":3,"countY":2,"spacingX":30,"spacingY":40}
+?= pr.volume 55287.611 0.01
+# simetría del agujero original respecto al plano x=50 -> agujero en (90,10): 54502.212
+@mp = se_ref_plane {"action":"offset","plane":"2","distance":50}
+@mi = se_pattern {"type":"mirror","features":["{{cP.feature.handle}}"],"plane":"{{mp.handle}}"}
+?= mi.volume 54502.212 0.01
+! [invalid_argument] se_pattern {"type":"rectangular","features":["{{cP.feature.handle}}"],"plane":"1","countX":2,"countY":1}
+se_documents {"action":"close","document":"{{dP.handle}}","saveChanges":false}
+# C: disco r40 h10 con agujero r4 en (25,0) y patrón circular de 6 -> 50265.482 - 6*502.655 = 47249.553
+@dC = se_documents {"action":"new","kind":"part"}
+@kC = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kC.sketch}}","center":[0,0],"radius":40}
+se_sketch {"action":"close","sketch":"{{kC.sketch}}"}
+se_extrude {"sketch":"{{kC.sketch}}","distance":10}
+@kC2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kC2.sketch}}","center":[25,0],"radius":4}
+se_sketch {"action":"close","sketch":"{{kC2.sketch}}"}
+@cC = se_extrude {"sketch":"{{kC2.sketch}}","operation":"cut","extent":"through_all"}
+@pc = se_pattern {"type":"circular","features":["{{cC.feature.handle}}"],"plane":"1","count":6}
+?= pc.volume 47249.553 0.01
+se_documents {"action":"close","document":"{{dC.handle}}","saveChanges":false}
+# H: agujeros de todos los tipos en un bloque 100x60x20
+@dH = se_documents {"action":"new","kind":"part"}
+@kH = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kH.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kH.sketch}}"}
+@bH = se_extrude {"sketch":"{{kH.sketch}}","distance":20}
+@tH = se_geometry {"action":"faces","direction":[0,0,1]}
+# avellanado Ø6 a 90° con Ø12 pasante: -(pi*9*20 + cono de Ø12 a Ø6 de 3 mm: pi*3/3*(36+9+18) - pi*9*3) = -(565.487+197.920-84.823) = -678.584
+@h1 = se_hole {"plane":"{{tH.items[0].handle}}","centers":[20,30,20],"type":"countersink","diameter":6,"countersinkDiameter":12}
+?= h1.volumeChange -678.584 0.05
+@tH2 = se_geometry {"action":"faces","direction":[0,0,1]}
+# abocardado Ø6 con Ø11 x 6 de profundidad: -(pi*9*14 + pi*30.25*6) = -(395.841+570.199) = -966.040
+@h2 = se_hole {"plane":"{{tH2.items[0].handle}}","centers":[50,30,20],"type":"counterbore","diameter":6,"counterboreDiameter":11,"counterboreDepth":6}
+?= h2.volumeChange -966.040 0.05
+@tH3 = se_geometry {"action":"faces","direction":[0,0,1]}
+# roscado M6 (taladro 5 mm) finito 12 mm desde arriba: cilindro -pi*6.25*12 = -235.619 más la punta cónica del taladro si la hay
+@h3 = se_hole {"plane":"{{tH3.items[0].handle}}","centers":[80,30,20],"type":"tapped","thread":"M6","extent":"finite","depth":12}
+?= h3.volumeChange -235.619 0.01
+@hd3 = se_com_get {"target":"{{h3.feature.handle}}","member":"HoleData"}
+@tdm = se_com_get {"target":"{{hd3.value.handle}}","member":"ThreadDescription"}
+?= tdm.value M6x1
+@tH4 = se_geometry {"action":"faces","direction":[0,0,1]}
+! se_hole {"plane":"{{tH4.items[0].handle}}","centers":[500,500,20],"diameter":5}
+@ph = se_physical {}
+@ftH = se_feature_tree {}
+se_documents {"action":"close","document":"{{dH.handle}}","saveChanges":false}
+# F: planos de referencia. Bloque 100x100x40 simétrico (z -20..20) = 400000; cilindro r10 h10 sobre el plano z=20 -> +3141.593, caja z -20..30
+@dF = se_documents {"action":"new","kind":"part"}
+@kB = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kB.sketch}}","points":[-50,-50,50,50]}
+se_sketch {"action":"close","sketch":"{{kB.sketch}}"}
+@eB = se_extrude {"sketch":"{{kB.sketch}}","distance":40,"direction":"symmetric"}
+?= eB.volume 400000 0.01
+@rp = se_ref_plane {"action":"offset","plane":"1","distance":20}
+@ra = se_ref_plane {"action":"angle","plane":"1","pivot":"2","angle":30}
+@rl = se_ref_plane {"action":"list"}
+@kF = se_sketch {"action":"create","plane":"{{rp.handle}}"}
+se_sketch {"action":"circle","sketch":"{{kF.sketch}}","center":[0,0],"radius":10}
+se_sketch {"action":"close","sketch":"{{kF.sketch}}"}
+@eF = se_extrude {"sketch":"{{kF.sketch}}","distance":10}
+?= eF.volumeChange 3141.593 0.01
+@gF = se_geometry {"action":"summary"}
+?= gF.boundingBox.min[2] -20
+?= gF.boundingBox.max[2] 30
+# corte simétrico de 10 mm desde el plano a 30°: cilindro r5 entero dentro del bloque -> -785.398
+@kF2 = se_sketch {"action":"create","plane":"{{ra.handle}}"}
+se_sketch {"action":"circle","sketch":"{{kF2.sketch}}","center":[20,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{kF2.sketch}}"}
+@eF2 = se_extrude {"sketch":"{{kF2.sketch}}","operation":"cut","distance":10,"direction":"symmetric"}
+?= eF2.volumeChange -785.398 0.01
+se_documents {"action":"close","document":"{{dF.handle}}","saveChanges":false}
+# L: solevado cuadrado 40 -> círculo r15 a 50 mm (56453.84); barrido (7263.08); hélice (3948.50)
+@dL = se_documents {"action":"new","kind":"part"}
+@a = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{a.sketch}}","points":[-20,-20,20,20]}
+se_sketch {"action":"close","sketch":"{{a.sketch}}"}
+@r = se_ref_plane {"action":"offset","plane":"1","distance":50}
+@b = se_sketch {"action":"create","plane":"{{r.handle}}"}
+se_sketch {"action":"circle","sketch":"{{b.sketch}}","center":[0,0],"radius":15}
+se_sketch {"action":"close","sketch":"{{b.sketch}}"}
+@lo = se_loft_sweep {"action":"loft","sketches":["{{a.sketch}}","{{b.sketch}}"]}
+?= lo.volume 56453.84 0.05
+se_documents {"action":"close","document":"{{dL.handle}}","saveChanges":false}
+@dW = se_documents {"action":"new","kind":"part"}
+@p = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"polyline","sketch":"{{p.sketch}}","points":[0,0,0,50,30,80],"closed":false}
+se_sketch {"action":"close","sketch":"{{p.sketch}}","open":true}
+@s = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{s.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{s.sketch}}"}
+@sw = se_loft_sweep {"action":"sweep","sketches":["{{s.sketch}}"],"path":"{{p.sketch}}"}
+?= sw.volume 7263.08 0.05
+se_documents {"action":"close","document":"{{dW.handle}}","saveChanges":false}
+@dX = se_documents {"action":"new","kind":"part"}
+@h = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"circle","sketch":"{{h.sketch}}","center":[10,3],"radius":2}
+@hl = se_sketch {"action":"line","sketch":"{{h.sketch}}","points":[0,0,0,40]}
+@ha = se_sketch {"action":"axis","sketch":"{{h.sketch}}","element":"{{hl.element}}"}
+se_sketch {"action":"close","sketch":"{{h.sketch}}"}
+@hx = se_loft_sweep {"action":"helix","sketches":["{{h.sketch}}"],"axis":"{{ha.axis}}","pitch":8,"turns":5}
+?= hx.volume 3948.50 0.05
+se_documents {"action":"close","document":"{{dX.handle}}","saveChanges":false}
+se_documents {"action":"list"}
