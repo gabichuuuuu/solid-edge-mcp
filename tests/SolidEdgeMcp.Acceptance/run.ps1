@@ -2,7 +2,10 @@
 # Uso (desde la raíz, tras dotnet build SolidEdgeMcp.slnx): .\tests\SolidEdgeMcp.Acceptance\run.ps1 [A01 A03 ...]
 # Crea y cierra sin guardar sus propios documentos; los archivos van a la carpeta de trabajo
 # (%LocalAppData%\SolidEdgeMcp\work\acceptance o SE_MCP_WORK), y el registro de cada guion a logs\ dentro de ella.
+[CmdletBinding(PositionalBinding = $false)]
 param(
+    # Prefijos de los guiones (todos los argumentos sueltos): run.ps1 A03 A09
+    [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Names = @('A'),
     [string]$Configuration = 'Debug',
     [string]$Policy = (Join-Path $env:LOCALAPPDATA 'SolidEdgeMcp\policy.json'),
