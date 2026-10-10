@@ -16,5 +16,11 @@
     <PublishTrimmed>false</PublishTrimmed>
     <SatelliteResourceLanguages>en;es</SatelliteResourceLanguages>
     <InteropDir>$(MSBuildThisFileDirectory)lib\interop\</InteropDir>
+    <Authors>Gabriel Spoleto Couto</Authors>
+    <Product>solid_edge_mcp</Product>
+    <Copyright>Copyright (c) 2026 Gabriel Spoleto Couto</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/gabichuuuuu/solid_edge_mcp</RepositoryUrl>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 </Project>
