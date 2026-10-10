@@ -57,6 +57,32 @@ se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"r
 @rd = se_drawing {"action":"retrieve_dimensions","view":"{{bv.view.handle}}"}
 ?= rd.retrieved 0
 se_drawing {"action":"views"}
+# Annotations (se_annotation). Top view at scale 1: model (x,y) -> sheet (x + 110, y + 260), so the hole centre (50,30) -> (160,290).
+#   Centre mark of the hole; text; balloon on the right edge (100,30) -> terminator (210,290), balloon moved to (240,320);
+#   callout on the hole; centre line of the hole on the bottom view (x = 160); leader from the left edge (0,30) -> (110,290).
+#   6 annotations; a point on no circle fails; deleting the text leaves 2 balloons (balloon + callout)
+@cm = se_annotation {"action":"center_mark","view":"{{bv.view.handle}}","points":[50,30,20]}
+?= cm.annotation.at[0] 160 0.5
+?= cm.annotation.at[1] 290 0.5
+@tx = se_annotation {"action":"text","text":"ALL EDGES 0.5 x 45","position":[40,40]}
+?~ tx.annotation.text ALL EDGES
+@bl = se_annotation {"action":"balloon","view":"{{bv.view.handle}}","points":[100,30,20],"text":"7","position":[240,320]}
+?= bl.annotation.attached true
+?= bl.annotation.terminator[0] 210 0.01
+?= bl.annotation.terminator[1] 290 0.01
+@co = se_annotation {"action":"callout","view":"{{bv.view.handle}}","points":[55,30,20],"text":"HOLE D10 THRU"}
+?= co.annotation.callout true
+@cl = se_annotation {"action":"centerline","view":"{{pd.view.handle}}","points":[45,30,10,55,30,10]}
+?= cl.annotation.at[0] 160 0.5
+@ld = se_annotation {"action":"leader","view":"{{bv.view.handle}}","points":[0,30,20],"position":[80,330]}
+?= ld.annotation.terminator[0] 110 0.01
+@la = se_annotation {"action":"list"}
+?= la.count 6
+! [not_found] se_annotation {"action":"center_mark","view":"{{bv.view.handle}}","points":[20,20,20]}
+! [invalid_argument] se_annotation {"action":"text","position":[40,40]}
+se_annotation {"action":"delete","annotation":"{{tx.annotation.handle}}"}
+@lb = se_annotation {"action":"list","kind":"balloon"}
+?= lb.count 2
 # A3 sheet (420 x 297): top view 1:2 at (100,100) -> 100/2 + 12.7 = 62.7; hole radius 5; move (+20,+10) -> x=120; scale 1; delete.
 #   Assembly parts list: 1 row (d_blk). Rename the sheet and change it to A2 -> 594
 @s2 = se_drawing {"action":"add_sheet","name":"Detalles","paper":"a3"}

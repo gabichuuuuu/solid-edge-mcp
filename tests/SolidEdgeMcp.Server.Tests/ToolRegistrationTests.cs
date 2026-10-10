@@ -67,6 +67,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_options", """{"action":"get","scope":"global"}""", "'scope' must be one of:")]
     [InlineData("se_ui", """{"action":"arrange","style":"grid"}""", "'style' must be one of:")]
     [InlineData("se_relations", """{"action":"add","type":"gear"}""", "'type' must be one of:")]
+    [InlineData("se_annotation", """{"action":"note","text":"A"}""", "'action' must be one of:")]
+    [InlineData("se_annotation", """{"action":"list","kind":"weld"}""", "'kind' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -107,6 +109,9 @@ public sealed class ToolRegistrationTests
     [InlineData("se_relations", """{"action":"add","type":"angle","element1":"face:3","element2":"face:4","angle":30,"plane":"2"}""")]
     [InlineData("se_relations", """{"action":"add","type":"rigid_set","occurrences":["occurrence:2","occurrence:3"]}""")]
     [InlineData("se_relations", """{"action":"add","type":"parallel","element1":"face:3","element2":"face:4","offset":30}""")]
+    [InlineData("se_annotation", """{"action":"center_mark","view":"drawing_view:2","points":[50,30,20]}""")]
+    [InlineData("se_annotation", """{"action":"callout","view":"drawing_view:2","points":[50,35,20],"text":"HOLE D10 THRU","position":[240,320]}""")]
+    [InlineData("se_annotation", """{"action":"list","kind":"center_mark"}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();
