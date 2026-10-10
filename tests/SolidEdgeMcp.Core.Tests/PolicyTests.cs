@@ -19,6 +19,21 @@ public sealed class PolicyTests : IDisposable
     }
 
     [Fact]
+    public void Example_policy_in_the_repository_is_valid()
+    {
+        DirectoryInfo? root = new(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "SolidEdgeMcp.slnx")))
+        {
+            root = root.Parent;
+        }
+
+        Assert.NotNull(root);
+        string example = Path.Combine(root.FullName, "config", "policy.example.json");
+        ServerPolicy policy = ServerPolicy.Parse(File.ReadAllText(example), example);
+        Assert.NotEmpty(policy.AllowedRoots);
+    }
+
+    [Fact]
     public void Parses_full_policy_with_comments_and_trailing_commas()
     {
         const string json = """
