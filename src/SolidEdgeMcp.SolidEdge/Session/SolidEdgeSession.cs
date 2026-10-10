@@ -79,7 +79,11 @@ public sealed class SolidEdgeSession : IDisposable
 
         return await _dispatcher.InvokeAsync("status", () =>
         {
-            Application? app = TryGetApplication(allowStart: false);
+            // Sin conexión (al empezar o tras 'disconnect') se mira la instancia abierta sin engancharse a ella;
+            // con conexión, TryGetApplication además reconecta si Solid Edge se reinició.
+            Application? app = _application is not null ? TryGetApplication(allowStart: false) : null;
+            bool connected = app is not null;
+            app ??= NativeMethods.TryGetActiveObject(SolidEdgeLauncher.ProgId) as Application;
             if (app is null)
             {
                 return new SessionStatus(false, false, null, null, null, null, null, null, null, null, 0, Handles.Count);
@@ -97,7 +101,7 @@ public sealed class SolidEdgeSession : IDisposable
             {
             }
 
-            return new SessionStatus(true, true, app.Version, app.ProcessID, app.Visible, app.Documents.Count,
+            return new SessionStatus(connected, true, app.Version, app.ProcessID, app.Visible, app.Documents.Count,
                 activeDocument, SafeEnvironment(app), null, null, _dispatcher.Pending, Handles.Count);
         }, OperationTimeout, cancellationToken).ConfigureAwait(false);
     }
