@@ -124,4 +124,53 @@ se_relations {"action":"add","type":"planar","occurrence1":"{{oc.handle}}","elem
 @i3 = se_interference {}
 ?= i3.status none
 se_documents {"action":"close","document":"{{a2.handle}}","saveChanges":false}
+# Parallel, tangent, angle and rigid-set relations, each checked geometrically. Block k1 grounded at the origin; block k2 and the pins free.
+@a3 = se_documents {"action":"new","kind":"assembly"}
+@k1 = se_assembly {"action":"insert","path":"{{work}}\\blk.par"}
+@k2 = se_assembly {"action":"insert","path":"{{work}}\\blk.par","origin":[0,200,0],"ground":false}
+@q1 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[200,0,0],"ground":false}
+@q2 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[300,0,0],"ground":false}
+@q3 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[400,0,0],"ground":false}
+# parallel: pin axis 30 mm from the hole axis -> cylinder faces 30 - 5 - 5 = 20 mm apart
+@h1 = se_geometry {"action":"faces","source":"{{k1.handle}}","type":"cylinder"}
+@pc1 = se_geometry {"action":"faces","source":"{{q1.handle}}","type":"cylinder"}
+@rpa = se_relations {"action":"add","type":"parallel","element1":"{{pc1.items[0].handle}}","element2":"{{h1.items[0].handle}}","offset":30}
+?= rpa.relations[0].parallel true
+?= rpa.relations[0].offset 30
+@pc1b = se_geometry {"action":"faces","source":"{{q1.handle}}","type":"cylinder"}
+@dpa = se_measure {"action":"distance","first":"{{pc1b.items[0].handle}}","second":"{{h1.items[0].handle}}"}
+?= dpa.distance 20
+! [invalid_argument] se_relations {"action":"add","type":"parallel","element1":"{{pc1b.items[0].handle}}","element2":"{{h1.items[0].handle}}","offset":-5}
+# tangent: pin q2 against the block face x = 100 -> pin axis at x = 105 (radius 5), on the outer side of the face
+@sx = se_geometry {"action":"faces","source":"{{k1.handle}}","direction":[1,0,0]}
+@pc2 = se_geometry {"action":"faces","source":"{{q2.handle}}","type":"cylinder"}
+@rta = se_relations {"action":"add","type":"tangent","element1":"{{pc2.items[0].handle}}","element2":"{{sx.items[0].handle}}"}
+?= rta.relations[0].type tangent
+?= rta.relations[0].status solved
+?= rta.occurrence.origin[0] 105
+! [invalid_argument] se_relations {"action":"add","type":"tangent","element1":"{{sx.items[0].handle}}","element2":"{{pc2.items[0].handle}}"}
+# angle: k2's -Y face at 60° from k1's top face; the rotation axis is X, so the YZ base plane is picked and k2 turns -30° about X
+@s2 = se_geometry {"action":"faces","source":"{{k2.handle}}","direction":[0,-1,0]}
+@t1 = se_geometry {"action":"faces","source":"{{k1.handle}}","direction":[0,0,1]}
+! [invalid_argument] se_relations {"action":"add","type":"angle","element1":"{{s2.items[0].handle}}","element2":"{{t1.items[0].handle}}"}
+! [invalid_argument] se_relations {"action":"add","type":"angle","element1":"{{s2.items[0].handle}}","element2":"{{t1.items[0].handle}}","angle":60,"plane":"1"}
+@ran = se_relations {"action":"add","type":"angle","element1":"{{s2.items[0].handle}}","element2":"{{t1.items[0].handle}}","angle":60}
+?= ran.relations[0].type angle
+?= ran.relations[0].angle 60
+?= ran.occurrence.angles[0] -30
+@s2b = se_geometry {"action":"faces","source":"{{k2.handle}}","type":"plane","limit":1}
+@man = se_measure {"action":"angle","first":"{{s2b.items[0].handle}}","second":"{{t1.items[0].handle}}"}
+?= man.angle 60
+# parallel faces leave the rotation axis undefined: the measurement plane is required
+@t3 = se_geometry {"action":"faces","source":"{{q3.handle}}","direction":[0,0,-1]}
+! [invalid_argument] se_relations {"action":"add","type":"angle","element1":"{{t3.items[0].handle}}","element2":"{{t1.items[0].handle}}","angle":30}
+# rigid set: pin q3 and block k2 move as one
+! [invalid_argument] se_relations {"action":"add","type":"rigid_set","occurrences":["{{q3.handle}}"]}
+@rri = se_relations {"action":"add","type":"rigid_set","occurrences":["{{q3.handle}}","{{k2.handle}}"]}
+?= rri.relations[0].type rigid_set
+?= rri.relations[0].status solved
+?~ rri.relations[0].occurrences blk.par:2
+@rl3 = se_relations {"action":"list"}
+?= rl3.count 5
+se_documents {"action":"close","document":"{{a3.handle}}","saveChanges":false}
 se_documents {"action":"list"}

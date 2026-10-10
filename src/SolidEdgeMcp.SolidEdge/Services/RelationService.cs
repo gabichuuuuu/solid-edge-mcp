@@ -24,7 +24,10 @@ public sealed record RelationSpec(
     string? Axis2 = null,
     double Offset = 0,
     bool Align = false,
-    bool Flip = false);
+    bool Flip = false,
+    double? Angle = null,
+    string[]? Occurrences = null,
+    string? Plane = null);
 
 /// <summary>
 /// Relaciones de conjunto. El sentido de <c>NormalsAligned</c> de Solid Edge no corresponde siempre a «alinear» o
@@ -33,11 +36,13 @@ public sealed record RelationSpec(
 /// </summary>
 public static class RelationService
 {
-    public static readonly IReadOnlyList<string> Types = ["planar", "axial", "insert"];
+    public static readonly IReadOnlyList<string> Types = ["planar", "axial", "insert", "parallel", "tangent", "angle", "rigid_set"];
 
     /// <summary>Tolerancias del resultado: 0,001 mm y coseno de unos 0,08°.</summary>
     private const double DistanceTolerance = 1e-6;
     private const double ParallelCosine = 0.999999;
+    private const double PerpendicularCosine = 0.0014;
+    private const double AngleTolerance = 0.0014;
 
     public static object List(SeContext context, string? documentHandle, string? occurrence, int offset, int limit)
     {
@@ -82,7 +87,12 @@ public static class RelationService
         if (!Types.Contains(spec.Type))
         {
             throw ToolException.InvalidArgument($"Unknown relation type '{spec.Type}'.",
-                $"Use one of: {string.Join(", ", Types)}. Other relations (angle, tangent...) are available with se_com_invoke on the document's Relations3d.");
+                $"Use one of: {string.Join(", ", Types)}. Other relations (gear, cam, path, center plane...) are available with se_com_invoke on the document's Relations3d.");
+        }
+
+        if (spec.Type == "rigid_set")
+        {
+            return RigidSet(context, spec.Occurrences);
         }
 
         Occurrence moving = OccurrenceOf(context, spec.Occurrence1, spec.Element1, "occurrence1", "element1")
@@ -104,23 +114,50 @@ public static class RelationService
             throw ToolException.InvalidArgument("'offset' must be a finite number (mm).");
         }
 
-        if (spec.Type == "axial" && offset != 0)
+        if (spec.Type is "axial" or "angle" && offset != 0)
         {
-            throw ToolException.InvalidArgument("'offset' applies to planar and insert relations, not to axial ones.");
+            throw ToolException.InvalidArgument($"'offset' does not apply to {spec.Type} relations.");
+        }
+
+        if (spec.Type == "parallel" && offset < 0)
+        {
+            throw ToolException.InvalidArgument("For parallel axes 'offset' is the distance between them (mm, >= 0; 0 = free distance).");
+        }
+
+        double? angle = null;
+        if (spec.Type == "angle")
+        {
+            double degrees = spec.Angle ?? throw ToolException.InvalidArgument("An angle relation requires 'angle' (degrees between the faces, 0-180).");
+            if (!double.IsFinite(degrees) || degrees < 0 || degrees > 180)
+            {
+                throw ToolException.InvalidArgument("'angle' must be between 0 and 180 degrees.");
+            }
+
+            angle = Units.DegToRad(degrees);
         }
 
         // Validación previa de la geometría: el error sale antes de tocar el conjunto.
-        if (spec.Type == "axial")
+        switch (spec.Type)
         {
-            AxisOf(first, "element1");
-            AxisOf(second, "element2");
-        }
-        else
-        {
-            PlaneOf(first, "element1");
-            PlaneOf(second, "element2");
+            case "axial" or "parallel":
+                AxisOf(first, "element1");
+                AxisOf(second, "element2");
+                break;
+            case "tangent":
+                CylinderOf(first, "element1");
+                if (second.Element is not Face { Geometry: SolidEdgeGeometry.Cylinder })
+                {
+                    PlaneOf(second, "element2");
+                }
+
+                break;
+            default:
+                PlaneOf(first, "element1");
+                PlaneOf(second, "element2");
+                break;
         }
 
+        object? measure = spec.Type == "angle" ? MeasurePlane(context, assembly, first, second, spec.Plane) : null;
         if (firstAxis is not null)
         {
             AxisOf(firstAxis, "axis1");
@@ -143,6 +180,18 @@ public static class RelationService
             if (spec.Type == "axial")
             {
                 AddAxial(relations, first, second, spec.Flip, "element", created);
+            }
+            else if (spec.Type == "parallel")
+            {
+                AddParallel(relations, first, second, offset, created);
+            }
+            else if (spec.Type == "tangent")
+            {
+                AddTangent(relations, first, second, offset, created);
+            }
+            else if (spec.Type == "angle")
+            {
+                AddAngle(relations, first, second, angle!.Value, measure!, created);
             }
             else if (spec.Type == "insert")
             {
@@ -307,7 +356,189 @@ public static class RelationService
             "Try again with 'flip' the other way.");
     }
 
-    /// <summary>Elemento de una ocurrencia (con su referencia en el conjunto) o, sin ocurrencia, plano del conjunto.</summary>
+    /// <summary>Ejes paralelos (Solid Edge: axial con desplazamiento paralelo), a la distancia dada o libre si es 0.</summary>
+    private static void AddParallel(Relations3d relations, Side first, Side second, double offset, List<object> created)
+    {
+        AxialRelation3d relation = relations.AddAxialWithParallelOffset(first.Reference, second.Reference, offset > 0, offset);
+        created.Add(relation);
+        (double[] a1, double[] e1) = AxisOf(first, "element1");
+        (double[] a2, double[] e2) = AxisOf(second, "element2");
+        double gap = Geo.Length(Geo.Cross(Minus(a1, a2), e2));
+        if (Math.Abs(Dot(e1, e2)) < ParallelCosine || (offset > 0 && Math.Abs(gap - offset) > DistanceTolerance))
+        {
+            throw new ToolException("relation_failed", $"After the parallel relation the axes are {Geo.Mm(gap)} mm apart"
+                + (Math.Abs(Dot(e1, e2)) < ParallelCosine ? " and not parallel." : $" instead of {Geo.Mm(offset)} mm."),
+                "Check that the occurrence is not held by other relations (se_relations list).");
+        }
+    }
+
+    /// <summary>
+    /// Tangencia de un cilindro con un plano (por el lado exterior de la cara) o con otro cilindro (exterior). Solid
+    /// Edge elige el semiespacio con <c>IsHalfSpacePositive</c>, que no se puede cambiar después: si el cilindro queda
+    /// del otro lado se borra la relación y se crea con el valor contrario.
+    /// </summary>
+    private static void AddTangent(Relations3d relations, Side first, Side second, double offset, List<object> created)
+    {
+        string found = "";
+        foreach (bool positive in new[] { true, false })
+        {
+            Array point1 = new double[3];
+            Array point2 = new double[3];
+            TangentRelation3d relation = relations.AddTangent(first.Reference, second.Reference, ref point1, ref point2, offset, positive);
+            created.Add(relation);
+            (bool tangent, found) = TangentResult(first, second, offset);
+            if (tangent && DetailedStatus(relation) == "solved")
+            {
+                return;
+            }
+
+            created.Remove(relation);
+            TryDelete(relation);
+        }
+
+        throw new ToolException("relation_failed", $"The tangent relation did not leave the cylinder outside the other element ({found}).",
+            "Check that the cylinder's axis can lie parallel to the plane or to the other cylinder and that the occurrence is not held by other relations.");
+    }
+
+    /// <summary>Comprueba la tangencia exterior con el desplazamiento pedido; devuelve también lo medido para el error.</summary>
+    private static (bool Tangent, string Found) TangentResult(Side first, Side second, double offset)
+    {
+        (double[] a1, double[] d1, double r1) = CylinderOf(first, "element1");
+        if (second.Element is Face { Geometry: SolidEdgeGeometry.Cylinder })
+        {
+            (double[] a2, double[] d2, double r2) = CylinderOf(second, "element2");
+            double between = Geo.Length(Geo.Cross(Minus(a1, a2), d2));
+            double expected = r1 + r2 + offset;
+            return (Math.Abs(Dot(d1, d2)) >= ParallelCosine && Math.Abs(between - expected) <= DistanceTolerance,
+                $"axes {Geo.Mm(between)} mm apart, expected {Geo.Mm(expected)} mm");
+        }
+
+        (double[] p2, double[] n2) = PlaneOf(second, "element2");
+        double height = Dot(Minus(a1, p2), n2);
+        return (Math.Abs(Dot(d1, n2)) <= PerpendicularCosine && Math.Abs(height - (r1 + offset)) <= DistanceTolerance,
+            $"axis {Geo.Mm(height)} mm from the face, expected {Geo.Mm(r1 + offset)} mm");
+    }
+
+    /// <summary>
+    /// Ángulo entre las normales exteriores de dos caras planas (0° = mismo sentido, 180° = enfrentadas), medido en
+    /// <paramref name="measure"/>, un plano del conjunto perpendicular al eje de giro. Sin plano de medida Solid Edge
+    /// deja la relación sin geometría (missing_geometry) y no mueve la pieza (comprobado en Solid Edge 2026). El
+    /// ángulo de Solid Edge se mide con sus propios sentidos: se comprueba el resultado y se prueban los equivalentes.
+    /// </summary>
+    private static void AddAngle(Relations3d relations, Side first, Side second, double angle, object measure, List<object> created)
+    {
+        AngularRelation3d relation = relations.AddAngular(first.Reference, second.Reference, false, false,
+            measure, measure, angle, true, true, true);
+        created.Add(relation);
+        double measured = 0;
+        foreach (double candidate in new[] { angle, (2 * Math.PI) - angle, Math.PI - angle, Math.PI + angle })
+        {
+            if (candidate != angle)
+            {
+                relation.Angle = candidate;
+            }
+
+            (_, double[] n1) = PlaneOf(first, "element1");
+            (_, double[] n2) = PlaneOf(second, "element2");
+            measured = Math.Acos(Math.Clamp(Dot(n1, n2), -1, 1));
+            if (Math.Abs(measured - angle) <= AngleTolerance && DetailedStatus(relation) == "solved")
+            {
+                return;
+            }
+        }
+
+        throw new ToolException("relation_failed",
+            $"After the angle relation the faces' normals are {Units.RadToDeg(measured):0.###}° apart instead of {Units.RadToDeg(angle):0.###}° ({DetailedStatus(relation)}).",
+            "Use a measurement 'plane' perpendicular to the rotation axis and check that the occurrence is free to rotate about it (se_relations list with 'occurrence').");
+    }
+
+    /// <summary>
+    /// Plano de medida del ángulo: el indicado ('1'-'3' o un plano del conjunto) o el plano base perpendicular a las dos
+    /// caras (su normal, paralela al eje de giro). Con caras paralelas el eje no está definido y hay que indicarlo.
+    /// </summary>
+    private static object MeasurePlane(SeContext context, AssemblyDocument assembly, Side first, Side second, string? plane)
+    {
+        (_, double[] n1) = PlaneOf(first, "element1");
+        (_, double[] n2) = PlaneOf(second, "element2");
+        if (!string.IsNullOrWhiteSpace(plane))
+        {
+            Side measure = Resolve(context, assembly, null, plane, "plane");
+            (_, double[] normal) = PlaneOf(measure, "plane");
+            if (Math.Abs(Dot(normal, n1)) > PerpendicularCosine || Math.Abs(Dot(normal, n2)) > PerpendicularCosine)
+            {
+                throw ToolException.InvalidArgument("'plane' must be perpendicular to both faces (its normal is the rotation axis).",
+                    "Use the assembly base plane whose normal is the axis the occurrence turns about, or create one with se_ref_plane.");
+            }
+
+            return measure.Reference;
+        }
+
+        double[] axis = Geo.Cross(n1, n2);
+        if (Geo.Length(axis) < 1e-6)
+        {
+            throw ToolException.InvalidArgument("The faces are parallel, so the rotation axis is not defined: give the measurement 'plane'.",
+                "'plane' = '1' (XY), '2' (YZ) or '3' (XZ) assembly base plane, or an assembly plane handle, perpendicular to the rotation axis.");
+        }
+
+        axis = Unit(axis);
+        for (int index = 1; index <= 3; index++)
+        {
+            object basePlane = Late.Call(assembly.AsmRefPlanes, "Item", index)!;
+            (_, double[] normal) = PlaneOf(new Side(basePlane, basePlane, null), "plane");
+            if (Math.Abs(Dot(normal, axis)) >= ParallelCosine)
+            {
+                return basePlane;
+            }
+        }
+
+        throw ToolException.InvalidArgument("No assembly base plane is perpendicular to both faces: give the measurement 'plane'.",
+            "Create an assembly plane perpendicular to the rotation axis (se_ref_plane) and pass its handle as 'plane'.");
+    }
+
+    /// <summary>Conjunto rígido: las ocurrencias se mueven juntas, como una sola.</summary>
+    private static object RigidSet(SeContext context, string[]? occurrences)
+    {
+        if (occurrences is not { Length: >= 2 })
+        {
+            throw ToolException.InvalidArgument("A rigid set needs 'occurrences': two or more occurrence handles.");
+        }
+
+        Occurrence[] members = occurrences.Select((handle, i) => AssemblyService.Occurrence(context, handle, $"occurrences[{i}]")).ToArray();
+        if (members.Select(m => m.OccurrenceID).Distinct().Count() != members.Length)
+        {
+            throw ToolException.InvalidArgument("'occurrences' repeats an occurrence.");
+        }
+
+        AssemblyDocument assembly = members[0].TopLevelDocument;
+        Array array = members.Cast<object>().ToArray();
+        RigidSetRelation3d relation = assembly.Relations3d.AddRigidSet(members.Length, ref array);
+        if (relation.OccurrenceCount != members.Length)
+        {
+            TryDelete(relation);
+            throw new ToolException("relation_failed", $"The rigid set has {relation.OccurrenceCount} occurrences instead of {members.Length}.",
+                "Check that the occurrences belong to the same assembly and are not already in another rigid set.");
+        }
+
+        return new { relations = new[] { Describe(context, assembly, relation, []) } };
+    }
+
+    /// <summary>Eje, dirección y radio de una cara cilíndrica (m, coordenadas del conjunto).</summary>
+    private static (double[] Point, double[] Direction, double Radius) CylinderOf(Side side, string argumentName)
+    {
+        if (side.Element is not Face { Geometry: SolidEdgeGeometry.Cylinder cylinder })
+        {
+            throw ToolException.InvalidArgument($"'{argumentName}' must be a cylindrical face for a tangent relation.");
+        }
+
+        Array point = new double[3];
+        Array direction = new double[3];
+        cylinder.GetCylinderData(ref point, ref direction, out double radius);
+        double[] p = Geo.Doubles(point).ToArray();
+        double[] d = Geo.Doubles(direction).ToArray();
+        Placement? placement = side.Occurrence is null ? null : Placement.Of(side.Occurrence);
+        return (placement?.Point(p) ?? p, Unit(placement?.Vector(d) ?? d), radius);
+    }
+
     /// <summary>Ocurrencia indicada o, si falta, la del handle del elemento (caras y aristas leídas desde una ocurrencia).</summary>
     private static Occurrence? OccurrenceOf(SeContext context, string? occurrence, string? element, string occurrenceName, string elementName)
     {
@@ -441,6 +672,17 @@ public static class RelationService
             info["offset"] = Geo.Mm(offset);
         }
 
+        if (relation is AxialRelation3d { ParallelOffset: true } axial)
+        {
+            info["parallel"] = true;
+            info["fixedOffset"] = axial.FixedParallelOffset;
+        }
+
+        if (Late.TryGet(relation, "Angle") is double angle)
+        {
+            info["angle"] = Math.Round(Units.RadToDeg(angle), 6);
+        }
+
         if (Late.TryGet(relation, "Suppress") is true)
         {
             info["suppressed"] = true;
@@ -450,9 +692,12 @@ public static class RelationService
     }
 
     /// <summary>Ocurrencias de la relación; las suprimidas no se pueden leer y se omiten.</summary>
-    private static Occurrence[] Members(object relation) => (relation is GroundRelation3d
-            ? new[] { Late.TryGet(relation, "Occurrence") }
-            : new[] { Late.TryGet(relation, "Occurrence1"), Late.TryGet(relation, "Occurrence2") })
+    private static Occurrence[] Members(object relation) => (relation switch
+        {
+            GroundRelation3d => new[] { Late.TryGet(relation, "Occurrence") },
+            RigidSetRelation3d => (Late.TryGet(relation, "Occurrences") as Array)?.Cast<object?>().ToArray() ?? [],
+            _ => new[] { Late.TryGet(relation, "Occurrence1"), Late.TryGet(relation, "Occurrence2") },
+        })
         .OfType<Occurrence>().Where(o => Late.TryGet(o, "OccurrenceID") is not null).ToArray();
 
     private static string TypeName(object relation) => relation switch

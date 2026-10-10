@@ -36,6 +36,10 @@ public enum RelationType
     Planar,
     Axial,
     Insert,
+    Parallel,
+    Tangent,
+    Angle,
+    RigidSet,
 }
 
 public enum BomStructure
@@ -105,10 +109,15 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         add moves 'occurrence1' onto 'occurrence2' (or onto an assembly base plane '1'-'3' when occurrence2 is omitted); occurrence1 is ungrounded first.
         type: planar (element1/element2 = planar faces or reference planes; align false = faces against each other (mate), true = same direction (flush); offset mm) |
         axial (element1/element2 = cylindrical/conical faces or straight/circular edges; keeps the current orientation, flip reverses it) |
-        insert (planar mate element1/element2 + axial axis1/axis2 with rotation locked, e.g. a pin into a hole).
-        The result is checked geometrically (normals, distance, coaxiality); a relation that fails is removed and the occurrence put back.
+        insert (planar mate element1/element2 + axial axis1/axis2 with rotation locked, e.g. a pin into a hole) |
+        parallel (element1/element2 = axes as for axial; offset = distance in mm between them, 0 = free) |
+        tangent (element1 = cylindrical face; element2 = planar face (cylinder on its outer side) or cylindrical face (outside); offset mm) |
+        angle (element1/element2 = planar faces; angle = degrees between their outward normals, 0-180; plane = measurement plane perpendicular to the rotation axis, default the base plane perpendicular to both faces) |
+        rigid_set (occurrences = 2+ occurrence handles that then move as one).
+        The result is checked geometrically (normals, distance, coaxiality, angle); a relation that fails is removed and the occurrence put back.
         Faces and edges: se_geometry action 'faces'/'edges' with 'source' = the occurrence handle (assembly coordinates).
-        Angle, tangent and other relations: se_com_invoke on the document's Relations3d.
+        Gear, cam, path, center-plane and point relations: se_com_invoke on the document's Relations3d.
+        Example: {"action":"add","type":"angle","element1":"face:31","element2":"face:12","angle":30}.
         """)]
     public Task<CallToolResult> Relations(
         RelationAction action,
@@ -119,9 +128,12 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         [Description("add: face, edge or reference plane of occurrence2's part, or '1'-'3' / an assembly plane handle without occurrence2.")] string? element2 = null,
         [Description("insert: cylindrical face or circular edge of occurrence1 (its axis).")] string? axis1 = null,
         [Description("insert: cylindrical face or circular edge of occurrence2.")] string? axis2 = null,
-        [Description("planar/insert: distance in mm between the faces, along the outward normal of element2 (default 0).")] double offset = 0,
+        [Description("planar/insert: distance in mm between the faces, along the outward normal of element2; parallel: distance between the axes (0 = free); tangent: gap in mm (default 0).")] double offset = 0,
         [Description("planar: true = flush (normals in the same direction); default false = mate (faces against each other).")] bool align = false,
         [Description("axial/insert: reverse the axis orientation.")] bool flip = false,
+        [Description("angle: degrees between the outward normals of element1 and element2 (0-180).")] double? angle = null,
+        [Description("rigid_set: occurrence handles (2 or more).")] string[]? occurrences = null,
+        [Description("angle: measurement plane, '1'-'3' (assembly base planes XY, YZ, XZ) or an assembly plane handle, perpendicular to the rotation axis; required when the faces are parallel.")] string? plane = null,
         [Description("delete: relation handle.")] string? relation = null,
         [Description("list: only the relations of this occurrence.")] string? occurrence = null,
         [Description("list: number of relations to skip.")] int skip = 0,
@@ -136,7 +148,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             RelationAction.List => runner.RunAsync(tool, name, c => RelationService.List(c, document, occurrence, skip, limit), cancellationToken),
             RelationAction.Add => runner.RunAsync(tool, name, c => RelationService.Add(c, document,
                 new RelationSpec(Snake(ToolRunner.RequireValue(type, "type", "add")), occurrence1, element1, occurrence2, element2, axis1, axis2,
-                    offset, align, flip)), cancellationToken),
+                    offset, align, flip, angle, occurrences, plane)), cancellationToken),
             RelationAction.Delete => runner.RunAsync(tool, name, c => RelationService.Delete(c, relation), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

@@ -66,6 +66,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sketch_constraint", """{"action":"dimension","sketch":"sketch:1","type":"length"}""", "has no argument 'type'")]
     [InlineData("se_options", """{"action":"get","scope":"global"}""", "'scope' must be one of:")]
     [InlineData("se_ui", """{"action":"arrange","style":"grid"}""", "'style' must be one of:")]
+    [InlineData("se_relations", """{"action":"add","type":"gear"}""", "'type' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -103,6 +104,9 @@ public sealed class ToolRegistrationTests
     [InlineData("se_ui", """{"action":"ribbon","environment":"SheetMetal","tab":"Home"}""")]
     [InlineData("se_variables", """{"action":"limits","name":"Thick","min":5,"max":20,"maxExclusive":true}""")]
     [InlineData("se_variables", """{"action":"limits","name":"Thick","values":[10,20,30]}""")]
+    [InlineData("se_relations", """{"action":"add","type":"angle","element1":"face:3","element2":"face:4","angle":30,"plane":"2"}""")]
+    [InlineData("se_relations", """{"action":"add","type":"rigid_set","occurrences":["occurrence:2","occurrence:3"]}""")]
+    [InlineData("se_relations", """{"action":"add","type":"parallel","element1":"face:3","element2":"face:4","offset":30}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();
