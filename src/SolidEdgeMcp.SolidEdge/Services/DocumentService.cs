@@ -201,9 +201,23 @@ public static class DocumentService
             "recompute" => "Recompute",
             _ => throw ToolException.InvalidArgument($"Unknown edit action '{action}'."),
         };
+        // Solid Edge no registra como deshacibles las operaciones creadas por el API a partir de bocetos, y crear un
+        // boceto vacía el historial (comprobado): se mira cuántos pasos hay para no dar por hecho lo que no ocurrió.
+        string counter = action == "undo" ? "UndoTransactionCount" : "RedoTransactionCount";
+        int? available = member == "Recompute" ? null : TransactionCount(document, counter);
+        if (available == 0)
+        {
+            throw new ToolException($"nothing_to_{action}", $"Solid Edge has no step to {action} in '{document.Name}'.",
+                action == "undo"
+                    ? "Solid Edge does not record features made through its API from sketches, and creating a sketch clears the history: remove or suppress the feature with se_feature_edit (delete/suppress) instead."
+                    : "Only steps undone with 'undo' can be redone.");
+        }
+
+        int requested = Math.Clamp(steps, 1, 100);
+        int count = available is { } n ? Math.Min(requested, n) : requested;
         try
         {
-            object?[] args = member == "Recompute" ? [] : [Math.Clamp(steps, 1, 100)];
+            object?[] args = member == "Recompute" ? [] : [count];
             document.GetType().InvokeMember(member, BindingFlags.InvokeMethod, null, document, args, System.Globalization.CultureInfo.InvariantCulture);
         }
         catch (Exception ex) when (Com.ComErrors.Unwrap(ex) is COMException { HResult: Com.ComErrors.DispEMemberNotFound or Com.ComErrors.DispEUnknownName })
@@ -213,7 +227,41 @@ public static class DocumentService
 
         // Tras deshacer o recalcular, los objetos del modelo pueden haber cambiado.
         context.Handles.InvalidateScope(context.DocumentHandle(document), $"the document changed ({action})");
-        return Describe(context, document, TryActive(context));
+        DocumentInfo info = Describe(context, document, TryActive(context));
+        if (available is null)
+        {
+            return info;
+        }
+
+        int left = TransactionCount(document, counter) ?? 0;
+        if (left >= available)
+        {
+            throw new ToolException($"{action}_failed", $"Solid Edge did not {action} anything in '{document.Name}'.",
+                "Check the document in Solid Edge; use se_feature_edit to remove or restore features.");
+        }
+
+        return new
+        {
+            document = info,
+            steps = available - left,
+            requested = count < requested ? requested : (int?)null,
+            remaining = left,
+            note = count < requested ? $"Only {count} step(s) were available." : null,
+        };
+    }
+
+    /// <summary>Pasos deshacibles o rehacibles que lleva Solid Edge, o null si el documento no lo indica.</summary>
+    private static int? TransactionCount(SolidEdgeDocument document, string counter)
+    {
+        try
+        {
+            return Convert.ToInt32(document.GetType().InvokeMember(counter, BindingFlags.InvokeMethod, null, document, null,
+                System.Globalization.CultureInfo.InvariantCulture), System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (Com.ComErrors.Unwrap(ex) is COMException or MissingMethodException)
+        {
+            return null;
+        }
     }
 
     public static DocumentInfo Describe(SeContext context, SolidEdgeDocument document, SolidEdgeDocument? active)

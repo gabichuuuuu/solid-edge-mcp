@@ -37,7 +37,7 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
 {
     [McpServerTool(Name = "se_documents", Title = "Solid Edge documents", Destructive = true, OpenWorld = false)]
     [Description("""
-        Documents. list | info | activate | new (kind, optional template) | open (path) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | close (saveChanges required if there are unsaved changes) | undo | redo (steps) | recompute.
+        Documents. list | info | activate | new (kind, optional template) | open (path) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | close (saveChanges required if there are unsaved changes) | undo | redo (steps; only what Solid Edge recorded: holes, deletes, suppressions... but not features made from sketches, and creating a sketch clears the history; nothing to undo is an error) | recompute.
         Without 'document' the active document is used. Paths must be absolute and inside the allowed folders (se_server_info). save_as keeps the native format (.par .psm .asm .dft .pwd); use se_export for other formats.
         Example: {"action":"new","kind":"part"} then {"action":"save_as","path":"D:\\CAD\\block.par"}.
         """)]
