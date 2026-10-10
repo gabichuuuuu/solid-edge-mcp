@@ -22,7 +22,7 @@ tiene efecto, se deshace y se informa del motivo y del siguiente paso.
 | Consulta | `se_feature_tree`, `se_geometry` (cuerpo, caras, aristas), `se_measure`, `se_physical` (masa, volumen, CDG, inercia), `se_selection` |
 | Vista | `se_view` (encuadre, orientación, modo de visualización, **captura PNG**) |
 | Bocetos | `se_sketch` (líneas, rectángulos, polilíneas, círculos, arcos, eje, cierre validado), `se_ref_plane` |
-| Pieza | `se_extrude`, `se_revolve`, `se_hole`, `se_round`, `se_chamfer`, `se_pattern` (rectangular, circular, simetría), `se_shell`, `se_draft`, `se_feature_edit` |
+| Pieza | `se_extrude`, `se_revolve`, `se_hole`, `se_round`, `se_chamfer`, `se_pattern` (rectangular, circular, simetría), `se_shell`, `se_draft`, `se_loft_sweep` (solevado, barrido, hélice; protrusión y vaciado), `se_feature_edit` |
 | Chapa | `se_sheetmetal` (ajustes, pestaña, brida de contorno, brida, dobladillo, rotura de esquina, desplegado), `se_sheetmetal_form` (embutido, recorte embutido, recorte normal, grabado, desvío, pliegue, cordón) |
 | Conjuntos | `se_assembly` (insertar, mover, girar, fijar, reemplazar, mostrar, suprimir, borrar), `se_relations`, `se_interference`, `se_bom` |
 | Planos | `se_drawing` (hojas; vistas base, proyectada, auxiliar, sección y detalle; cotas; recuperar cotas; lista de piezas; actualizar) |

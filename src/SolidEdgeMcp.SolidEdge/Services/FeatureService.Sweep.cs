@@ -1,0 +1,265 @@
+using SolidEdgeFrameworkSupport;
+using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Session;
+using SolidEdgePart;
+
+namespace SolidEdgeMcp.SolidEdge.Services;
+
+/// <summary>Parámetros de un solevado, barrido o hélice (mm y grados).</summary>
+public sealed record SweepSpec(
+    string Action,
+    string Operation = "add",
+    string[]? Sketches = null,
+    string? Path = null,
+    double[]? Origins = null,
+    string? Axis = null,
+    double? Pitch = null,
+    double? Turns = null,
+    double? Height = null,
+    string Hand = "right");
+
+public static partial class FeatureService
+{
+    public static readonly IReadOnlyList<string> SweepActions = ["loft", "sweep", "helix"];
+
+    /// <summary>Tipo de sección: perfil de boceto (igProfileBasedCrossSection).</summary>
+    private const int ProfileSection = (int)FeaturePropertyConstants.igProfileBasedCrossSection;
+
+    /// <summary>
+    /// Solevado entre secciones, barrido de secciones a lo largo de una trayectoria o hélice de una sección
+    /// alrededor de un eje. Como en extrusión y revolución, cada boceto se usa por una copia enlazada de su
+    /// perfil: si la operación falla y se borra, los bocetos se conservan.
+    /// </summary>
+    public static object LoftSweep(SeContext context, string? documentHandle, SweepSpec spec)
+    {
+        string[] sketches = spec.Sketches is { Length: > 0 } list
+            ? list
+            : throw ToolException.InvalidArgument("'sketches' must list the closed sketches (sections) of the feature.",
+                "Draw each section with se_sketch and close it ('close').");
+        int minimum = spec.Action == "loft" ? 2 : 1;
+        if (sketches.Length < minimum || (spec.Action == "helix" && sketches.Length != 1))
+        {
+            throw ToolException.InvalidArgument(spec.Action switch
+            {
+                "loft" => "A loft needs at least two sections in 'sketches', in order.",
+                "helix" => "A helix takes exactly one section in 'sketches'.",
+                _ => "A sweep needs at least one section in 'sketches'.",
+            });
+        }
+
+        ModelDocument model = ModelDocument.For(context, documentHandle, sketches[0]);
+        bool cut = IsCut(spec.Operation);
+        Profile[] sketchProfiles = sketches.Select(s => SketchService.Resolve(context, s)).ToArray();
+        (double X, double Y)[]? origins = spec.Origins is null ? null : Geo.Points2(spec.Origins, "origins", sketches.Length).ToArray();
+        if (origins is not null && origins.Length != sketches.Length)
+        {
+            throw ToolException.InvalidArgument("'origins' must give one point [x, y] per section.");
+        }
+
+        Profile? pathProfile = null;
+        RefAxis? axis = null;
+        (double Height, double Pitch, double Turns) helix = default;
+        FeaturePropertyConstants hand = FeaturePropertyConstants.igRight;
+        switch (spec.Action)
+        {
+            case "loft":
+                break;
+            case "sweep":
+                pathProfile = SketchService.Resolve(context, spec.Path ?? throw ToolException.InvalidArgument("A sweep requires 'path'.",
+                    "Draw the path as an open or closed chain with se_sketch and close it with 'close' (open: true for an open chain)."));
+                break;
+            case "helix":
+                axis = context.Handles.Resolve<RefAxis>(spec.Axis ?? throw ToolException.InvalidArgument("A helix requires 'axis'.",
+                    "Draw a line in the section's sketch and turn it into the axis with se_sketch action 'axis', before 'close'."), "axis");
+                helix = HelixSize(spec.Pitch, spec.Turns, spec.Height);
+                hand = spec.Hand switch
+                {
+                    "right" => FeaturePropertyConstants.igRight,
+                    "left" => FeaturePropertyConstants.igLeft,
+                    _ => throw ToolException.InvalidArgument($"Unknown hand '{spec.Hand}'.", "Use right or left."),
+                };
+                break;
+            default:
+                throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", SweepActions)}.");
+        }
+
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        Model? existing = model.TryModel();
+        if (cut && existing is null)
+        {
+            throw new ToolException("no_model", $"'{model.Document.Name}' has no solid to cut yet.", "Create the first feature with operation 'add'.");
+        }
+
+        var included = new List<IncludedProfile>();
+        try
+        {
+            foreach (Profile profile in sketchProfiles)
+            {
+                included.Add(Include(model, profile));
+            }
+
+            IncludedProfile? path = pathProfile is null ? null : Include(model, pathProfile);
+            if (path is not null)
+            {
+                included.Add(path);
+            }
+
+            object[] sections = included.Take(sketchProfiles.Length).Select(i => (object)i.Profile).ToArray();
+            int[] types = Enumerable.Repeat(ProfileSection, sections.Length).ToArray();
+            object[] starts = sections.Select((s, i) => (object)(origins is null ? StartPoint((Profile)s, sketchProfiles[i]) : [origins[i].X, origins[i].Y])).ToArray();
+            string what = $"{spec.Action} {(cut ? "cutout" : "protrusion")}";
+
+            object feature = Create(what, null, () => spec.Action switch
+            {
+                "loft" => Loft(model, existing, cut, sections, types, starts),
+                "sweep" => Sweep(model, existing, cut, path!.Profile, sections, types, starts),
+                _ => Helix(model, existing, cut, axis!, sections, helix, hand),
+            });
+
+            (double after, string? status) = Check(context, model, feature, before, cut ? -1 : 1, string.Join(", ", sketches), null);
+            foreach (Profile profile in sketchProfiles.Concat(pathProfile is null ? [] : [pathProfile]))
+            {
+                Hide(profile);
+            }
+
+            foreach (IncludedProfile copy in included)
+            {
+                Hide(copy.Profile);
+            }
+
+            return new
+            {
+                feature = Describe(context, model, feature),
+                volume = Geo.Mm3(after),
+                volumeChange = Geo.Mm3(after - before),
+                helix = axis is null ? null : new { height = Geo.Mm(helix.Height), pitch = Geo.Mm(helix.Pitch), turns = Geo.R(helix.Turns), hand = spec.Hand },
+                warnings = Warnings(switched, status == "warning"),
+            };
+        }
+        catch (ToolException)
+        {
+            // Create y Check ya borraron la operación; quedan las copias de los perfiles.
+            foreach (IncludedProfile copy in included)
+            {
+                DeleteIncluded(copy);
+            }
+
+            throw;
+        }
+    }
+
+    private static object Loft(ModelDocument model, Model? existing, bool cut, object[] sections, int[] types, object[] origins)
+    {
+        const FeaturePropertyConstants none = FeaturePropertyConstants.igNone;
+        const FeaturePropertyConstants side = FeaturePropertyConstants.igRight;
+        if (cut)
+        {
+            return existing!.LoftedCutouts.AddSimple(sections.Length, sections, types, origins, side, none, none);
+        }
+
+        if (existing is null)
+        {
+            Model created = model.Models.AddLoftedProtrusion(sections.Length, sections, types, origins, null, side,
+                none, 0, null, none, 0, null, none, 0, none, 0);
+            return created.LoftedProtrusions.Item(created.LoftedProtrusions.Count);
+        }
+
+        return existing.LoftedProtrusions.AddSimple(sections.Length, sections, types, origins, side, none, none);
+    }
+
+    private static object Sweep(ModelDocument model, Model? existing, bool cut, Profile path, object[] sections, int[] types, object[] origins)
+    {
+        const FeaturePropertyConstants none = FeaturePropertyConstants.igNone;
+        const FeaturePropertyConstants side = FeaturePropertyConstants.igRight;
+        object[] paths = [path];
+        int[] pathTypes = [ProfileSection];
+        if (cut)
+        {
+            return existing!.SweptCutouts.Add(1, paths, pathTypes, sections.Length, sections, types, origins, null, side, none, 0, null, none, 0, null);
+        }
+
+        if (existing is null)
+        {
+            Model created = model.Models.AddSweptProtrusion(1, paths, pathTypes, sections.Length, sections, types, origins, null, side,
+                none, 0, null, none, 0, null);
+            return created.SweptProtrusions.Item(created.SweptProtrusions.Count);
+        }
+
+        return existing.SweptProtrusions.Add(1, paths, pathTypes, sections.Length, sections, types, origins, null, side, none, 0, null, none, 0, null);
+    }
+
+    /// <summary>Hélice desde el inicio de la línea del eje (igStart) hacia su final; el perfil marca el radio.</summary>
+    private static object Helix(ModelDocument model, Model? existing, bool cut, RefAxis axis, object[] sections,
+        (double Height, double Pitch, double Turns) size, FeaturePropertyConstants hand)
+    {
+        const FeaturePropertyConstants start = FeaturePropertyConstants.igStart;
+        const FeaturePropertyConstants side = FeaturePropertyConstants.igRight;
+        Array profiles = sections;
+        if (cut)
+        {
+            return existing!.HelixCutouts.AddFinite(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand);
+        }
+
+        if (existing is null)
+        {
+            Model created = model.Models.AddFiniteBaseHelix(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand);
+            return created.HelixProtrusions.Item(created.HelixProtrusions.Count);
+        }
+
+        return existing.HelixProtrusions.AddFinite(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand);
+    }
+
+    /// <summary>Altura, paso y vueltas (m, m, -) a partir de dos de ellos; si se dan los tres deben cuadrar.</summary>
+    private static (double Height, double Pitch, double Turns) HelixSize(double? pitch, double? turns, double? height)
+    {
+        double? p = pitch is null ? null : Units.MmToM(Units.RequirePositive(pitch.Value, "pitch"));
+        double? h = height is null ? null : Units.MmToM(Units.RequirePositive(height.Value, "height"));
+        double? n = turns is null ? null : Units.RequirePositive(turns.Value, "turns");
+        (double Height, double Pitch, double Turns) size = (p, n, h) switch
+        {
+            ({ } pp, { } nn, _) => (pp * nn, pp, nn),
+            ({ } pp, null, { } hh) => (hh, pp, hh / pp),
+            (null, { } nn, { } hh) => (hh, hh / nn, nn),
+            _ => throw ToolException.InvalidArgument("A helix needs two of 'pitch' (mm), 'turns' and 'height' (mm)."),
+        };
+        if (h is { } given && Math.Abs(given - size.Height) > 1e-9)
+        {
+            throw ToolException.InvalidArgument($"'height' ({Units.MToMm(given)} mm) does not match pitch x turns ({Units.MToMm(size.Height)} mm).",
+                "Give only two of pitch, turns and height.");
+        }
+
+        return size;
+    }
+
+    /// <summary>
+    /// Punto de arranque de una sección (coordenadas 2D del boceto, m): el inicio de su primera línea o arco, o el
+    /// punto de un círculo en +x. Solid Edge une los arranques de las secciones; sin ellos el solevado da E_FAIL.
+    /// </summary>
+    private static double[] StartPoint(Profile included, Profile sketch)
+    {
+        foreach (Profile profile in new[] { included, sketch })
+        {
+            if (profile.Lines2d.Count > 0)
+            {
+                profile.Lines2d.Item(1).GetStartPoint(out double x, out double y);
+                return [x, y];
+            }
+
+            if (profile.Arcs2d.Count > 0)
+            {
+                profile.Arcs2d.Item(1).GetStartPoint(out double x, out double y);
+                return [x, y];
+            }
+
+            if (profile.Circles2d.Count > 0)
+            {
+                Circle2d circle = profile.Circles2d.Item(1);
+                circle.GetCenterPoint(out double x, out double y);
+                return [x + circle.Radius, y];
+            }
+        }
+
+        return [0.0, 0.0];
+    }
+}

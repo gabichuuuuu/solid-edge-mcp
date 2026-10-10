@@ -401,7 +401,9 @@ public static partial class FeatureService
                 }
             }
 
-            string kept = sketch is null ? "" : $" The sketch '{sketch}' is kept: call the tool again with it.";
+            string kept = sketch is null ? ""
+                : sketch.Contains(',', StringComparison.Ordinal) ? $" The sketches ({sketch}) are kept: call the tool again with them."
+                : $" The sketch '{sketch}' is kept: call the tool again with it.";
             throw new ToolException("feature_failed", $"{name} was {(undoneByCaller ? "undone" : "deleted")} because {problem}.{kept}",
                 "Check that the geometry meets the part (sketch x/y are measured from the frame origin returned by se_sketch 'create', which on a face is not the model origin), the direction ('normal' follows the sketch normal; try another one) and the extent.");
         }

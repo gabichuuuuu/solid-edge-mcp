@@ -46,6 +46,7 @@ public sealed class ToolRegistrationTests
         Assert.Contains("\"through_all\"", schemas["se_extrude"], StringComparison.Ordinal);
         Assert.Contains("\"contour_flange\"", schemas["se_sheetmetal"], StringComparison.Ordinal);
         Assert.Contains("\"drawn_cutout\"", schemas["se_sheetmetal_form"], StringComparison.Ordinal);
+        Assert.Contains("\"helix\"", schemas["se_loft_sweep"], StringComparison.Ordinal);
         Assert.DoesNotContain("\"SaveAs\"", schemas["se_documents"], StringComparison.Ordinal);
     }
 
@@ -57,6 +58,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sketch", """{"action":"line","sketch":"sketch:1","points":[0,"a",1,1]}""", "'points[1]' must be number")]
     [InlineData("se_sheetmetal", """{"action":"hem","edges":["edge:1"],"hemType":"sflange"}""", "'hemType' must be one of:")]
     [InlineData("se_sheetmetal_form", """{"action":"dimple","depth":4}""", "requires 'sketch'")]
+    [InlineData("se_loft_sweep", """{"action":"loft"}""", "requires 'sketches'")]
+    [InlineData("se_loft_sweep", """{"action":"helix","sketches":["sketch:1"],"hand":"clockwise"}""", "'hand' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -79,6 +82,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sheetmetal", """{"action":"hem","edges":["edge:1"],"hemType":"s_flange","length":10,"side":"bend_outside"}""")]
     [InlineData("se_sheetmetal_form", """{"action":"normal_cutout","sketch":"sketch:1","method":"mid_plane","direction":"auto"}""")]
     [InlineData("se_material", """{"action":"apply","name":"Aluminum, 6061-T6","library":"Materials"}""")]
+    [InlineData("se_loft_sweep", """{"action":"loft","operation":"cut","sketches":["sketch:1","sketch:2"],"origins":[0,0,5,0]}""")]
+    [InlineData("se_loft_sweep", """{"action":"helix","sketches":["sketch:1"],"axis":"refaxis:2","pitch":8,"turns":5,"hand":"left"}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();

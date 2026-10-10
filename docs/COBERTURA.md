@@ -68,7 +68,8 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 | Patrón rectangular, circular; simetría | `Patterns`, `MirrorCopies` | `se_pattern` | ✔ |
 | Vaciado de paredes (shell) | `Thinwalls` | `se_shell` | ✔ |
 | Desmoldeo | `Drafts` | `se_draft` | ✔ |
-| Solevado, barrido, hélice (protrusión y vaciado) | `LoftedProtrusions`, `SweptProtrusions`, `HelixProtrusions`… | COM | · |
+| Solevado, barrido, hélice (protrusión y vaciado) | `LoftedProtrusions`, `SweptProtrusions`, `HelixProtrusions`… | `se_loft_sweep` | ✔ |
+| Solevado con curvas guía o tangencias, barrido de varias trayectorias, hélice cónica o de paso variable, pared delgada | `LoftedProtrusions.Add`, `AddWithThinWall`, `HelixProtrusions.AddFinite` (opcionales) | COM | · |
 | Rosca, nervio, red de nervios, labio, rejilla, saliente de montaje | `Threads`, `Ribs`, `WebNetworks`, `Lips`, `Vents`, `MountingBossCollection` | COM | · |
 | Engrosar, dividir, operaciones booleanas entre cuerpos | `Thickens`, `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |
 | Primitivas (caja, cilindro, esfera), tubos, ranuras | `BoxFeatures`, `CylinderFeatures`, `SphereFeatures`, `TubeFeatures`, `Slots` | COM | · |
