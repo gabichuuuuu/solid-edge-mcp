@@ -40,6 +40,17 @@ se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,40,20]}
 se_sketch {"action":"close","sketch":"{{k.sketch}}"}
 @x = se_extrude {"sketch":"{{k.sketch}}","distance":10}
 ?= x.volume 8000
+# With inches and radians on display the tools still take and return mm and degrees: hole D6 through 10 -> -9*pi*10;
+#   a 30 degree variable reads back as 30; a plane at 30 degrees from XY about YZ has the normal (sin 30, 0, cos 30)
+se_options {"action":"set_units","unitType":"angle","unit":"radian"}
+@h = se_hole {"plane":"1","centers":[20,10,0],"diameter":6}
+?= h.volumeChange -282.743 0.01
+se_variables {"action":"add","name":"Ang","value":30,"units":"angle"}
+@va = se_variables {"action":"get","name":"Ang"}
+?= va.value 30
+?= va.unit deg
+@rp = se_ref_plane {"action":"angle","plane":"1","pivot":"2","angle":30}
+?= rp.normal[0] 0.5 0.000001
 se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
 # Options for sheet metal, assembly and drawing
 @s = se_documents {"action":"new","kind":"sheet_metal"}
