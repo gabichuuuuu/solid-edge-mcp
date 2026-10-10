@@ -79,6 +79,13 @@ se_drawing {"action":"activate_sheet","sheet":"Sheet1"}
 # Exportación del plano (formato según la extensión; .dwg sin receta previa); un plano no se exporta a .stp
 @e1 = se_export {"path":"{{work}}\\a07.pdf","overwrite":true}
 ?= e1.format PDF
+# Plano sin guardar: el resultado avisa de que el cajetín (fecha del archivo) saldrá con «Error: No reference»;
+# guardado, ya no. La captura con 'fit' encuadra la hoja entera (con el cajetín), no solo las vistas.
+?~ e1.note never been saved
+se_documents {"action":"save_as","path":"{{work}}\\a07.dft","overwrite":true}
+@e1b = se_export {"path":"{{work}}\\a07.pdf","overwrite":true}
+?= e1b.document a07.dft
+se_view {"action":"capture","width":400,"height":283}
 se_export {"path":"{{work}}\\a07.dxf","overwrite":true}
 se_export {"path":"{{work}}\\a07.dwg","overwrite":true}
 ! [invalid_argument] se_export {"path":"{{work}}\\a07.stp","overwrite":true}

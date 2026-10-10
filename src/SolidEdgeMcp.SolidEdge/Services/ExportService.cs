@@ -103,6 +103,11 @@ public static class ExportService
                 flatPattern ? "Create the flat pattern first (se_sheetmetal action 'flatten')." : "Check the translator options in Solid Edge.");
         }
 
-        return new { document = document.Name, path = target, format, bytes = file.Length };
+        // Las plantillas de plano rellenan el cajetín con datos del archivo (p. ej. la fecha): sin guardar salen
+        // como «Error: No reference» (comprobado con la plantilla A3 de Solid Edge 2026).
+        string? note = draft && DocumentService.PathOf(document) is null
+            ? "The drawing has never been saved: title-block fields taken from its file (such as the date) show 'Error: No reference'. Save it (se_documents save_as) and export again if the title block matters."
+            : null;
+        return new { document = document.Name, path = target, format, bytes = file.Length, note };
     }
 }

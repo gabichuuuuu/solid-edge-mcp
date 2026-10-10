@@ -38,7 +38,7 @@ public static class ViewService
                 model.View.Fit();
                 break;
             case SolidEdgeDraft.SheetWindow sheet:
-                sheet.Fit();
+                FitSheet(sheet);
                 break;
         }
 
@@ -167,7 +167,7 @@ public static class ViewService
             case SolidEdgeDraft.SheetWindow sheet:
                 if (fit)
                 {
-                    sheet.Fit();
+                    FitSheet(sheet);
                 }
 
                 sheet.SaveAsImage(file, width, height, Type.Missing, Type.Missing, SeImageQualityType.seImageQualityHigh);
@@ -176,6 +176,12 @@ public static class ViewService
                 throw new ToolException("not_supported", "The document has no window that can be captured.");
         }
     }
+
+    /// <summary>
+    /// Hoja entera, con el cajetín y el marco del fondo. <c>SheetWindow.Fit</c> encuadra solo las vistas y deja fuera
+    /// el cajetín (comprobado en Solid Edge 2026).
+    /// </summary>
+    private static void FitSheet(SolidEdgeDraft.SheetWindow sheet) => sheet.FitEx(SolidEdgeDraft.SheetFitConstants.igFitSheet);
 
     /// <summary>
     /// Con Solid Edge minimizado la vista no tiene tamaño: Fit deja una cámara degenerada y las capturas

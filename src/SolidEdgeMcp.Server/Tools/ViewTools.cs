@@ -32,7 +32,7 @@ public sealed class ViewTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_view", Title = "Solid Edge view", ReadOnly = false, Destructive = false, OpenWorld = false)]
     [Description("""
-        Window view of a document. capture: returns an image of the current view (width/height in pixels, optional path to also save it as .png/.jpg/.bmp in an allowed folder). fit: zoom to fit. orient: standard view (iso, front, top...) and fit. render_mode: set the display mode (SeRenderModeType name: seRenderModeSmooth, seRenderModeSmoothVHL, seRenderModeVHL, seRenderModeOutline, seRenderModeWireframe, seRenderModePhong).
+        Window view of a document. capture: returns an image of the current view (width/height in pixels, optional path to also save it as .png/.jpg/.bmp in an allowed folder). fit: zoom to fit (drawings: the whole sheet with its title block). orient: standard view (iso, front, top...) and fit. render_mode: set the display mode (SeRenderModeType name: seRenderModeSmooth, seRenderModeSmoothVHL, seRenderModeVHL, seRenderModeOutline, seRenderModeWireframe, seRenderModePhong).
         Changes only the display, never the model.
         """)]
     public Task<CallToolResult> View(
@@ -43,7 +43,7 @@ public sealed class ViewTools(ToolRunner runner)
         [Description("For 'capture': image width in pixels (default 1024).")] int width = 1024,
         [Description("For 'capture': image height in pixels (default 768).")] int height = 768,
         [Description("For 'capture': optional absolute path to keep the image.")] string? path = null,
-        [Description("For 'capture': zoom to fit the model first (default true).")] bool fit = true,
+        [Description("For 'capture': zoom to fit first (default true; drawings: the whole sheet).")] bool fit = true,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_view";
