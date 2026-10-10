@@ -26,15 +26,16 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 | Conectar, arrancar Solid Edge con licencia, reconectar | Alto nivel `se_session` | ✔ |
 | Crear pieza, chapa, conjunto, plano, soldadura (plantilla opcional) | `se_documents new` | ✔ |
 | Abrir, activar, guardar, guardar como, guardar copia, cerrar | `se_documents` | ✔ |
-| Deshacer, rehacer, recalcular | `se_documents undo/redo/recompute` | ✔ |
+| Deshacer, rehacer, recalcular | `se_documents undo/redo/recompute` | ✔ (solo lo que Solid Edge registra; ver nota) |
 | Propiedades del documento (resumen, personalizadas) | `se_properties` | ✔ |
 | Variables y cotas, fórmulas | `se_variables` | ✔ |
 | Árbol de operaciones; suprimir, borrar, renombrar | `se_feature_tree`, `se_feature_edit` | ✔ |
 | Geometría (cuerpo, caras, aristas con filtros) | `se_geometry` | ✔ |
-| Medir distancias y ángulos | `se_measure` | ✔ |
+| Medir distancias y ángulos (en pieza y en conjunto) | `se_measure` | ✔ |
 | Masa, volumen, CDG, inercia | `se_physical` | ✔ |
 | Selección activa (leer, cambiar) | `se_selection` | ✔ |
 | Vista: encuadrar, orientación, modo, captura PNG | `se_view` | ✔ |
+| Modos de visualización Boundary y SmoothBoundary | — | ✘ Solid Edge 2026 los cambia por Smooth (error `not_supported`) |
 | Exportar STEP, IGES, Parasolid, STL, JT, SAT, 3MF, PDF, DXF, DWG | `se_export` | ✔ |
 | Material: bibliotecas, propiedades, asignar (actualiza densidad y masa) | `se_material` | ✔ |
 | Crear o editar materiales y bibliotecas; galgas de chapa | COM (`Application.GetMaterialTable()`; `GetMaterialList` y `GetMatLibFileName` dan E_NOTIMPL) | · |
@@ -48,11 +49,12 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 | Función | Vía | Estado |
 |---|---|---|
 | Boceto en plano principal, plano de referencia o cara plana | `se_sketch create` | ✔ |
-| Línea, rectángulo, polilínea, círculo, arco, eje de revolución | `se_sketch` | ✔ |
+| Línea, rectángulo, polilínea, círculo, arco, elipse, spline, punto, redondeo de esquina | `se_sketch` | ✔ |
+| Eje de revolución (también un lado del perfil: se usa una copia y el perfil sigue cerrado) | `se_sketch axis` | ✔ |
 | Validar perfil cerrado o cadena abierta | `se_sketch close` | ✔ |
-| Spline, elipse, punto, texto, redondeo y chaflán de boceto | COM (`Profile.BSplineCurves2d`, `Ellipses2d`, `Points2d`…) | · |
-| Relaciones 2D (horizontal, paralela, tangente, igual…) y cotas de boceto | COM (`Profile.Relations2d`, `Profile.Dimensions`) | · |
-| Proyectar aristas del modelo al boceto (`IncludeEdges`) | COM | · |
+| Proyectar aristas del modelo al boceto | `se_sketch project` | ✔ |
+| Relaciones 2D (horizontal, paralela, tangente, igual, simétrica…) y cotas (longitud, distancia real, ángulo interior, radio, diámetro) | `se_sketch_constraint` | ✔ |
+| Texto y chaflán de boceto | COM (`Profile.TextProfiles`, `Lines2d`…) | · |
 | Bocetos 3D | COM (`Sketches3D`) | · |
 | Planos desplazados y en ángulo | `se_ref_plane` | ✔ |
 | Planos por 3 puntos, normal a curva, tangentes; ejes y sistemas de coordenadas | COM (`RefPlanes`, `RefAxes`, `CoordinateSystems`) | · |
@@ -63,7 +65,7 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 |---|---|---|---|
 | Protrusión y vaciado por extrusión (finito, pasante, hasta siguiente, simétrico) | `ExtrudedProtrusions`, `ExtrudedCutouts` | `se_extrude` | ✔ |
 | Revolución (protrusión y vaciado) | `RevolvedProtrusions`, `RevolvedCutouts` | `se_revolve` | ✔ |
-| Agujeros (simple, avellanado, abocardado, roscado) | `Holes`, `HoleDataCollection` | `se_hole` | ✔ |
+| Agujeros (simple, avellanado, abocardado, roscado; pasante, hasta siguiente o finito) | `Holes`, `HoleDataCollection` | `se_hole` | ✔ |
 | Redondeo y chaflán de aristas | `Rounds`, `Chamfers` | `se_round`, `se_chamfer` | ✔ |
 | Patrón rectangular, circular; simetría | `Patterns`, `MirrorCopies` | `se_pattern` | ✔ |
 | Vaciado de paredes (shell) | `Thinwalls` | `se_shell` | ✔ |
@@ -114,6 +116,7 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 |---|---|---|
 | Insertar, mover, girar, fijar, reemplazar, mostrar/ocultar, suprimir, borrar componentes | `se_assembly` | ✔ |
 | Relaciones plana, axial, inserción, ángulo, tangencia; listar y borrar | `se_relations` | ✔ |
+| Caras y aristas de cada ocurrencia (handles propios; la ocurrencia se deduce en relaciones y medidas) | `se_geometry source` = ocurrencia | ✔ |
 | Interferencias | `se_interference` | ✔ |
 | Lista de materiales | `se_bom` | ✔ |
 | Patrones y simetrías de componentes | COM (`AssemblyPatterns`, `AssemblyMirrors`) | · |
@@ -135,3 +138,11 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 | Tablas de agujeros, de pliegues, bloques | COM (`HoleTables`, `DraftBendTables`, `Blocks`) | · |
 | Geometría 2D en la hoja | COM (`Sheet.Lines2d`, `Circles2d`, `Arcs2d`…) | · |
 | Exportar PDF, DXF, DWG | `se_export` | ✔ |
+
+## Notas
+
+- **Deshacer**: Solid Edge no registra como paso deshacible una operación creada por el API a partir
+  de un boceto, y crear un boceto vacía el historial; tras eso, en esa sesión del documento tampoco
+  registra agujeros ni borrados (en un documento reabierto sí). `se_documents undo/redo` consultan
+  `UndoTransactionCount`/`RedoTransactionCount`, dan `nothing_to_undo` si no hay pasos y comprueban
+  que el contador baja. Para quitar una operación, `se_feature_edit delete/suppress`.

@@ -17,11 +17,11 @@ tiene efecto, se deshace y se informa del motivo y del siguiente paso.
 | Área | Herramientas |
 |---|---|
 | Servidor y sesión | `se_server_info`, `se_session` (conectar, arrancar Solid Edge, estado) |
-| Documentos | `se_documents` (crear pieza, chapa, conjunto, plano o soldadura; abrir, guardar, guardar como, cerrar, deshacer, recalcular) |
+| Documentos | `se_documents` (crear pieza, chapa, conjunto, plano o soldadura; abrir, guardar, guardar como, cerrar, deshacer y rehacer lo que Solid Edge registra, recalcular) |
 | Datos | `se_properties`, `se_variables` (cotas y variables, fórmulas), `se_material` (bibliotecas, propiedades, asignar material) |
-| Consulta | `se_feature_tree`, `se_geometry` (cuerpo, caras, aristas), `se_measure`, `se_physical` (masa, volumen, CDG, inercia), `se_selection` |
+| Consulta | `se_feature_tree`, `se_geometry` (cuerpo, caras, aristas; en conjuntos, las de cada ocurrencia), `se_measure` (también en conjuntos), `se_physical` (masa, volumen, CDG, inercia), `se_selection` |
 | Vista | `se_view` (encuadre, orientación, modo de visualización, **captura PNG**) |
-| Bocetos | `se_sketch` (líneas, rectángulos, polilíneas, círculos, arcos, eje, cierre validado), `se_ref_plane` |
+| Bocetos | `se_sketch` (líneas, rectángulos, polilíneas, círculos, arcos, elipses, splines, puntos, redondeo de esquina, proyectar aristas, eje, cierre validado), `se_sketch_constraint` (relaciones y cotas), `se_ref_plane` |
 | Pieza | `se_extrude`, `se_revolve`, `se_hole`, `se_round`, `se_chamfer`, `se_pattern` (rectangular, circular, simetría), `se_shell`, `se_draft`, `se_loft_sweep` (solevado, barrido, hélice; protrusión y vaciado), `se_feature_edit` |
 | Chapa | `se_sheetmetal` (ajustes, pestaña, brida de contorno, brida, dobladillo, rotura de esquina, desplegado), `se_sheetmetal_form` (embutido, recorte embutido, recorte normal, grabado, desvío, pliegue, cordón) |
 | Conjuntos | `se_assembly` (insertar, mover, girar, fijar, reemplazar, mostrar, suprimir, borrar), `se_relations`, `se_interference`, `se_bom` |
@@ -108,8 +108,19 @@ dotnet test --project tests\SolidEdgeMcp.Core.Tests\SolidEdgeMcp.Core.Tests.cspr
 dotnet test --project tests\SolidEdgeMcp.Server.Tests\SolidEdgeMcp.Server.Tests.csproj
 ```
 
-Los tests no necesitan Solid Edge; la validación de las herramientas se hace contra Solid Edge
-real. Reglas del proyecto en [AGENTS.md](AGENTS.md); estado y decisiones en
+Los tests no necesitan Solid Edge. La validación de las herramientas se hace contra Solid Edge
+real con la batería de aceptación (`tests/SolidEdgeMcp.Acceptance`): guiones de llamadas MCP
+(`scripts/A01`–`A09`, de sesión a conjuntos, planos y capa COM) con volúmenes, medidas y errores
+esperados calculados a mano. Cada guion crea y cierra sin guardar sus documentos:
+
+```powershell
+dotnet build SolidEdgeMcp.slnx
+.\tests\SolidEdgeMcp.Acceptance\run.ps1            # todos; o p. ej. run.ps1 A03 A09
+```
+
+Sintaxis de los guiones en la cabecera de `tests/SolidEdgeMcp.Acceptance/Program.cs`.
+
+Reglas del proyecto en [AGENTS.md](AGENTS.md); estado y decisiones en
 [ESTADO.md](ESTADO.md); plan en [PLAN.md](PLAN.md).
 
 Solid Edge es una marca de Siemens Digital Industries Software. Este proyecto no está afiliado a
