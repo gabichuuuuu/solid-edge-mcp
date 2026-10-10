@@ -34,7 +34,7 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 | Medir distancias y ángulos (en pieza y en conjunto) | `se_measure` | ✔ |
 | Masa, volumen, CDG, inercia | `se_physical` | ✔ |
 | Selección activa (leer, cambiar) | `se_selection` | ✔ |
-| Vista: encuadrar, orientación, modo, captura PNG | `se_view` | ✔ |
+| Vista: encuadrar (en planos, la hoja entera con el cajetín), orientación, modo, captura PNG | `se_view` | ✔ |
 | Modos de visualización Boundary y SmoothBoundary | — | ✘ Solid Edge 2026 los cambia por Smooth (error `not_supported`) |
 | Exportar STEP, IGES, Parasolid, STL, JT, SAT, 3MF, PDF, DXF, DWG | `se_export` | ✔ |
 | Material: bibliotecas, propiedades, asignar (actualiza densidad y masa) | `se_material` | ✔ |
@@ -116,7 +116,7 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 |---|---|---|
 | Insertar, mover, girar, fijar, reemplazar, mostrar/ocultar, suprimir, borrar componentes | `se_assembly` | ✔ |
 | Relaciones plana, axial, inserción, ángulo, tangencia; listar y borrar | `se_relations` | ✔ |
-| Caras y aristas de cada ocurrencia (handles propios; la ocurrencia se deduce en relaciones y medidas) | `se_geometry source` = ocurrencia | ✔ |
+| Caras, aristas y resumen (volumen y caja exacta, también girada) de cada ocurrencia en coordenadas del conjunto (handles propios; la ocurrencia se deduce en relaciones y medidas) | `se_geometry source` = ocurrencia | ✔ |
 | Interferencias | `se_interference` | ✔ |
 | Lista de materiales | `se_bom` | ✔ |
 | Patrones y simetrías de componentes | COM (`AssemblyPatterns`, `AssemblyMirrors`) | · |
@@ -137,7 +137,7 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 | Acabado superficial, soldadura, tolerancias geométricas, referencias | COM (`SurfaceFinishSymbols`, `WeldSymbols`, `FeatureControlFrames`, `DatumFrames`) | · |
 | Tablas de agujeros, de pliegues, bloques | COM (`HoleTables`, `DraftBendTables`, `Blocks`) | · |
 | Geometría 2D en la hoja | COM (`Sheet.Lines2d`, `Circles2d`, `Arcs2d`…) | · |
-| Exportar PDF, DXF, DWG | `se_export` | ✔ |
+| Exportar PDF, DXF, DWG (un plano sin guardar avisa: los campos del cajetín que salen del archivo, como la fecha, muestran «Error: No reference») | `se_export` | ✔ |
 
 ## Notas
 

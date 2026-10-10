@@ -19,7 +19,7 @@ tiene efecto, se deshace y se informa del motivo y del siguiente paso.
 | Servidor y sesión | `se_server_info`, `se_session` (conectar, arrancar Solid Edge, estado) |
 | Documentos | `se_documents` (crear pieza, chapa, conjunto, plano o soldadura; abrir, guardar, guardar como, cerrar, deshacer y rehacer lo que Solid Edge registra, recalcular) |
 | Datos | `se_properties`, `se_variables` (cotas y variables, fórmulas), `se_material` (bibliotecas, propiedades, asignar material) |
-| Consulta | `se_feature_tree`, `se_geometry` (cuerpo, caras, aristas; en conjuntos, las de cada ocurrencia), `se_measure` (también en conjuntos), `se_physical` (masa, volumen, CDG, inercia), `se_selection` |
+| Consulta | `se_feature_tree`, `se_geometry` (cuerpo, caras, aristas; en conjuntos, el resumen, las caras y las aristas de cada ocurrencia), `se_measure` (también en conjuntos), `se_physical` (masa, volumen, CDG, inercia), `se_selection` |
 | Vista | `se_view` (encuadre, orientación, modo de visualización, **captura PNG**) |
 | Bocetos | `se_sketch` (líneas, rectángulos, polilíneas, círculos, arcos, elipses, splines, puntos, redondeo de esquina, proyectar aristas, eje, cierre validado), `se_sketch_constraint` (relaciones y cotas), `se_ref_plane` |
 | Pieza | `se_extrude`, `se_revolve`, `se_hole`, `se_round`, `se_chamfer`, `se_pattern` (rectangular, circular, simetría), `se_shell`, `se_draft`, `se_loft_sweep` (solevado, barrido, hélice; protrusión y vaciado), `se_feature_edit` |
