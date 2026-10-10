@@ -17,6 +17,20 @@ public sealed class HandleRegistryTests
     }
 
     [Fact]
+    public void Composite_values_are_identified_by_their_parts()
+    {
+        var registry = new HandleRegistry(100);
+        object occurrence1 = new(), occurrence2 = new(), face = new();
+        string first = registry.Register(new Pair(occurrence1, face), "face");
+        Assert.Equal(first, registry.Register(new Pair(occurrence1, face), "face"));
+        Assert.NotEqual(first, registry.Register(new Pair(occurrence2, face), "face"));
+        Assert.NotEqual(first, registry.Register(face, "face"));
+        Assert.Equal(3, registry.OfKind("face").Count);
+    }
+
+    private sealed record Pair(object Occurrence, object Element) : ICompositeHandleValue;
+
+    [Fact]
     public void Kind_is_sanitized()
     {
         var registry = new HandleRegistry(100);

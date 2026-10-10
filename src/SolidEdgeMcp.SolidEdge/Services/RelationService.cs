@@ -85,9 +85,10 @@ public static class RelationService
                 $"Use one of: {string.Join(", ", Types)}. Other relations (angle, tangent...) are available with se_com_invoke on the document's Relations3d.");
         }
 
-        Occurrence moving = AssemblyService.Occurrence(context, spec.Occurrence1, "occurrence1");
+        Occurrence moving = OccurrenceOf(context, spec.Occurrence1, spec.Element1, "occurrence1", "element1")
+            ?? throw ToolException.InvalidArgument("'occurrence1' is required (the occurrence that moves), unless 'element1' is a face or edge handle from se_geometry with 'source' = that occurrence.");
         AssemblyDocument assembly = moving.TopLevelDocument;
-        Occurrence? target = string.IsNullOrWhiteSpace(spec.Occurrence2) ? null : AssemblyService.Occurrence(context, spec.Occurrence2, "occurrence2");
+        Occurrence? target = OccurrenceOf(context, spec.Occurrence2, spec.Element2, "occurrence2", "element2");
         if (target is not null && target.OccurrenceID == moving.OccurrenceID)
         {
             throw ToolException.InvalidArgument("'occurrence1' and 'occurrence2' must be different occurrences.");
@@ -180,7 +181,7 @@ public static class RelationService
                 assembly.Relations3d.AddGround(moving);
             }
 
-            context.ModelChanged((SolidEdgeDocument)assembly, "relations were undone");
+            // Mover una ocurrencia no cambia sus caras: los handles siguen valiendo (las coordenadas se vuelven a consultar).
             if (ex is ToolException)
             {
                 throw;
@@ -190,7 +191,6 @@ public static class RelationService
                 "Use planar faces or reference planes for planar relations and cylindrical faces or straight edges for axial ones; the occurrence was put back where it was.", ex);
         }
 
-        context.ModelChanged((SolidEdgeDocument)assembly, "an occurrence moved");
         Occurrence[] none = [];
         return new
         {
@@ -277,6 +277,20 @@ public static class RelationService
     }
 
     /// <summary>Elemento de una ocurrencia (con su referencia en el conjunto) o, sin ocurrencia, plano del conjunto.</summary>
+    /// <summary>Ocurrencia indicada o, si falta, la del handle del elemento (caras y aristas leídas desde una ocurrencia).</summary>
+    private static Occurrence? OccurrenceOf(SeContext context, string? occurrence, string? element, string occurrenceName, string elementName)
+    {
+        if (!string.IsNullOrWhiteSpace(occurrence))
+        {
+            return AssemblyService.Occurrence(context, occurrence, occurrenceName);
+        }
+
+        return !string.IsNullOrWhiteSpace(element) && !int.TryParse(element, out _)
+            && context.Handles.Resolve(element, elementName) is OccurrenceElement qualified
+            ? qualified.Occurrence
+            : null;
+    }
+
     private static Side Resolve(SeContext context, AssemblyDocument assembly, Occurrence? occurrence, string? element, string argumentName)
     {
         if (string.IsNullOrWhiteSpace(element))
@@ -297,6 +311,17 @@ public static class RelationService
         }
 
         object value = context.Handles.Resolve(element, argumentName);
+        if (value is OccurrenceElement qualified)
+        {
+            if (qualified.Occurrence.OccurrenceID != occurrence.OccurrenceID)
+            {
+                throw ToolException.InvalidArgument($"'{argumentName}' is a face or edge of another occurrence ('{qualified.Occurrence.Name}', not '{occurrence.Name}').",
+                    "Get the faces with se_geometry 'source' = the occurrence you relate, or omit the occurrence to use the element's own.");
+            }
+
+            value = qualified.Element;
+        }
+
         if (value is not (Face or RefPlane or SolidEdgeGeometry.Edge))
         {
             throw ToolException.InvalidArgument($"'{argumentName}' must be a face, an edge or a reference plane of the occurrence's part.");

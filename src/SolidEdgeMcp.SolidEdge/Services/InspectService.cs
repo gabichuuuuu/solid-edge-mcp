@@ -60,10 +60,11 @@ public static class InspectService
             "torus" => FeatureTopologyQueryTypeConstants.igQueryTorus,
             _ => throw ToolException.InvalidArgument($"Unknown face type '{type}'.", $"Use one of: {string.Join(", ", FaceTypes)}."),
         };
-        (ModelDocument model, object collection, Placement? placement) = Topology(context, documentHandle, source, "Faces", query);
+        TopologySource topology = Topology(context, documentHandle, source, "Faces", query);
+        Placement? placement = topology.Placement;
         Func<object, bool>? filter = wanted is null ? null : item => ((Face)item).Geometry is Plane
             && Cosine(Rotated(placement, FaceNormal((Face)item)), wanted) > ParallelCosine;
-        return Page(context, collection, offset, limit, filter, item => DescribeFace(context, model.Document, (Face)item, placement));
+        return Page(context, topology.Collection, offset, limit, filter, item => DescribeFace(context, topology, (Face)item));
     }
 
     /// <summary>
@@ -79,8 +80,8 @@ public static class InspectService
         }
 
         // El tipo se filtra por la geometría: la consulta igQueryEllipse no devuelve las aristas circulares (comprobado).
-        (ModelDocument model, object collection, Placement? placement) =
-            Topology(context, documentHandle, source, "Edges", FeatureTopologyQueryTypeConstants.igQueryAll);
+        TopologySource topology = Topology(context, documentHandle, source, "Edges", FeatureTopologyQueryTypeConstants.igQueryAll);
+        Placement? placement = topology.Placement;
         Func<object, bool>? filter = null;
         if (type != "all" || wanted is not null)
         {
@@ -92,7 +93,7 @@ public static class InspectService
             };
         }
 
-        return Page(context, collection, offset, limit, filter, item => DescribeEdge(context, model.Document, (Edge)item, placement));
+        return Page(context, topology.Collection, offset, limit, filter, item => DescribeEdge(context, topology, (Edge)item));
     }
 
     /// <summary>Coseno mínimo para considerar dos direcciones paralelas (unos 0,08°).</summary>
@@ -188,14 +189,33 @@ public static class InspectService
     /// <summary>Distancia mínima entre dos elementos (caras, aristas, vértices, cuerpos, planos).</summary>
     public static object Distance(SeContext context, string? documentHandle, string first, string second)
     {
-        ModelDocument model = ModelDocument.For(context, documentHandle, first);
         object a = context.Handles.Resolve(first, "first");
         object b = context.Handles.Resolve(second, "second");
         Array p1 = new double[3];
         Array p2 = new double[3];
-        model.MinimumDistance(a, b, out double distance, ref p1, ref p2);
+        double distance;
+        if (a is OccurrenceElement or Occurrence || b is OccurrenceElement or Occurrence)
+        {
+            // En un conjunto se mide entre referencias (ocurrencia + elemento), en coordenadas del conjunto.
+            AssemblyDocument assembly = context.GetDocument<AssemblyDocument>(context.Handles.GetScope(first), "assembly");
+            assembly.MinimumDistance(InAssembly(assembly, a, "first"), InAssembly(assembly, b, "second"), out distance, ref p1, ref p2);
+        }
+        else
+        {
+            ModelDocument model = ModelDocument.For(context, documentHandle, first);
+            model.MinimumDistance(a, b, out distance, ref p1, ref p2);
+        }
+
         return new { distance = Geo.Mm(distance), pointOnFirst = Geo.Mm(p1), pointOnSecond = Geo.Mm(p2) };
     }
+
+    private static object InAssembly(AssemblyDocument assembly, object value, string argumentName) => value switch
+    {
+        OccurrenceElement element => element.Reference(assembly),
+        Occurrence or AsmRefPlane => value,
+        _ => throw ToolException.InvalidArgument(
+            $"In an assembly, '{argumentName}' must be an occurrence, an assembly plane or a face/edge handle from se_geometry with 'source' = an occurrence."),
+    };
 
     /// <summary>Ángulo entre normales (caras planas, planos) o direcciones (aristas rectas), en grados.</summary>
     public static object Angle(SeContext context, string first, string second)
@@ -231,38 +251,52 @@ public static class InspectService
     /// Colección pedida y, si el origen es una ocurrencia de conjunto, su posición (para dar la geometría de la pieza en
     /// coordenadas del conjunto).
     /// </summary>
-    private static (ModelDocument Model, object Collection, Placement? Placement) Topology(SeContext context, string? documentHandle,
+    private static TopologySource Topology(SeContext context, string? documentHandle,
         string? source, string member, FeatureTopologyQueryTypeConstants query)
     {
         if (string.IsNullOrWhiteSpace(source))
         {
             ModelDocument model = ModelDocument.Get(context, documentHandle);
-            return (model, BodyCollection(model, member, query), null);
+            return new TopologySource(model.Document, BodyCollection(model, member, query), null, null);
         }
 
         object value = context.Handles.Resolve(source, "source");
         if (value is Occurrence occurrence)
         {
             ModelDocument part = AssemblyService.PartOf(occurrence);
-            return (part, BodyCollection(part, member, query), Placement.Of(occurrence));
+            return new TopologySource(context.DocumentOf(source), BodyCollection(part, member, query), Placement.Of(occurrence), occurrence);
+        }
+
+        if (value is OccurrenceElement { Element: Face occurrenceFace } element && member == "Edges")
+        {
+            return new TopologySource(context.DocumentOf(source), occurrenceFace.Edges, Placement.Of(element.Occurrence), element.Occurrence);
         }
 
         ModelDocument owner = ModelDocument.For(context, documentHandle, source);
         if (value is Face face && member == "Edges")
         {
-            return (owner, face.Edges, null);
+            return new TopologySource(owner.Document, face.Edges, null, null);
         }
 
         try
         {
-            return (owner, Late.Get(value, member, query)
-                ?? throw ToolException.InvalidArgument($"'{source}' returned no {member.ToLowerInvariant()}."), null);
+            return new TopologySource(owner.Document, Late.Get(value, member, query)
+                ?? throw ToolException.InvalidArgument($"'{source}' returned no {member.ToLowerInvariant()}."), null, null);
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex))
         {
             throw ToolException.InvalidArgument($"'{source}' has no {member.ToLowerInvariant()}.",
                 "Pass a feature handle (se_feature_tree), a face handle (for edges), an assembly occurrence or omit 'source' to use the whole body.");
         }
+    }
+
+    /// <summary>
+    /// Colección de caras o aristas y dónde se registran sus handles: el documento de la pieza o, desde una ocurrencia,
+    /// el conjunto (con la posición de la ocurrencia y handles propios de cada ocurrencia).
+    /// </summary>
+    private sealed record TopologySource(SolidEdgeDocument Owner, object Collection, Placement? Placement, Occurrence? Occurrence)
+    {
+        public object Wrap(object element) => Occurrence is null ? element : new OccurrenceElement(Occurrence, element);
     }
 
     private static object BodyCollection(ModelDocument model, string member, FeatureTopologyQueryTypeConstants query)
@@ -316,12 +350,13 @@ public static class InspectService
         return new { count = matched, offset = start, returned = items.Count, more = start + items.Count < matched, items };
     }
 
-    private static Dictionary<string, object?> DescribeFace(SeContext context, SolidEdgeDocument document, Face face, Placement? placement = null)
+    private static Dictionary<string, object?> DescribeFace(SeContext context, TopologySource topology, Face face)
     {
+        Placement? placement = topology.Placement;
         object? geometry = face.Geometry;
         var info = new Dictionary<string, object?>
         {
-            ["handle"] = context.Register(face, "face", document),
+            ["handle"] = context.Register(topology.Wrap(face), "face", topology.Owner),
             ["type"] = SurfaceType(geometry),
             ["area"] = Geo.Mm2(face.Area),
         };
@@ -356,12 +391,13 @@ public static class InspectService
         return info;
     }
 
-    private static Dictionary<string, object?> DescribeEdge(SeContext context, SolidEdgeDocument document, Edge edge, Placement? placement = null)
+    private static Dictionary<string, object?> DescribeEdge(SeContext context, TopologySource topology, Edge edge)
     {
+        Placement? placement = topology.Placement;
         object? geometry = edge.Geometry;
         var info = new Dictionary<string, object?>
         {
-            ["handle"] = context.Register(edge, "edge", document),
+            ["handle"] = context.Register(topology.Wrap(edge), "edge", topology.Owner),
             ["type"] = CurveType(geometry),
         };
         Array start = new double[3];
@@ -410,6 +446,18 @@ public static class InspectService
     private static double[] Direction(SeContext context, string handle, string argumentName)
     {
         object value = context.Handles.Resolve(handle, argumentName);
+        Placement? placement = null;
+        if (value is OccurrenceElement element)
+        {
+            placement = Placement.Of(element.Occurrence);
+            value = element.Element;
+        }
+
+        return Rotated(placement, LocalDirection(value, handle));
+    }
+
+    private static double[] LocalDirection(object value, string handle)
+    {
         switch (value)
         {
             case Face face when face.Geometry is Plane:

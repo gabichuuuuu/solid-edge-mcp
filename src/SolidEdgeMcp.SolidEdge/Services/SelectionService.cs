@@ -47,7 +47,10 @@ public static class SelectionService
 
         foreach (object value in objects)
         {
-            set.Add(value);
+            // Las caras y aristas de una ocurrencia se seleccionan por su referencia en el conjunto.
+            set.Add(value is OccurrenceElement element
+                ? element.Reference(context.GetDocument<SolidEdgeAssembly.AssemblyDocument>(null, "assembly"))
+                : value);
         }
 
         set.RefreshDisplay();

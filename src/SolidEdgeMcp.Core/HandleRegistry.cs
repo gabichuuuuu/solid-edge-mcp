@@ -1,6 +1,13 @@
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
 namespace SolidEdgeMcp.Core;
+
+/// <summary>
+/// Valor compuesto (p. ej. ocurrencia + cara) que el registro identifica por igualdad de valor y no por referencia,
+/// para que la misma combinación conserve su handle aunque se cree un objeto nuevo en cada consulta.
+/// </summary>
+public interface ICompositeHandleValue;
 
 /// <summary>
 /// Identificadores opacos (<c>tipo:N</c>) para objetos COM que el cliente reutiliza entre llamadas.
@@ -14,7 +21,7 @@ public sealed partial class HandleRegistry
     private readonly object _gate = new();
     private readonly int _capacity;
     private readonly Dictionary<string, Entry> _byId = new(StringComparer.Ordinal);
-    private readonly Dictionary<object, string> _byObject = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<object, string> _byObject = new(IdentityComparer.Instance);
     private readonly LinkedList<string> _lru = new();
     private readonly Dictionary<string, string> _removedReasons = new(StringComparer.Ordinal);
     private readonly Queue<string> _removedOrder = new();
@@ -117,6 +124,16 @@ public sealed partial class HandleRegistry
         }
     }
 
+    /// <summary>Handles vivos de un tipo (p. ej. «doc»), con su objeto.</summary>
+    public IReadOnlyList<(string Id, object Value)> OfKind(string kind)
+    {
+        string safeKind = NormalizeKind(kind);
+        lock (_gate)
+        {
+            return _byId.Values.Where(e => KindOf(e.Id) == safeKind).Select(e => (e.Id, e.Value)).ToList();
+        }
+    }
+
     /// <summary>
     /// Caduca los handles de un ámbito (p. ej. al cerrar o recalcular un documento); con
     /// <paramref name="kinds"/>, solo los de esos tipos (p. ej. caras y aristas tras cambiar el modelo).
@@ -192,6 +209,18 @@ public sealed partial class HandleRegistry
 
     [GeneratedRegex("[^a-z0-9_]+", RegexOptions.CultureInvariant)]
     private static partial Regex NonKindChars();
+
+    /// <summary>Referencia para los objetos COM; igualdad de valor para los <see cref="ICompositeHandleValue"/>.</summary>
+    private sealed class IdentityComparer : IEqualityComparer<object>
+    {
+        public static readonly IdentityComparer Instance = new();
+
+        public new bool Equals(object? x, object? y) =>
+            x is ICompositeHandleValue ? x.Equals(y) : ReferenceEquals(x, y);
+
+        public int GetHashCode(object obj) =>
+            obj is ICompositeHandleValue ? obj.GetHashCode() : RuntimeHelpers.GetHashCode(obj);
+    }
 
     private sealed class Entry(string id, object value, string? scope)
     {

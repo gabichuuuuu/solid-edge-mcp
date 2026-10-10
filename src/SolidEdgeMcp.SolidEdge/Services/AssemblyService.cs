@@ -464,7 +464,7 @@ public static class AssemblyService
     /// <summary>Descripción con posición; marca si alguna relación (no de fijación) puede recolocarla.</summary>
     internal static object Placed(SeContext context, AssemblyDocument assembly, Occurrence occurrence)
     {
-        context.ModelChanged((SolidEdgeDocument)assembly, "an occurrence moved");
+        // Mover una ocurrencia no cambia sus caras: los handles de ocurrencia siguen valiendo.
         return Describe(context, assembly, occurrence, GroundedIds(assembly));
     }
 

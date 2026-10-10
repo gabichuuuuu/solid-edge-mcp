@@ -29,7 +29,7 @@ public sealed class InspectTools(ToolRunner runner)
         faces (handle, type, area mm2, bounding box, outward normal of planes, radius and axis of cylinders) |
         edges (handle, type, start/end points, length, direction of lines, centre and radius of circles).
         'source' limits faces/edges to a feature (handle from se_feature_tree) or, for edges, to a face; 'direction' selects by orientation (e.g. [0,0,1]: top faces / vertical edges).
-        In an assembly, 'source' = an occurrence handle (se_assembly) lists the faces/edges of its part in assembly coordinates: use them for se_relations.
+        In an assembly, 'source' = an occurrence handle (se_assembly) lists the faces/edges of its part in assembly coordinates, with handles tied to that occurrence: use them for se_relations and se_measure (they stay valid when the occurrence moves; query again for new coordinates).
         Face and edge handles expire when the model changes.
         """)]
     public Task<CallToolResult> Geometry(
@@ -54,7 +54,7 @@ public sealed class InspectTools(ToolRunner runner)
     }
 
     [McpServerTool(Name = "se_measure", Title = "Measure", ReadOnly = true, OpenWorld = false)]
-    [Description("distance: minimum distance in mm between two elements (faces, edges, vertices, bodies, planes) with the closest points | angle: degrees between planar faces / reference planes (normals) or straight edges (directions).")]
+    [Description("distance: minimum distance in mm between two elements (faces, edges, vertices, bodies, planes) with the closest points | angle: degrees between planar faces / reference planes (normals) or straight edges (directions). In an assembly: occurrences, assembly planes and face/edge handles from se_geometry with 'source' = an occurrence (assembly coordinates).")]
     public Task<CallToolResult> Measure(
         MeasureAction action,
         [Description("First element handle.")] string first,

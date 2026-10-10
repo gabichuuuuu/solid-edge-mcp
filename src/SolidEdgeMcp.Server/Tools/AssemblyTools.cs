@@ -113,9 +113,9 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
     public Task<CallToolResult> Relations(
         RelationAction action,
         RelationType? type = null,
-        [Description("add: occurrence to move.")] string? occurrence1 = null,
+        [Description("add: occurrence to move; optional when element1 is a face/edge handle from se_geometry with source = that occurrence.")] string? occurrence1 = null,
         [Description("add: face, edge or reference plane of occurrence1's part.")] string? element1 = null,
-        [Description("add: occurrence it is related to; omit to use an assembly base plane in element2.")] string? occurrence2 = null,
+        [Description("add: occurrence it is related to; optional when element2 is a face/edge handle read from it; omit it and use '1'-'3' in element2 for an assembly base plane.")] string? occurrence2 = null,
         [Description("add: face, edge or reference plane of occurrence2's part, or '1'-'3' / an assembly plane handle without occurrence2.")] string? element2 = null,
         [Description("insert: cylindrical face or circular edge of occurrence1 (its axis).")] string? axis1 = null,
         [Description("insert: cylindrical face or circular edge of occurrence2.")] string? axis2 = null,

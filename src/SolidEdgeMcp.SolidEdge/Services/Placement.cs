@@ -1,6 +1,17 @@
 using SolidEdgeAssembly;
+using SolidEdgeMcp.Core;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
+
+/// <summary>
+/// Cara o arista de la pieza de una ocurrencia, vista desde el conjunto. Todas las ocurrencias de una pieza comparten
+/// sus objetos de topología, así que el handle lleva también la ocurrencia para no confundirlas.
+/// </summary>
+public sealed record OccurrenceElement(Occurrence Occurrence, object Element) : ICompositeHandleValue
+{
+    /// <summary>Referencia del elemento en el conjunto, la que esperan las relaciones, medidas y la selección.</summary>
+    public object Reference(AssemblyDocument assembly) => assembly.CreateReference(Occurrence, Element);
+}
 
 /// <summary>
 /// Posición de una ocurrencia en su conjunto. <c>Occurrence.GetMatrix</c> da una matriz 4×4 por columnas con el
