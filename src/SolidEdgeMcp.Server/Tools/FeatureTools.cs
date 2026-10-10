@@ -36,8 +36,8 @@ public enum FeatureEditAction
 }
 
 /// <summary>
-/// Operaciones de pieza (modelado ordenado) y árbol de operaciones. Cada operación nueva se
-/// verifica por estado y cambio de volumen; si falla, se borra.
+/// Part operations (ordered modelling) and the feature tree. Each new operation is
+/// verified by status and volume change; if it fails, it is deleted.
 /// </summary>
 [McpServerToolType]
 public sealed class FeatureTools(ToolRunner runner)

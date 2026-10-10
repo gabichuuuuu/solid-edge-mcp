@@ -7,9 +7,9 @@ using SolidEdgeMcp.Core;
 namespace SolidEdgeMcp.SolidEdge.Session;
 
 /// <summary>
-/// Crea un proceso independiente del servidor: sin heredar handles (los pipes de stdio del
-/// protocolo MCP no deben quedar abiertos en Solid Edge) y, si se puede, fuera del job object del
-/// cliente, para que cerrar el cliente no cierre Solid Edge con el trabajo de la persona.
+/// Creates a process independent of the server: without inheriting handles (the stdio pipes of the
+/// MCP protocol must not stay open in Solid Edge) and, if possible, outside the client's job object,
+/// so that closing the client does not close Solid Edge along with the person's work.
 /// </summary>
 internal static class DetachedProcess
 {
@@ -31,7 +31,7 @@ internal static class DetachedProcess
 
             if (error == ErrorAccessDenied)
             {
-                // El job del cliente no permite salir de él: Solid Edge se cerrará con el cliente.
+                // The client's job does not allow leaving it: Solid Edge will be closed with the client.
                 log.Warning("Solid Edge could not be started outside the client's job object; it will close if the MCP client closes.");
                 if (TryCreate(exe, flags, block, out info, out error))
                 {
@@ -49,7 +49,7 @@ internal static class DetachedProcess
         }
     }
 
-    /// <summary>Obtiene el <see cref="Process"/> mientras se conserva el handle, para que el pid siga siendo válido.</summary>
+    /// <summary>Gets the <see cref="Process"/> while the handle is kept, so the pid stays valid.</summary>
     private static Process Attach(ProcessInformation info, string exe)
     {
         try

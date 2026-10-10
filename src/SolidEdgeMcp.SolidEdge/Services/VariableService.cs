@@ -9,21 +9,21 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Tabla de variables (variables de usuario y cotas). Los valores se dan en las unidades de las
-/// herramientas (mm, grados, mm², mm³); internamente Solid Edge usa metros y radianes.
+/// Variable table (user variables and dimensions). Values are given in the units of the
+/// tools (mm, degrees, mm², mm³); internally Solid Edge uses meters and radians.
 /// </summary>
 public static class VariableService
 {
     public static readonly IReadOnlyList<string> Kinds = ["all", "user", "dimension"];
     public static readonly IReadOnlyList<string> UnitNames = ["distance", "angle", "area", "volume", "mass", "scalar"];
 
-    // Valores de SolidEdgeConstants.VariableNameBy y VariableVarType (el API los recibe como VARIANT).
+    // Values of SolidEdgeConstants.VariableNameBy and VariableVarType (the API receives them as VARIANT).
     private const int NamedByBoth = 2;
     private const int VarTypeDimension = 1;
     private const int VarTypeVariable = 2;
     private const int VarTypeBoth = 3;
 
-    // Bits de la condición de rango de una variable (SetValueRangeValues), medidos en Solid Edge 2026.
+    // Bits of a variable's range condition (SetValueRangeValues), measured in Solid Edge 2026.
     private const int RangeMinExclusive = 1;
     private const int RangeMinInclusive = 2;
     private const int RangeMaxExclusive = 4;
@@ -61,7 +61,7 @@ public static class VariableService
         return Describe(context, document, Find(document, name));
     }
 
-    /// <summary>Cambia el valor (unidades de las herramientas) o la fórmula de una variable o cota.</summary>
+    /// <summary>Changes the value (tool units) or the formula of a variable or dimension.</summary>
     public static object Set(SeContext context, string? documentHandle, string name, double? value, string? formula)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
@@ -83,7 +83,7 @@ public static class VariableService
             double target = ToDatabase(v, units);
             Late.Set(item, "Value", target);
 
-            // Fuera de sus límites (rango o lista de valores) Solid Edge conserva el valor anterior sin dar error.
+            // Outside its limits (range or list of values) Solid Edge keeps the previous value without raising an error.
             double now = Convert.ToDouble(Late.Get(item, "Value"), CultureInfo.InvariantCulture);
             if (Math.Abs(now - target) > 1e-9 * Math.Max(1, Math.Abs(target)))
             {
@@ -105,7 +105,7 @@ public static class VariableService
         };
     }
 
-    /// <summary>Crea una variable de usuario con un valor (unidades de las herramientas) o una fórmula.</summary>
+    /// <summary>Creates a user variable with a value (tool units) or a formula.</summary>
     public static object Add(SeContext context, string? documentHandle, string name, double? value, string? formula, string units)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
@@ -135,7 +135,7 @@ public static class VariableService
             double database = ToDatabase(Units.RequireFinite(value ?? throw ToolException.InvalidArgument("Action 'add' requires 'value' or 'formula'."), "value"), unitsType);
             created = variables.Add(name, database.ToString("R", CultureInfo.InvariantCulture), unitsType);
 
-            // El valor numérico se fija en unidades internas: no depende de cómo interprete la fórmula.
+            // The numeric value is set in internal units: it does not depend on how the formula is interpreted.
             Late.Set(created, "Value", database);
         }
 
@@ -155,7 +155,7 @@ public static class VariableService
         return new { deleted = name };
     }
 
-    /// <summary>Cambia el nombre de una variable o cota; Solid Edge actualiza las fórmulas que la usan.</summary>
+    /// <summary>Renames a variable or dimension; Solid Edge updates the formulas that use it.</summary>
     public static object Rename(SeContext context, string? documentHandle, string name, string newName)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
@@ -183,7 +183,7 @@ public static class VariableService
         return Describe(context, document, item);
     }
 
-    /// <summary>Comentario de la variable (columna «Comentario» de la tabla de variables).</summary>
+    /// <summary>Comment of the variable (the "Comment" column of the variable table).</summary>
     public static object Comment(SeContext context, string? documentHandle, string name, string comment)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
@@ -200,7 +200,7 @@ public static class VariableService
         return Describe(context, document, item);
     }
 
-    /// <summary>Publica la variable con un nombre para usarla desde conjuntos o familias de piezas (Expose).</summary>
+    /// <summary>Publishes the variable under a name to use it from assemblies or part families (Expose).</summary>
     public static object Expose(SeContext context, string? documentHandle, string name, bool expose, string? exposeName)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
@@ -222,8 +222,8 @@ public static class VariableService
     }
 
     /// <summary>
-    /// Límites de la variable: rango (min y max) o lista de valores permitidos; sin ninguno, los quita. Condiciones
-    /// de rango: máscara de bits (RangeMin*/RangeMax*); un rango puede tener solo min o solo max.
+    /// Limits of the variable: range (min and max) or list of allowed values; with neither, they are removed. Range conditions
+    /// are a bit mask (RangeMin*/RangeMax*); a range may have only min or only max.
     /// </summary>
     public static object Limits(SeContext context, string? documentHandle, string name, double? min, double? max, double[]? values,
         bool minExclusive, bool maxExclusive)
@@ -340,7 +340,7 @@ public static class VariableService
         };
     }
 
-    /// <summary>Límites de la variable (rango o lista de valores) en unidades de las herramientas, o <c>null</c>.</summary>
+    /// <summary>Limits of the variable (range or list of values) in tool units, or <c>null</c>.</summary>
     private static object? LimitsOf(object item, int units)
     {
         object?[] has;
@@ -379,7 +379,7 @@ public static class VariableService
         double[]? values = null;
         try
         {
-            // Por IDispatch el parámetro de salida tiene que llegar como matriz de double (con null da DISP_E_TYPEMISMATCH).
+            // Through IDispatch the output parameter must arrive as a double array (with null it gives DISP_E_TYPEMISMATCH).
             if (Late.CallByRef(item, "GetDiscreteValues", [new double[] { 0.0 }], 0)[0] is Array list)
             {
                 values = list.Cast<object>().Select(v => Math.Round(FromDatabase(Convert.ToDouble(v, CultureInfo.InvariantCulture), units), 9)).ToArray();
@@ -387,7 +387,7 @@ public static class VariableService
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex))
         {
-            // Sin lista legible: se indica solo el tipo de límite.
+            // Without a readable list: only the limit type is reported.
         }
 
         return new { type = "values", values, unit = UnitLabel(units) };
@@ -407,7 +407,7 @@ public static class VariableService
 
     private static string JsonText(object value) => System.Text.Json.JsonSerializer.Serialize(value);
 
-    /// <summary>Tipo de unidad (<see cref="UnitTypeConstants"/>): de la variable o, en cotas, según su tipo.</summary>
+    /// <summary>Unit type (<see cref="UnitTypeConstants"/>): of the variable or, for dimensions, according to their type.</summary>
     private static int UnitsOf(object item)
     {
         if (item is Dimension dimension)

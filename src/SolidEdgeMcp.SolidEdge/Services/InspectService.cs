@@ -8,7 +8,7 @@ using SolidEdgePart;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
-/// <summary>Consultas del modelo: geometría (cuerpo, caras, aristas), propiedades físicas y medidas. En mm.</summary>
+/// <summary>Model queries: geometry (body, faces, edges), physical properties and measurements. In mm.</summary>
 public static class InspectService
 {
     public static readonly IReadOnlyList<string> FaceTypes = ["all", "plane", "cylinder", "cone", "sphere", "torus"];
@@ -55,8 +55,8 @@ public static class InspectService
     }
 
     /// <summary>
-    /// Resumen del cuerpo de la pieza de una ocurrencia. La caja es la de <c>Occurrence.Range</c>, en coordenadas del
-    /// conjunto y exacta también con la pieza girada (comprobado en Solid Edge 2026).
+    /// Summary of the body of an occurrence's part. The box is that of <c>Occurrence.Range</c>, in the coordinates of the
+    /// assembly, and exact also with the part rotated (verified in Solid Edge 2026).
     /// </summary>
     private static object OccurrenceSummary(SeContext context, string source)
     {
@@ -90,9 +90,9 @@ public static class InspectService
     }
 
     /// <summary>
-    /// Caras del cuerpo o de una operación (<paramref name="source"/>), con tipo, área, normal o radio.
-    /// <paramref name="direction"/> deja solo las caras planas cuya normal exterior apunta en ese sentido. Con una
-    /// ocurrencia de conjunto como <paramref name="source"/>, las caras de su pieza en coordenadas del conjunto.
+    /// Faces of the body or of a feature (<paramref name="source"/>), with type, area, normal or radius.
+    /// <paramref name="direction"/> keeps only the planar faces whose outward normal points in that direction. With an
+    /// assembly occurrence as <paramref name="source"/>, the faces of its part in assembly coordinates.
     /// </summary>
     public static object Faces(SeContext context, string? documentHandle, string? source, string type, double[]? direction, int offset, int limit)
     {
@@ -115,8 +115,8 @@ public static class InspectService
     }
 
     /// <summary>
-    /// Aristas del cuerpo, de una operación o de una cara, con extremos, longitud y radio.
-    /// <paramref name="direction"/> deja solo las aristas rectas paralelas a ese vector (en cualquier sentido).
+    /// Edges of the body, of a feature or of a face, with endpoints, length and radius.
+    /// <paramref name="direction"/> keeps only the straight edges parallel to that vector (in either direction).
     /// </summary>
     public static object Edges(SeContext context, string? documentHandle, string? source, string type, double[]? direction, int offset, int limit)
     {
@@ -126,7 +126,7 @@ public static class InspectService
             throw ToolException.InvalidArgument($"Unknown edge type '{type}'.", $"Use one of: {string.Join(", ", EdgeTypes)}.");
         }
 
-        // El tipo se filtra por la geometría: la consulta igQueryEllipse no devuelve las aristas circulares (comprobado).
+        // The type is filtered by geometry: the igQueryEllipse query does not return circular edges (verified).
         TopologySource topology = Topology(context, documentHandle, source, "Edges", FeatureTopologyQueryTypeConstants.igQueryAll);
         Placement? placement = topology.Placement;
         Func<object, bool>? filter = null;
@@ -143,7 +143,7 @@ public static class InspectService
         return Page(context, topology.Collection, offset, limit, filter, item => DescribeEdge(context, topology, (Edge)item));
     }
 
-    /// <summary>Coseno mínimo para considerar dos direcciones paralelas (unos 0,08°).</summary>
+    /// <summary>Minimum cosine to consider two directions parallel (about 0.08°).</summary>
     private const double ParallelCosine = 0.999999;
 
     private static double[]? CheckDirection(double[]? direction)
@@ -177,8 +177,8 @@ public static class InspectService
     }
 
     /// <summary>
-    /// Propiedades físicas en mm, mm², mm³, kg y kg·mm². Sin densidad (ni la indicada ni la del
-    /// material del documento) solo se dan las geométricas.
+    /// Physical properties in mm, mm², mm³, kg and kg·mm². Without density (neither the given one nor the
+    /// document material) only the geometric ones are returned.
     /// </summary>
     public static object Physical(SeContext context, string? documentHandle, double? density)
     {
@@ -233,7 +233,7 @@ public static class InspectService
         };
     }
 
-    /// <summary>Distancia mínima entre dos elementos (caras, aristas, vértices, cuerpos, planos).</summary>
+    /// <summary>Minimum distance between two elements (faces, edges, vertices, bodies, planes).</summary>
     public static object Distance(SeContext context, string? documentHandle, string first, string second)
     {
         object a = context.Handles.Resolve(first, "first");
@@ -243,7 +243,7 @@ public static class InspectService
         double distance;
         if (a is OccurrenceElement or Occurrence || b is OccurrenceElement or Occurrence)
         {
-            // En un conjunto se mide entre referencias (ocurrencia + elemento), en coordenadas del conjunto.
+            // In an assembly it is measured between references (occurrence + element), in assembly coordinates.
             AssemblyDocument assembly = context.GetDocument<AssemblyDocument>(context.Handles.GetScope(first), "assembly");
             assembly.MinimumDistance(InAssembly(assembly, a, "first"), InAssembly(assembly, b, "second"), out distance, ref p1, ref p2);
         }
@@ -264,7 +264,7 @@ public static class InspectService
             $"In an assembly, '{argumentName}' must be an occurrence, an assembly plane or a face/edge handle from se_geometry with 'source' = an occurrence."),
     };
 
-    /// <summary>Ángulo entre normales (caras planas, planos) o direcciones (aristas rectas), en grados.</summary>
+    /// <summary>Angle between normals (planar faces, planes) or directions (straight edges), in degrees.</summary>
     public static object Angle(SeContext context, string first, string second)
     {
         double[] u = Direction(context, first, "first");
@@ -295,8 +295,8 @@ public static class InspectService
     }
 
     /// <summary>
-    /// Colección pedida y, si el origen es una ocurrencia de conjunto, su posición (para dar la geometría de la pieza en
-    /// coordenadas del conjunto).
+    /// Requested collection and, if the origin is an assembly occurrence, its position (to give the geometry of the part in
+    /// assembly coordinates).
     /// </summary>
     private static TopologySource Topology(SeContext context, string? documentHandle,
         string? source, string member, FeatureTopologyQueryTypeConstants query)
@@ -338,8 +338,8 @@ public static class InspectService
     }
 
     /// <summary>
-    /// Colección de caras o aristas y dónde se registran sus handles: el documento de la pieza o, desde una ocurrencia,
-    /// el conjunto (con la posición de la ocurrencia y handles propios de cada ocurrencia).
+    /// Collection of faces or edges and where their handles are registered: the part document or, from an occurrence,
+    /// the assembly (with the occurrence's position and handles specific to each occurrence).
     /// </summary>
     private sealed record TopologySource(SolidEdgeDocument Owner, object Collection, Placement? Placement, Occurrence? Occurrence)
     {
@@ -363,7 +363,7 @@ public static class InspectService
         ? Geo.Plain(vector)
         : placement.Vector(Geo.Doubles(vector).ToArray()).Select(Geo.R).ToArray();
 
-    /// <summary>Página de una colección; con filtro, la cuenta y el desplazamiento se refieren a los elementos que lo cumplen.</summary>
+    /// <summary>Page of a collection; with a filter, the count and the offset refer to the elements that match it.</summary>
     private static object Page(SeContext context, object collection, int offset, int limit, Func<object, bool>? filter, Func<object, object> describe)
     {
         int total = Late.Count(collection);
@@ -383,7 +383,7 @@ public static class InspectService
         }
         else
         {
-            // Con filtro hay que recorrer toda la colección para contar las coincidencias.
+            // With a filter, the whole collection must be traversed to count the matches.
             matched = 0;
             for (int i = 1; i <= total; i++)
             {
@@ -476,7 +476,7 @@ public static class InspectService
         return info;
     }
 
-    /// <summary>Normal exterior de la cara en el centro de su rango paramétrico.</summary>
+    /// <summary>Outward normal of the face at the centre of its parametric range.</summary>
     internal static double[] FaceNormal(Face face)
     {
         Array min = new double[2];

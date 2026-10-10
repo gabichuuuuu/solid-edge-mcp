@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace SolidEdgeMcp.SolidEdge.Com;
 
 /// <summary>
-/// P/Invoke de OLE y de ventanas. <c>Marshal.GetActiveObject</c> no existe en .NET moderno.
+/// P/Invoke for OLE and windows. <c>Marshal.GetActiveObject</c> does not exist in modern .NET.
 /// </summary>
 internal static class NativeMethods
 {
@@ -27,7 +27,7 @@ internal static class NativeMethods
     [DllImport("ole32.dll", PreserveSig = true)]
     internal static extern int CoRegisterMessageFilter(IOleMessageFilter? newFilter, out IOleMessageFilter? oldFilter);
 
-    /// <summary>Objeto activo registrado en la ROT para el ProgID, o <c>null</c> si no hay ninguno.</summary>
+    /// <summary>Active object registered in the ROT for the ProgID, or <c>null</c> if there is none.</summary>
     internal static object? TryGetActiveObject(string progId)
     {
         CLSIDFromProgID(progId, out Guid clsid);
@@ -36,7 +36,7 @@ internal static class NativeMethods
     }
 }
 
-/// <summary>Contrato COM estándar de IOleMessageFilter.</summary>
+/// <summary>Standard COM contract of IOleMessageFilter.</summary>
 [ComImport]
 [Guid("00000016-0000-0000-C000-000000000046")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -52,7 +52,7 @@ internal interface IOleMessageFilter
     int MessagePending(IntPtr hTaskCallee, int dwTickCount, int dwPendingType);
 }
 
-/// <summary>Primeros métodos de IDispatch, para obtener la información de tipos de cualquier objeto.</summary>
+/// <summary>First methods of IDispatch, to obtain the type information of any object.</summary>
 [ComImport]
 [Guid("00020400-0000-0000-C000-000000000046")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

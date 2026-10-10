@@ -4,7 +4,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 public static class SessionService
 {
-    /// <summary>Conecta (o arranca) Solid Edge y lo deja visible.</summary>
+    /// <summary>Connects to (or starts) Solid Edge and leaves it visible.</summary>
     public static object Connect(SeContext context)
     {
         SolidEdgeFramework.Application app = context.Application;

@@ -4,19 +4,19 @@ using SolidEdgeMcp.Core;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Cara o arista de la pieza de una ocurrencia, vista desde el conjunto. Todas las ocurrencias de una pieza comparten
-/// sus objetos de topología, así que el handle lleva también la ocurrencia para no confundirlas.
+/// Face or edge of an occurrence's part, seen from the assembly. All occurrences of a part share
+/// their topology objects, so the handle also carries the occurrence to tell them apart.
 /// </summary>
 public sealed record OccurrenceElement(Occurrence Occurrence, object Element) : ICompositeHandleValue
 {
-    /// <summary>Referencia del elemento en el conjunto, la que esperan las relaciones, medidas y la selección.</summary>
+    /// <summary>Reference of the element in the assembly, the one expected by relations, measurements and selection.</summary>
     public object Reference(AssemblyDocument assembly) => assembly.CreateReference(Occurrence, Element);
 }
 
 /// <summary>
-/// Posición de una ocurrencia en su conjunto. <c>Occurrence.GetMatrix</c> da una matriz 4×4 por columnas con el
-/// convenio de vector fila (p' = p·M): filas 0-2 = ejes X, Y, Z de la pieza en el conjunto y fila 3 = origen
-/// (comprobado: una pieza insertada en (0,2; 0; 0) devuelve la traslación en los elementos 12-14). Metros.
+/// Position of an occurrence in its assembly. <c>Occurrence.GetMatrix</c> gives a 4×4 matrix by columns, with the
+/// row-vector convention (p' = p·M): rows 0-2 = X, Y, Z axes of the part in the assembly and row 3 = origin
+/// (verified: a part inserted at (0.2; 0; 0) returns the translation in elements 12-14). Metres.
 /// </summary>
 public sealed class Placement
 {
@@ -31,7 +31,7 @@ public sealed class Placement
         return new Placement(Geo.Doubles(matrix).ToArray());
     }
 
-    /// <summary>Copia de los 16 valores, en el orden de <c>GetMatrix</c>/<c>PutMatrix</c>.</summary>
+    /// <summary>Copy of the 16 values, in the order of <c>GetMatrix</c>/<c>PutMatrix</c>.</summary>
     public double[] Matrix => (double[])_m.Clone();
 
     public double[] Origin => [_m[12], _m[13], _m[14]];
@@ -42,7 +42,7 @@ public sealed class Placement
 
     public double[] ZAxis => [_m[8], _m[9], _m[10]];
 
-    /// <summary>Punto de la pieza (m) en coordenadas del conjunto (m).</summary>
+    /// <summary>Point of the part (m) in assembly coordinates (m).</summary>
     public double[] Point(IReadOnlyList<double> p) =>
     [
         (p[0] * _m[0]) + (p[1] * _m[4]) + (p[2] * _m[8]) + _m[12],
@@ -50,7 +50,7 @@ public sealed class Placement
         (p[0] * _m[2]) + (p[1] * _m[6]) + (p[2] * _m[10]) + _m[14],
     ];
 
-    /// <summary>Dirección de la pieza en coordenadas del conjunto (solo giro).</summary>
+    /// <summary>Direction of the part in assembly coordinates (rotation only).</summary>
     public double[] Vector(IReadOnlyList<double> v) =>
     [
         (v[0] * _m[0]) + (v[1] * _m[4]) + (v[2] * _m[8]),
@@ -59,8 +59,8 @@ public sealed class Placement
     ];
 
     /// <summary>
-    /// Matriz de la ocurrencia girada <paramref name="angle"/> radianes (regla de la mano derecha) alrededor del eje que
-    /// pasa por <paramref name="point"/> con dirección <paramref name="direction"/> (m, coordenadas del conjunto).
+    /// Matrix of the occurrence rotated by <paramref name="angle"/> radians (right-hand rule) about the axis that
+    /// passes through <paramref name="point"/> with direction <paramref name="direction"/> (m, assembly coordinates).
     /// </summary>
     public double[] Rotated(IReadOnlyList<double> point, IReadOnlyList<double> direction, double angle)
     {
@@ -69,7 +69,7 @@ public sealed class Placement
         double cos = Math.Cos(angle);
         double sin = Math.Sin(angle);
 
-        // Fórmula de Rodrigues: v' = v·cos + (u×v)·sin + u·(u·v)·(1 − cos).
+        // Rodrigues' formula: v' = v·cos + (u×v)·sin + u·(u·v)·(1 − cos).
         double[] Turn(double x, double y, double z)
         {
             double dot = (u[0] * x) + (u[1] * y) + (u[2] * z);
@@ -95,7 +95,7 @@ public sealed class Placement
         return result;
     }
 
-    /// <summary>Caja alineada con los ejes del conjunto que contiene la caja de la pieza (sus 8 esquinas giradas).</summary>
+    /// <summary>Box aligned with the assembly axes that contains the part's box (its 8 rotated corners).</summary>
     public (double[] Min, double[] Max) Box(IReadOnlyList<double> min, IReadOnlyList<double> max)
     {
         double[] lo = [double.MaxValue, double.MaxValue, double.MaxValue];

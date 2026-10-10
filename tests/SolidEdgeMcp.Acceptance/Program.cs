@@ -1,14 +1,14 @@
-// Cliente MCP de aceptación: ejecuta guiones de llamadas contra el servidor en una sola sesión y comprueba resultados.
-// Uso: SolidEdgeMcp.Acceptance <exe del servidor> <guion> [argumentos del servidor...] (normalmente desde run.ps1)
-// Guion, una orden por línea:
-//   # comentario
-//   [@var =] herramienta {json}          llamada; un error inesperado cuenta como fallo
-//   ! [codigo] herramienta {json}        llamada que debe fallar (con ese código de error, si se da)
-//   ?= ruta valor [tolerancia]           comprueba un número (tolerancia absoluta, por defecto 1e-3) o un texto
-//   ?~ ruta texto                        comprueba que el valor contiene el texto
-//   !list | !schemas                     resumen o esquemas de las herramientas
-// {{var.campo[0].sub}} se sustituye por el valor guardado; {{work}} es la carpeta de trabajo (SE_MCP_WORK o
-// %LocalAppData%\SolidEdgeMcp\work\acceptance), ya escapada para JSON.
+// MCP acceptance client: runs call scripts against the server in a single session and checks the results.
+// Usage: SolidEdgeMcp.Acceptance <server exe> <script> [server arguments...] (normally from run.ps1)
+// Script, one command per line:
+//   # comment
+//   [@var =] tool {json}                 call; an unexpected error counts as a failure
+//   ! [code] tool {json}                 call that must fail (with that error code, if given)
+//   ?= path value [tolerance]            checks a number (absolute tolerance, default 1e-3) or a text
+//   ?~ path text                         checks that the value contains the text
+//   !list | !schemas                     summary or schemas of the tools
+// {{var.field[0].sub}} is replaced by the stored value; {{work}} is the work folder (SE_MCP_WORK or
+// %LocalAppData%\SolidEdgeMcp\work\acceptance), already escaped for JSON.
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -64,7 +64,7 @@ foreach (string raw in File.ReadAllLines(script))
         if (line.StartsWith("?=", StringComparison.Ordinal) || line.StartsWith("?~", StringComparison.Ordinal))
         {
             checks++;
-            // El valor esperado también admite {{var.ruta}} (p. ej. el mismo handle que otra llamada).
+            // The expected value also accepts {{var.path}} (e.g. the same handle as another call).
             line = line[..2] + " " + line[2..].Trim().Split(' ', 2) switch
             {
                 [string path, string rest] => path + " " + Regex.Replace(rest, @"\{\{([^{}]+)\}\}", m => Resolve(vars, m.Groups[1].Value)),
@@ -189,7 +189,7 @@ static string Shorten(string text) => text.Length <= 300 ? text : text[..300] + 
 
 static string Resolve(Dictionary<string, JsonElement> vars, string path)
 {
-    // Los puntos dentro de un filtro ([?name="a.par"]) no separan tramos.
+    // Dots inside a filter ([?name="a.par"]) do not separate segments.
     string[] parts = Regex.Split(path, @"\.(?![^\[]*\])");
     JsonElement current = vars[parts[0]];
     foreach (string part in parts.Skip(1))
@@ -198,7 +198,7 @@ static string Resolve(Dictionary<string, JsonElement> vars, string path)
         Match index = Regex.Match(part, @"^(\w*)\[(\d+)\]$");
         if (filter.Success)
         {
-            // items[?name=X]: primer elemento cuyo campo coincide (números con tolerancia).
+            // items[?name=X]: first element whose field matches (numbers with tolerance).
             if (filter.Groups[1].Value.Length > 0) current = current.GetProperty(filter.Groups[1].Value);
             string key = filter.Groups[2].Value;
             JsonElement want = JsonDocument.Parse(filter.Groups[3].Value).RootElement;

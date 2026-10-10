@@ -5,8 +5,8 @@ using ComTypes = System.Runtime.InteropServices.ComTypes;
 namespace SolidEdgeMcp.SolidEdge.Com;
 
 /// <summary>
-/// Índice de los tipos de la interop generada: interfaz por IID y enumeraciones. Permite tratar
-/// cualquier objeto COM devuelto por Solid Edge con su tipo real (reflexión) en lugar de adivinar.
+/// Index of the types in the generated interop: interface by IID and enumerations. It makes it possible to handle
+/// any COM object returned by Solid Edge with its real type (reflection) rather than guessing.
 /// </summary>
 public static class InteropCatalog
 {
@@ -16,7 +16,7 @@ public static class InteropCatalog
 
     public static IReadOnlyList<Type> Enums => Data.Value.Enums;
 
-    /// <summary>Tipo de la interop que describe el objeto, a partir de su información de tipos COM.</summary>
+    /// <summary>Interop type that describes the object, based on its COM type information.</summary>
     public static Type? FindInterface(object comObject)
     {
         (Guid guid, string _)? info = GetTypeInfoIdentity(comObject);
@@ -29,7 +29,7 @@ public static class InteropCatalog
     public static Type? FindByName(string fullName) =>
         Data.Value.InterfacesByName.TryGetValue(fullName, out Type? type) ? type : null;
 
-    /// <summary>Nombre del tipo COM del objeto (librería.tipo), o <c>null</c> si no expone información de tipos.</summary>
+    /// <summary>COM type name of the object (library.type), or <c>null</c> if it does not expose type information.</summary>
     public static string? GetTypeName(object comObject)
     {
         Type? type = FindInterface(comObject);
@@ -41,7 +41,7 @@ public static class InteropCatalog
         return GetTypeInfoIdentity(comObject)?.name;
     }
 
-    /// <summary>Todos los miembros públicos de la interfaz y de las que hereda.</summary>
+    /// <summary>All public members of the interface and of the interfaces it inherits from.</summary>
     public static IEnumerable<MemberInfo> GetMembers(Type type) =>
         new[] { type }.Concat(type.GetInterfaces())
             .SelectMany(t => t.GetMembers(BindingFlags.Public | BindingFlags.Instance))
@@ -131,8 +131,8 @@ public static class InteropCatalog
             }
 
             byName.TryAdd(type.FullName!, type);
-            // La interfaz «coclass» (PartDocument) comparte IID con la real (_IPartDocument...) y hereda
-            // de ella: se prefiere por su nombre; GetMembers incluye los miembros heredados.
+            // The "coclass" interface (PartDocument) shares its IID with the real one (_IPartDocument...) and inherits
+            // from it, so the one matched by name is preferred; GetMembers includes inherited members.
             if (!byGuid.TryGetValue(type.GUID, out Type? existing)
                 || (existing.GetCustomAttribute<CoClassAttribute>() is null && type.GetCustomAttribute<CoClassAttribute>() is not null))
             {

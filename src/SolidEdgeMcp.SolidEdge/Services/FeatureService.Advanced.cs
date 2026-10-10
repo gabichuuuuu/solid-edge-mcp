@@ -9,7 +9,7 @@ using OffsetType = SolidEdgeFrameworkSupport.PatternOffsetTypeConstants;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
-/// <summary>Parámetros de un agujero (mm y grados). Los centros van en coordenadas del modelo y se proyectan sobre el plano.</summary>
+/// <summary>Hole parameters (mm and degrees). The centers are in model coordinates and are projected onto the plane.</summary>
 public sealed record HoleSpec(
     string Plane,
     double[]? Centers,
@@ -24,7 +24,7 @@ public sealed record HoleSpec(
     double? Depth = null,
     string Direction = "auto");
 
-/// <summary>Parámetros de un patrón (mm y grados).</summary>
+/// <summary>Pattern parameters (mm and degrees).</summary>
 public sealed record PatternSpec(
     string[]? Features,
     string Type,
@@ -43,8 +43,8 @@ public static partial class FeatureService
     public static readonly IReadOnlyList<string> PatternTypes = ["rectangular", "circular", "mirror"];
 
     /// <summary>
-    /// Agujeros en los centros indicados. Con dirección «auto» se prueba hacia la normal del plano y, si no
-    /// quita material, hacia el lado contrario (como haría una persona al ver la vista previa).
+    /// Holes at the given centers. With direction "auto" it tries toward the normal of the plane and, if it
+    /// removes no material, toward the opposite side (as a person would when looking at the preview).
     /// </summary>
     public static object Hole(SeContext context, string? documentHandle, HoleSpec spec)
     {
@@ -55,8 +55,8 @@ public static partial class FeatureService
             "simple" => FeaturePropertyConstants.igRegularHole,
             "counterbore" => FeaturePropertyConstants.igCounterboreHole,
             "countersink" => FeaturePropertyConstants.igCountersinkHole,
-            // igTappedHole crea en Solid Edge 2026 un agujero con avellanado escalonado (counterdrill) con medidas
-            // por defecto: el roscado es un agujero simple a la broca con los datos de la rosca (rosca cosmética).
+            // igTappedHole creates in Solid Edge 2026 a hole with a stepped counterbore (counterdrill) with dimensions
+            // by default: the thread is a simple drilled hole with the thread data (cosmetic thread).
             "tapped" => FeaturePropertyConstants.igRegularHole,
             _ => throw ToolException.InvalidArgument($"Unknown hole type '{spec.Type}'.", $"Use one of: {string.Join(", ", HoleTypes)}."),
         };
@@ -83,9 +83,9 @@ public static partial class FeatureService
         List<RefPlane>? facePlanes = null;
         if (planeSource is SolidEdgeGeometry.Face face)
         {
-            // Cada agujero necesita su plano local sobre la cara y hay que crearlos antes de cambiar el modelo,
-            // porque después la cara deja de valer. Por eso tampoco se puede reintentar el otro lado: con «auto»
-            // se elige de entrada el sentido hacia el material, opuesto a la normal exterior.
+            // Each hole needs its own local plane on the face, and they must be created before changing the model,
+            // because afterwards the face is no longer valid. That is also why the other side cannot be retried: with "auto"
+            // the direction toward the material, opposite to the outward normal, is chosen up front.
             facePlanes = centers.Select(_ => model.PlaneFrom(face)).ToList();
             if (spec.Direction == "auto")
             {
@@ -97,9 +97,9 @@ public static partial class FeatureService
         double before = model.Volume();
         double current = before;
         bool warning = false;
-        // En modelado ordenado un agujero usa un solo perfil y, al cerrarlo, Solid Edge separa cada círculo en su
-        // propio perfil (Holes.AddSync no funciona y Hole.SetProfiles deja la operación fallida): se crea una
-        // operación por centro y, si una falla, se deshacen todas para no dejar el trabajo a medias.
+        // In ordered modelling a hole uses a single profile and, when it is closed, Solid Edge separates each circle into its
+        // own profile (Holes.AddSync does not work and Hole.SetProfiles leaves the feature failed): one feature is created
+        // per center and, if one fails, all are undone so that the work is not left half done.
         var holes = new List<(object Feature, IncludedProfile Included)>();
         try
         {
@@ -132,7 +132,7 @@ public static partial class FeatureService
                     }
                     catch (ToolException ex) when (ex.Code == "feature_failed" && i + 1 < sides.Length)
                     {
-                        // «auto»: se prueba el otro lado del plano; los centros siguientes usan el que funcione.
+                        // "auto": the other side of the plane is tried; the following centers use the one that works.
                     }
                 }
             }
@@ -145,7 +145,7 @@ public static partial class FeatureService
                 DeleteIncluded(included);
             }
 
-            // Planos locales que no llegó a usar ningún agujero (los de los borrados desaparecen con ellos).
+            // Local planes that no hole got to use (those of deleted features disappear with them).
             foreach (RefPlane plane in facePlanes ?? [])
             {
                 TryDelete(plane);
@@ -175,7 +175,7 @@ public static partial class FeatureService
         };
     }
 
-    /// <summary>Patrón rectangular o circular de operaciones, o simetría respecto de un plano.</summary>
+    /// <summary>Rectangular or circular pattern of features, or mirror about a plane.</summary>
     public static object Pattern(SeContext context, string? documentHandle, PatternSpec spec)
     {
         if (spec.Features is not { Length: > 0 })
@@ -245,7 +245,7 @@ public static partial class FeatureService
         return Verify(context, model, feature, before, 0, switched);
     }
 
-    /// <summary>Vaciado (pared delgada) con espesor común; las caras abiertas se quitan.</summary>
+    /// <summary>Shell (thin wall) with a common thickness; the open faces are removed.</summary>
     public static object Shell(SeContext context, string? documentHandle, double? thickness, string[]? openFaces, string side)
     {
         string? related = openFaces is { Length: > 0 } ? openFaces[0] : null;
@@ -267,7 +267,7 @@ public static partial class FeatureService
         return Verify(context, model, feature, before, 0, switched);
     }
 
-    /// <summary>Desmoldeo de caras respecto de un plano neutro.</summary>
+    /// <summary>Draft of faces relative to a neutral plane.</summary>
     public static object Draft(SeContext context, string? documentHandle, string plane, string[]? faces, double? angle, string direction)
     {
         if (faces is not { Length: > 0 })
@@ -282,8 +282,8 @@ public static partial class FeatureService
             throw ToolException.InvalidArgument("'angle' must be less than 90 degrees.");
         }
 
-        // Drafts.Add rechaza igLeft/igRight (E_FAIL). Comprobado en un bloque con el plano neutro abajo y arriba:
-        // igOutside estrecha la pieza hacia la normal del plano (desmolde en ese sentido) e igInside la ensancha.
+        // Drafts.Add rejects igLeft/igRight (E_FAIL). Verified on a block with the neutral plane at the bottom and at the top:
+        // igOutside narrows the part toward the normal of the plane (drafting in that direction) and igInside widens it.
         FeaturePropertyConstants side = direction switch
         {
             "normal" => FeaturePropertyConstants.igOutside,
@@ -302,7 +302,7 @@ public static partial class FeatureService
             changedOtherwise: () => Math.Abs(model.SurfaceArea() - areaBefore) > AreaTolerance);
     }
 
-    /// <summary>Lado del plano local de una cara hacia el interior del material.</summary>
+    /// <summary>Side of the local plane of a face toward the inside of the material.</summary>
     private static FeaturePropertyConstants IntoMaterial(SolidEdgeGeometry.Face face, RefPlane plane)
     {
         double[] outward = InspectService.FaceNormal(face);
@@ -319,8 +319,8 @@ public static partial class FeatureService
         {
             (double nominal, double pitch, string description) = ParseMetricThread(spec.Thread);
             double drill = spec.Diameter is { } d ? Units.MmToM(Units.RequirePositive(d, "diameter")) : nominal - pitch;
-            // Comprobado: un agujero roscado finito falla si Add no recibe ThreadDepthMethod y ThreadDepth; con
-            // igFinite y la profundidad del agujero se crea (aunque HoleData.ThreadDepthMethod se lea después como igNone).
+            // Verified: a finite threaded hole fails if Add does not receive ThreadDepthMethod and ThreadDepth; with
+            // igFinite and the hole depth, the hole is created (although HoleData.ThreadDepthMethod is read back afterwards as igNone).
             return depth > 0
                 ? collection.Add(type, drill,
                     ThreadMinorDiameter: nominal - 1.0825 * pitch,
@@ -357,8 +357,8 @@ public static partial class FeatureService
                     throw ToolException.InvalidArgument("'countersinkDiameter' must be larger than 'diameter'.");
                 }
 
-                // HoleData.CountersinkAngle va en grados, no en radianes como el resto del API (comprobado: por
-                // defecto vale 82 y con 90 el volumen coincide con el cono de 90°).
+                // HoleData.CountersinkAngle is in degrees, not in radians as in the rest of the API (verified: by
+                // default it is 82, and with 90 the volume matches the 90° cone).
                 double angle = Units.RequirePositive(spec.CountersinkAngle, "countersinkAngle");
                 if (angle >= 180)
                 {
@@ -373,7 +373,7 @@ public static partial class FeatureService
         }
     }
 
-    /// <summary>Rosca métrica «M10» o «M10x1.25» → diámetro nominal y paso en metros (paso grueso ISO si falta).</summary>
+    /// <summary>Metric thread "M10" or "M10x1.25" → nominal diameter and pitch in meters (ISO coarse pitch if missing).</summary>
     private static (double Nominal, double Pitch, string Description) ParseMetricThread(string? thread)
     {
         Match match = Regex.Match(thread ?? "", @"^\s*M\s*(\d+(?:[.,]\d+)?)\s*(?:[xX×]\s*(\d+(?:[.,]\d+)?))?\s*$");
@@ -390,7 +390,7 @@ public static partial class FeatureService
         return (Units.MmToM(nominal), Units.MmToM(pitch), description);
     }
 
-    /// <summary>Paso grueso ISO 261 para los diámetros habituales.</summary>
+    /// <summary>ISO 261 coarse pitch for the usual diameters.</summary>
     private static double CoarsePitch(double nominal) => nominal switch
     {
         <= 1.6 => 0.35,

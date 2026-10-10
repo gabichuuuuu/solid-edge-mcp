@@ -7,8 +7,8 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Exportación a formatos neutros con los traductores de Solid Edge. El formato sale de la extensión;
-/// el documento no cambia de nombre ni de ruta (se usa «guardar copia»). Siempre con <see cref="PathGuard"/>.
+/// Export to neutral formats with the Solid Edge translators. The format comes from the extension;
+/// the document does not change name or path (it uses "save a copy"). Always through <see cref="PathGuard"/>.
 /// </summary>
 public static class ExportService
 {
@@ -103,8 +103,8 @@ public static class ExportService
                 flatPattern ? "Create the flat pattern first (se_sheetmetal action 'flatten')." : "Check the translator options in Solid Edge.");
         }
 
-        // Las plantillas de plano rellenan el cajetín con datos del archivo (p. ej. la fecha): sin guardar salen
-        // como «Error: No reference» (comprobado con la plantilla A3 de Solid Edge 2026).
+        // Drawing templates fill the title block with file data (e.g. the date): if unsaved they come out
+        // as "Error: No reference" (verified with the A3 template of Solid Edge 2026).
         string? note = draft && DocumentService.PathOf(document) is null
             ? "The drawing has never been saved: title-block fields taken from its file (such as the date) show 'Error: No reference'. Save it (se_documents save_as) and export again if the title block matters."
             : null;

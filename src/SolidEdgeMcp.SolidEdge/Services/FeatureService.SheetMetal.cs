@@ -12,17 +12,17 @@ using TopologyQuery = SolidEdgeGeometry.FeatureTopologyQueryTypeConstants;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
-/// <summary>Brida sobre aristas de la chapa (mm y grados).</summary>
+/// <summary>Flange on sheet metal edges (mm and degrees).</summary>
 public sealed record FlangeSpec(string[]? Edges, double? Length, double Angle = 90, string Side = "inside", double? Radius = null);
 
-/// <summary>Dobladillo sobre aristas de la chapa (mm).</summary>
+/// <summary>Hem on sheet metal edges (mm).</summary>
 public sealed record HemSpec(string[]? Edges, string Type, double? Length, double? Radius = null, double? Length2 = null,
     double? Radius2 = null, string Side = "inside");
 
-/// <summary>Valores globales de la chapa (mm); <c>null</c> = sin cambio.</summary>
+/// <summary>Global sheet metal values (mm); <c>null</c> = no change.</summary>
 public sealed record SheetMetalValues(double? Thickness, double? BendRadius, double? ReliefWidth, double? ReliefDepth, double? NeutralFactor);
 
-/// <summary>Operación de chapa por boceto (mm y grados).</summary>
+/// <summary>Sheet metal sketch-based operation (mm and degrees).</summary>
 public sealed record SheetFormSpec(
     string Sketch,
     string Action,
@@ -38,11 +38,11 @@ public sealed record SheetFormSpec(
     string Method = "thickness");
 
 /// <summary>
-/// Chapa. Comprobado en Solid Edge 2026: por API, la brida, el dobladillo y la rotura de esquina solo se resuelven en
-/// modelado síncrono (en ordenado Flanges.Add crea una brida que nunca se resuelve) y solo sobre operaciones síncronas;
-/// por eso la pestaña, la brida de contorno base y esas operaciones se crean en síncrono y después se vuelve al modo
-/// anterior. Las operaciones por boceto (embutido, recortes, desvío, pliegue...) son ordenadas, como el resto de
-/// herramientas: en ordenado el cuerpo incluye las operaciones de los dos modos; en síncrono faltan las ordenadas.
+/// Sheet metal. Verified in Solid Edge 2026: through the API, the flange, the hem and the corner break are only resolved in
+/// synchronous modelling (in ordered mode Flanges.Add creates a flange that is never resolved) and only on synchronous operations;
+/// that is why the tab, the base contour flange and those operations are created in synchronous mode and then the mode is switched back to
+/// the previous one. Sketch-based operations (dimples, cutouts, jogs, beads...) are ordered, like the rest of the
+/// tools: in ordered mode the body includes the operations of both modes; in synchronous mode the ordered ones are missing.
 /// </summary>
 public static partial class FeatureService
 {
@@ -57,7 +57,7 @@ public static partial class FeatureService
         return DescribeSettings(context, model, Sheet(model));
     }
 
-    /// <summary>Cambia los valores globales de la chapa; el modelo se actualiza con ellos.</summary>
+    /// <summary>Changes the global sheet metal values; the model is updated with them.</summary>
     public static object SetSheetSettings(SeContext context, string? documentHandle, SheetMetalValues values)
     {
         ModelDocument model = ModelDocument.Get(context, documentHandle);
@@ -105,7 +105,7 @@ public static partial class FeatureService
             sheet.SetGlobalParameter(parameter, value);
         }
 
-        // Con operaciones ordenadas el cambio no se aplica hasta recalcular (comprobado: sin Recompute el volumen no varía).
+        // With ordered operations the change is not applied until recalculated (verified: without Recompute the volume does not change).
         sheet.Recompute();
         context.ModelChanged(model.Document, "the sheet metal settings changed");
         double after = model.Volume();
@@ -113,9 +113,9 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Pestaña desde un boceto cerrado de un solo lazo: la primera es la pestaña base (crea la chapa con el espesor del
-    /// documento); las siguientes añaden material en el plano de la chapa. En síncrono, AddBaseTab con lazos anidados
-    /// toma solo la región interior, de ahí la comprobación del número de lazos.
+    /// Tab from a closed sketch with a single loop: the first one is the base tab (creates the sheet with the thickness of the
+    /// document); the following ones add material on the sheet plane. In synchronous mode, AddBaseTab with nested loops
+    /// takes only the inner region, hence the check of the number of loops.
     /// </summary>
     public static object Tab(SeContext context, string? documentHandle, string sketch, string direction)
     {
@@ -153,7 +153,7 @@ public static partial class FeatureService
         return result;
     }
 
-    /// <summary>Brida de contorno base desde un boceto abierto (crea la chapa).</summary>
+    /// <summary>Base contour flange from an open sketch (creates the sheet).</summary>
     public static object ContourFlange(SeContext context, string? documentHandle, string sketch, double? width, string direction,
         string materialSide, double? radius)
     {
@@ -167,16 +167,16 @@ public static partial class FeatureService
 
         Profile profile = SketchService.Resolve(context, sketch);
         double extent = Units.MmToM(Units.RequirePositive(width ?? throw ToolException.InvalidArgument("contour_flange requires 'width' (mm): the extent along the sketch normal."), "width"));
-        // Solid Edge 2026 ignora el lado de proyección (1, 2, 3, 7 y 8 dan el mismo sólido): el ancho crece siempre hacia la
-        // normal del boceto.
+        // Solid Edge 2026 ignores the projection side (1, 2, 3, 7 and 8 give the same solid): the width always grows toward the
+        // sketch normal.
         if (direction != "normal")
         {
             throw ToolException.InvalidArgument("Solid Edge always extends a base contour flange along the sketch normal.",
                 "Use direction 'normal' and draw the sketch on a plane whose normal points the way the width should grow (se_refplane, or the opposite face).");
         }
 
-        // Comprobado con una U recorrida desde su primer punto y vista desde el lado de la normal del boceto: igRight pone
-        // el espesor a la izquierda del recorrido (al contrario que el lado móvil de desvíos y pliegues).
+        // Verified with a U traversed from its first point and seen from the side of the sketch normal: igRight puts
+        // the thickness on the left of the path (unlike the moving side of jogs and beads).
         FeaturePropertyConstants thicknessSide = materialSide switch
         {
             "right" => FeaturePropertyConstants.igLeft,
@@ -184,7 +184,7 @@ public static partial class FeatureService
             _ => throw ToolException.InvalidArgument($"Unknown materialSide '{materialSide}'.", "Use left or right."),
         };
         double bend = BendRadius(sheet, radius);
-        // En síncrono la brida de contorno base queda como una pestaña y una brida por cada tramo más (no en ContourFlanges).
+        // In synchronous mode the base contour flange becomes a tab and one flange for each further segment (not in ContourFlanges).
         HashSet<string> before = FeatureNames(model);
         List<object> parts = [];
         object result = Synchronous(context, model, "contour flange", 1, sketch, [() =>
@@ -201,10 +201,10 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Una brida por arista. Comprobado: sube de la cara a la que pertenece la arista, alejándose del material; la
-    /// longitud se mide desde esa cara; BendAngle es el ángulo entre la brida y la chapa (90 = perpendicular).
-    /// ThicknessSide: material dentro (cara exterior de la brida enrasada con la arista), fuera o pliegue fuera.
-    /// DimSide no admite ningún valor (E_INVALIDARG con 4, 5, 97 y 98), así que no se ofrece.
+    /// One flange per edge. Verified: it rises from the face the edge belongs to, moving away from the material; the
+    /// length is measured from that face; BendAngle is the angle between the flange and the sheet (90 = perpendicular).
+    /// ThicknessSide: material inside (outer face of the flange flush with the edge), outside, or bend outside.
+    /// DimSide does not accept any value (E_INVALIDARG with 4, 5, 97 and 98), so it is not offered.
     /// </summary>
     public static object Flange(SeContext context, string? documentHandle, FlangeSpec spec)
     {
@@ -233,9 +233,9 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Un dobladillo por arista. Los tipos rizo (curl) y bucle centrado provocan RPC_E_SERVERFAULT en Solid Edge 2026 y el
-    /// bucle abierto falla, así que no se ofrecen. Los opcionales con tipo se omiten por IDispatch (la interop no admite
-    /// omitirlos) para que Solid Edge aplique sus valores por defecto.
+    /// One hem per edge. The curl and centered loop types cause RPC_E_SERVERFAULT in Solid Edge 2026, and the
+    /// open loop fails, so they are not offered. Typed optional parameters are omitted through IDispatch (the interop does not accept
+    /// omitting them) so that Solid Edge applies its default values.
     /// </summary>
     public static object Hem(SeContext context, string? documentHandle, HemSpec spec)
     {
@@ -267,7 +267,7 @@ public static partial class FeatureService
             SyncNextStep);
     }
 
-    /// <summary>Redondeo o chaflán (45°) de esquinas en aristas que atraviesan el espesor.</summary>
+    /// <summary>Fillet or chamfer (45°) of corners on edges that cross the thickness.</summary>
     public static object BreakCorner(SeContext context, string? documentHandle, string[]? edges, string type, double? size)
     {
         (ModelDocument model, object[] edgeObjects) = ResolveEdges(context, documentHandle, edges);
@@ -285,9 +285,9 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Crea o actualiza el desplegado y devuelve su tamaño de corte. FlatPatterns.Add exige caras, aristas y vértices del
-    /// cuerpo del modelo de desplegado (con los del diseño da E_INVALIDARG): se toma su cara plana mayor y su arista
-    /// recta más larga.
+    /// Creates or updates the flat pattern and returns its cut size. FlatPatterns.Add requires faces, edges and vertices of the
+    /// flat-pattern model body (with those of the design it gives E_INVALIDARG): its largest planar face and its
+    /// longest straight edge are taken.
     /// </summary>
     public static object Flatten(SeContext context, string? documentHandle)
     {
@@ -335,7 +335,7 @@ public static partial class FeatureService
         };
     }
 
-    /// <summary>Operaciones por boceto de chapa, en modelado ordenado con copia enlazada del perfil.</summary>
+    /// <summary>Sheet metal sketch-based operations, in ordered modelling with a linked copy of the profile.</summary>
     public static object SheetForm(SeContext context, string? documentHandle, SheetFormSpec spec)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, spec.Sketch);
@@ -369,7 +369,7 @@ public static partial class FeatureService
             case "normal_cutout":
                 return NormalCutout(context, model, sketchProfile, spec.Sketch, spec.Direction, spec.Method);
             case "etch":
-                // Un grabado no cambia el volumen: basta con que Solid Edge no lo marque como fallido.
+                // An engraving does not change the volume: it is enough that Solid Edge does not mark it as failed.
                 return Form(context, model, sketchProfile, spec.Sketch, "etch", 0, null, (target, profile) => target.Etches.Add(profile),
                     changedOtherwise: () => true);
             case "jog":
@@ -417,8 +417,8 @@ public static partial class FeatureService
                     "v" => FeaturePropertyConstants.igVShaped,
                     _ => throw ToolException.InvalidArgument($"Unknown bead type '{spec.BeadType}'.", "Use u or v (the circular bead has no effect in Solid Edge 2026)."),
                 };
-                // Combinación comprobada (altura 3, anchura 8): radio de forma = anchura/4, punzón y matriz = min/3,
-                // conicidad 0,1 rad, sin redondeo, extremo con lanceta (el extremo punzonado da E_FAIL).
+                // Verified combination (height 3, width 8): shape radius = width/4, punch and die = min/3,
+                // taper 0.1 rad, no fillet, lanced end (the punched end gives E_FAIL).
                 double formRadius = width / 4;
                 double toolRadius = Math.Min(width, height) / 3;
                 return Form(context, model, sketchProfile, spec.Sketch, "bead", 0, direction, (target, profile) =>
@@ -438,9 +438,9 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Recorte normal a la chapa en todo su espesor. Con dirección «auto» corta hacia el material si el boceto está sobre
-    /// una cara de la chapa; si no, prueba hacia la normal del boceto y, si no quita material, hacia el otro lado (el lado
-    /// sin material no da error ni efecto). No se usa igBoth: deja el cuerpo ilegible (E_FAIL) en Solid Edge 2026.
+    /// Normal cutout through the whole thickness of the sheet. With direction "auto" it cuts toward the material if the sketch is on
+    /// a face of the sheet; otherwise it tries toward the sketch normal and, if it removes no material, toward the other side (the side
+    /// without material gives no error or effect). igBoth is not used: it leaves the body unreadable (E_FAIL) in Solid Edge 2026.
     /// </summary>
     private static object NormalCutout(SeContext context, ModelDocument model, Profile sketchProfile, string sketch, string direction, string method)
     {
@@ -472,15 +472,15 @@ public static partial class FeatureService
             }
             catch (ToolException ex) when (ex.Code == "feature_failed" && i + 1 < sides.Length)
             {
-                // «auto»: el material está al otro lado del plano del boceto.
+                // "auto": the material is on the other side of the sketch plane.
             }
         }
     }
 
     /// <summary>
-    /// Lado del plano del boceto hacia el material cuando el plano coincide con una cara plana del cuerpo (el material queda
-    /// al lado contrario de su normal exterior); <c>null</c> si no coincide con ninguna. Evita un intento fallido, que
-    /// cuesta una operación creada y borrada.
+    /// Side of the sketch plane toward the material when the plane coincides with a planar face of the body (the material is
+    /// on the side opposite its outward normal); <c>null</c> if it matches none. Avoids a failed attempt, which
+    /// costs a feature created and then deleted.
     /// </summary>
     private static FeaturePropertyConstants? TowardsMaterial(ModelDocument model, Profile profile)
     {
@@ -519,7 +519,7 @@ public static partial class FeatureService
 
     private static double Dot(double[] a, double[] b) => a.Zip(b, (p, q) => p * q).Sum();
 
-    /// <summary>Operación ordenada por boceto: copia enlazada del perfil, verificación y ocultación del boceto si va bien.</summary>
+    /// <summary>Ordered sketch-based operation: linked copy of the profile, verification, and hiding of the sketch if it succeeds.</summary>
     private static object Form(SeContext context, ModelDocument model, Profile sketchProfile, string sketch, string what, int expectedSign,
         string? direction, Func<Model, Profile, object> create, Func<bool>? changedOtherwise = null)
     {
@@ -535,8 +535,8 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Una operación por arista. Cada operación síncrona regenera las aristas del cuerpo (las anteriores dan E_FAIL):
-    /// desde la segunda, la arista se vuelve a buscar por su recta, guardada antes de cambiar nada.
+    /// One operation per edge. Each synchronous operation regenerates the edges of the body (the previous ones give E_FAIL):
+    /// from the second one on, the edge is searched for again by its line, which was stored before changing anything.
     /// </summary>
     private static List<Func<object?>> PerEdge(ModelDocument model, object[] edges, Func<object, object?> create)
     {
@@ -545,7 +545,7 @@ public static partial class FeatureService
             create(i == 0 || lines[i] is not { } line ? edge : FindEdge(model, line)))).ToList();
     }
 
-    /// <summary>Extremos (m) de una arista recta.</summary>
+    /// <summary>Endpoints (m) of a straight edge.</summary>
     private sealed record EdgeLine(double[] Start, double[] End);
 
     private static EdgeLine? LineOf(object edge)
@@ -561,7 +561,7 @@ public static partial class FeatureService
         return new EdgeLine(Geo.Doubles(start).ToArray(), Geo.Doubles(end).ToArray());
     }
 
-    /// <summary>Arista recta del cuerpo actual sobre la misma recta y con el mayor solape (la operación anterior pudo acortarla).</summary>
+    /// <summary>Straight edge of the current body on the same line with the largest overlap (the previous operation may have shortened it).</summary>
     private static object FindEdge(ModelDocument model, EdgeLine line)
     {
         double[] axis = line.End.Zip(line.Start, (a, b) => a - b).ToArray();
@@ -597,9 +597,9 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Crea operaciones en síncrono, cada una verificada con el volumen medido en síncrono antes y después, y vuelve a
-    /// ordenado si el documento lo estaba. Si una falla, se deshace todo lo hecho en la llamada con Undo (cada cambio de
-    /// modo y cada operación es una transacción): en síncrono, borrar una brida no devuelve la placa que recortó.
+    /// Creates operations in synchronous mode, each verified with the volume measured in synchronous mode before and after, and switches back to
+    /// ordered mode if the document was in it. If one fails, everything done in the call is undone with Undo (each mode change and
+    /// each operation is a transaction): in synchronous mode, deleting a flange does not return the plate it trimmed.
     /// </summary>
     private static object Synchronous(SeContext context, ModelDocument model, string what, int expectedSign, string? sketch,
         IReadOnlyList<Func<object?>> steps, string nextStep, Func<IReadOnlyList<object>>? parts = null)
@@ -671,7 +671,7 @@ public static partial class FeatureService
         };
     }
 
-    /// <summary>Transacciones que se pueden deshacer, o -1 si el documento no lo indica.</summary>
+    /// <summary>Undoable transactions, or -1 if the document does not report them.</summary>
     private static int UndoCount(ModelDocument model)
     {
         try
@@ -685,8 +685,8 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Deshace las transacciones posteriores a <paramref name="start"/>. Solo cuenta las añadidas desde entonces, así que
-    /// nunca deshace trabajo anterior (con la pila llena puede quedarse corto). Devuelve si deshizo algo.
+    /// Undoes the transactions after <paramref name="start"/>. It only counts those added since then, so
+    /// it never undoes earlier work (with a full stack it may fall short). Returns whether it undid anything.
     /// </summary>
     private static bool UndoSince(ModelDocument model, int start)
     {
@@ -715,13 +715,13 @@ public static partial class FeatureService
         }
         catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
         {
-            // El resultado informa del modo en que quedó el documento.
+            // The result reports the mode the document was left in.
         }
     }
 
     /// <summary>
-    /// Última operación de la colección o, si no la recoge (la brida de contorno base no aparece en ContourFlanges), la
-    /// última de la barra de operaciones que no sea un boceto ni un plano.
+    /// Last operation of the collection or, if it is not in it (the base contour flange does not appear in ContourFlanges), the
+    /// last one in the feature bar that is neither a sketch nor a plane.
     /// </summary>
     private static object? LastFeature(ModelDocument model, object collection)
     {
@@ -731,11 +731,11 @@ public static partial class FeatureService
             : Late.Items(model.EdgebarFeatures).Reverse().FirstOrDefault(IsSolidFeature);
     }
 
-    /// <summary>Nombres de las operaciones de la barra, para localizar después las que añade una llamada.</summary>
+    /// <summary>Names of the features in the bar, to locate later the ones added by a call.</summary>
     private static HashSet<string> FeatureNames(ModelDocument model) =>
         Late.Items(model.EdgebarFeatures).Select(f => Late.TryGetString(f, "Name")).OfType<string>().ToHashSet(StringComparer.Ordinal);
 
-    /// <summary>Operaciones de la barra (sin bocetos ni planos) que no estaban en <paramref name="before"/>.</summary>
+    /// <summary>Features in the bar (without sketches or planes) that were not in <paramref name="before"/>.</summary>
     private static List<object> NewFeatures(ModelDocument model, HashSet<string> before) =>
         Late.Items(model.EdgebarFeatures).Where(f => IsSolidFeature(f) && Late.TryGetString(f, "Name") is { } name && !before.Contains(name)).ToList();
 
@@ -747,7 +747,7 @@ public static partial class FeatureService
         ?? throw new ToolException("wrong_document_type", $"'{model.Document.Name}' is not a sheet metal document.",
             "Create one with se_documents action 'new' and kind 'sheet_metal', or open a .psm file.");
 
-    /// <summary>Documento de chapa que ya tiene la chapa creada.</summary>
+    /// <summary>Sheet metal document that already has the sheet created.</summary>
     private static SheetMetalDocument RequireSheet(ModelDocument model)
     {
         SheetMetalDocument sheet = Sheet(model);
@@ -791,12 +791,12 @@ public static partial class FeatureService
         }
     }
 
-    /// <summary>Radio de plegado en metros: el indicado (mm) o el del documento.</summary>
+    /// <summary>Bend radius in meters: the given one (mm) or the document's.</summary>
     private static double BendRadius(SheetMetalDocument sheet, double? radius) => radius is { } r
         ? Units.MmToM(Units.RequirePositive(r, "radius"))
         : GlobalNumber(sheet, SheetMetalGlobalConstants.seSheetMetalGlobalBendRadius);
 
-    /// <summary>Lado móvil: <c>true</c> = a la derecha de la línea (dirección de la línea × normal del boceto).</summary>
+    /// <summary>Moving side: <c>true</c> = to the right of the line (line direction × sketch normal).</summary>
     private static bool MovingSide(string side) => side switch
     {
         "right" => true,
@@ -826,7 +826,7 @@ public static partial class FeatureService
 
     private static string Capitalize(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
-    /// <summary>Oculta el boceto usado; en síncrono Solid Edge puede haberlo absorbido en la operación.</summary>
+    /// <summary>Hides the sketch used; in synchronous mode Solid Edge may have absorbed it into the feature.</summary>
     private static void TryHide(Profile profile)
     {
         try
@@ -835,7 +835,7 @@ public static partial class FeatureService
         }
         catch (Exception ex) when (ex is InvalidComObjectException || Late.IsMemberFailure(ex))
         {
-            // Solo afecta a la presentación.
+            // Affects the presentation only.
         }
     }
 }

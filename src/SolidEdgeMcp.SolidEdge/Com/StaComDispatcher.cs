@@ -5,9 +5,9 @@ using SolidEdgeMcp.Core;
 namespace SolidEdgeMcp.SolidEdge.Com;
 
 /// <summary>
-/// Único hilo STA por el que pasan todas las llamadas COM, de una en una. Registra el filtro de
-/// mensajes OLE. Una llamada COM en curso no se puede interrumpir: si vence el tiempo, se informa al
-/// cliente y la operación sigue hasta terminar; mientras tanto el dispatcher figura como ocupado.
+/// Single STA thread through which all COM calls pass, one at a time. Registers the OLE
+/// message filter. A COM call in progress cannot be interrupted: if the time limit expires, the client
+/// is informed and the operation keeps running until it finishes; meanwhile the dispatcher is reported as busy.
 /// </summary>
 public sealed class StaComDispatcher : IDisposable
 {
@@ -29,7 +29,7 @@ public sealed class StaComDispatcher : IDisposable
 
     public int ManagedThreadId => _thread.ManagedThreadId;
 
-    /// <summary>Operación en curso y desde cuándo, o <c>null</c> si está libre.</summary>
+    /// <summary>Operation in progress and since when, or <c>null</c> if it is free.</summary>
     public (string Name, TimeSpan Elapsed)? Current
     {
         get
@@ -43,7 +43,7 @@ public sealed class StaComDispatcher : IDisposable
 
     public bool IsOnDispatcherThread => Environment.CurrentManagedThreadId == _thread.ManagedThreadId;
 
-    /// <summary>Ejecuta <paramref name="work"/> en el hilo STA y espera su resultado como mucho <paramref name="timeout"/>.</summary>
+    /// <summary>Runs <paramref name="work"/> on the STA thread and waits for its result for at most <paramref name="timeout"/>.</summary>
     public async Task<T> InvokeAsync<T>(string name, Func<T> work, TimeSpan timeout, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -113,7 +113,7 @@ public sealed class StaComDispatcher : IDisposable
             }
             catch (Exception ex)
             {
-                // Execute ya entrega la excepción al llamante; esto solo cubre fallos imprevistos.
+                // Execute already hands the exception to the caller; this only covers unexpected failures.
                 _log.Error($"Unexpected failure in COM operation '{item.Name}'.", ex);
             }
             finally

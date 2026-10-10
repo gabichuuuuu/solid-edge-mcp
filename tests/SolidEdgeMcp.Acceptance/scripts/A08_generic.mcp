@@ -1,5 +1,5 @@
-# A08: servidor, capa genérica COM (se_com_*), órdenes (se_command), árbol y edición de operaciones, deshacer/rehacer con pasos y selección.
-# Valores de A01.out, A02.out, t13.out, t71.out o por fórmula. Usa una pieza temporal propia que se cierra sin guardar.
+# A08: server, generic COM layer (se_com_*), commands (se_command), tree and feature editing, undo/redo with steps and selection.
+# Values from A01.out, A02.out, t13.out, t71.out or by formula. Uses its own temporary part, which is closed without saving.
 @info = se_server_info {}
 ?= info.limits.maxListItems 500
 @k = se_com_constants {"query":"igRight"}
@@ -11,12 +11,12 @@
 ?= cf.commands[0].id 32810
 @v = se_com_get {"target":"app","member":"Version"}
 ?~ v.value 226.
-# Errores de la capa genérica (códigos de GenericCom/HandleRegistry): miembro inexistente, propiedad de solo lectura, propiedad usada como método, handle inexistente
+# Errors of the generic layer (codes of GenericCom/HandleRegistry): nonexistent member, read-only property, property used as a method, nonexistent handle
 ! [member_not_found] se_com_get {"target":"app","member":"NoSuchMember"}
 ! [read_only_property] se_com_set {"target":"app","member":"Version","value":"1"}
 ! [not_a_method] se_com_invoke {"target":"app","method":"Version"}
 ! [handle_not_found] se_com_get {"target":"feature:99999","member":"Name"}
-# Pieza nueva en modo ordenado (t71.out); fijar el mismo modo devuelve el valor leído; 3 planos de referencia base
+# New part in ordered mode (t71.out); setting the same mode returns the value read; 3 base reference planes
 @d = se_documents {"action":"new","kind":"part"}
 @mm = se_com_get {"target":"active_document","member":"ModelingMode"}
 ?= mm.value seModelingModeOrdered
@@ -26,7 +26,7 @@
 ?~ dt.members ModelingMode
 @rp = se_com_items {"target":"active_document","member":"RefPlanes"}
 ?= rp.count 3
-# Placa 100x60x10 = 60000 mm3 = 6e-5 m3 (la capa COM trabaja en metros)
+# Plate 100x60x10 = 60000 mm3 = 6e-5 m3 (the COM layer works in meters)
 @k1 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[0,0,100,60]}
 se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
@@ -41,18 +41,18 @@ se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
 @nm = se_com_get {"target":"{{e.feature.handle}}","member":"Name"}
 ?= nm.value ExtrudedProtrusion_1
 ! [member_not_found] se_com_invoke {"target":"{{e.feature.handle}}","method":"NoSuchMethod"}
-# Órdenes de interfaz: vista isométrica del entorno Part (t13.out); orden inexistente -> not_found
+# UI commands: isometric view of the Part environment (t13.out); nonexistent command -> not_found
 @run = se_command {"action":"run","command":"PartViewISOView"}
 ?= run.environment Part
 ! [not_found] se_command {"action":"run","command":"NoSuchCommand"}
-# Dos agujeros pasantes Ø6.6 (receta de A02): cada uno -pi*3.3²*10 = -342.119 -> 59657.881 y 59315.762
+# Two through holes Ø6.6 (A02 recipe): each one -pi*3.3²*10 = -342.119 -> 59657.881 and 59315.762
 @t = se_geometry {"action":"faces","direction":[0,0,1]}
 @hA = se_hole {"plane":"{{t.items[0].handle}}","centers":[10,10,10],"diameter":6.6}
 ?= hA.volume 59657.881 0.01
 @t2 = se_geometry {"action":"faces","direction":[0,0,1]}
 @hB = se_hole {"plane":"{{t2.items[0].handle}}","centers":[90,50,10],"diameter":6.6}
 ?= hB.volume 59315.762 0.01
-# Árbol: 3 planos + boceto + extrusión + 2 agujeros = 7 (A02.out: planos, Sketch_1, extrusión, Hole_n); suprimir, recuperar y renombrar
+# Tree: 3 planes + sketch + extrusion + 2 holes = 7 (A02.out: planes, Sketch_1, extrusion, Hole_n); suppress, recover and rename
 @tr = se_feature_tree {}
 ?= tr.count 7
 @su = se_feature_edit {"feature":"{{hB.feature.handle}}","action":"suppress"}
@@ -62,11 +62,11 @@ se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
 se_feature_edit {"feature":"{{e.feature.handle}}","action":"rename","name":"Base"}
 @tr2 = se_feature_tree {}
 ?~ tr2.features Base
-# Deshacer: Solid Edge no registra las operaciones hechas por el API desde bocetos (la placa sale de un boceto),
-# así que en este documento no hay nada que deshacer y la herramienta lo dice en lugar de fingirlo.
+# Undo: Solid Edge does not record the operations made through the API from sketches (the plate comes from a sketch),
+# so in this document there is nothing to undo and the tool says so instead of pretending.
 ! [nothing_to_undo] se_documents {"action":"undo"}
-# En la pieza guardada y reabierta sí se registran: borrar los dos agujeros (59657.881 y 60000),
-# deshacer 2 pasos -> vuelven los dos (59315.762), rehacer 1 -> queda uno (59657.881)
+# In the saved and reopened part they are recorded: delete the two holes (59657.881 and 60000),
+# undo 2 steps -> both come back (59315.762), redo 1 -> one remains (59657.881)
 se_documents {"action":"save_as","path":"{{work}}\\a08_undo.par","overwrite":true}
 se_documents {"action":"close","saveChanges":false}
 @ro = se_documents {"action":"open","path":"{{work}}\\a08_undo.par"}
@@ -84,7 +84,7 @@ se_documents {"action":"close","saveChanges":false}
 ?= re1.steps 1
 @ph2 = se_physical {}
 ?= ph2.volume 59657.881 0.01
-# Selección: fijar la cara superior (1), añadir una lateral (2), vaciar (0)
+# Selection: set the top face (1), add a side one (2), clear (0)
 @t3 = se_geometry {"action":"faces","direction":[0,0,1]}
 @ss = se_selection {"action":"set","handles":["{{t3.items[0].handle}}"]}
 ?= ss.count 1

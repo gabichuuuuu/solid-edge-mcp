@@ -9,8 +9,8 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Com;
 
 /// <summary>
-/// Capa 2: acceso genérico a cualquier objeto del API con su tipo de la interop (reflexión) y, si no
-/// se conoce, por IDispatch. Las unidades son las del API (metros y radianes).
+/// Layer 2: generic access to any API object through its interop type (reflection) and, if it is not
+/// known, through IDispatch. The units are the API ones (metres and radians).
 /// </summary>
 public static class GenericCom
 {
@@ -81,7 +81,7 @@ public static class GenericCom
                 result = property.GetValue(value, indexArgs.Length == 0 ? null : indexArgs);
                 break;
             case MethodInfo method:
-                // Algunos «Item» o «GetX» se leen como método.
+                // Some "Item" or "GetX" members are read as methods.
                 indexArgs = BindArguments(context, method.Name, method.GetParameters(), index);
                 result = CallMethod(value, method, indexArgs);
                 break;
@@ -158,7 +158,7 @@ public static class GenericCom
         }
     }
 
-    /// <summary>Elementos de una colección COM (Count + Item, base 1), con su nombre si lo tienen.</summary>
+    /// <summary>Items of a COM collection (Count + Item, 1-based), with their name when they have one.</summary>
     public static object Items(SeContext context, string? target, string? member, int offset, int limit)
     {
         object collection = ResolveTarget(context, target);
@@ -188,8 +188,8 @@ public static class GenericCom
     }
 
     /// <summary>
-    /// Busca en las enumeraciones. Una misma enumeración aparece en varias librerías: se agrupa por
-    /// nombre corto y se indica en qué librerías está.
+    /// Searches the enumerations. The same enumeration appears in several libraries: it is grouped by
+    /// short name and the libraries it is in are listed.
     /// </summary>
     public static object Constants(string query, int offset, int limit)
     {
@@ -280,7 +280,7 @@ public static class GenericCom
         _ => type.Name,
     };
 
-    /// <summary>Convierte los argumentos JSON (array posicional) según los parámetros reales.</summary>
+    /// <summary>Converts the JSON arguments (positional array) according to the real parameters.</summary>
     private static object?[] BindArguments(SeContext context, string memberName, ParameterInfo[] parameters, JsonElement? json)
     {
         JsonElement[] supplied = ArgumentArray(json);
@@ -306,7 +306,7 @@ public static class GenericCom
                 }
                 else if (parameter.IsOptional)
                 {
-                    // Un parámetro IDispatch no admite Type.Missing (no es un objeto COM): se omite con null.
+                    // An IDispatch parameter does not accept Type.Missing (it is not a COM object): it is omitted with null.
                     args[i] = parameter.HasDefaultValue && parameter.DefaultValue is not DBNull ? parameter.DefaultValue
                         : parameter.GetCustomAttribute<MarshalAsAttribute>()?.Value == UnmanagedType.IDispatch ? null
                         : Type.Missing;
@@ -317,8 +317,8 @@ public static class GenericCom
                 }
                 else if (i < supplied.Length && !parameter.ParameterType.IsValueType)
                 {
-                    // null explícito en un parámetro de objeto obligatorio: Nothing, como en VB (p. ej. el plano de
-                    // extensión de un solevado sin extensión).
+                    // Explicit null for a required object parameter: Nothing, as in VB (e.g. the plane of
+                    // the extension of a loft that has no extension).
                     args[i] = null;
                 }
                 else
@@ -350,10 +350,10 @@ public static class GenericCom
     };
 
     /// <summary>
-    /// Llama al método por la interop o, si falta un argumento opcional con tipo (enumeración, número...), por
-    /// IDispatch: la reflexión solo acepta <see cref="Type.Missing"/> en parámetros VARIANT, mientras que
-    /// IDispatch deja que Solid Edge aplique su valor por defecto. Los parámetros por referencia se marcan
-    /// para recibir los valores de salida en <paramref name="args"/>.
+    /// Calls the method through the interop or, if an optional argument with a type (enumeration, number...) is missing, through
+    /// IDispatch: reflection only accepts <see cref="Type.Missing"/> in VARIANT parameters, whereas
+    /// IDispatch lets Solid Edge apply its default value. By-reference parameters are marked
+    /// to receive the output values in <paramref name="args"/>.
     /// </summary>
     private static object? CallMethod(object target, MethodInfo method, object?[] args)
     {
@@ -405,7 +405,7 @@ public static class GenericCom
             ? context.Handles.Resolve(id)
             : null;
 
-    /// <summary>Documento al que pertenece el objeto (para caducar sus handles al cerrarlo).</summary>
+    /// <summary>Document the object belongs to (so its handles expire when it is closed).</summary>
     private static SolidEdgeFramework.SolidEdgeDocument? OwnerOf(SeContext context, object value, string? target)
     {
         if (value is SolidEdgeFramework.SolidEdgeDocument document)

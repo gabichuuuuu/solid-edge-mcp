@@ -7,8 +7,8 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Órdenes de la interfaz (<c>StartCommand</c>), como si la persona pulsara el botón. Los identificadores
-/// se repiten entre entornos, así que un nombre se resuelve preferentemente en el entorno activo.
+/// UI commands (<c>StartCommand</c>), as if the person pressed the button. The identifiers
+/// repeat across environments, so a name is preferably resolved in the active environment.
 /// </summary>
 public static class CommandService
 {
@@ -29,7 +29,7 @@ public static class CommandService
     private static IEnumerable<Type> CommandEnums =>
         InteropCatalog.Enums.Where(e => e.Name.EndsWith(Suffix, StringComparison.Ordinal)).DistinctBy(e => e.Name);
 
-    /// <summary>Busca órdenes por texto en el nombre (no necesita Solid Edge).</summary>
+    /// <summary>Searches commands by text in their name (does not need Solid Edge).</summary>
     public static object Find(string query, string? environment, int offset, int limit)
     {
         if (string.IsNullOrWhiteSpace(query))

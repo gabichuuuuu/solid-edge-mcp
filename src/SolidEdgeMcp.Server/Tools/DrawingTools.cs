@@ -90,7 +90,7 @@ public enum PaperSize
     AnsiE,
 }
 
-/// <summary>Planos: hojas, vistas, cotas, lista de piezas y actualización.</summary>
+/// <summary>Drawings: sheets, views, dimensions, parts list and updating.</summary>
 [McpServerToolType]
 public sealed class DrawingTools(ToolRunner runner)
 {

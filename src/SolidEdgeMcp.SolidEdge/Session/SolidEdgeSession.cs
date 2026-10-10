@@ -5,7 +5,7 @@ using SolidEdgeMcp.SolidEdge.Com;
 
 namespace SolidEdgeMcp.SolidEdge.Session;
 
-/// <summary>Estado de la conexión, sin efectos secundarios.</summary>
+/// <summary>Connection state, with no side effects.</summary>
 public sealed record SessionStatus(
     bool Connected,
     bool SolidEdgeRunning,
@@ -21,9 +21,9 @@ public sealed record SessionStatus(
     int LiveHandles);
 
 /// <summary>
-/// Conexión con Solid Edge. Todo acceso COM pasa por <see cref="RunAsync{T}"/>, que lo ejecuta en
-/// el hilo STA, conecta o arranca Solid Edge si hace falta, desactiva los diálogos de alerta durante
-/// la operación y traduce los errores COM.
+/// Connection to Solid Edge. Every COM access goes through <see cref="RunAsync{T}"/>, which runs it on
+/// the STA thread, connects to or starts Solid Edge if needed, disables alert dialogs during
+/// the operation and translates COM errors.
 /// </summary>
 public sealed class SolidEdgeSession : IDisposable
 {
@@ -52,8 +52,8 @@ public sealed class SolidEdgeSession : IDisposable
     private TimeSpan StartupTimeout => TimeSpan.FromSeconds(_policy.StartupTimeoutSeconds);
 
     /// <summary>
-    /// Ejecuta una operación con Solid Edge. Si no hay conexión, se engancha a la instancia abierta o
-    /// (si <paramref name="allowStart"/> y la política lo permiten) arranca una.
+    /// Runs an operation with Solid Edge. If there is no connection, it attaches to the open instance or
+    /// (if <paramref name="allowStart"/> and the policy allow it) starts one.
     /// </summary>
     public Task<T> RunAsync<T>(string operation, Func<SeContext, T> work, CancellationToken cancellationToken,
         bool allowStart = true, TimeSpan? timeout = null)
@@ -67,7 +67,7 @@ public sealed class SolidEdgeSession : IDisposable
         return _dispatcher.InvokeAsync(operation, () => Execute(operation, work, allowStart), limit, cancellationToken);
     }
 
-    /// <summary>Estado sin conectar ni arrancar nada.</summary>
+    /// <summary>State without connecting to or starting anything.</summary>
     public async Task<SessionStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
         (string Name, TimeSpan Elapsed)? busy = _dispatcher.Current;
@@ -79,8 +79,8 @@ public sealed class SolidEdgeSession : IDisposable
 
         return await _dispatcher.InvokeAsync("status", () =>
         {
-            // Sin conexión (al empezar o tras 'disconnect') se mira la instancia abierta sin engancharse a ella;
-            // con conexión, TryGetApplication además reconecta si Solid Edge se reinició.
+            // Without a connection (at startup or after 'disconnect') the open instance is checked without attaching to it;
+            // when connected, TryGetApplication also reconnects if Solid Edge was restarted.
             Application? app = _application is not null ? TryGetApplication(allowStart: false) : null;
             bool connected = app is not null;
             app ??= NativeMethods.TryGetActiveObject(SolidEdgeLauncher.ProgId) as Application;
@@ -106,7 +106,7 @@ public sealed class SolidEdgeSession : IDisposable
         }, OperationTimeout, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Suelta la conexión sin cerrar Solid Edge. Los handles dejan de ser válidos.</summary>
+    /// <summary>Releases the connection without closing Solid Edge. Handles stop being valid.</summary>
     public Task DisconnectAsync(CancellationToken cancellationToken) =>
         _dispatcher.InvokeAsync("disconnect", () => Reset("the server disconnected from Solid Edge"), OperationTimeout, cancellationToken);
 
@@ -134,8 +134,8 @@ public sealed class SolidEdgeSession : IDisposable
         {
             if (ComErrors.IsDisconnected(ex))
             {
-                // Solid Edge desconecta los objetos que borra (p. ej. el boceto de una operación borrada):
-                // solo se reinicia la sesión si la aplicación tampoco responde.
+                // Solid Edge disconnects the objects it deletes (e.g. the sketch of a deleted feature):
+                // the session is only restarted if the application does not respond either.
                 if (IsAlive(app))
                 {
                     throw ComErrors.ObjectGone(ex, operation);
@@ -180,7 +180,7 @@ public sealed class SolidEdgeSession : IDisposable
         }
     }
 
-    /// <summary>Aplicación conectada y viva; reconecta si Solid Edge se cerró o reinició.</summary>
+    /// <summary>Connected, live application; reconnects if Solid Edge was closed or restarted.</summary>
     private Application? TryGetApplication(bool allowStart)
     {
         if (_application is not null)
@@ -215,8 +215,8 @@ public sealed class SolidEdgeSession : IDisposable
         WaitUntilResponsive(_application);
         if (started)
         {
-            // Arrancado por COM, Solid Edge empieza oculto: visible, la persona lo ve y lo controla,
-            // y sigue abierto cuando el servidor lo suelta.
+            // Started through COM, Solid Edge starts hidden: visible, so the person can see and control it,
+            // and it stays open when the server releases it.
             _application.Visible = true;
         }
 
@@ -224,7 +224,7 @@ public sealed class SolidEdgeSession : IDisposable
         return _application;
     }
 
-    /// <summary>Tras arrancar, Solid Edge se registra antes de estar listo: espera a que conteste.</summary>
+    /// <summary>After starting, Solid Edge registers before it is ready: waits until it responds.</summary>
     private void WaitUntilResponsive(Application app)
     {
         DateTime deadline = DateTime.UtcNow + StartupTimeout;

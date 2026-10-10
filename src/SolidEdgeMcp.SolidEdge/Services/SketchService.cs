@@ -6,10 +6,10 @@ using SolidEdgePart;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Bocetos de modelado ordenado: se crean sobre un plano, se dibujan en mm con coordenadas 2D del
-/// plano y se cierran validando el perfil antes de usarlos en una operación. Son bocetos
-/// independientes (como el comando Boceto de la interfaz): cada operación usa una copia enlazada
-/// de su perfil, así que el boceto sobrevive si la operación falla y se borra.
+/// Ordered-modelling sketches: they are created on a plane, drawn in mm with 2D coordinates of the
+/// plane and closed by validating the profile before being used in an operation. They are
+/// standalone sketches (like the Sketch command of the UI): each operation uses a linked copy
+/// of its profile, so the sketch survives if the operation fails and is deleted.
 /// </summary>
 public static partial class SketchService
 {
@@ -45,7 +45,7 @@ public static partial class SketchService
         return new { element = context.RegisterBeside(line, "line2d", sketch) };
     }
 
-    /// <summary>Rectángulo por dos esquinas opuestas: cuatro líneas unidas, horizontales y verticales.</summary>
+    /// <summary>Rectangle from two opposite corners: four connected lines, horizontal and vertical.</summary>
     public static object Rectangle(SeContext context, string sketch, double[]? corners)
     {
         Profile profile = Resolve(context, sketch);
@@ -82,7 +82,7 @@ public static partial class SketchService
         return new { element = context.RegisterBeside(circle, "circle2d", sketch) };
     }
 
-    /// <summary>Arco por centro, inicio y fin (sentido antihorario de inicio a fin).</summary>
+    /// <summary>Arc from center, start and end (counter-clockwise from start to end).</summary>
     public static object Arc(SeContext context, string sketch, double[]? center, double[]? start, double[]? end)
     {
         Profile profile = Resolve(context, sketch);
@@ -94,9 +94,9 @@ public static partial class SketchService
     }
 
     /// <summary>
-    /// Línea del boceto como eje de revolución; devuelve el handle del eje. Solid Edge saca del contorno la línea
-    /// que convierte en eje: si es un lado del contorno, este queda abierto y la revolución falla (comprobado), así
-    /// que se usa como eje una copia de la línea y el lado se conserva.
+    /// Line of the sketch as the revolution axis; returns the axis handle. Solid Edge removes from the profile the line
+    /// that it turns into the axis: if it is a side of the profile, the profile stays open and the revolve fails (verified), so
+    /// a copy of the line is used as the axis and the side is kept.
     /// </summary>
     public static object Axis(SeContext context, string sketch, string element)
     {
@@ -119,7 +119,7 @@ public static partial class SketchService
         };
     }
 
-    /// <summary>Indica si algún otro segmento o arco del boceto empieza o acaba en un extremo de la línea.</summary>
+    /// <summary>Indicates whether any other segment or arc of the sketch starts or ends at an endpoint of the line.</summary>
     private static bool IsConnected(Profile profile, Line2d line)
     {
         const double tolerance = 1e-9;
@@ -154,8 +154,8 @@ public static partial class SketchService
     }
 
     /// <summary>
-    /// Termina el boceto y lo valida: cerrado (se admiten islas interiores) o, con <paramref name="open"/>, una sola cadena abierta
-    /// sin autointersecciones (brida de contorno, pliegue, trayectoria de barrido...).
+    /// Finishes the sketch and validates it: closed (inner islands are allowed) or, with <paramref name="open"/>, a single open chain
+    /// without self-intersections (contour flange, fold, sweep path...).
     /// </summary>
     public static object Close(SeContext context, string sketch, bool open = false)
     {
@@ -210,7 +210,7 @@ public static partial class SketchService
         return new { deleted = sketch, name };
     }
 
-    /// <summary>Perfil de dibujo del boceto. Admite también el handle de un boceto del árbol (se_feature_tree).</summary>
+    /// <summary>Drawing profile of the sketch. Also accepts the handle of a sketch in the tree (se_feature_tree).</summary>
     public static Profile Resolve(SeContext context, string sketch) => context.Handles.Resolve(sketch, "sketch") switch
     {
         Profile profile => profile,
@@ -222,8 +222,8 @@ public static partial class SketchService
     };
 
     /// <summary>
-    /// Lazos del boceto: grupos de líneas y arcos unidos por sus extremos, más cada círculo o elipse. Devuelve
-    /// <c>null</c> si hay curvas sin extremos consultables (B-splines), para no dar un número dudoso.
+    /// Loops of the sketch: groups of lines and arcs joined at their endpoints, plus each circle or ellipse. Returns
+    /// <c>null</c> if there are curves without queryable endpoints (B-splines), so as not to give a doubtful number.
     /// </summary>
     internal static int? LoopCount(Profile profile)
     {
@@ -257,7 +257,7 @@ public static partial class SketchService
             ends.Add((x2, y2));
         }
 
-        // Extremos 2k y 2k+1 son de la misma curva; dos extremos coincidentes (1e-7 m) unen sus curvas.
+        // Endpoints 2k and 2k+1 belong to the same curve; two coinciding endpoints (1e-7 m) join their curves.
         int[] parent = Enumerable.Range(0, ends.Count / 2).ToArray();
         int Root(int i) => parent[i] == i ? i : parent[i] = Root(parent[i]);
         for (int i = 0; i < ends.Count; i++)
@@ -275,7 +275,7 @@ public static partial class SketchService
         return chains + profile.Circles2d.Count + profile.Ellipses2d.Count;
     }
 
-    /// <summary>Nombre del boceto en el árbol (Sketch_N) o, si no tiene, el del perfil.</summary>
+    /// <summary>Name of the sketch in the tree (Sketch_N) or, if it has none, that of the profile.</summary>
     private static string NameOf(Profile profile) => profile.Parent is Sketch owner ? owner.Name : profile.Name;
 
     private static Line2d[] Chain(Profile profile, IReadOnlyList<(double X, double Y)> points, bool closed)
@@ -306,7 +306,7 @@ public static partial class SketchService
         return lines.ToArray();
     }
 
-    /// <summary>Sistema de coordenadas del boceto en el espacio del modelo (origen en mm, ejes unitarios).</summary>
+    /// <summary>Coordinate system of the sketch in model space (origin in mm, unit axes).</summary>
     private static object Frame(Profile profile)
     {
         double[] o = To3d(profile, 0, 0);

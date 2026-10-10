@@ -20,7 +20,7 @@ public enum SelectionAction
     Clear,
 }
 
-/// <summary>Exportación, órdenes de la interfaz y selección.</summary>
+/// <summary>Export, UI commands and selection.</summary>
 [McpServerToolType]
 public sealed class AppTools(ToolRunner runner)
 {

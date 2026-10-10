@@ -1,57 +1,62 @@
-# Registro de cambios
+# Changelog
 
-Los cambios relevantes de este proyecto se anotan aquí. El formato sigue
-[Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
-[versionado semántico](https://semver.org/lang/es/).
+Relevant changes to this project are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0-alpha] - sin publicar
+## [Unreleased]
 
-Primera versión alfa, en repositorio privado. Validada contra Solid Edge Community Edition 2026
-(detalle en [ESTADO.md](ESTADO.md)).
+### Added
 
-### Añadido
+- License: the project is released under the MIT License ([LICENSE](LICENSE)).
 
-- Servidor MCP local por stdio (C#/.NET 10, SDK `ModelContextProtocol` 2.2.0) que controla Solid
-  Edge por COM, con 40 herramientas `se_*`: sesión, documentos, datos, consulta, vista, bocetos,
-  pieza, chapa, conjuntos, planos, exportación y acceso genérico al API (`se_com_*`, `se_command`).
-- Política por `policy.json` y `PathGuard`: solo se abren, guardan, exportan e insertan archivos en
-  las carpetas permitidas.
-- Verificación de cada operación de modelado (estado y cambio de volumen) y reversión si falla.
-- `se_material`: bibliotecas, propiedades y asignación de materiales.
-- `se_loft_sweep`: solevados, barridos y hélices, como protrusión o vaciado.
-- `se_sketch`: elipses, splines, puntos, redondeo de esquina y proyección de aristas;
-  `se_sketch_constraint`: relaciones y cotas de boceto.
-- `se_geometry`: resumen de una ocurrencia de conjunto en coordenadas del conjunto.
-- Batería de aceptación contra Solid Edge real (`tests/SolidEdgeMcp.Acceptance`, guiones A01–A10
-  y `run.ps1`), también ejecutable contra otra build del servidor con `-Server`.
-- Publicación autocontenida win-x64 con archivos de bloqueo comunes a la compilación y la
-  publicación.
+## [0.1.0-alpha] - unreleased
 
-### Corregido
+First alpha version, developed in a private repository. Validated against Solid Edge Community
+Edition 2026.
 
-- COM: traducción de los errores que .NET convierte en otras excepciones y `null` en los
-  argumentos de objeto sin uso.
-- Bocetos: cotas de distancia real y de ángulo interior, aristas proyectadas devueltas y perfil
-  cerrado cuando un lado es el eje de revolución.
-- Agujeros: ángulo de avellanado en grados y roscado de agujeros finitos.
-- Vista: se rechazan los modos de visualización que Solid Edge no aplica.
-- Material: las caras y aristas conservan sus handles tras aplicar un material.
-- Conjuntos: handles de cara y arista propios de cada ocurrencia, y relación plana recreada en el
-  sentido contrario cuando Solid Edge la deja insatisfecha.
-- Documentos: se liberan los handles de los documentos descargados al cerrar otro; deshacer y
-  rehacer se comprueban con el contador de transacciones de Solid Edge; las soldaduras se crean con
-  la plantilla de conjunto soldado cuando no hay plantilla `.pwd`.
-- Sesión: `status` ya no vuelve a engancharse tras `disconnect`.
-- Chapa: la brida de contorno devuelve todas las operaciones que crea y rechaza el sentido
-  inverso, que Solid Edge ignora; la pestaña solo ofrece las direcciones normal e inversa.
-- Planos: encuadre y captura de la hoja entera, y aviso al exportar un plano sin guardar.
-- Propiedades: se listan todos los conjuntos de propiedades aunque haya propiedades sin nombre.
-- Aceptación: los guiones admiten puntos dentro de los valores de filtro de las rutas.
+### Added
 
-### Documentación
+- Local MCP server over stdio (C#/.NET 10, `ModelContextProtocol` SDK 2.2.0) that controls Solid
+  Edge through COM, with 40 `se_*` tools: session, documents, data, query, view, sketches, part,
+  sheet metal, assemblies, drawings, export and generic API access (`se_com_*`, `se_command`).
+- Policy through `policy.json` and `PathGuard`: files are only opened, saved, exported and inserted
+  in the allowed folders.
+- Verification of each modeling operation (status and volume change) and reversal if it fails.
+- `se_material`: libraries, properties and material assignment.
+- `se_loft_sweep`: lofts, sweeps and helices, as a boss or a cut.
+- `se_sketch`: ellipses, splines, points, corner fillet and edge projection;
+  `se_sketch_constraint`: sketch relations and dimensions.
+- `se_geometry`: summary of an assembly occurrence in assembly coordinates.
+- Acceptance suite against real Solid Edge (`tests/SolidEdgeMcp.Acceptance`, scripts A01–A10 and
+  `run.ps1`), also runnable against another server build with `-Server`.
+- Self-contained win-x64 publication, with lock files shared by build and publish.
 
-- `README.md`, `AGENTS.md`, política de ejemplo y matriz de cobertura
+### Fixed
+
+- COM: translation of the errors that .NET converts into other exceptions, and `null` in unused
+  object arguments.
+- Sketches: real distance and interior-angle dimensions, projected edges returned, and a closed
+  profile when one side is the revolve axis.
+- Holes: countersink angle in degrees, and threading of finite holes.
+- View: display modes that Solid Edge does not apply are rejected.
+- Material: faces and edges keep their handles after a material is applied.
+- Assemblies: face and edge handles belong to each occurrence, and a flush mate is recreated in the
+  opposite direction when Solid Edge leaves it unsatisfied.
+- Documents: handles of documents unloaded when another is closed are released; undo and redo are
+  checked with the Solid Edge transaction counter; welds are created with the weldment assembly
+  template when there is no `.pwd` template.
+- Session: `status` no longer reconnects after `disconnect`.
+- Sheet metal: the contour flange returns all the operations it creates and rejects the reverse
+  direction, which Solid Edge ignores; the tab only offers the normal and reverse directions.
+- Drawings: framing and capture of the whole sheet, and a warning when a drawing that is not saved is
+  exported.
+- Properties: all property sets are listed, even when some properties have no name.
+- Acceptance: scripts accept dots inside the filter values of paths.
+
+### Documentation
+
+- `README.md`, example policy and coverage matrix
   ([docs/COBERTURA.md](docs/COBERTURA.md)).
-- `ESTADO.md` con resultados de aceptación, hechos del API comprobados y ejecuciones de extremo a
-  extremo con Claude Code y Codex.
-- README reescrito, este registro de cambios y plantillas de issues y pull requests.
+- End-to-end runs with Claude Code and Codex are summarized in the README.
+- README rewritten, this changelog, and issue and pull request templates.

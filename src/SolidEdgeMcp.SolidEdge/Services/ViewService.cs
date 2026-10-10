@@ -8,10 +8,10 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 public sealed record CapturedImage(byte[] Data, string MimeType, string? SavedTo, int Width, int Height, string Document);
 
-/// <summary>Vista: encuadrar, orientar, modo de visualización y captura de imagen.</summary>
+/// <summary>View: fit, orient, display mode and image capture.</summary>
 public static class ViewService
 {
-    /// <summary>Órdenes de vista estándar; los identificadores coinciden en pieza, chapa y conjunto.</summary>
+    /// <summary>Standard view commands; the identifiers match in part, sheet metal and assembly.</summary>
     private static readonly Dictionary<string, int> Orientations = new(StringComparer.OrdinalIgnoreCase)
     {
         ["iso"] = 32810,
@@ -85,7 +85,7 @@ public static class ViewService
         SeRenderModeType applied = window.View.RenderModeType;
         if (applied != value)
         {
-            // Comprobado en Solid Edge 2026: Boundary y SmoothBoundary se cambian sin aviso por Smooth.
+            // Verified in Solid Edge 2026: Boundary and SmoothBoundary are changed to Smooth without warning.
             window.View.RenderModeType = previous;
             window.View.Update();
             throw new ToolException("not_supported", $"Solid Edge does not offer '{value}' in this window (it switched to '{applied}'); the previous mode was kept.",
@@ -178,15 +178,15 @@ public static class ViewService
     }
 
     /// <summary>
-    /// Hoja entera, con el cajetín y el marco del fondo. <c>SheetWindow.Fit</c> encuadra solo las vistas y deja fuera
-    /// el cajetín (comprobado en Solid Edge 2026).
+    /// Whole sheet, with the title block and the background frame. <c>SheetWindow.Fit</c> frames only the views and leaves out
+    /// the title block (verified in Solid Edge 2026).
     /// </summary>
     private static void FitSheet(SolidEdgeDraft.SheetWindow sheet) => sheet.FitEx(SolidEdgeDraft.SheetFitConstants.igFitSheet);
 
     /// <summary>
-    /// Con Solid Edge minimizado la vista no tiene tamaño: Fit deja una cámara degenerada y las capturas
-    /// salen vacías. Mientras dura, la ventana principal se muestra sin activarla (no quita el foco a la
-    /// persona) y al terminar se vuelve a minimizar.
+    /// With Solid Edge minimized the view has no size: Fit leaves a degenerate camera and the captures
+    /// come out empty. While it lasts, the main window is shown without activating it (it does not take focus from the
+    /// person) and it is minimized again when finished.
     /// </summary>
     private sealed class ShownWindow : IDisposable
     {
@@ -206,7 +206,7 @@ public static class ViewService
 
             NativeMethods.ShowWindow(_frame, NativeMethods.SwShowNoActivate);
 
-            // Espera a que Solid Edge recoloque la ventana del documento con su tamaño real.
+            // Waits for Solid Edge to reposition the document window at its real size.
             DateTime limit = DateTime.UtcNow + LayoutTimeout;
             while (DateTime.UtcNow < limit && Late.TryGet(window, "Height") is int height && height < MinimumHeight)
             {

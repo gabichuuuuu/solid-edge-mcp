@@ -8,8 +8,8 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Interfaz de Solid Edge: ventana principal, ventanas de documento, entornos y cinta (pestañas, grupos y botones con
-/// su id de orden). Las colecciones de la cinta empiezan en 0, a diferencia del resto del API.
+/// Solid Edge UI: main window, document windows, environments and ribbon (tabs, groups and buttons with
+/// their command id). The ribbon collections start at 0, unlike the rest of the API.
 /// </summary>
 public static class UiService
 {
@@ -51,7 +51,7 @@ public static class UiService
         return new { count = app.Windows.Count, activeEnvironment = app.ActiveEnvironment, windows = items };
     }
 
-    /// <summary>Activa una ventana (por índice, handle de ventana o documento), como al pulsar su pestaña.</summary>
+    /// <summary>Activates a window (by index, window handle or document handle), as when its tab is clicked.</summary>
     public static object Activate(SeContext context, string window)
     {
         object target = ResolveWindow(context, window);
@@ -79,7 +79,7 @@ public static class UiService
         return Windows(context);
     }
 
-    /// <summary>Estado de la ventana principal (sin <paramref name="window"/>) o de una ventana de documento.</summary>
+    /// <summary>State of the main window (without <paramref name="window"/>) or of a document window.</summary>
     public static object SetState(SeContext context, string? window, string state)
     {
         int wanted = WindowStates.ToList().IndexOf(state);
@@ -114,8 +114,8 @@ public static class UiService
     }
 
     /// <summary>
-    /// Cinta de un entorno (por defecto el activo): sus pestañas con los grupos o, con <paramref name="tab"/>, los grupos y
-    /// botones de esa pestaña con su id de orden (se_command run lo ejecuta).
+    /// Ribbon of an environment (by default the active one): its tabs with the groups or, with <paramref name="tab"/>, the groups and
+    /// buttons of that tab with their command id (se_command run executes it).
     /// </summary>
     public static object Ribbon(SeContext context, string? environment, string? tab)
     {
@@ -153,7 +153,7 @@ public static class UiService
         };
     }
 
-    /// <summary>Activa una pestaña de la cinta del entorno activo, como al pulsarla.</summary>
+    /// <summary>Activates a tab of the ribbon of the active environment, as when it is clicked.</summary>
     public static object ActivateTab(SeContext context, string tab)
     {
         (RibbonBar bar, string env, _) = FindRibbon(context, null);
@@ -236,7 +236,7 @@ public static class UiService
         }
     }
 
-    /// <summary>Botones de un grupo; los desplegables traen sus propios botones (hasta dos niveles).</summary>
+    /// <summary>Buttons of a group; drop-down menus have their own buttons (up to two levels).</summary>
     private static object[] Controls(RibbonBarControls? controls, int depth)
     {
         if (controls is null)
@@ -250,7 +250,7 @@ public static class UiService
             RibbonBarControl control = controls.Item(i);
             if (control.Id == 0 && string.IsNullOrEmpty(control.Name))
             {
-                continue; // separador
+                continue; // separator
             }
 
             RibbonBarControls? children = null;
@@ -262,7 +262,7 @@ public static class UiService
                 }
                 catch (COMException)
                 {
-                    // Un botón simple no tiene controles hijos.
+                    // A simple button has no child controls.
                 }
             }
 

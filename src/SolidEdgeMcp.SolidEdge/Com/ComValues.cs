@@ -9,12 +9,12 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Com;
 
 /// <summary>
-/// Conversión entre JSON y valores COM para la capa genérica. Los objetos COM salen como handles y
-/// entran como <c>{"handle": "x:1"}</c>; las rutas pasan siempre por <see cref="PathGuard"/>.
+/// Conversion between JSON and COM values for the generic layer. COM objects come out as handles and
+/// go in as <c>{"handle": "x:1"}</c>; paths always go through <see cref="PathGuard"/>.
 /// </summary>
 public static partial class ComValues
 {
-    /// <summary>Valor COM → árbol serializable (primitivos, listas, diccionarios, handles).</summary>
+    /// <summary>COM value → serializable tree (primitives, lists, dictionaries, handles).</summary>
     public static object? ToJson(SeContext context, object? value, SolidEdgeFramework.SolidEdgeDocument? owner, int depth = 0)
     {
         switch (value)
@@ -59,7 +59,7 @@ public static partial class ComValues
         }
     }
 
-    /// <summary>JSON → valor del tipo .NET del parámetro (incluido <c>object</c>/VARIANT y <c>Array</c>).</summary>
+    /// <summary>JSON → value of the parameter's .NET type (including <c>object</c>/VARIANT and <c>Array</c>).</summary>
     public static object? FromJson(SeContext context, JsonElement json, Type targetType, string argumentName, bool fileArgument)
     {
         Type type = targetType.IsByRef ? targetType.GetElementType()! : targetType;
@@ -163,7 +163,7 @@ public static partial class ComValues
         throw ToolException.InvalidArgument($"'{argumentName}': parameters of type {type.FullName} are not supported by the generic layer.");
     }
 
-    /// <summary>¿El parámetro o propiedad recibe un nombre de archivo o carpeta?</summary>
+    /// <summary>Does the parameter or property receive a file or folder name?</summary>
     public static bool IsFileMember(string memberName, string parameterName) =>
         StrongFileParameter().IsMatch(parameterName)
         || (WeakFileParameter().IsMatch(parameterName) && FileMember().IsMatch(memberName));
@@ -223,7 +223,7 @@ public static partial class ComValues
         return array;
     }
 
-    /// <summary>Números → double[]; todo cadenas → string[]; lo demás → object[].</summary>
+    /// <summary>Numbers → double[]; all strings → string[]; anything else → object[].</summary>
     private static Array InferArray(SeContext context, JsonElement json, string argumentName, bool fileArgument)
     {
         JsonElement[] items = json.EnumerateArray().ToArray();

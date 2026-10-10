@@ -1,5 +1,5 @@
-# A05: chapa (se_sheetmetal, se_sheetmetal_form, desarrollo y su DXF). Recetas de t98/t100 (pestaña, bridas, dobladillo), t107 (brida de contorno) y t104 (plegado, formas, desarrollo).
-# 1) Ajustes por defecto (t98.out): espesor t=1, radio r=1. Pestaña 100x60 -> 100*60*t = 6000.
+# A05: sheet metal (se_sheetmetal, se_sheetmetal_form, flat pattern and its DXF). Recipes of t98/t100 (tab, flanges, hem), t107 (contour flange) and t104 (bend, forms, flat pattern).
+# 1) Default settings (t98.out): thickness t=1, radius r=1. Tab 100x60 -> 100*60*t = 6000.
 @d1 = se_documents {"action":"new","kind":"sheet_metal"}
 @st = se_sheetmetal {"action":"settings"}
 ?= st.thickness 1
@@ -9,24 +9,24 @@ se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[0,0,100,60]}
 se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
 @t1 = se_sheetmetal {"action":"tab","sketch":"{{k1.sketch}}"}
 ?= t1.volume 6000
-# Bridas de 20 en las dos aristas x de la cara superior (caja z = 20 + t = 21). Por brida: ala 100*t*(21-(r+t)) = 1900 + pliegue (pi/4)*((r+t)²-r²)*100 = 75pi
-#   - pestaña recortada 100*t*(r+t) = 200 -> V = 6000 + 2*(1700 + 75pi) = 9871.239; Solid Edge crea Flange_1 y Flange_2 (t98.out)
+# Flanges of 20 on the two x edges of the top face (box z = 20 + t = 21). Per flange: leg 100*t*(21-(r+t)) = 1900 + bend (pi/4)*((r+t)²-r²)*100 = 75pi
+#   - trimmed tab 100*t*(r+t) = 200 -> V = 6000 + 2*(1700 + 75pi) = 9871.239; Solid Edge creates Flange_1 and Flange_2 (t98.out)
 @top = se_geometry {"action":"faces","direction":[0,0,1]}
 @te = se_geometry {"action":"edges","source":"{{top.items[0].handle}}","direction":[1,0,0]}
 @fl = se_sheetmetal {"action":"flange","edges":["{{te.items[0].handle}}","{{te.items[1].handle}}"],"length":20}
 ?= fl.volume 9871.239 0.01
 ?= fl.features[1].name Flange_2
-# Dobladillo (tipo por defecto) de 8 en el borde de la brida y=0 (arista que empieza en (0,0,21)) -> 10828.747 (t100.out)
+# Hem (default type) of 8 on the edge of the flange at y=0 (edge starting at (0,0,21)) -> 10828.747 (t100.out)
 @ed = se_geometry {"action":"edges","direction":[1,0,0]}
 @hm = se_sheetmetal {"action":"hem","edges":["{{ed.items[?start=[0,0,21]].handle}}"],"length":8}
 ?= hm.volume 10828.747 0.01
-# Cambiar el espesor a 2 queda en los ajustes (t100.out; el volumen no se comprueba: allí volumeChange fue 0)
+# Changing the thickness to 2 stays in the settings (t100.out; the volume is not checked: there volumeChange was 0)
 @ss = se_sheetmetal {"action":"set_settings","thickness":2}
 ?= ss.settings.thickness 2
 se_documents {"action":"close","document":"{{d1.handle}}","saveChanges":false}
-# 2) Brida de contorno: polilínea abierta (0,0)-(0,30)-(50,30)-(50,0) en el plano 2, ancho 100, material a la derecha (defecto):
-#    rectos (110 - 4*(r+t))*100*t = 10200 + 2 pliegues (pi/4)*((r+t)²-r²)*100 = 150pi -> 10671.239 (= t107.out); pestaña + 2 bridas.
-#    Error: 'reverse' (Solid Edge siempre crece según la normal del boceto, t107.out)
+# 2) Contour flange: open polyline (0,0)-(0,30)-(50,30)-(50,0) on plane 2, width 100, material on the right (default):
+#    straight segments (110 - 4*(r+t))*100*t = 10200 + 2 bends (pi/4)*((r+t)²-r²)*100 = 150pi -> 10671.239 (= t107.out); tab + 2 flanges.
+#    Error: 'reverse' (Solid Edge always grows along the sketch normal, t107.out)
 @d2 = se_documents {"action":"new","kind":"sheet_metal"}
 @k2 = se_sketch {"action":"create","plane":"2"}
 se_sketch {"action":"polyline","sketch":"{{k2.sketch}}","points":[0,0,0,30,50,30,50,0],"closed":false}
@@ -36,7 +36,7 @@ se_sketch {"action":"close","sketch":"{{k2.sketch}}","open":true}
 ?= cf.volume 10671.239 0.01
 ?= cf.features[2].name Flange_2
 se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}
-# 3) Plegado de 60° por la línea x=60 de una pestaña 100x60 -> +21.363 de material en la zona de pliegue (t104.out)
+# 3) 60° bend along the line x=60 of a 100x60 tab -> +21.363 of material in the bend zone (t104.out)
 @d3 = se_documents {"action":"new","kind":"sheet_metal"}
 @k3 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{k3.sketch}}","points":[0,0,100,60]}
@@ -48,9 +48,9 @@ se_sketch {"action":"close","sketch":"{{kl.sketch}}","open":true}
 @bn = se_sheetmetal_form {"action":"bend","sketch":"{{kl.sketch}}","angle":60}
 ?= bn.volumeChange 21.363 0.01
 se_documents {"action":"close","document":"{{d3.handle}}","saveChanges":false}
-# 4) Pestaña 100x60 + 2ª pestaña [100,10]-[130,50] pegada al borde x=100 -> +30*40*t = 1200 -> 7200.
-#    Cordón h3 a8 en y=15 -> +325.645; recorte embutido 20x15 prof. 5 'reverse' -> +55.130 (t104.out); grabado -> cambio 0.
-#    Desarrollo de una chapa sin pliegues = su contorno 130 x 60. DXF del desarrollo; errores: sin overwrite y extensión no válida.
+# 4) 100x60 tab + 2nd tab [100,10]-[130,50] attached to the edge x=100 -> +30*40*t = 1200 -> 7200.
+#    Bead height 3, width 8 at y=15 -> +325.645; drawn cutout 20x15 depth 5 'reverse' -> +55.130 (t104.out); engraving -> change 0.
+#    Flat pattern of a sheet without bends = its outline 130 x 60. DXF of the flat pattern; errors: without overwrite and invalid extension.
 @d4 = se_documents {"action":"new","kind":"sheet_metal"}
 @k4 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{k4.sketch}}","points":[0,0,100,60]}

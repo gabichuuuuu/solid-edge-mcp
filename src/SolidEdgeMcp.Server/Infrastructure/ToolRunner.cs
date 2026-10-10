@@ -10,12 +10,12 @@ using SolidEdgeMcp.SolidEdge.Session;
 
 namespace SolidEdgeMcp.Server.Infrastructure;
 
-/// <summary>Imagen devuelta por una operación (se envía como contenido de imagen MCP).</summary>
+/// <summary>Image returned by an operation (sent as MCP image content).</summary>
 public sealed record ToolImage(byte[] Data, string MimeType, object? Details);
 
 /// <summary>
-/// Ejecuta las operaciones de las herramientas: registra cada una con un id, convierte el resultado
-/// en JSON compacto y los errores en mensajes accionables (sin trazas, que van solo al log).
+/// Runs the tool operations: registers each one with an id, converts the result
+/// to compact JSON and errors into actionable messages (no stack traces, which go only to the log).
 /// </summary>
 public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> logger)
 {
@@ -32,8 +32,8 @@ public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> log
     public SolidEdgeSession Session => session;
 
     /// <summary>
-    /// Operación con Solid Edge (en el hilo STA). <paramref name="precheck"/> valida antes de
-    /// conectar o arrancar Solid Edge (p. ej. rutas no permitidas).
+    /// Operation against Solid Edge (on the STA thread). <paramref name="precheck"/> validates before
+    /// connecting to or starting Solid Edge (e.g. paths that are not allowed).
     /// </summary>
     public Task<CallToolResult> RunAsync(string tool, string action, Func<SeContext, object?> work,
         CancellationToken cancellationToken, bool allowStart = true, TimeSpan? timeout = null, Action? precheck = null) =>
@@ -43,7 +43,7 @@ public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> log
             return session.RunAsync($"{tool}.{action}", work, cancellationToken, allowStart, timeout);
         });
 
-    /// <summary>Operación que no necesita Solid Edge.</summary>
+    /// <summary>Operation that does not need Solid Edge.</summary>
     public Task<CallToolResult> RunLocalAsync(string tool, string action, Func<Task<object?>> work) =>
         ExecuteAsync(tool, action, work);
 
@@ -103,7 +103,7 @@ public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> log
         return new CallToolResult { Content = [new TextContentBlock { Text = text }] };
     }
 
-    /// <summary>Exige un argumento obligatorio para una acción concreta.</summary>
+    /// <summary>Requires a mandatory argument for a specific action.</summary>
     public static T Require<T>(T? value, string name, string action) where T : class =>
         value ?? throw ToolException.InvalidArgument($"Action '{action}' requires '{name}'.");
 

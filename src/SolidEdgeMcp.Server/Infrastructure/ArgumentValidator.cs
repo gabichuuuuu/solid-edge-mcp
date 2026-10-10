@@ -5,9 +5,9 @@ using ModelContextProtocol.Server;
 namespace SolidEdgeMcp.Server.Infrastructure;
 
 /// <summary>
-/// Comprueba los argumentos de cada llamada contra el esquema de la herramienta antes de enlazarlos.
-/// Si el enlace falla (enumeración desconocida, tipo erróneo), el SDK solo devuelve un error genérico
-/// sin pistas; así el cliente recibe qué argumento está mal y qué valores admite.
+/// Checks the arguments of each call against the tool schema before binding them.
+/// If binding fails (unknown enumeration, wrong type), the SDK returns only a generic error
+/// with no hints; this way the client receives which argument is wrong and which values it accepts.
 /// </summary>
 public static class ArgumentValidator
 {
@@ -23,7 +23,7 @@ public static class ArgumentValidator
             return await next(context, cancellationToken).ConfigureAwait(false);
         };
 
-    /// <summary>Mensaje de error para el cliente, o <c>null</c> si los argumentos encajan con el esquema.</summary>
+    /// <summary>Error message for the client, or <c>null</c> if the arguments match the schema.</summary>
     public static string? Validate(Tool tool, IDictionary<string, JsonElement>? arguments)
     {
         JsonElement schema = tool.InputSchema;

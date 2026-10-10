@@ -51,7 +51,7 @@ public enum WindowStateKind
     Maximized,
 }
 
-/// <summary>Opciones de Solid Edge y del documento, unidades e interfaz (ventanas, entornos y cinta).</summary>
+/// <summary>Solid Edge and document options, units and interface (windows, environments and ribbon).</summary>
 [McpServerToolType]
 public sealed class SettingsTools(ToolRunner runner)
 {

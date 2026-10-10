@@ -8,17 +8,17 @@ using SolidEdgePart;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Operaciones de pieza en modelado ordenado. Cada operación se verifica: si Solid Edge la marca
-/// como fallida o no cambia el volumen como se espera, se borra y se devuelve un error accionable.
-/// Las operaciones por boceto usan una copia enlazada de su perfil (como «Seleccionar del boceto»):
-/// si la operación se borra, el boceto se conserva para reintentar.
+/// Part operations in ordered modelling. Each operation is verified: if Solid Edge marks it
+/// as failed or does not change the volume as expected, it is deleted and an actionable error is returned.
+/// Sketch-based operations use a linked copy of their profile (the UI command "Seleccionar del boceto"):
+/// if the operation is deleted, the sketch is kept so it can be retried.
 /// </summary>
 public static partial class FeatureService
 {
-    /// <summary>Tolerancia de volumen (m³) para decidir si una operación cambió el sólido: 1e-6 mm³.</summary>
+    /// <summary>Volume tolerance (m³) for deciding whether an operation changed the solid: 1e-6 mm³.</summary>
     private const double VolumeTolerance = 1e-15;
 
-    /// <summary>Tolerancia de área (m²) para los cambios que no alteran el volumen: 1e-6 mm².</summary>
+    /// <summary>Area tolerance (m²) for changes that do not alter the volume: 1e-6 mm².</summary>
     private const double AreaTolerance = 1e-12;
 
     public static readonly IReadOnlyList<string> Directions = ["normal", "reverse", "symmetric"];
@@ -128,7 +128,7 @@ public static partial class FeatureService
         return result;
     }
 
-    /// <summary>Redondeo de radio constante en las aristas indicadas.</summary>
+    /// <summary>Constant-radius fillet on the given edges.</summary>
     public static object Round(SeContext context, string? documentHandle, string[]? edges, double? radius)
     {
         (ModelDocument model, object[] edgeObjects) = ResolveEdges(context, documentHandle, edges);
@@ -141,7 +141,7 @@ public static partial class FeatureService
         return Verify(context, model, feature, before, 0, switched);
     }
 
-    /// <summary>Chaflán de retranqueo igual en las aristas indicadas.</summary>
+    /// <summary>Equal-setback chamfer on the given edges.</summary>
     public static object Chamfer(SeContext context, string? documentHandle, string[]? edges, double? distance)
     {
         (ModelDocument model, object[] edgeObjects) = ResolveEdges(context, documentHandle, edges);
@@ -153,7 +153,7 @@ public static partial class FeatureService
         return Verify(context, model, feature, before, 0, switched);
     }
 
-    /// <summary>Suprimir, reactivar, borrar o renombrar una operación.</summary>
+    /// <summary>Suppress, unsuppress, delete or rename a feature.</summary>
     public static object Edit(SeContext context, string? documentHandle, string featureHandle, string action, string? name)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, featureHandle);
@@ -202,7 +202,7 @@ public static partial class FeatureService
         };
     }
 
-    /// <summary>Árbol de operaciones del documento (barra de operaciones), en orden.</summary>
+    /// <summary>Feature tree of the document (feature bar), in order.</summary>
     public static object Tree(SeContext context, string? documentHandle, int offset, int limit)
     {
         ModelDocument model = ModelDocument.Get(context, documentHandle);
@@ -277,7 +277,7 @@ public static partial class FeatureService
         _ => throw ToolException.InvalidArgument($"Unknown operation '{operation}'.", "Use 'add' (protrusion) or 'cut' (cutout)."),
     };
 
-    /// <summary>Lado respecto del plano del boceto: normal = sentido de la normal del boceto.</summary>
+    /// <summary>Side relative to the sketch plane: normal = the direction of the sketch normal.</summary>
     private static FeaturePropertyConstants Side(string direction, bool finite) => direction switch
     {
         "normal" => FeaturePropertyConstants.igRight,
@@ -300,7 +300,7 @@ public static partial class FeatureService
 
     private static object Create(string what, Func<object> create) => Create(what, null, create);
 
-    /// <summary>Crea la operación; si Solid Edge la rechaza, borra la copia del perfil y da un error accionable.</summary>
+    /// <summary>Creates the feature; if Solid Edge rejects it, deletes the profile copy and returns an actionable error.</summary>
     private static object Create(string what, IncludedProfile? included, Func<object> create)
     {
         try
@@ -309,7 +309,7 @@ public static partial class FeatureService
         }
         catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsDisconnected(com))
         {
-            // Las llamadas por IDispatch (Late) llegan envueltas en TargetInvocationException.
+            // Calls through IDispatch (Late) arrive wrapped in TargetInvocationException.
             if (included is not null)
             {
                 DeleteIncluded(included);
@@ -320,7 +320,7 @@ public static partial class FeatureService
         }
     }
 
-    /// <summary>Copia enlazada del perfil del boceto para una operación (equivale a «Seleccionar del boceto»).</summary>
+    /// <summary>Linked copy of the sketch profile for an operation (equivalent to the UI command "Seleccionar del boceto").</summary>
     private static IncludedProfile Include(ModelDocument model, Profile sketchProfile)
     {
         try
@@ -336,8 +336,8 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Borra el conjunto de la copia del perfil. Al borrar una operación fallida, Solid Edge borra el perfil
-    /// pero deja su conjunto vacío; por eso se guarda la referencia al conjunto al crear la copia.
+    /// Deletes the profile set of the copy. When a failed operation is deleted, Solid Edge deletes the profile
+    /// but leaves its set empty; that is why the reference to the set is stored when the copy is created.
     /// </summary>
     private static void DeleteIncluded(IncludedProfile included)
     {
@@ -347,14 +347,14 @@ public static partial class FeatureService
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex))
         {
-            // Ya no existe.
+            // No longer exists.
         }
     }
 
-    /// <summary>Copia enlazada del perfil de un boceto y el conjunto (ProfileSet) que la contiene.</summary>
+    /// <summary>Linked copy of a sketch profile and the set (ProfileSet) that contains it.</summary>
     private sealed record IncludedProfile(Profile Profile, object? Set);
 
-    /// <summary>Verifica la operación con <see cref="Check"/> y describe el resultado.</summary>
+    /// <summary>Verifies the feature with <see cref="Check"/> and describes the result.</summary>
     private static object Verify(SeContext context, ModelDocument model, object feature, double before, int expectedSign, bool switched,
         string? sketch = null, IncludedProfile? included = null, string? direction = null, Func<bool>? changedOtherwise = null)
     {
@@ -370,11 +370,11 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Comprueba el estado y el cambio de volumen; si la operación falló o no tuvo efecto, la borra y lanza
-    /// <c>feature_failed</c>. <paramref name="expectedSign"/>: +1 añade material, -1 lo quita, 0 cualquier cambio;
-    /// con 0, <paramref name="changedOtherwise"/> detecta cambios que no alteran el volumen (p. ej. un desmoldeo
-    /// con el plano neutro en medio de la cara). Con <paramref name="undoneByCaller"/> no se borra: quien llama deshace
-    /// (en síncrono, borrar una operación no devuelve las caras que recortó).
+    /// Checks the status and the volume change; if the feature failed or had no effect, it deletes it and throws
+    /// <c>feature_failed</c>. <paramref name="expectedSign"/>: +1 adds material, -1 removes it, 0 any change;
+    /// with 0, <paramref name="changedOtherwise"/> detects changes that do not alter the volume (e.g. a draft
+    /// with the neutral plane in the middle of the face). With <paramref name="undoneByCaller"/> it is not deleted: the caller undoes
+    /// it (in synchronous mode, deleting a feature does not return the faces it trimmed).
     /// </summary>
     private static (double After, string? Status) Check(SeContext context, ModelDocument model, object feature, double before, int expectedSign,
         string? sketch, IncludedProfile? included, Func<bool>? changedOtherwise = null, bool undoneByCaller = false)
@@ -428,8 +428,8 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Oculta el boceto usado y la copia de su perfil, como hace la interfaz de Solid Edge. Solo tras una
-    /// operación correcta: si falla, el boceto sigue visible para corregirlo o reutilizarlo.
+    /// Hides the sketch used and the copy of its profile, as the Solid Edge UI does. Only after a
+    /// successful operation: if it fails, the sketch stays visible so it can be corrected or reused.
     /// </summary>
     private static void Hide(Profile profile)
     {
@@ -439,7 +439,7 @@ public static partial class FeatureService
         }
         catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
         {
-            // Solo afecta a la presentación; la operación ya está creada y verificada.
+            // Affects only the presentation; the feature is already created and verified.
         }
     }
 
@@ -451,7 +451,7 @@ public static partial class FeatureService
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex))
         {
-            // Si no se puede borrar, el error ya informa del fallo; la persona puede deshacer.
+            // If it cannot be deleted, the error already reports the failure; the person can undo it.
         }
     }
 }

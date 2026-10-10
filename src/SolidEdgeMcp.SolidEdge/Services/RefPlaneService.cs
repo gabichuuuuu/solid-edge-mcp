@@ -4,7 +4,7 @@ using SolidEdgePart;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
-/// <summary>Planos de referencia: listar (con normal y punto raíz) y crear desplazados o en ángulo.</summary>
+/// <summary>Reference planes: list (with normal and root point) and create offset or angled ones.</summary>
 public static class RefPlaneService
 {
     public static object List(SeContext context, string? documentHandle)
@@ -20,7 +20,7 @@ public static class RefPlaneService
         return new { count = planes.Count, planes = items };
     }
 
-    /// <summary>Plano paralelo a otro plano o cara plana, a una distancia en mm.</summary>
+    /// <summary>Plane parallel to another plane or planar face, at a distance in mm.</summary>
     public static object Offset(SeContext context, string? documentHandle, string parent, double? distance, bool flip)
     {
         ModelDocument model = ModelDocument.Get(context, documentHandle);
@@ -31,7 +31,7 @@ public static class RefPlaneService
         return Describe(context, model, plane, model.RefPlanes.Count);
     }
 
-    /// <summary>Plano girado un ángulo (grados) respecto de otro plano, alrededor de su intersección con el plano pivote.</summary>
+    /// <summary>Plane rotated by an angle (degrees) relative to another plane, about its intersection with the pivot plane.</summary>
     public static object Angle(SeContext context, string? documentHandle, string parent, string pivot, double? angle, bool flip)
     {
         ModelDocument model = ModelDocument.Get(context, documentHandle);

@@ -1,45 +1,45 @@
 ---
-name: Informe de fallo
-about: Una herramienta falla, da un resultado erróneo o deja Solid Edge en mal estado
+name: Bug report
+about: A tool fails, returns a wrong result or leaves Solid Edge in a bad state
 title: ''
 labels: bug
 assignees: ''
 ---
 
-## Qué ha pasado
+## What happened
 
-<!-- Qué esperabas y qué ocurrió. Si hay un resultado medible (volumen, caja, archivo), indícalo. -->
+<!-- What you expected and what happened. If there is a measurable result (volume, box, file), include it. -->
 
-## Llamada
+## Call
 
-- Herramienta y acción: <!-- p. ej. se_sheetmetal / flange -->
-- Argumentos:
+- Tool and action: <!-- e.g. se_sheetmetal / flange -->
+- Arguments:
 
 ```json
 {}
 ```
 
-- Código y mensaje de error devueltos: <!-- p. ej. [path_not_allowed] ... -->
-- Líneas del log con su `op#` (`%LocalAppData%\SolidEdgeMcp\logs`):
+- Error code and message returned: <!-- e.g. [path_not_allowed] ... -->
+- Log lines with their `op#` (`%LocalAppData%\SolidEdgeMcp\logs`):
 
 ```text
 
 ```
 
-## Cómo reproducirlo
+## How to reproduce
 
 1.
 2.
 
-## Entorno
+## Environment
 
-- Solid Edge (edición y versión): <!-- p. ej. Community Edition 2026, 226.00.01.004 -->
-- Versión del servidor (`se_server_info`):
-- Cliente MCP y versión: <!-- Claude Code, Claude Desktop, Codex… -->
-- Documento y modo: <!-- pieza, chapa, conjunto, plano; ordenado o síncrono -->
+- Solid Edge (edition and version): <!-- e.g. Community Edition 2026, 226.00.01.004 -->
+- Server version (`se_server_info`):
+- MCP client and version: <!-- Claude Code, Claude Desktop, Codex… -->
+- Document and mode: <!-- part, sheet metal, assembly, drawing; ordered or synchronous -->
 
-## Antes de enviar
+## Before submitting
 
-- [ ] Reproducido con documentos nuevos en una carpeta permitida.
-- [ ] La función no figura como rota (✘) en `docs/COBERTURA.md`.
-- [ ] Sin rutas personales, secretos ni datos confidenciales en el informe ni en el log.
+- [ ] Reproduced with new documents in an allowed folder.
+- [ ] The function is not listed as broken (✘) in `docs/COBERTURA.md`.
+- [ ] No personal paths, secrets or confidential data in the report or the log.

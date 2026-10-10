@@ -7,8 +7,8 @@ using SolidEdgePart;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Vista común de los documentos con modelo 3D por operaciones (pieza y chapa), que tienen los
-/// mismos miembros en interfaces distintas.
+/// Common view of the 3D model documents for operations (part and sheet metal), which have the
+/// same members in different interfaces.
 /// </summary>
 public sealed class ModelDocument
 {
@@ -46,24 +46,24 @@ public sealed class ModelDocument
             "Activate or pass a part (.par) or sheet metal (.psm) document."),
     };
 
-    /// <summary>Vista de modelo si el documento es una pieza o una chapa; si no, <c>null</c>.</summary>
+    /// <summary>Model view if the document is a part or a sheet metal part; otherwise <c>null</c>.</summary>
     public static ModelDocument? TryGet(SolidEdgeDocument document) =>
         document is PartDocument or SheetMetalDocument ? From(document) : null;
 
-    /// <summary>Documento del handle indicado o, si no se indica, el del objeto relacionado (boceto, operación...).</summary>
+    /// <summary>Document of the given handle or, if none is given, the one of the related object (sketch, feature...).</summary>
     public static ModelDocument For(SeContext context, string? documentHandle, string relatedHandle) =>
         From(string.IsNullOrWhiteSpace(documentHandle) ? context.DocumentOf(relatedHandle) : context.GetDocument(documentHandle));
 
-    /// <summary>Modelo (cuerpo de diseño) existente, o error si aún no hay ninguna operación sólida.</summary>
+    /// <summary>Existing model (design body), or an error if there is no solid feature yet.</summary>
     public Model RequireModel() => TryModel() ?? throw new ToolException("no_model", $"'{Document.Name}' has no solid yet.",
         "Create a base feature first (se_extrude or se_revolve with operation 'add').");
 
     public Model? TryModel() => Models.Count == 0 ? null : Models.Item(1);
 
-    /// <summary>Volumen del cuerpo en m³, o 0 si no hay sólido.</summary>
+    /// <summary>Volume of the body in m³, or 0 if there is no solid.</summary>
     public double Volume() => TryModel()?.Body is SolidEdgeGeometry.Body body ? body.Volume : 0;
 
-    /// <summary>Área exterior del cuerpo en m² (suma de sus caras), o 0 si no hay sólido.</summary>
+    /// <summary>Outer area of the body in m² (sum of its faces), or 0 if there is no solid.</summary>
     public double SurfaceArea() => TryModel()?.Body is SolidEdgeGeometry.Body body
         ? Late.Items(body.Faces[SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryAll]).Sum(f => ((SolidEdgeGeometry.Face)f).Area)
         : 0;
@@ -78,14 +78,14 @@ public sealed class ModelDocument
     }
 
     /// <summary>
-    /// Las operaciones de este servidor son de modelado ordenado: si el documento está en síncrono,
-    /// cambia a ordenado (como haría una persona). Devuelve si hubo cambio.
+    /// The operations of this server are ordered-modelling operations: if the document is in synchronous mode,
+    /// it switches to ordered (as a person would). Returns whether it changed.
     /// </summary>
     public bool EnsureOrdered() => SetMode(ModelingModeConstants.seModelingModeOrdered);
 
     /// <summary>
-    /// Cambia a síncrono: en Solid Edge 2026 las operaciones de chapa sobre aristas (brida, dobladillo, rotura de
-    /// esquina) solo se resuelven así. Devuelve si hubo cambio, para volver después con <see cref="EnsureOrdered"/>.
+    /// Switches to synchronous: in Solid Edge 2026 the sheet metal operations on edges (flange, hem, corner
+    /// break) are only resolved this way. Returns whether it changed, to switch back later with <see cref="EnsureOrdered"/>.
     /// </summary>
     public bool EnsureSynchronous() => SetMode(ModelingModeConstants.seModelingModeSynchronous);
 
@@ -120,13 +120,13 @@ public sealed class ModelDocument
         }
     }
 
-    /// <summary>Plano: índice de un plano del documento (1 = primer plano base), handle de plano o de cara plana.</summary>
+    /// <summary>Plane: index of a plane of the document (1 = first base plane), plane handle or planar face handle.</summary>
     public RefPlane ResolvePlane(SeContext context, string plane, string argumentName = "plane") =>
         PlaneFrom(ResolvePlaneSource(context, plane, argumentName));
 
     /// <summary>
-    /// Plano de referencia o cara plana sin crear todavía el plano. Sobre una cara se crea un plano local,
-    /// que pertenece a la operación que lo usa y desaparece con ella: cada intento necesita el suyo.
+    /// Reference plane or planar face, without creating the plane yet. On a face a local plane is created,
+    /// which belongs to the operation that uses it and disappears with it: each attempt needs its own.
     /// </summary>
     public object ResolvePlaneSource(SeContext context, string plane, string argumentName = "plane")
     {
@@ -152,7 +152,7 @@ public sealed class ModelDocument
         };
     }
 
-    /// <summary>Plano de trabajo de una fuente de <see cref="ResolvePlaneSource"/> (plano local si es una cara).</summary>
+    /// <summary>Working plane of a source from <see cref="ResolvePlaneSource"/> (local plane if it is a face).</summary>
     public RefPlane PlaneFrom(object source) => source switch
     {
         RefPlane refPlane => refPlane,

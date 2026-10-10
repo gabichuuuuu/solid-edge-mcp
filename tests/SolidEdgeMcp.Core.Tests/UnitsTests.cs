@@ -9,7 +9,7 @@ public sealed class UnitsTests
     {
         Assert.Equal(0.1, Units.MmToM(100), 15);
         Assert.Equal(100, Units.MToMm(0.1), 12);
-        // Bloque 100 × 50 × 20 mm = 1,0·10⁻⁴ m³ = 100 000 mm³.
+        // Block 100 × 50 × 20 mm = 1.0·10⁻⁴ m³ = 100,000 mm³.
         Assert.Equal(100_000, Units.M3ToMm3(1e-4), 9);
         Assert.Equal(1e-4, Units.Mm3ToM3(100_000), 15);
         Assert.Equal(16_000, Units.M2ToMm2(0.016), 9);

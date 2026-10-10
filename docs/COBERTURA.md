@@ -1,148 +1,149 @@
-# Cobertura de Solid Edge
+# Solid Edge coverage
 
-Qué funciones de Solid Edge se pueden usar desde el MCP y por qué vía. Comprobado con Solid Edge
-Community Edition 2026 (226.00.01.004). Fecha de la última revisión: 2026-10-10.
+Which Solid Edge functions can be used from the MCP and through which route. Checked with Solid Edge
+Community Edition 2026 (226.00.01.004). Date of the last review: 2026-10-10.
 
-## Cómo leer esta tabla
+## How to read this table
 
-Toda función de Solid Edge es accesible por alguna de estas vías:
+Every Solid Edge function is accessible through one of these routes:
 
-- **Alto nivel**: una herramienta `se_*` específica, en mm y grados, con verificación del resultado
-  y reversión si falla. Es la vía preferida.
-- **COM**: la capa genérica (`se_com_describe` para ver miembros y firmas, `se_com_get`,
-  `se_com_set`, `se_com_invoke`, `se_com_items`, `se_com_constants`). Llega a cualquier objeto y
-  método del API, en metros y radianes, sin verificación automática: hay que comprobar el
-  resultado con `se_geometry`, `se_physical` o `se_view capture`.
-- **Orden**: `se_command` lanza cualquier orden de la interfaz (`find` busca por nombre y entorno).
-  Las órdenes que piden selección o un cuadro de diálogo esperan a la persona.
+- **High level**: a specific `se_*` tool, in mm and degrees, with verification of the result and
+  reversal if it fails. It is the preferred route.
+- **COM**: the generic layer (`se_com_describe` to see members and signatures, `se_com_get`,
+  `se_com_set`, `se_com_invoke`, `se_com_items`, `se_com_constants`). It reaches any API object and
+  method, in meters and radians, without automatic verification: check the result with
+  `se_geometry`, `se_physical` or `se_view capture`.
+- **Command**: `se_command` runs any interface command (`find` searches by name and environment).
+  Commands that ask for a selection or a dialog box wait for the person.
 
-Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin probar;
-**✘** falla o daña el documento en Solid Edge 2026 (no usar).
+Status: **✔** tested in Solid Edge 2026; **·** available in the API but not tested; **✘** fails or
+damages the document in Solid Edge 2026 (do not use).
 
-## Aplicación, documentos y datos
+## Application, documents and data
 
-| Función | Vía | Estado |
+| Function | Route | Status |
 |---|---|---|
-| Conectar, arrancar Solid Edge con licencia, reconectar | Alto nivel `se_session` | ✔ |
-| Crear pieza, chapa, conjunto, plano, soldadura (plantilla opcional; sin plantilla `.pwd`, como en Solid Edge 2026, la soldadura es un conjunto con la plantilla de soldadura) | `se_documents new` | ✔ |
-| Abrir, activar, guardar, guardar como, guardar copia, cerrar | `se_documents` | ✔ |
-| Deshacer, rehacer, recalcular | `se_documents undo/redo/recompute` | ✔ (solo lo que Solid Edge registra; ver nota) |
-| Propiedades del documento (resumen, personalizadas) | `se_properties` | ✔ |
-| Variables y cotas, fórmulas | `se_variables` | ✔ |
-| Árbol de operaciones; suprimir, borrar, renombrar | `se_feature_tree`, `se_feature_edit` | ✔ |
-| Geometría (cuerpo, caras, aristas con filtros) | `se_geometry` | ✔ |
-| Medir distancias y ángulos (en pieza y en conjunto) | `se_measure` | ✔ |
-| Masa, volumen, CDG, inercia | `se_physical` | ✔ |
-| Selección activa (leer, cambiar) | `se_selection` | ✔ |
-| Vista: encuadrar (en planos, la hoja entera con el cajetín), orientación, modo, captura PNG | `se_view` | ✔ |
-| Modos de visualización Boundary y SmoothBoundary | — | ✘ Solid Edge 2026 los cambia por Smooth (error `not_supported`) |
-| Exportar STEP, IGES, Parasolid, STL, JT, SAT, 3MF, PDF, DXF, DWG | `se_export` | ✔ |
-| Material: bibliotecas, propiedades, asignar (actualiza densidad y masa) | `se_material` | ✔ |
-| Crear o editar materiales y bibliotecas; galgas de chapa | COM (`Application.GetMaterialTable()`; `GetMaterialList` y `GetMatLibFileName` dan E_NOTIMPL) | · |
-| Estilos de cara, capas | COM (`FaceStyles`, `Layers`) | · |
-| Familias de piezas (`FamilyMembers`), configuraciones (`PartConfigurations`) | COM | · |
-| PMI 3D (`PMI`), vistas con nombre (`NamedViews`), secciones en vivo | COM | · |
-| Simulación y estudios generativos | COM / Orden | · |
+| Connect, start Solid Edge with a license, reconnect | High level `se_session` | ✔ |
+| Create part, sheet metal, assembly, drawing, weldment (template optional; without a `.pwd` template, as in Solid Edge 2026, the weldment is an assembly with the weldment assembly template) | `se_documents new` | ✔ |
+| Open, activate, save, save as, save a copy, close | `se_documents` | ✔ |
+| Undo, redo, recalculate | `se_documents undo/redo/recompute` | ✔ (only what Solid Edge records; see the note) |
+| Document properties (summary, custom) | `se_properties` | ✔ |
+| Variables, dimensions and formulas | `se_variables` | ✔ |
+| Feature tree; suppress, delete, rename | `se_feature_tree`, `se_feature_edit` | ✔ |
+| Geometry (body, faces, edges with filters) | `se_geometry` | ✔ |
+| Measure distances and angles (in part and in assembly) | `se_measure` | ✔ |
+| Mass, volume, center of gravity, inertia | `se_physical` | ✔ |
+| Active selection (read, change) | `se_selection` | ✔ |
+| View: fit (on drawings, the whole sheet with the title block), orientation, mode, PNG capture | `se_view` | ✔ |
+| Display modes Boundary and SmoothBoundary | — | ✘ Solid Edge 2026 changes them to Smooth (`not_supported` error) |
+| Export STEP, IGES, Parasolid, STL, JT, SAT, 3MF, PDF, DXF, DWG | `se_export` | ✔ |
+| Material: libraries, properties, assignment (updates density and mass) | `se_material` | ✔ |
+| Create or edit materials and libraries; sheet metal gauges | COM (`Application.GetMaterialTable()`; `GetMaterialList` and `GetMatLibFileName` return E_NOTIMPL) | · |
+| Face styles, layers | COM (`FaceStyles`, `Layers`) | · |
+| Part families (`FamilyMembers`), configurations (`PartConfigurations`) | COM | · |
+| 3D PMI (`PMI`), named views (`NamedViews`), live sections | COM | · |
+| Simulation and generative studies | COM / Command | · |
 
-## Bocetos y planos de referencia
+## Sketches and reference planes
 
-| Función | Vía | Estado |
+| Function | Route | Status |
 |---|---|---|
-| Boceto en plano principal, plano de referencia o cara plana | `se_sketch create` | ✔ |
-| Línea, rectángulo, polilínea, círculo, arco, elipse, spline, punto, redondeo de esquina | `se_sketch` | ✔ |
-| Eje de revolución (también un lado del perfil: se usa una copia y el perfil sigue cerrado) | `se_sketch axis` | ✔ |
-| Validar perfil cerrado o cadena abierta | `se_sketch close` | ✔ |
-| Proyectar aristas del modelo al boceto | `se_sketch project` | ✔ |
-| Relaciones 2D (horizontal, paralela, tangente, igual, simétrica…) y cotas (longitud, distancia real, ángulo interior, radio, diámetro) | `se_sketch_constraint` | ✔ |
-| Texto y chaflán de boceto | COM (`Profile.TextProfiles`, `Lines2d`…) | · |
-| Bocetos 3D | COM (`Sketches3D`) | · |
-| Planos desplazados y en ángulo | `se_ref_plane` | ✔ |
-| Planos por 3 puntos, normal a curva, tangentes; ejes y sistemas de coordenadas | COM (`RefPlanes`, `RefAxes`, `CoordinateSystems`) | · |
+| Sketch on a principal plane, a reference plane or a planar face | `se_sketch create` | ✔ |
+| Line, rectangle, polyline, circle, arc, ellipse, spline, point, corner fillet | `se_sketch` | ✔ |
+| Revolve axis (also one side of the profile: a copy is used and the profile stays closed) | `se_sketch axis` | ✔ |
+| Validate a closed profile or an open chain | `se_sketch close` | ✔ |
+| Project model edges onto the sketch | `se_sketch project` | ✔ |
+| 2D relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions (length, true distance, interior angle, radius, diameter) | `se_sketch_constraint` | ✔ |
+| Sketch text and chamfer | COM (`Profile.TextProfiles`, `Lines2d`…) | · |
+| 3D sketches | COM (`Sketches3D`) | · |
+| Offset and angled planes | `se_ref_plane` | ✔ |
+| Planes through 3 points, normal to curve, tangent; axes and coordinate systems | COM (`RefPlanes`, `RefAxes`, `CoordinateSystems`) | · |
 
-## Pieza (modelado ordenado)
+## Part (ordered modeling)
 
-| Función | Colección del API | Vía | Estado |
+| Function | API collection | Route | Status |
 |---|---|---|---|
-| Protrusión y vaciado por extrusión (finito, pasante, hasta siguiente, simétrico) | `ExtrudedProtrusions`, `ExtrudedCutouts` | `se_extrude` | ✔ |
-| Revolución (protrusión y vaciado) | `RevolvedProtrusions`, `RevolvedCutouts` | `se_revolve` | ✔ |
-| Agujeros (simple, avellanado, abocardado, roscado; pasante, hasta siguiente o finito) | `Holes`, `HoleDataCollection` | `se_hole` | ✔ |
-| Redondeo y chaflán de aristas | `Rounds`, `Chamfers` | `se_round`, `se_chamfer` | ✔ |
-| Patrón rectangular, circular; simetría | `Patterns`, `MirrorCopies` | `se_pattern` | ✔ |
-| Vaciado de paredes (shell) | `Thinwalls` | `se_shell` | ✔ |
-| Desmoldeo | `Drafts` | `se_draft` | ✔ |
-| Solevado, barrido, hélice (protrusión y vaciado) | `LoftedProtrusions`, `SweptProtrusions`, `HelixProtrusions`… | `se_loft_sweep` | ✔ |
-| Solevado con curvas guía o tangencias, barrido de varias trayectorias, hélice cónica o de paso variable, pared delgada | `LoftedProtrusions.Add`, `AddWithThinWall`, `HelixProtrusions.AddFinite` (opcionales) | COM | · |
-| Rosca, nervio, red de nervios, labio, rejilla, saliente de montaje | `Threads`, `Ribs`, `WebNetworks`, `Lips`, `Vents`, `MountingBossCollection` | COM | · |
-| Engrosar, dividir, operaciones booleanas entre cuerpos | `Thickens`, `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |
-| Primitivas (caja, cilindro, esfera), tubos, ranuras | `BoxFeatures`, `CylinderFeatures`, `SphereFeatures`, `TubeFeatures`, `Slots` | COM | · |
-| Pieza copiada, simetría de pieza, escalar cuerpo | `CopiedParts`, `MirrorParts`, `ScaleBodyFeatures` | COM | · |
-| Patrón definido por el usuario, a lo largo de curva | `UserDefinedPatterns`, `PatternParts` | COM | · |
+| Boss and cut by extrusion (blind, through, up to next, symmetric) | `ExtrudedProtrusions`, `ExtrudedCutouts` | `se_extrude` | ✔ |
+| Revolve (boss and cut) | `RevolvedProtrusions`, `RevolvedCutouts` | `se_revolve` | ✔ |
+| Holes (simple, countersunk, counterbored, threaded; through, up to next or finite) | `Holes`, `HoleDataCollection` | `se_hole` | ✔ |
+| Edge fillet and chamfer | `Rounds`, `Chamfers` | `se_round`, `se_chamfer` | ✔ |
+| Rectangular and circular pattern; mirror | `Patterns`, `MirrorCopies` | `se_pattern` | ✔ |
+| Shell (thin wall) | `Thinwalls` | `se_shell` | ✔ |
+| Draft | `Drafts` | `se_draft` | ✔ |
+| Loft, sweep, helix (boss and cut) | `LoftedProtrusions`, `SweptProtrusions`, `HelixProtrusions`… | `se_loft_sweep` | ✔ |
+| Loft with guide curves or tangencies, sweep along several paths, conical or variable-pitch helix, thin wall | `LoftedProtrusions.Add`, `AddWithThinWall`, `HelixProtrusions.AddFinite` (optional) | COM | · |
+| Thread, rib, web network, lip, vent, mounting boss | `Threads`, `Ribs`, `WebNetworks`, `Lips`, `Vents`, `MountingBossCollection` | COM | · |
+| Thicken, split, boolean operations between bodies | `Thickens`, `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |
+| Primitives (box, cylinder, sphere), tubes, slots | `BoxFeatures`, `CylinderFeatures`, `SphereFeatures`, `TubeFeatures`, `Slots` | COM | · |
+| Copied part, part mirror, body scale | `CopiedParts`, `MirrorParts`, `ScaleBodyFeatures` | COM | · |
+| User-defined pattern, pattern along a curve | `UserDefinedPatterns`, `PatternParts` | COM | · |
 
-## Modelado síncrono y superficies
+## Synchronous modeling and surfaces
 
-| Función | Vía | Estado |
+| Function | Route | Status |
 |---|---|---|
-| Cambiar entre síncrono y ordenado | COM (`ModelingMode` 1 síncrono, 2 ordenado) | ✔ |
-| Mover, girar, desplazar, borrar y sustituir caras | COM (`FaceMoves`, `FaceRotates`, `FaceOffsets`, `DeleteFaces`, `ReplaceFaces`) | · |
-| Superficies por extrusión, revolución, barrido, solevado, límites, desplazadas, cosidas | COM (`Constructions.ExtrudedSurfaces`, `SweptSurfaces`, `SurfaceByBoundaries`, `StitchSurfaces`…) | · |
-| Curvas (intersección, proyectadas, helicoidales, por tabla) | COM (`Constructions.IntersectionCurves`, `ProjectCurves`, `HelicalCurves`…) | · |
+| Switch between synchronous and ordered modeling | COM (`ModelingMode` 1 synchronous, 2 ordered) | ✔ |
+| Move, rotate, offset, delete and replace faces | COM (`FaceMoves`, `FaceRotates`, `FaceOffsets`, `DeleteFaces`, `ReplaceFaces`) | · |
+| Surfaces by extrusion, revolve, sweep, loft, boundaries, offset, stitched | COM (`Constructions.ExtrudedSurfaces`, `SweptSurfaces`, `SurfaceByBoundaries`, `StitchSurfaces`…) | · |
+| Curves (intersection, projected, helical, from a table) | COM (`Constructions.IntersectionCurves`, `ProjectCurves`, `HelicalCurves`…) | · |
 
-## Chapa
+## Sheet metal
 
-| Función | Vía | Estado |
+| Function | Route | Status |
 |---|---|---|
-| Espesor, radio, alivios y factor neutro | `se_sheetmetal settings/set_settings` | ✔ |
-| Pestaña base y adicional | `se_sheetmetal tab` | ✔ |
-| Brida de contorno base (siempre hacia la normal del boceto) | `se_sheetmetal contour_flange` | ✔ |
-| Brida (varias aristas, ángulo, lado, radio) | `se_sheetmetal flange` | ✔ |
-| Dobladillo cerrado, abierto, en S, bucle cerrado | `se_sheetmetal hem` | ✔ |
-| Rotura de esquina redonda o en chaflán | `se_sheetmetal break_corner` | ✔ |
-| Desplegado y tamaño de corte; DXF del desplegado | `se_sheetmetal flatten`, `se_export flatPattern` | ✔ |
-| Embutido, recorte embutido, recorte normal, grabado, desvío, pliegue, cordón U/V | `se_sheetmetal_form` | ✔ |
-| Brida de contorno sobre arista, brida solevada, brida multiarista | COM (`ContourFlanges.AddSync`, `LoftedFlanges`, `MultiEdgeFlanges`) | · |
-| Desdoblar y redoblar, cambiar ángulo de pliegue, redimensionar pliegue | COM (`Unbends`, `Rebends`, `ChangeBendAngles`, `ResizeBends`) | · |
-| Pestaña y ranura, cerramientos, rasgado de aristas, convertir a chapa | COM (`TabAndSlotFeatures`, `Enclosures`, `RipEdges`, `ConvToSMs`) | · |
-| Cerrar esquinas (`CloseCorners`) | — | ✘ RPC_E_SERVERFAULT; gráficos rotos hasta reiniciar |
-| Cartelas (`Gussets`) | — | ✘ corrompe el documento |
-| Persianas (`Louvers`) | — | ✘ no se resuelve |
-| Dobladillos rizo, bucle abierto y bucle centrado | — | ✘ fallan (RPC_E_SERVERFAULT) |
-| Dobladillo en S o bucle sobre una arista contigua a otro dobladillo | — | ✘ RPC_E_SERVERFAULT (se deshace) |
-| Cordón circular; extremos punzonado y conformado | — | ✘ sin efecto o E_FAIL |
-| Brida en modelado ordenado; `DimSide`; recorte normal `igBoth` o finito | — | ✘ |
+| Thickness, radius, reliefs and K-factor | `se_sheetmetal settings/set_settings` | ✔ |
+| Base and additional tab | `se_sheetmetal tab` | ✔ |
+| Base contour flange (always toward the sketch normal) | `se_sheetmetal contour_flange` | ✔ |
+| Flange (several edges, angle, side, radius) | `se_sheetmetal flange` | ✔ |
+| Hem: closed, open, S-shaped, closed loop | `se_sheetmetal hem` | ✔ |
+| Round or chamfered corner break | `se_sheetmetal break_corner` | ✔ |
+| Flat pattern and cut size; flat pattern DXF | `se_sheetmetal flatten`, `se_export flatPattern` | ✔ |
+| Dimple, drawn cutout, normal cutout, etch, jog, bend, U/V bead | `se_sheetmetal_form` | ✔ |
+| Contour flange on an edge, lofted flange, multi-edge flange | COM (`ContourFlanges.AddSync`, `LoftedFlanges`, `MultiEdgeFlanges`) | · |
+| Unbend and rebend, change bend angle, resize bend | COM (`Unbends`, `Rebends`, `ChangeBendAngles`, `ResizeBends`) | · |
+| Tab and slot, enclosures, edge rip, convert to sheet metal | COM (`TabAndSlotFeatures`, `Enclosures`, `RipEdges`, `ConvToSMs`) | · |
+| Close corners (`CloseCorners`) | — | ✘ RPC_E_SERVERFAULT; broken graphics until restart |
+| Gussets (`Gussets`) | — | ✘ corrupts the document |
+| Louvers (`Louvers`) | — | ✘ does not resolve |
+| Curl, open-loop and centered-loop hems | — | ✘ fail (RPC_E_SERVERFAULT) |
+| S-shaped hem or loop on an edge adjacent to another hem | — | ✘ RPC_E_SERVERFAULT (undone) |
+| Circular bead; punched and formed ends | — | ✘ no effect or E_FAIL |
+| Flange in ordered modeling; `DimSide`; normal cutout `igBoth` or finite | — | ✘ |
 
-## Conjuntos
+## Assemblies
 
-| Función | Vía | Estado |
+| Function | Route | Status |
 |---|---|---|
-| Insertar, mover, girar, fijar, reemplazar, mostrar/ocultar, suprimir, borrar componentes | `se_assembly` | ✔ |
-| Relaciones plana, axial, inserción, ángulo, tangencia; listar y borrar | `se_relations` | ✔ |
-| Caras, aristas y resumen (volumen y caja exacta, también girada) de cada ocurrencia en coordenadas del conjunto (handles propios; la ocurrencia se deduce en relaciones y medidas) | `se_geometry source` = ocurrencia | ✔ |
-| Interferencias | `se_interference` | ✔ |
-| Lista de materiales | `se_bom` | ✔ |
-| Patrones y simetrías de componentes | COM (`AssemblyPatterns`, `AssemblyMirrors`) | · |
-| Operaciones de conjunto, piezas guiadas por el conjunto | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
-| Configuraciones, vistas explosionadas, grupos | COM (`Configurations`) / Orden | · |
-| Bastidores, tuberías, cableado, sujeciones, soldadura | COM (`StructuralFrames`, `Pipes`, `Harnesses`, `FastenerSystems`, `WeldmentAssembly`) / Orden | · |
+| Insert, move, rotate, fix, replace, show/hide, suppress, delete components | `se_assembly` | ✔ |
+| Flush, axial, insert, angle, tangent relations; list and delete | `se_relations` | ✔ |
+| Faces, edges and summary (volume and exact box, also rotated) of each occurrence in assembly coordinates (own handles; the occurrence is inferred in relations and measurements) | `se_geometry source` = occurrence | ✔ |
+| Interferences | `se_interference` | ✔ |
+| Bill of materials | `se_bom` | ✔ |
+| Component patterns and mirrors | COM (`AssemblyPatterns`, `AssemblyMirrors`) | · |
+| Assembly features, parts driven by the assembly | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
+| Configurations, exploded views, groups | COM (`Configurations`) / Command | · |
+| Structural frames, pipes, harnesses, fasteners, weldment | COM (`StructuralFrames`, `Pipes`, `Harnesses`, `FastenerSystems`, `WeldmentAssembly`) / Command | · |
 
-## Planos
+## Drawings
 
-| Función | Vía | Estado |
+| Function | Route | Status |
 |---|---|---|
-| Hojas: añadir, configurar, activar, borrar | `se_drawing` | ✔ |
-| Vistas base, proyectada, auxiliar, sección y detalle; mover, escalar, borrar | `se_drawing` | ✔ |
-| Cotas (longitud, distancia, diámetro, radio, ángulo) con colocación automática; recuperar cotas | `se_drawing` | ✔ |
-| Lista de piezas | `se_drawing parts_list` | ✔ |
-| Actualizar vistas | `se_drawing update` | ✔ |
-| Globos, ejes, marcas de centro, cajas de texto, notas | COM (`Sheet.Balloons`, `CenterLines`, `CenterMarks`, `TextBoxes`, `Leaders`) | · |
-| Acabado superficial, soldadura, tolerancias geométricas, referencias | COM (`SurfaceFinishSymbols`, `WeldSymbols`, `FeatureControlFrames`, `DatumFrames`) | · |
-| Tablas de agujeros, de pliegues, bloques | COM (`HoleTables`, `DraftBendTables`, `Blocks`) | · |
-| Geometría 2D en la hoja | COM (`Sheet.Lines2d`, `Circles2d`, `Arcs2d`…) | · |
-| Exportar PDF, DXF, DWG (un plano sin guardar avisa: los campos del cajetín que salen del archivo, como la fecha, muestran «Error: No reference») | `se_export` | ✔ |
+| Sheets: add, configure, activate, delete | `se_drawing` | ✔ |
+| Base, projected, auxiliary, section and detail views; move, scale, delete | `se_drawing` | ✔ |
+| Dimensions (length, distance, diameter, radius, angle) with automatic placement; retrieve dimensions | `se_drawing` | ✔ |
+| Parts list | `se_drawing parts_list` | ✔ |
+| Update views | `se_drawing update` | ✔ |
+| Balloons, centerlines, center marks, text boxes, notes | COM (`Sheet.Balloons`, `CenterLines`, `CenterMarks`, `TextBoxes`, `Leaders`) | · |
+| Surface finish, welds, geometric tolerances, datums | COM (`SurfaceFinishSymbols`, `WeldSymbols`, `FeatureControlFrames`, `DatumFrames`) | · |
+| Hole tables, bend tables, blocks | COM (`HoleTables`, `DraftBendTables`, `Blocks`) | · |
+| 2D geometry on the sheet | COM (`Sheet.Lines2d`, `Circles2d`, `Arcs2d`…) | · |
+| Export PDF, DXF, DWG (a drawing that is not saved warns: the title block fields that come from the file, such as the date, show "Error: No reference") | `se_export` | ✔ |
 
-## Notas
+## Notes
 
-- **Deshacer**: Solid Edge no registra como paso deshacible una operación creada por el API a partir
-  de un boceto, y crear un boceto vacía el historial; tras eso, en esa sesión del documento tampoco
-  registra agujeros ni borrados (en un documento reabierto sí). `se_documents undo/redo` consultan
-  `UndoTransactionCount`/`RedoTransactionCount`, dan `nothing_to_undo` si no hay pasos y comprueban
-  que el contador baja. Para quitar una operación, `se_feature_edit delete/suppress`.
+- **Undo**: Solid Edge does not record as an undoable step an operation created through the API from
+  a sketch, and creating a sketch clears the history; after that, in that session of the document, it
+  does not record holes or deletions either (in a reopened document it does). `se_documents
+  undo/redo` read `UndoTransactionCount`/`RedoTransactionCount`, return `nothing_to_undo` when there
+  are no steps, and check that the counter goes down. To remove an operation, use
+  `se_feature_edit delete/suppress`.

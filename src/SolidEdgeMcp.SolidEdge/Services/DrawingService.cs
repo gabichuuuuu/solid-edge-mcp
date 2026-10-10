@@ -12,20 +12,20 @@ using DimTypeConstants = SolidEdgeFrameworkSupport.DimTypeConstants;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Planos: hojas, vistas del modelo (base, proyectadas, auxiliares, secciones y detalles), cotas recuperadas del modelo,
-/// lista de piezas y actualización. Las posiciones son mm de hoja (origen en la esquina inferior izquierda) y se refieren
-/// al centro de la vista; las líneas de corte y los centros de detalle se dan en mm del modelo y se proyectan sobre la
-/// vista de origen.
+/// Drawings: sheets, model views (base, projected, auxiliary, sections and details), dimensions retrieved from the model,
+/// parts list and updating. Positions are sheet mm (origin at the lower left corner) and refer
+/// to the centre of the view; cutting lines and detail centres are given in model mm and projected onto the
+/// source view.
 /// </summary>
-public static class DrawingService
+public static partial class DrawingService
 {
-    /// <summary>Separación entre vistas colocadas automáticamente (m de hoja).</summary>
+    /// <summary>Spacing between automatically placed views (sheet m).</summary>
     private const double Gap = 0.02;
 
-    /// <summary>Fracción de la hoja que puede ocupar la vista base cuando se elige la escala automáticamente.</summary>
+    /// <summary>Fraction of the sheet that the base view may occupy when the scale is chosen automatically.</summary>
     private const double FitFraction = 0.4;
 
-    /// <summary>Escalas normalizadas (ISO 5455), de mayor a menor.</summary>
+    /// <summary>Standard scales (ISO 5455), from largest to smallest.</summary>
     private static readonly double[] StandardScales = [50, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001];
 
     private static readonly Dictionary<string, ViewOrientationConstants> Orientations = new(StringComparer.Ordinal)
@@ -72,7 +72,7 @@ public static class DrawingService
         ["ansi_e"] = (PaperSizeConstants.igAnsiEWide, PaperSizeConstants.igAnsiETall),
     };
 
-    // ---------------------------------------------------------------- hojas
+    // ---------------------------------------------------------------- sheets
 
     public static object Sheets(SeContext context, string? documentHandle)
     {
@@ -147,7 +147,7 @@ public static class DrawingService
         return new { deleted = name };
     }
 
-    // ---------------------------------------------------------------- vistas
+    // ---------------------------------------------------------------- views
 
     public static object Views(SeContext context, string? documentHandle, string? sheetRef)
     {
@@ -162,7 +162,7 @@ public static class DrawingService
         };
     }
 
-    /// <summary>Vista base de un modelo guardado; sin escala, la mayor normalizada que deja sitio para las proyecciones.</summary>
+    /// <summary>Base view of a saved model; without a scale, the largest standard scale that leaves room for the projections.</summary>
     public static object BaseView(SeContext context, string? documentHandle, string? sheetRef, string? path, string? modelHandle,
         string? orientation, double? scale, double[]? position, bool flat)
     {
@@ -193,7 +193,7 @@ public static class DrawingService
         return Result(context, draft, view, warning);
     }
 
-    /// <summary>Vista proyectada (plegada) desde otra; las diagonales dan una vista pictórica.</summary>
+    /// <summary>Projected (folded) view from another one; the diagonals give a pictorial view.</summary>
     public static object ProjectedView(SeContext context, string? viewHandle, string direction, double[]? position)
     {
         DrawingView source = ResolveView(context, viewHandle);
@@ -226,7 +226,7 @@ public static class DrawingService
         return Result(context, draft, view, null);
     }
 
-    /// <summary>Vista auxiliar: mira perpendicularmente a una línea del modelo vista en la vista de origen (una arista inclinada).</summary>
+    /// <summary>Auxiliary view: looks perpendicular to a line of the model seen in the source view (an inclined edge).</summary>
     public static object AuxiliaryView(SeContext context, string? viewHandle, double[]? line, double[]? position)
     {
         DrawingView source = ResolveView(context, viewHandle);
@@ -249,8 +249,8 @@ public static class DrawingService
     }
 
     /// <summary>
-    /// Sección por un plano perpendicular a la vista de origen que pasa por la línea dada (dos puntos del modelo). La línea
-    /// se prolonga hasta cruzar toda la vista.
+    /// Section by a plane perpendicular to the source view passing through the given line (two model points). The line
+    /// is extended until it crosses the whole view.
     /// </summary>
     public static object SectionView(SeContext context, string? viewHandle, double[]? line, bool flip, double[]? position)
     {
@@ -258,7 +258,7 @@ public static class DrawingService
         DraftDocument draft = DraftFor(context, null, viewHandle);
         ((double X, double Y) a, (double X, double Y) b) = SheetLine(source, line);
 
-        // El perfil del plano de corte va en coordenadas de hoja y se prolonga más allá de la vista para cortar toda la pieza.
+        // The profile of the cutting plane is in sheet coordinates and extends beyond the view to cut the whole part.
         Box from = BoxOf(source);
         double length = Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y));
         double ux = (b.X - a.X) / length, uy = (b.Y - a.Y) / length;
@@ -298,7 +298,7 @@ public static class DrawingService
         }
         else
         {
-            // Alineada con su origen, hacia donde miran las flechas del corte; si ahí no cabe, al otro lado.
+            // Aligned with its origin, toward where the cutting arrows point; if it does not fit there, on the other side.
             Sheet sheet = SheetOf(source);
             double width = sheet.SheetSetup.SheetWidth, height = sheet.SheetSetup.SheetHeight;
             double norm = Math.Sqrt(lookX * lookX + lookY * lookY);
@@ -317,7 +317,7 @@ public static class DrawingService
         return Result(context, draft, view, null);
     }
 
-    /// <summary>Detalle circular alrededor de un punto del modelo (radio en mm del modelo); por defecto al doble de escala.</summary>
+    /// <summary>Circular detail around a model point (radius in model mm); by default at twice the scale.</summary>
     public static object DetailView(SeContext context, string? viewHandle, double[]? centre, double? radius, double? scale, double[]? position)
     {
         DrawingView source = ResolveView(context, viewHandle);
@@ -392,9 +392,9 @@ public static class DrawingService
         return new { deleted = name ?? viewHandle };
     }
 
-    // ---------------------------------------------------------------- cotas, lista de piezas y actualización
+    // ---------------------------------------------------------------- dimensions, parts list and updating
 
-    /// <summary>Recupera las cotas del modelo (y marcas de centro) en una vista y devuelve las añadidas.</summary>
+    /// <summary>Retrieves the model dimensions (and centre marks) in a view and returns the ones added.</summary>
     public static object RetrieveDimensions(SeContext context, string? viewHandle)
     {
         DrawingView view = ResolveView(context, viewHandle);
@@ -422,9 +422,8 @@ public static class DrawingService
         };
     }
 
-    /// <summary>
-    /// Cota manual en una vista, como la pondría una persona: cada punto del modelo (mm) se proyecta sobre la vista y elige la
-    /// arista, circunferencia o vértice que pasa por él. Las cotas lineales se sacan fuera del contorno y se apilan.
+    /// Manual dimension in a view, as a person would place it: each model point (mm) is projected onto the view and selects the
+    /// edge, circle or vertex through it. Linear dimensions are moved outside the outline and stacked.
     /// </summary>
     public static object AddDimension(SeContext context, string? viewHandle, string kind, double[]? points, string? orientation, double[]? position)
     {
@@ -539,7 +538,7 @@ public static class DrawingService
         return new { sheet = sheet.Name, count = all.Count, offset = start, returned = page.Count, more = start + page.Count < all.Count, dimensions = page };
     }
 
-    /// <summary>Lista de piezas de una vista de conjunto (con globos si se pide).</summary>
+    /// <summary>Parts list of an assembly view (with balloons if requested).</summary>
     public static object PartsList(SeContext context, string? viewHandle, double[]? position, bool balloons, string? style)
     {
         DrawingView view = ResolveView(context, viewHandle);
@@ -568,7 +567,7 @@ public static class DrawingService
         }
         else
         {
-            // Solid Edge la deja fuera del marco; como la pondría una persona, encima del cajetín y alineada a la derecha.
+            // Solid Edge leaves it outside the frame; as a person would place it, above the title block and right-aligned.
             (double right, double top) = AboveTitleBlock(SheetOf(view));
             list.AnchorPoint = TableAnchorPoint.igLowerRight;
             list.SetOrigin(right, top);
@@ -578,9 +577,9 @@ public static class DrawingService
     }
 
     /// <summary>
-    /// Esquina inferior derecha del hueco sobre el cajetín, deducida de las líneas del fondo de la hoja: el borde derecho del marco
-    /// (la línea vertical más larga de la mitad derecha) y la línea horizontal más alta de la mitad inferior que llega a ese borde
-    /// sin cruzar todo el marco. Sin fondo, a un margen de la esquina inferior derecha de la hoja.
+    /// Lower right corner of the gap above the title block, deduced from the lines of the sheet background: the right edge of the frame
+    /// (the longest vertical line in the right half) and the highest horizontal line in the lower half that reaches that edge
+    /// without crossing the whole frame. Without a background, at a margin from the lower right corner of the sheet.
     /// </summary>
     private static (double X, double Y) AboveTitleBlock(Sheet sheet)
     {
@@ -600,7 +599,7 @@ public static class DrawingService
         }
         catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
         {
-            // Fondo sin líneas legibles: se usa la esquina de la hoja.
+            // Background without readable lines: the sheet corner is used.
         }
 
         var vertical = lines.Where(l => Math.Abs(l.X1 - l.X2) < 1e-6 && l.X1 > width / 2).ToList();
@@ -617,7 +616,7 @@ public static class DrawingService
         return (right, top);
     }
 
-    /// <summary>Actualiza una vista o todo el plano (vistas desfasadas y textos de propiedades del cajetín).</summary>
+    /// <summary>Updates a view or the whole drawing (out-of-date views and title block property texts).</summary>
     public static object Update(SeContext context, string? documentHandle, string? viewHandle, bool force)
     {
         if (!string.IsNullOrWhiteSpace(viewHandle))
@@ -644,7 +643,7 @@ public static class DrawingService
         }
         catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
         {
-            // Sin textos de propiedades no hay nada que refrescar.
+            // Without property texts there is nothing to refresh.
         }
 
         var views = new List<object>();
@@ -662,7 +661,7 @@ public static class DrawingService
         return new { document = DocumentHandle(context, draft), outOfDate, views };
     }
 
-    // ---------------------------------------------------------------- descripción
+    // ---------------------------------------------------------------- description
 
     private static object DescribeSheet(SeContext context, DraftDocument draft, Sheet sheet, string activeName)
     {
@@ -673,7 +672,7 @@ public static class DrawingService
         }
         catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
         {
-            // Hoja sin fondo.
+            // Sheet without background.
         }
 
         return new
@@ -717,7 +716,7 @@ public static class DrawingService
         }
         catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
         {
-            // Vista sin modelo (de dibujo 2D).
+            // View without a model (2D drawing).
         }
 
         return new
@@ -748,7 +747,7 @@ public static class DrawingService
         }
         catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
         {
-            // Sin extensión gráfica (cota no colocada).
+            // No graphic extension (dimension not placed).
         }
 
         return new
@@ -858,12 +857,12 @@ public static class DrawingService
         return option == PaperSizeConstants.igCustomSheetSize ? "custom" : "other";
     }
 
-    // ---------------------------------------------------------------- resolución
+    // ---------------------------------------------------------------- resolution
 
     private static DraftDocument Draft(SeContext context, string? documentHandle) =>
         context.GetDocument<DraftDocument>(documentHandle, "draft");
 
-    /// <summary>Plano del documento indicado o, si no se indica, del handle relacionado (hoja o vista) o el activo.</summary>
+    /// <summary>Drawing of the given document or, if none is given, of the related handle (sheet or view) or the active one.</summary>
     private static DraftDocument DraftFor(SeContext context, string? documentHandle, string? related)
     {
         if (string.IsNullOrWhiteSpace(documentHandle) && !string.IsNullOrWhiteSpace(related) && context.Handles.GetScope(related) is not null)
@@ -883,7 +882,7 @@ public static class DrawingService
             ? throw ToolException.InvalidArgument("'view' is required: a drawing view handle from se_drawing 'views' or from the action that created it.")
             : context.Handles.Resolve<DrawingView>(handle, "view");
 
-    /// <summary>Hoja por handle o por nombre; sin indicar, la activa.</summary>
+    /// <summary>Sheet by handle or name; if none is given, the active one.</summary>
     private static Sheet ResolveSheet(SeContext context, DraftDocument draft, string? sheet)
     {
         if (string.IsNullOrWhiteSpace(sheet))
@@ -900,7 +899,7 @@ public static class DrawingService
             ?? throw ToolException.NotFound($"There is no sheet '{sheet}' in '{SeContext.SafeName(Document(draft))}'.", "Action 'sheets' lists them.");
     }
 
-    /// <summary>Hoja del plano que contiene la vista (DrawingView.Sheet es la hoja interna de la propia vista).</summary>
+    /// <summary>Sheet of the drawing that contains the view (DrawingView.Sheet is the view's own internal sheet).</summary>
     private static Sheet SheetOf(DrawingView view) =>
         view.Parent as Sheet ?? throw new ToolException("view_failed", "The drawing view is not on a sheet.");
 
@@ -925,7 +924,7 @@ public static class DrawingService
         }
     }
 
-    /// <summary>Archivo del modelo: ruta guardada (carpetas permitidas) o la de un documento abierto ya guardado.</summary>
+    /// <summary>Model file: saved path (allowed folders) or that of an open, already saved document.</summary>
     private static string ModelFile(SeContext context, string? path, string? modelHandle, out string? warning)
     {
         warning = null;
@@ -1008,7 +1007,7 @@ public static class DrawingService
         }
         else if (resized)
         {
-            // El fondo (marco y cajetín) del mismo tamaño de papel, si la plantilla lo tiene.
+            // The background (frame and title block) of the same paper size, if the template has one.
             back = BackgroundSheets(draft).FirstOrDefault(b =>
                 Math.Abs(b.SheetSetup.SheetWidth - setup.SheetWidth) < 5e-4 && Math.Abs(b.SheetSetup.SheetHeight - setup.SheetHeight) < 5e-4);
         }
@@ -1019,7 +1018,7 @@ public static class DrawingService
         }
     }
 
-    // ---------------------------------------------------------------- geometría de la hoja
+    // ---------------------------------------------------------------- sheet geometry
 
     private readonly record struct Box(double X1, double Y1, double X2, double Y2)
     {
@@ -1042,7 +1041,7 @@ public static class DrawingService
         public bool Within(double width, double height) => X1 >= 0 && Y1 >= 0 && X2 <= width && Y2 <= height;
     }
 
-    /// <summary>Distancia mínima de una vista colocada automáticamente al borde de la hoja (m).</summary>
+    /// <summary>Minimum distance of an automatically placed view to the edge of the sheet (m).</summary>
     private const double Margin = 0.01;
 
     private static Box BoxOf(DrawingView view)
@@ -1073,8 +1072,8 @@ public static class DrawingService
     }
 
     /// <summary>
-    /// Separa una vista de su origen en la dirección dada (−1, 0 o 1 por eje), con la separación estándar. Si
-    /// <paramref name="sheet"/> se da, la vista sigue alejándose en esa dirección (sin perder la alineación) hasta no pisar otras.
+    /// Moves a view away from its origin in the given direction (−1, 0 or 1 per axis), with the standard spacing. If
+    /// <paramref name="sheet"/> is given, the view keeps moving away in that direction (without losing alignment) until it no longer overlaps others.
     /// </summary>
     private static void PlaceAway(Sheet? sheet, DrawingView view, Box from, int dirX, int dirY)
     {
@@ -1089,8 +1088,8 @@ public static class DrawingService
     }
 
     /// <summary>
-    /// Desplaza una vista a lo largo de una dirección unitaria hasta quedar a la separación estándar de su origen, y más allá de
-    /// las vistas que haya en esa dirección.
+    /// Moves a view along a unit direction until it is at the standard spacing from its origin, and beyond
+    /// the views in that direction.
     /// </summary>
     private static void PlaceAlong(Sheet sheet, DrawingView view, Box from, double ux, double uy)
     {
@@ -1102,7 +1101,7 @@ public static class DrawingService
         Clear(sheet, view, ux, uy);
     }
 
-    /// <summary>Aleja una vista a lo largo de (ux, uy), su dirección de alineación, hasta que no pise otras vistas de la hoja.</summary>
+    /// <summary>Moves a view away along (ux, uy), its alignment direction, until it no longer overlaps other views on the sheet.</summary>
     private static void Clear(Sheet sheet, DrawingView view, double ux, double uy)
     {
         List<Box> others = ViewsOf(sheet).Where(v => !ReferenceEquals(v, view)).Select(BoxOf).ToList();
@@ -1129,7 +1128,7 @@ public static class DrawingService
         return max ? values.Max() : values.Min();
     }
 
-    /// <summary>Vista pictórica (no alineada): en diagonal a su origen, metida en la hoja; si así se solapa, el primer hueco libre.</summary>
+    /// <summary>Pictorial view (not aligned): diagonally from its origin, fitted into the sheet; if that overlaps, the first free gap.</summary>
     private static void PlacePictorial(Sheet sheet, DrawingView view, Box from, int dirX, int dirY)
     {
         PlaceAway(null, view, from, dirX, dirY);
@@ -1147,7 +1146,7 @@ public static class DrawingService
         PlaceFree(sheet, view, from);
     }
 
-    /// <summary>Coloca una vista independiente junto a su origen, en el primer hueco de la hoja sin solaparse con otras.</summary>
+    /// <summary>Places an independent view next to its origin, in the first gap of the sheet that does not overlap others.</summary>
     private static void PlaceFree(Sheet sheet, DrawingView view, Box from)
     {
         Box box = BoxOf(view);
@@ -1180,7 +1179,7 @@ public static class DrawingService
         }
     }
 
-    /// <summary>Normal (unitaria, en la hoja) a una línea hacia el lado de la vista con más hoja libre.</summary>
+    /// <summary>Unit normal (on the sheet) to a line, toward the side of the view with more free sheet.</summary>
     private static (double X, double Y) RoomierNormal((double X, double Y) start, (double X, double Y) end, Box from, Sheet sheet)
     {
         double length = Math.Sqrt((end.X - start.X) * (end.X - start.X) + (end.Y - start.Y) * (end.Y - start.Y));
@@ -1234,7 +1233,7 @@ public static class DrawingService
         return scale;
     }
 
-    /// <summary>Mayor escala normalizada con la que la vista ocupa como mucho <see cref="FitFraction"/> de la hoja.</summary>
+    /// <summary>Largest standard scale at which the view occupies at most <see cref="FitFraction"/> of the sheet.</summary>
     private static double FitScale(ModelLink link, ViewOrientationConstants orientation, Sheet sheet)
     {
         double width, height;
@@ -1274,18 +1273,18 @@ public static class DrawingService
         return StandardScales[^1];
     }
 
-    // ---------------------------------------------------------------- elementos de vista y colocación de cotas
+    // ---------------------------------------------------------------- view elements and dimension placement
 
-    /// <summary>Distancia máxima (m del modelo) entre un punto dado y la arista que se elige con él.</summary>
+    /// <summary>Maximum distance (model m) between a given point and the edge chosen with it.</summary>
     private const double PickTolerance = 0.001;
 
-    /// <summary>Distancia máxima (m del modelo) para tomar un vértice o un centro como punto exacto de la cota.</summary>
+    /// <summary>Maximum distance (model m) to take a vertex or a centre as the exact point of the dimension.</summary>
     private const double KeyTolerance = 0.0002;
 
-    /// <summary>Separación entre el contorno de la vista y el borde exterior de una cota colocada automáticamente (m de hoja).</summary>
+    /// <summary>Spacing between the view outline and the outer edge of an automatically placed dimension (sheet m).</summary>
     private const double DimensionOffset = 0.01;
 
-    /// <summary>Paso entre cotas apiladas en el mismo lado (m de hoja).</summary>
+    /// <summary>Step between stacked dimensions on the same side (sheet m).</summary>
     private const double DimensionStep = 0.008;
 
     private enum Shape
@@ -1295,11 +1294,11 @@ public static class DrawingService
         Arc,
     }
 
-    /// <summary>Elemento 2D de una vista, en coordenadas de vista (escala del modelo, m).</summary>
+    /// <summary>2D element of a view, in view coordinates (model scale, m).</summary>
     private sealed record Graphic(Shape Shape, object Value, (double X, double Y) Start, (double X, double Y) End,
         (double X, double Y) Centre, double Radius, double StartAngle, double Sweep)
     {
-        /// <summary>Referencia de hoja del elemento: las cotas creadas con ella quedan asociadas a la vista.</summary>
+        /// <summary>Sheet reference of the element: dimensions created with it stay associated with the view.</summary>
         public object Reference => Late.Get(Value, "Reference")
             ?? throw new ToolException("dimension_failed", "Solid Edge returned no reference for the selected edge.");
     }
@@ -1337,7 +1336,7 @@ public static class DrawingService
 
     private static (double X, double Y) Mid((double X, double Y) a, (double X, double Y) b) => ((a.X + b.X) / 2, (a.Y + b.Y) / 2);
 
-    /// <summary>Distancia de un punto a un elemento; en circunferencias y arcos también vale su centro.</summary>
+    /// <summary>Distance from a point to an element; for circles and arcs, the centre also counts.</summary>
     private static double DistanceTo(Graphic graphic, (double X, double Y) p)
     {
         if (graphic.Shape == Shape.Line)
@@ -1398,7 +1397,7 @@ public static class DrawingService
         return best;
     }
 
-    /// <summary>Elemento señalado por un punto: un vértice o centro exacto si coincide, si no la arista que pasa por él.</summary>
+    /// <summary>Element pointed at by a point: an exact vertex or centre if it matches, otherwise the edge through it.</summary>
     private static Pick PickAt(DrawingView view, List<Graphic> graphics, (double X, double Y, double Z) model, bool linesOnly)
     {
         (double X, double Y) p = ModelToView(view, model);
@@ -1432,10 +1431,10 @@ public static class DrawingService
     }
 
     /// <summary>
-    /// Cambia una arista horizontal o vertical (sin punto clave) por su extremo más cercano al punto dado, que en perpendicular a
-    /// ella mide lo mismo: Solid Edge dibuja las cotas de distancia ligadas a una arista vertical al lado contrario del que dicen
-    /// Range y GetDisplayData (comprobado en el PDF), y así no se podrían colocar. <paramref name="across"/> es la medida en
-    /// perpendicular a la arista (horizontal o vertical).
+    /// Replaces a horizontal or vertical edge (without a key point) with its nearest endpoint to the given point, which, perpendicular to
+    /// it, measures the same: Solid Edge draws the distance dimensions attached to a vertical edge on the side opposite to the one that
+    /// Range and GetDisplayData report (verified in the PDF), so they could not be placed. <paramref name="across"/> is the measurement in
+    /// perpendicular to the edge (horizontal or vertical).
     /// </summary>
     private static Pick ToEndpoint(DrawingView view, Pick pick, out string? across)
     {
@@ -1456,7 +1455,7 @@ public static class DrawingService
         return new Pick(pick.Graphic, true, Distance(pick.Sheet, a) <= Distance(pick.Sheet, b) ? a : b);
     }
 
-    /// <summary>Intersección (en la hoja) de las rectas de dos aristas, o null si son paralelas.</summary>
+    /// <summary>Intersection (on the sheet) of the lines of two edges, or null if they are parallel.</summary>
     private static (double X, double Y)? Intersection(DrawingView view, Graphic first, Graphic second)
     {
         (double X, double Y) a = ToSheet(view, first.Start), b = ToSheet(view, first.End);
@@ -1473,8 +1472,8 @@ public static class DrawingService
     }
 
     /// <summary>
-    /// Cuadrante de una cota angular: el sector entre los rayos que van de la intersección de las aristas a los puntos dados
-    /// (como al señalarlas con el ratón). Se prueba cada cuadrante y se elige aquel cuyo arco dibujado cae en ese sector.
+    /// Quadrant of an angular dimension: the sector between the rays that go from the intersection of the edges to the given points
+    /// (as when they are pointed at with the mouse). Each quadrant is tested and the one whose drawn arc falls within that sector is chosen.
     /// </summary>
     private static void OrientAngle(DrawingView view, Dimension dimension, (double X, double Y) corner, Pick first, Pick second)
     {
@@ -1536,7 +1535,7 @@ public static class DrawingService
         return (x, y);
     }
 
-    /// <summary>Contorno (en la hoja) de lo dibujado en la vista.</summary>
+    /// <summary>Outline (on the sheet) of what is drawn in the view.</summary>
     private static Box Outline(DrawingView view, List<Graphic> graphics)
     {
         var points = new List<(double X, double Y)>();
@@ -1565,9 +1564,9 @@ public static class DrawingService
     }
 
     /// <summary>
-    /// Saca una cota lineal fuera del contorno de la vista (o la lleva a <paramref name="position"/>) desplazando su línea en
-    /// perpendicular a lo medido. El signo de TrackDistance depende del sentido de la arista, así que se calibra probando; si
-    /// choca con otra cota del mismo lado se aleja un paso más.
+    /// Moves a linear dimension outside the view outline (or to <paramref name="position"/>) by shifting its line
+    /// perpendicular to what is measured. The sign of TrackDistance depends on the direction of the edge, so it is calibrated by testing; if
+    /// it collides with another dimension on the same side, it moves one more step away.
     /// </summary>
     private static void PlaceLinear(DrawingView view, Sheet sheet, Dimension dimension, (double X, double Y) a, (double X, double Y) b,
         (double X, double Y)? measure, List<Graphic> graphics, (double X, double Y)? position)
@@ -1599,7 +1598,7 @@ public static class DrawingService
 
         double Far() => Project(RangeOf(dimension), nx, ny, max: true);
 
-        // Con qué signo de TrackDistance se aleja la cota hacia n, y cuánto por metro.
+        // Which sign of TrackDistance moves the dimension toward n, and how much per metre.
         double sign = 0, slope = 0;
         foreach (double s in new[] { 1.0, -1.0 })
         {
@@ -1626,7 +1625,7 @@ public static class DrawingService
             return;
         }
 
-        // Cotas ya colocadas al mismo lado cuya franja de línea y extensión a lo largo coinciden con la nueva.
+        // Dimensions already placed on the same side whose line and extension band along the length coincide with the new one.
         double outlineFar = Project(outline, nx, ny, max: true);
         List<Box> others = DimensionsOf(sheet).Where(d => !ReferenceEquals(d, dimension)).Select(RangeOf)
             .Where(r => Project(r, nx, ny, max: true) > outlineFar).ToList();
@@ -1637,7 +1636,7 @@ public static class DrawingService
         }
     }
 
-    /// <summary>Dos cotas paralelas chocan si sus franjas exteriores (línea y texto) se solapan a lo largo y a lo ancho.</summary>
+    /// <summary>Two parallel dimensions collide if their outer bands (line and text) overlap along and across.</summary>
     private static bool Collides(Box other, Box mine, double nx, double ny)
     {
         const double band = 0.006;
@@ -1669,7 +1668,7 @@ public static class DrawingService
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex))
         {
-            // Si no se puede borrar, queda el plano de corte vacío: no afecta al modelo.
+            // If it cannot be deleted, the empty cutting plane remains: it does not affect the model.
         }
     }
 }

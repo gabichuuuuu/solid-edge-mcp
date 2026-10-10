@@ -4,15 +4,15 @@ using System.Text.RegularExpressions;
 namespace SolidEdgeMcp.Core;
 
 /// <summary>
-/// Valor compuesto (p. ej. ocurrencia + cara) que el registro identifica por igualdad de valor y no por referencia,
-/// para que la misma combinación conserve su handle aunque se cree un objeto nuevo en cada consulta.
+/// Composite value (e.g. occurrence + face) that the registry identifies by value equality rather than by reference,
+/// so the same combination keeps its handle even when a new object is created on each query.
 /// </summary>
 public interface ICompositeHandleValue;
 
 /// <summary>
-/// Identificadores opacos (<c>tipo:N</c>) para objetos COM que el cliente reutiliza entre llamadas.
-/// Un mismo objeto (misma referencia) conserva su id. Los handles se agrupan por ámbito (el
-/// documento) para caducarlos al cerrarlo, y se expulsan los menos usados al llegar al límite.
+/// Opaque identifiers (<c>type:N</c>) for COM objects that the client reuses across calls.
+/// The same object (same reference) keeps its id. Handles are grouped by scope (the
+/// document) so they expire when it is closed, and the least used ones are evicted when the limit is reached.
 /// </summary>
 public sealed partial class HandleRegistry
 {
@@ -44,7 +44,7 @@ public sealed partial class HandleRegistry
         }
     }
 
-    /// <summary>Registra el objeto (o devuelve su id si ya estaba) con el tipo y ámbito dados.</summary>
+    /// <summary>Registers the object (or returns its id if it was already registered) with the given type and scope.</summary>
     public string Register(object value, string kind, string? scope = null)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -72,7 +72,7 @@ public sealed partial class HandleRegistry
         }
     }
 
-    /// <summary>Devuelve el objeto del handle o lanza un error explicando si caducó.</summary>
+    /// <summary>Returns the object for the handle, or throws an error explaining whether it expired.</summary>
     public object Resolve(string? id, string argumentName = "handle")
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -124,7 +124,7 @@ public sealed partial class HandleRegistry
         }
     }
 
-    /// <summary>Handles vivos de un tipo (p. ej. «doc»), con su objeto.</summary>
+    /// <summary>Live handles of a type (e.g. "doc"), with their object.</summary>
     public IReadOnlyList<(string Id, object Value)> OfKind(string kind)
     {
         string safeKind = NormalizeKind(kind);
@@ -135,8 +135,8 @@ public sealed partial class HandleRegistry
     }
 
     /// <summary>
-    /// Caduca los handles de un ámbito (p. ej. al cerrar o recalcular un documento); con
-    /// <paramref name="kinds"/>, solo los de esos tipos (p. ej. caras y aristas tras cambiar el modelo).
+    /// Expires the handles of a scope (e.g. when a document is closed or recalculated); with
+    /// <paramref name="kinds"/>, only the handles of those types (e.g. faces and edges after the model changes).
     /// </summary>
     public int InvalidateScope(string scope, string reason, params string[] kinds)
     {
@@ -210,7 +210,7 @@ public sealed partial class HandleRegistry
     [GeneratedRegex("[^a-z0-9_]+", RegexOptions.CultureInvariant)]
     private static partial Regex NonKindChars();
 
-    /// <summary>Referencia para los objetos COM; igualdad de valor para los <see cref="ICompositeHandleValue"/>.</summary>
+    /// <summary>Reference equality for COM objects; value equality for <see cref="ICompositeHandleValue"/>.</summary>
     private sealed class IdentityComparer : IEqualityComparer<object>
     {
         public static readonly IdentityComparer Instance = new();

@@ -4,8 +4,8 @@ using SolidEdgeFramework;
 namespace SolidEdgeMcp.SolidEdge.Session;
 
 /// <summary>
-/// Contexto de una operación en el hilo STA: la aplicación conectada, los handles, la política y la
-/// guarda de rutas. Solo es válido dentro de la operación que lo recibe.
+/// Context of an operation on the STA thread: the connected application, the handles, the policy and the
+/// path guard. It is only valid within the operation that receives it.
 /// </summary>
 public sealed class SeContext
 {
@@ -30,7 +30,7 @@ public sealed class SeContext
 
     public int MaxListItems => Policy.Limits.MaxListItems;
 
-    /// <summary>Documento del handle, o el activo si no se indica.</summary>
+    /// <summary>Document of the handle, or the active one if none is given.</summary>
     public SolidEdgeDocument GetDocument(string? handle)
     {
         if (!string.IsNullOrWhiteSpace(handle))
@@ -45,7 +45,7 @@ public sealed class SeContext
         }
         catch (System.Runtime.InteropServices.COMException)
         {
-            // Sin documento activo Solid Edge devuelve error en lugar de null.
+            // With no active document, Solid Edge returns an error instead of null.
         }
 
         return active as SolidEdgeDocument ?? throw new ToolException(
@@ -54,7 +54,7 @@ public sealed class SeContext
             "Open or create a document with se_documents, or pass a document handle.");
     }
 
-    /// <summary>Documento del handle convertido al tipo pedido (pieza, conjunto, plano...).</summary>
+    /// <summary>Document of the handle converted to the requested type (part, assembly, drawing...).</summary>
     public T GetDocument<T>(string? handle, string expected) where T : class
     {
         SolidEdgeDocument document = GetDocument(handle);
@@ -64,25 +64,25 @@ public sealed class SeContext
             "Activate or pass a document of the right type (se_documents list).");
     }
 
-    /// <summary>Handle estable de un documento (ámbito de los handles de sus objetos).</summary>
+    /// <summary>Stable handle of a document (scope of the handles of its objects).</summary>
     public string DocumentHandle(SolidEdgeDocument document) => Handles.Register(document, "doc");
 
-    /// <summary>Registra un objeto de un documento: caduca cuando se cierra el documento.</summary>
+    /// <summary>Registers an object of a document: it expires when the document is closed.</summary>
     public string Register(object value, string kind, SolidEdgeDocument? owner) =>
         Handles.Register(value, kind, owner is null ? null : DocumentHandle(owner));
 
-    /// <summary>Registra un objeto en el mismo ámbito (documento) que otro handle ya registrado.</summary>
+    /// <summary>Registers an object in the same scope (document) as another handle that is already registered.</summary>
     public string RegisterBeside(object value, string kind, string relatedHandle) =>
         Handles.Register(value, kind, Handles.GetScope(relatedHandle));
 
-    /// <summary>Documento al que pertenece un handle; sin ámbito, el documento activo.</summary>
+    /// <summary>Document a handle belongs to; without a scope, the active document.</summary>
     public SolidEdgeDocument DocumentOf(string handle) =>
         Handles.GetScope(handle) is { } scope ? Handles.Resolve<SolidEdgeDocument>(scope, "document") : GetDocument(null);
 
-    /// <summary>Handles de topología: dejan de ser fiables en cuanto cambia el modelo.</summary>
+    /// <summary>Topology handles: they stop being reliable as soon as the model changes.</summary>
     private static readonly string[] TopologyKinds = ["face", "faces", "edge", "edges", "vertex", "vertices", "body", "shell", "shells", "loop", "loops"];
 
-    /// <summary>Caduca caras, aristas y vértices del documento tras una operación que cambia el modelo.</summary>
+    /// <summary>Expires the faces, edges and vertices of the document after an operation that changes the model.</summary>
     public void ModelChanged(SolidEdgeDocument document, string reason) =>
         Handles.InvalidateScope(DocumentHandle(document), reason, TopologyKinds);
 

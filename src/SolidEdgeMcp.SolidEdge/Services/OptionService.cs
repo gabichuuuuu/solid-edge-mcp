@@ -9,15 +9,15 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Opciones de Solid Edge (cuadro «Opciones de Solid Edge» y ajustes globales de cada tipo de documento) por
-/// Get/SetGlobalParameter, y unidades del documento (UnitsOfMeasure). Las opciones de aplicación son del usuario y
-/// persisten entre sesiones: cada cambio devuelve el valor anterior para poder restaurarlo.
+/// Solid Edge options (the "Solid Edge Options" dialog and the global settings of each document type) through
+/// Get/SetGlobalParameter, and document units (UnitsOfMeasure). Application options belong to the user and
+/// persist between sessions: each change returns the previous value so it can be restored.
 /// </summary>
 public static class OptionService
 {
     public static readonly IReadOnlyList<string> Scopes = ["application", "document"];
 
-    /// <summary>Enumeración de parámetros del ámbito, objeto que los atiende y prefijos que se quitan del nombre.</summary>
+    /// <summary>Enumeration of parameters of the scope, the object that serves them, and prefixes removed from the name.</summary>
     private sealed record Catalog(Type Enum, object Target, string Owner, string[] Prefixes);
 
     public static object List(SeContext context, string scope, string? documentHandle, string? filter, int offset, int limit)
@@ -47,7 +47,7 @@ public static class OptionService
         return Read(catalog, entry.Name, entry.Value);
     }
 
-    /// <summary>Cambia una opción con el tipo de su valor actual y comprueba que Solid Edge lo ha aceptado.</summary>
+    /// <summary>Changes an option using the type of its current value and checks that Solid Edge accepted it.</summary>
     public static object Set(SeContext context, string scope, string? documentHandle, string name, JsonElement value)
     {
         Catalog catalog = CatalogOf(context, scope, documentHandle);
@@ -91,7 +91,7 @@ public static class OptionService
         };
     }
 
-    /// <summary>Unidades del documento: tipo, unidad de lectura y precisión.</summary>
+    /// <summary>Document units: type, readout unit and precision.</summary>
     public static object Units(SeContext context, string? documentHandle)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
@@ -109,7 +109,7 @@ public static class OptionService
         };
     }
 
-    /// <summary>Cambia la unidad de lectura y la precisión de un tipo de unidad del documento.</summary>
+    /// <summary>Changes the readout unit and precision of a document unit type.</summary>
     public static object SetUnits(SeContext context, string? documentHandle, string type, string? unit, int? precision)
     {
         if (unit is null && precision is null)
@@ -252,7 +252,7 @@ public static class OptionService
         && !name.Contains("Theme", StringComparison.OrdinalIgnoreCase) && !name.Contains("Mode", StringComparison.OrdinalIgnoreCase)
         && !name.Contains("ColorManager", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Color OLE (0x00BBGGRR) como #RRGGBB.</summary>
+    /// <summary>OLE color (0x00BBGGRR) as #RRGGBB.</summary>
     private static string? Hex(object? value)
     {
         long? bgr = value switch
@@ -378,7 +378,7 @@ public static class OptionService
     private static string Snake(string pascal) =>
         string.Concat(pascal.Select((c, i) => i > 0 && char.IsUpper(c) && !char.IsUpper(pascal[i - 1]) ? "_" + char.ToLowerInvariant(c) : char.ToLowerInvariant(c).ToString()));
 
-    /// <summary>Enumeración de unidades de lectura del tipo (SolidEdgeConstants.UnitOfMeasure*ReadoutConstants), si existe.</summary>
+    /// <summary>Enumeration of the readout units of the type (SolidEdgeConstants.UnitOfMeasure*ReadoutConstants), if it exists.</summary>
     private static Type? ReadoutEnum(UnitTypeConstants type)
     {
         string name = type.ToString().Replace("igUnit", "", StringComparison.Ordinal);
@@ -397,7 +397,7 @@ public static class OptionService
             .FirstOrDefault(t => t is not null);
     }
 
-    /// <summary>Nombre corto de la unidad (seLengthMillimeter → millimeter), o <c>null</c> si no hay enumeración.</summary>
+    /// <summary>Short name of the unit (seLengthMillimeter → millimeter), or <c>null</c> if there is no enumeration.</summary>
     private static string? UnitName(UnitTypeConstants type, int value)
     {
         Type? readout = ReadoutEnum(type);
@@ -433,7 +433,7 @@ public static class OptionService
             $"Use one of: {string.Join(", ", Enum.GetNames(readout).Select(n => Snake(n[prefix.Length..])))}.");
     }
 
-    /// <summary>Prefijo común de los nombres de la enumeración, cortado en un límite de palabra (seLength, seMass...).</summary>
+    /// <summary>Common prefix of the enumeration names, cut at a word boundary (seLength, seMass...).</summary>
     private static string UnitPrefix(Type readout)
     {
         string[] names = Enum.GetNames(readout);

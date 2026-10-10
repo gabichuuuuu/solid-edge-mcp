@@ -1,4 +1,4 @@
-# A01: servidor, sesión, constantes, órdenes, capa COM y rechazos de argumentos
+# A01: server, session, constants, commands, COM layer and argument rejections
 @info = se_server_info {}
 se_session {"action":"status"}
 se_session {"action":"connect"}

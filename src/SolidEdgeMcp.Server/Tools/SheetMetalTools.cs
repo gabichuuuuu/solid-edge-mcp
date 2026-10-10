@@ -71,7 +71,7 @@ public enum MovingSide
     Left,
 }
 
-/// <summary>Lado del espesor de la pestaña o brida de contorno; 'symmetric' no existe en chapa.</summary>
+/// <summary>Side of the thickness for the tab or contour flange; 'symmetric' does not exist in sheet metal.</summary>
 public enum SheetDirection
 {
     Normal,
@@ -98,7 +98,7 @@ public enum CutoutMethod
     Clearance,
 }
 
-/// <summary>Chapa: pestañas, bridas, dobladillos, esquinas, desplegado y operaciones por boceto (mm y grados).</summary>
+/// <summary>Sheet metal: tabs, flanges, hems, corners, flat pattern and sketch-based operations (mm and degrees).</summary>
 [McpServerToolType]
 public sealed class SheetMetalTools(ToolRunner runner)
 {

@@ -15,7 +15,7 @@ public sealed record DocumentInfo(
     bool ReadOnly,
     bool Active);
 
-/// <summary>Documentos: listar, crear, abrir, guardar y cerrar, siempre con <see cref="PathGuard"/>.</summary>
+/// <summary>Documents: list, create, open, save and close, always through <see cref="PathGuard"/>.</summary>
 public static class DocumentService
 {
     private static readonly Dictionary<string, string[]> NativeExtensions = new()
@@ -67,8 +67,8 @@ public static class DocumentService
         }
         else if (type == DocumentTypeConstants.igWeldmentDocument && WeldmentAssemblyTemplate(context) is { } weldment)
         {
-            // Comprobado en Solid Edge 2026: no trae plantilla .pwd (la plantilla por defecto es solo la carpeta y
-            // Add falla con STG_E_PATHNOTFOUND); la soldadura es un conjunto creado con «<unidades> weldment.asm».
+            // Verified in Solid Edge 2026: it has no .pwd template (the default template is only the folder and
+            // Add fails with STG_E_PATHNOTFOUND); the weldment is an assembly created with "<units> weldment.asm".
             created = context.Application.Documents.Add("SolidEdge.AssemblyDocument", weldment);
         }
         else
@@ -174,7 +174,7 @@ public static class DocumentService
         context.Handles.InvalidateScope(documentHandle, "its document was closed");
         context.Handles.Remove(documentHandle, "the document was closed");
 
-        // Las piezas que cargó un conjunto o un plano se descargan con él: sus handles también se liberan.
+        // Parts loaded by an assembly or a drawing are unloaded with it: their handles are released too.
         Documents documents = context.Application.Documents;
         var open = new HashSet<object>(ReferenceEqualityComparer.Instance);
         for (int i = 1; i <= documents.Count; i++)
@@ -191,7 +191,7 @@ public static class DocumentService
             }
         }
 
-        // Solid Edge puede quedarse sin documento activo aunque queden otros abiertos; se activa el último, como en la interfaz.
+        // Solid Edge can end up with no active document even when others are open; the last one is activated, as in the UI.
         SolidEdgeDocument? active = TryActive(context);
         if (active is null && documents.Count > 0 && documents.Item(documents.Count) is SolidEdgeDocument last)
         {
@@ -202,7 +202,7 @@ public static class DocumentService
         return new { closed = name, saved = save, active = active is null ? null : context.DocumentHandle(active) };
     }
 
-    /// <summary>Deshacer, rehacer o recalcular (el documento debe admitirlo).</summary>
+    /// <summary>Undo, redo or recalculate (the document must support it).</summary>
     public static object Edit(SeContext context, string? handle, string action, int steps)
     {
         SolidEdgeDocument document = context.GetDocument(handle);
@@ -213,8 +213,8 @@ public static class DocumentService
             "recompute" => "Recompute",
             _ => throw ToolException.InvalidArgument($"Unknown edit action '{action}'."),
         };
-        // Solid Edge no registra como deshacibles las operaciones creadas por el API a partir de bocetos, y crear un
-        // boceto vacía el historial (comprobado): se mira cuántos pasos hay para no dar por hecho lo que no ocurrió.
+        // Solid Edge does not record as undoable the operations created through the API from sketches, and creating a
+        // sketch clears the history (verified): the number of steps is checked so that nothing that did not happen is assumed.
         string counter = action == "undo" ? "UndoTransactionCount" : "RedoTransactionCount";
         int? available = member == "Recompute" ? null : TransactionCount(document, counter);
         if (available == 0)
@@ -237,7 +237,7 @@ public static class DocumentService
             throw new ToolException("not_supported", $"'{action}' is not available for a {DocumentKinds.Describe(document)}.");
         }
 
-        // Tras deshacer o recalcular, los objetos del modelo pueden haber cambiado.
+        // After undo or recalculate, the model objects may have changed.
         context.Handles.InvalidateScope(context.DocumentHandle(document), $"the document changed ({action})");
         DocumentInfo info = Describe(context, document, TryActive(context));
         if (available is null)
@@ -262,7 +262,7 @@ public static class DocumentService
         };
     }
 
-    /// <summary>Pasos deshacibles o rehacibles que lleva Solid Edge, o null si el documento no lo indica.</summary>
+    /// <summary>Undo or redo steps that Solid Edge keeps, or null if the document does not report them.</summary>
     private static int? TransactionCount(SolidEdgeDocument document, string counter)
     {
         try
@@ -297,7 +297,7 @@ public static class DocumentService
             active is not null && ReferenceEquals(active, document));
     }
 
-    /// <summary>Ruta completa, o <c>null</c> si el documento no se ha guardado nunca.</summary>
+    /// <summary>Full path, or <c>null</c> if the document has never been saved.</summary>
     public static string? PathOf(SolidEdgeDocument document)
     {
         string? full = document.FullName;
@@ -350,8 +350,8 @@ public static class DocumentService
     }
 
     /// <summary>
-    /// Las plantillas solo se leen: se aceptan en las carpetas permitidas y en la carpeta de
-    /// plantillas de Solid Edge.
+    /// Templates are only read: they are accepted in the allowed folders and in the Solid Edge
+    /// template folder.
     /// </summary>
     private static string CheckTemplate(SeContext context, string template, DocumentTypeConstants type)
     {
@@ -381,8 +381,8 @@ public static class DocumentService
     }
 
     /// <summary>
-    /// Plantilla de soldadura en forma de conjunto (junto a la plantilla de conjunto por defecto) si no hay
-    /// plantilla .pwd instalada; null si existe la .pwd o no se encuentra ninguna.
+    /// Weldment template as an assembly (next to the default assembly template) when there is no
+    /// installed .pwd template; null if the .pwd exists or none is found.
     /// </summary>
     private static string? WeldmentAssemblyTemplate(SeContext context)
     {

@@ -1,20 +1,20 @@
 <#
 .SYNOPSIS
-    Genera los ensamblados de interop de Solid Edge a partir de las type libraries instaladas.
+    Generates the Solid Edge interop assemblies from the installed type libraries.
 
 .DESCRIPTION
-    Usa System.Runtime.InteropServices.TypeLibConverter (lo mismo que tlbimp), que solo existe en
-    .NET Framework; por eso se ejecuta con Windows PowerShell 5.1. Si se lanza desde PowerShell 7,
-    se relanza a sí mismo con powershell.exe.
+    Uses System.Runtime.InteropServices.TypeLibConverter (the same as tlbimp), which only exists in
+    .NET Framework; that is why it runs with Windows PowerShell 5.1. If it is launched from PowerShell 7,
+    it relaunches itself with powershell.exe.
 
-    Las SAFEARRAY se importan como System.Array y los [out, retval] de interfaces dispatch se
-    transforman en valores de retorno, igual que la interop de la comunidad Solid Edge.
+    SAFEARRAYs are imported as System.Array and the [out, retval] of dispatch interfaces are
+    turned into return values, as the community Solid Edge interop does.
 
 .PARAMETER ProgramDir
-    Carpeta Program de Solid Edge. Por defecto se obtiene del registro COM de SolidEdge.Application.
+    Solid Edge Program folder. By default it is read from the COM registry of SolidEdge.Application.
 
 .PARAMETER OutputDir
-    Carpeta de salida. Por defecto lib\interop del repositorio.
+    Output folder. By default lib\interop of the repository.
 #>
 [CmdletBinding()]
 param(
@@ -32,7 +32,7 @@ if ($PSVersionTable.PSEdition -ne 'Desktop') {
 }
 
 if (-not [Environment]::Is64BitProcess) {
-    throw 'Ejecuta el script en un proceso de 64 bits.'
+    throw 'Run the script in a 64-bit process.'
 }
 
 if (-not $ProgramDir) {
@@ -43,7 +43,7 @@ if (-not $ProgramDir) {
 }
 $ProgramDir = (Resolve-Path -LiteralPath $ProgramDir).Path
 
-# Bibliotecas que usa el servidor. Las referencias entre ellas se resuelven y convierten solas.
+# Libraries used by the server. References between them are resolved and converted automatically.
 $typeLibs = @('constant.tlb', 'framewrk.tlb', 'fwksupp.tlb', 'geometry.tlb', 'Part.tlb', 'assembly.tlb', 'draft.tlb')
 
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
@@ -143,12 +143,12 @@ public static class SeInteropGenerator
 $files = foreach ($name in $typeLibs) {
     $path = Join-Path $ProgramDir $name
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        throw "No existe la type library $path"
+        throw "The type library $path does not exist"
     }
     $path
 }
 
-# AssemblyBuilder.Save escribe en el directorio actual del dominio de aplicación.
+# AssemblyBuilder.Save writes to the current directory of the application domain.
 [Environment]::CurrentDirectory = $OutputDir
 $report = [SeInteropGenerator]::Run([string[]]$files, $OutputDir)
 
@@ -159,5 +159,5 @@ Set-Content -LiteralPath (Join-Path $OutputDir 'SOURCE.txt') -Encoding UTF8 -Val
     "Program: $ProgramDir"
 )
 
-"Interop generada en $OutputDir (Solid Edge $version):"
+"Interop generated in $OutputDir (Solid Edge $version):"
 $report

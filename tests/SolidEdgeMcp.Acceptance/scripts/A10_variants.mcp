@@ -1,10 +1,10 @@
-# A10: valores de las enumeraciones que A01–A09 no usan (orientaciones, direcciones, tipos y acciones restantes).
-# 1) Sesión, documentos (soldadura, activar, guardar), material, vista y variables
+# A10: enumeration values that A01–A09 do not use (orientations, directions, types and remaining actions).
+# 1) Session, documents (weldment, activate, save), material, view and variables
 se_session {"action":"disconnect"}
 @s0 = se_session {"action":"status"}
 ?~ s0.connected false
 se_session {"action":"connect"}
-# Solid Edge 2026 no trae plantilla .pwd: la soldadura se crea como conjunto con la plantilla «<unidades> weldment.asm»
+# Solid Edge 2026 has no .pwd template: the weldment is created as an assembly with the template "<units> weldment.asm"
 @w = se_documents {"action":"new","kind":"weldment"}
 ?= w.kind assembly
 se_documents {"action":"close","document":"{{w.handle}}","saveChanges":false}
@@ -18,7 +18,7 @@ se_documents {"action":"save_as","path":"{{work}}\\a10_doc.par","overwrite":true
 @p2 = se_documents {"action":"new","kind":"part"}
 @ac = se_documents {"action":"activate","document":"{{p1.handle}}"}
 ?~ ac.active true
-# Extrusión 'reverse' 10x10 x5 bajo el plano XY -> +500 y caja z -5..10; 'save' deja el documento sin cambios
+# Extrusion 'reverse' 10x10 x5 below the XY plane -> +500 and box z -5..10; 'save' leaves the document unchanged
 @k2 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[0,0,10,10]}
 se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
@@ -54,29 +54,29 @@ se_variables {"action":"add","name":"A10sc","value":3,"units":"scalar"}
 @ld = se_variables {"action":"list","kind":"dimension"}
 se_documents {"action":"close","document":"{{p2.handle}}","saveChanges":false}
 se_documents {"action":"close","document":"{{p1.handle}}","saveChanges":false}
-# 2) Operaciones: through_next, sentido de agujeros, revolución reverse/symmetric, vaciado exterior, desmoldeo reverse,
-#    solevado de corte y hélice a izquierdas. Caja 40x30x20 = 24000.
+# 2) Operations: through_next, hole direction, revolve reverse/symmetric, outside shell, reverse draft,
+#    cut loft and left-hand helix. Box 40x30x20 = 24000.
 @dA = se_documents {"action":"new","kind":"part"}
 @kA = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{kA.sketch}}","points":[0,0,40,30]}
 se_sketch {"action":"close","sketch":"{{kA.sketch}}"}
 se_extrude {"sketch":"{{kA.sketch}}","distance":20}
-# Vaciado r5 en (20,15) desde z=0 hasta la cara siguiente (z=20): -pi*25*20 = -1570.796
+# r5 cut at (20,15) from z=0 to the next face (z=20): -pi*25*20 = -1570.796
 @kB = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"circle","sketch":"{{kB.sketch}}","center":[20,15],"radius":5}
 se_sketch {"action":"close","sketch":"{{kB.sketch}}"}
 @tn = se_extrude {"sketch":"{{kB.sketch}}","operation":"cut","extent":"through_next"}
 ?= tn.volumeChange -1570.796 0.01
-# Agujero Ø6 en (32,15) desde el plano XY hacia +Z hasta la cara siguiente: -pi*9*20 = -565.487
+# Ø6 hole at (32,15) from the XY plane toward +Z to the next face: -pi*9*20 = -565.487
 @h1 = se_hole {"plane":"1","centers":[32,15,0],"diameter":6,"extent":"through_next","direction":"normal"}
 ?= h1.volumeChange -565.487 0.01
-# Agujero Ø4 en (8,15) desde un plano a z=20 hacia -Z ('reverse'): -pi*4*20 = -251.327
+# Ø4 hole at (8,15) from a plane at z=20 toward -Z ('reverse'): -pi*4*20 = -251.327
 @rp = se_ref_plane {"action":"offset","plane":"1","distance":20}
 @h2 = se_hole {"plane":"{{rp.handle}}","centers":[8,15,20],"diameter":4,"direction":"reverse"}
 ?= h2.volumeChange -251.327 0.01
 se_documents {"action":"close","document":"{{dA.handle}}","saveChanges":false}
-# Revolución de 90° del rectángulo x 5..15, z 0..10 alrededor del eje Z: pi*(15²-5²)/4*10 = 1570.796 en cada sentido;
-# 'reverse' llena el otro cuadrante (+1570.796) y 'symmetric' queda centrada en el plano XZ (y = ±15*sin45 = ±10.607)
+# 90° revolve of the rectangle x 5..15, z 0..10 around the Z axis: pi*(15²-5²)/4*10 = 1570.796 in each direction;
+# 'reverse' fills the other quadrant (+1570.796) and 'symmetric' is centered on the XZ plane (y = ±15*sin45 = ±10.607)
 @dR = se_documents {"action":"new","kind":"part"}
 @kR = se_sketch {"action":"create","plane":"3"}
 se_sketch {"action":"rectangle","sketch":"{{kR.sketch}}","points":[5,0,15,10]}
@@ -105,7 +105,7 @@ se_sketch {"action":"close","sketch":"{{kY.sketch}}"}
 ?= gY.boundingBox.max[1] 10.607 0.01
 ?= gY.boundingBox.min[1] -10.607 0.01
 se_documents {"action":"close","document":"{{dY.handle}}","saveChanges":false}
-# Vaciado exterior de 2 abierto por arriba en una caja 50x50x30: 54*54*32 - 50*50*30 = 18312
+# Outside shell of 2 open at the top on a 50x50x30 box: 54*54*32 - 50*50*30 = 18312
 @dS = se_documents {"action":"new","kind":"part"}
 @kS = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{kS.sketch}}","points":[0,0,50,50]}
@@ -115,7 +115,7 @@ se_extrude {"sketch":"{{kS.sketch}}","distance":30}
 @sh = se_shell {"thickness":2,"openFaces":["{{tS.items[0].handle}}"],"side":"outside"}
 ?= sh.volume 18312 0.5
 se_documents {"action":"close","document":"{{dS.handle}}","saveChanges":false}
-# Desmoldeo 5° 'reverse' de las cuatro caras de una caja 40x40x20: se ensancha hacia +Z, b = 40 + 2*20*tan5 -> 34881.28
+# 5° 'reverse' draft of the four faces of a 40x40x20 box: it widens toward +Z, b = 40 + 2*20*tan5 -> 34881.28
 @dD = se_documents {"action":"new","kind":"part"}
 @kD = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{kD.sketch}}","points":[0,0,40,40]}
@@ -128,8 +128,8 @@ se_extrude {"sketch":"{{kD.sketch}}","distance":20}
 @dr = se_draft {"plane":"1","faces":["{{f1.items[0].handle}}","{{f2.items[0].handle}}","{{f3.items[0].handle}}","{{f4.items[0].handle}}"],"angle":5,"direction":"reverse"}
 ?= dr.volume 34881.28 0.5
 se_documents {"action":"close","document":"{{dD.handle}}","saveChanges":false}
-# Solevado de corte cuadrado 20 -> círculo r7.5 a 50 mm (la mitad en planta del de A03: 56453.84/4 = 14113.46) en un bloque 60x60x60;
-#   Solid Edge da 14113.405 (4e-6 relativo)
+# Cut loft from a square 20 -> circle r7.5 at 50 mm (half the plan area of the A03 one: 56453.84/4 = 14113.46) in a 60x60x60 block;
+#   Solid Edge gives 14113.405 (4e-6 relative)
 @dL = se_documents {"action":"new","kind":"part"}
 @kL = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{kL.sketch}}","points":[0,0,60,60]}
@@ -145,7 +145,7 @@ se_sketch {"action":"close","sketch":"{{lb.sketch}}"}
 @lc = se_loft_sweep {"action":"loft","sketches":["{{la.sketch}}","{{lb.sketch}}"],"operation":"cut"}
 ?= lc.volumeChange -14113.46 0.1
 se_documents {"action":"close","document":"{{dL.handle}}","saveChanges":false}
-# Hélice a izquierdas: mismo volumen que la de A03 (3948.50); Body.Volume de los barridos helicoidales varía ~6e-5 (3948.73)
+# Left-hand helix: same volume as the A03 one (3948.50); Body.Volume of the helical sweeps varies ~6e-5 (3948.73)
 @dX = se_documents {"action":"new","kind":"part"}
 @h = se_sketch {"action":"create","plane":"3"}
 se_sketch {"action":"circle","sketch":"{{h.sketch}}","center":[10,3],"radius":2}
@@ -155,8 +155,8 @@ se_sketch {"action":"close","sketch":"{{h.sketch}}"}
 @hx = se_loft_sweep {"action":"helix","sketches":["{{h.sketch}}"],"axis":"{{ha.axis}}","pitch":8,"turns":5,"hand":"left"}
 ?= hx.volume 3948.50 0.5
 se_documents {"action":"close","document":"{{dX.handle}}","saveChanges":false}
-# 3) Bocetos: arco, borrar, relaciones colineal y conectar, cota de radio
-#    Contorno de 4 líneas sueltas con hueco en (0,0)-(1,0); 'connect' lo cierra y un círculo con radio acotado a 4 -> 8000 - pi*16*10
+# 3) Sketches: arc, delete, collinear and connect relations, radius dimension
+#    Profile of 4 loose lines with a gap at (0,0)-(1,0); 'connect' closes it, and a circle with radius dimensioned to 4 -> 8000 - pi*16*10
 @dK = se_documents {"action":"new","kind":"part"}
 @kK = se_sketch {"action":"create","plane":"1"}
 @L1 = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[1,0,40,0]}
@@ -170,14 +170,14 @@ se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"c
 se_sketch {"action":"close","sketch":"{{kK.sketch}}"}
 @eK = se_extrude {"sketch":"{{kK.sketch}}","distance":10}
 ?= eK.volume 7497.345 0.01
-#    Semidisco: arco de (10,0) a (-10,0) en sentido antihorario y su diámetro -> pi*100/2*10 = 1570.796 (unido a la placa, sin solape: y < 0)
+#    Half disc: arc from (10,0) to (-10,0) counter-clockwise and its diameter -> pi*100/2*10 = 1570.796 (joined to the plate, no overlap: y < 0)
 @kC = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"arc","sketch":"{{kC.sketch}}","center":[20,0],"start":[10,0],"end":[30,0]}
 se_sketch {"action":"line","sketch":"{{kC.sketch}}","points":[10,0,30,0]}
 se_sketch {"action":"close","sketch":"{{kC.sketch}}"}
 @eC = se_extrude {"sketch":"{{kC.sketch}}","distance":10}
 ?= eC.volumeChange 1570.796 0.01
-#    Colineal entre dos líneas de un boceto auxiliar, que después se borra
+#    Collinear between two lines of an auxiliary sketch, which is deleted afterwards
 @kZ = se_sketch {"action":"create","plane":"1"}
 @z1 = se_sketch {"action":"line","sketch":"{{kZ.sketch}}","points":[0,40,20,40]}
 @z2 = se_sketch {"action":"line","sketch":"{{kZ.sketch}}","points":[30,43,50,43]}
@@ -186,8 +186,8 @@ se_sketch_constraint {"action":"relation","sketch":"{{kZ.sketch}}","relation":"c
 se_sketch {"action":"delete","sketch":"{{kZ.sketch}}"}
 @ft = se_feature_tree {}
 se_documents {"action":"close","document":"{{dK.handle}}","saveChanges":false}
-# 4) Planos: tamaños de hoja, las 12 orientaciones de vista base y las direcciones de proyección que faltan
-#    Pieza a10_doc.par: 40x30x10 más 10x10x5 bajo z=0 -> caja 40 x 30 x 15. Tamaño de vista a 1:1 = modelo + 12.7 (A07).
+# 4) Drawings: sheet sizes, the 12 base view orientations and the missing projection directions
+#    Part a10_doc.par: 40x30x10 plus 10x10x5 below z=0 -> box 40 x 30 x 15. View size at 1:1 = model + 12.7 (A07).
 @dd = se_documents {"action":"new","kind":"draft"}
 @sa4 = se_drawing {"action":"add_sheet","name":"A4","paper":"a4"}
 @sa1 = se_drawing {"action":"add_sheet","name":"A1","paper":"a1"}
@@ -225,8 +225,8 @@ se_drawing {"action":"projected_view","view":"{{vf.view.handle}}","direction":"d
 @vs = se_drawing {"action":"views"}
 ?~ vs.views[17].handle drawing_view
 se_documents {"action":"close","document":"{{dd.handle}}","saveChanges":false}
-# 5) Chapa (t = 1, r = 1)
-#    Pestaña 'reverse' (espesor hacia -Z) y 'symmetric' no admitido en pestañas; rotura de esquina redonda r5 (-(25 - 25pi/4)*t = -5.365) y en chaflán 5 (-12.5)
+# 5) Sheet metal (t = 1, r = 1)
+#    Tab 'reverse' (thickness toward -Z) and 'symmetric' not accepted on tabs; round corner break r5 (-(25 - 25pi/4)*t = -5.365) and chamfer 5 (-12.5)
 @m1 = se_documents {"action":"new","kind":"sheet_metal"}
 @q1 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{q1.sketch}}","points":[0,0,100,60]}
@@ -243,8 +243,8 @@ se_sketch {"action":"close","sketch":"{{q1.sketch}}"}
 @bc2 = se_sheetmetal {"action":"break_corner","edges":["{{ve2.items[?start=[100,0,-1]].handle}}"],"cornerType":"chamfer","size":5}
 ?= bc2.volumeChange -12.5 0.01
 se_documents {"action":"close","document":"{{m1.handle}}","saveChanges":false}
-#    Bridas de 20 'outside' y 'bend_outside' en las dos aristas x de la cara superior de una pestaña 100x60.
-#    Con 'inside' (A05) cada brida suma 1700 + 75pi = 1935.619; cada paso hacia fuera la desplaza t = 1 mm: +100 cada vez
+#    Flanges of 20 'outside' and 'bend_outside' on the two x edges of the top face of a 100x60 tab.
+#    With 'inside' (A05) each flange adds 1700 + 75pi = 1935.619; each step outward shifts it t = 1 mm: +100 each time
 @m2 = se_documents {"action":"new","kind":"sheet_metal"}
 @q2 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{q2.sketch}}","points":[0,0,100,60]}
@@ -260,10 +260,10 @@ se_sheetmetal {"action":"tab","sketch":"{{q2.sketch}}"}
 ?= fb.volumeChange 2135.619 0.01
 @gm2 = se_geometry {"action":"summary"}
 se_documents {"action":"close","document":"{{m2.handle}}","saveChanges":false}
-#    Dobladillos abierto, en S y bucle cerrado, cada uno en su chapa (pestaña + brida de 20 en y=0, borde superior en z=21).
-#    Abierto: pliegue de 180° con r = 1 (pi*(r + t/2)*t*w = 471.239) + tramo recto de 8 - t = 7 -> +1171.239.
-#    En S: dos pliegues de 180° (942.478) + tramos rectos de 7 y 6 -> +2242.478.
-#    Bucle cerrado: valor de referencia de Solid Edge (como el cerrado de A05, +957.508), sin fórmula sencilla.
+#    Open, S-shaped and closed-loop hems, each on its own sheet (tab + 20 flange at y=0, top edge at z=21).
+#    Open: 180° bend with r = 1 (pi*(r + t/2)*t*w = 471.239) + straight segment of 8 - t = 7 -> +1171.239.
+#    S-shaped: two 180° bends (942.478) + straight segments of 7 and 6 -> +2242.478.
+#    Closed loop: Solid Edge reference value (like the closed one in A05, +957.508), no simple formula.
 @m3 = se_documents {"action":"new","kind":"sheet_metal"}
 @q3 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{q3.sketch}}","points":[0,0,100,60]}
@@ -300,8 +300,8 @@ se_sheetmetal {"action":"flange","edges":["{{e5.items[0].handle}}"],"length":20}
 @hm3 = se_sheetmetal {"action":"hem","edges":["{{ed5.items[?start=[0,0,21]].handle}}"],"length":8,"hemType":"closed_loop"}
 ?= hm3.volumeChange 1208.472 0.01
 se_documents {"action":"close","document":"{{m5.handle}}","saveChanges":false}
-#    Brida de contorno con el material a la izquierda (misma polilínea que A05: a la derecha 10671.239; a la izquierda los
-#    cuatro tramos rectos quedan por fuera, +4*t*t*100 = +400 -> 11071.239)
+#    Contour flange with the material on the left (same polyline as A05: on the right 10671.239; on the left the
+#    four straight segments end up outside, +4*t*t*100 = +400 -> 11071.239)
 @m6 = se_documents {"action":"new","kind":"sheet_metal"}
 @q6 = se_sketch {"action":"create","plane":"2"}
 se_sketch {"action":"polyline","sketch":"{{q6.sketch}}","points":[0,0,0,30,50,30,50,0],"closed":false}
@@ -309,9 +309,9 @@ se_sketch {"action":"close","sketch":"{{q6.sketch}}","open":true}
 @cfl = se_sheetmetal {"action":"contour_flange","sketch":"{{q6.sketch}}","width":100,"materialSide":"left"}
 ?= cfl.volume 11071.239 0.01
 se_documents {"action":"close","document":"{{m6.handle}}","saveChanges":false}
-#    Formas en una pestaña 100x60: recorte normal 20x10 (por espesor, plano medio y holgura: -200 cada uno en zona plana),
-#    embutido 'normal' y cordón en V (valores de referencia de Solid Edge: formas 3D con los radios y la conicidad por
-#    defecto, sin fórmula sencilla), desvío 'outside', plegados 'outside' y 'symmetric' con el lado móvil a la izquierda
+#    Shapes on a 100x60 tab: normal cutout 20x10 (through thickness, mid plane and clearance: -200 each on the flat area),
+#    'normal' dimple and V bead (Solid Edge reference values: 3D shapes with the radii and the taper by
+#    default, no simple formula), jog 'outside', bends 'outside' and 'symmetric' with the moving side on the left
 @m7 = se_documents {"action":"new","kind":"sheet_metal"}
 @q7 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{q7.sketch}}","points":[0,0,100,60]}
@@ -351,9 +351,9 @@ se_sheetmetal {"action":"tab","sketch":"{{q8.sketch}}"}
 @j1 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"line","sketch":"{{j1.sketch}}","points":[0,30,100,30]}
 se_sketch {"action":"close","sketch":"{{j1.sketch}}","open":true}
-#    Desvío de 5 por y=30: pared 100*t*(h - 2r) = 300 + dos pliegues 2*(pi/2)*(r + t/2)*t*100 = 471.239 - lo que ocupan en
-#    planta 2*(r + t)*t*100 = 400 -> +371.239. El lado del material sitúa la pared en y 30..31
-#    (inside), 29..30 (outside) o 31..32 (bend_outside); movingSide elige qué mitad sube (cara y=0 o y=60 a z 5..6)
+#    Jog of 5 at y=30: wall 100*t*(h - 2r) = 300 + two bends 2*(pi/2)*(r + t/2)*t*100 = 471.239 - what they take up in
+#    plan 2*(r + t)*t*100 = 400 -> +371.239. The side of the material places the wall at y 30..31
+#    (inside), 29..30 (outside) or 31..32 (bend_outside); movingSide chooses which half rises (face y=0 or y=60 at z 5..6)
 @jg = se_sheetmetal_form {"action":"jog","sketch":"{{j1.sketch}}","height":5,"side":"outside"}
 ?= jg.volumeChange 371.239 0.01
 @jw = se_geometry {"action":"faces","direction":[0,-1,0]}
@@ -380,8 +380,8 @@ se_sheetmetal {"action":"tab","sketch":"{{qA.sketch}}"}
 @b1 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"line","sketch":"{{b1.sketch}}","points":[70,0,70,60]}
 se_sketch {"action":"close","sketch":"{{b1.sketch}}","open":true}
-#    Plegados de 90° en x=70 ('outside') y x=30 ('symmetric', lado móvil a la izquierda): cada uno suma
-#    (pi/2)*t*t*60*(0.5 - k) con k = 0.33 -> 16.022, sea cual sea la posición
+#    90° bends at x=70 ('outside') and x=30 ('symmetric', moving side on the left): each one adds
+#    (pi/2)*t*t*60*(0.5 - k) with k = 0.33 -> 16.022, whatever the position
 @bo = se_sheetmetal_form {"action":"bend","sketch":"{{b1.sketch}}","angle":90,"position":"outside"}
 ?= bo.volumeChange 16.022 0.01
 @b2 = se_sketch {"action":"create","plane":"1"}

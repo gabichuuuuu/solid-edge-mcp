@@ -1,5 +1,5 @@
-# A04: bocetos (se_sketch) y restricciones (se_sketch_constraint); receta validada en t123.out. Cada pieza se cierra sin guardar.
-# A: elipse a=20 b=10 a 30°, h=10 -> V = pi*a*b*h = 6283.185 (Body.Volume lee ~0,4 % alto: tol 0,5 % = 31.4). G: proyectar su arista superior en un boceto sobre la cara z=10 (la elipse proyectada conserva el giro de 30°) y extruir 5 -> +pi*20*10*5 = 3141.593; total 9424.778 (tol 0,5 % = 47.1)
+# A04: sketches (se_sketch) and constraints (se_sketch_constraint); recipe validated in t123.out. Each part is closed without saving.
+# A: ellipse a=20 b=10 at 30°, h=10 -> V = pi*a*b*h = 6283.185 (Body.Volume reads ~0.4 % high: tol 0.5 % = 31.4). G: project its top edge onto a sketch on the face z=10 (the projected ellipse keeps the 30° rotation) and extrude 5 -> +pi*20*10*5 = 3141.593; total 9424.778 (tol 0.5 % = 47.1)
 @dA = se_documents {"action":"new","kind":"part"}
 @kA = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"ellipse","sketch":"{{kA.sketch}}","center":[0,0],"radius":20,"minorRadius":10,"angle":30}
@@ -15,7 +15,7 @@ se_sketch {"action":"close","sketch":"{{kG.sketch}}"}
 @xG = se_extrude {"sketch":"{{kG.sketch}}","distance":5}
 ?= xG.volume 9424.778 47.1
 se_documents {"action":"close","document":"{{dA.handle}}","saveChanges":false}
-# B: rectángulo 40x20, redondeo r5 en la esquina (40,0): A = 800 - (r² - pi*r²/4) = 794.635 -> V = 7946.350. Error: redondeo de las paralelas [1] (x=40) y [3] (x=0)
+# B: 40x20 rectangle, r5 fillet at the corner (40,0): A = 800 - (r² - pi*r²/4) = 794.635 -> V = 7946.350. Error: fillet of the parallel lines [1] (x=40) and [3] (x=0)
 @dB = se_documents {"action":"new","kind":"part"}
 @kB = se_sketch {"action":"create","plane":"1"}
 @rB = se_sketch {"action":"rectangle","sketch":"{{kB.sketch}}","points":[0,0,40,20]}
@@ -25,7 +25,7 @@ se_sketch {"action":"close","sketch":"{{kB.sketch}}"}
 @xB = se_extrude {"sketch":"{{kB.sketch}}","distance":10}
 ?= xB.volume 7946.350 0.01
 se_documents {"action":"close","document":"{{dB.handle}}","saveChanges":false}
-# C: rectángulo 40x20; distancia [0]-[2] = 30 y longitud de [0] = 50 -> 50x30x10 = 15000; variable de la distancia = 25 -> 50x25x10 = 12500 (cambio -2500). Error: cota de longitud sobre una cota. H: el mismo rectángulo en el plano 3 (normal (0,-1,0)), sin operación: distancia 30 -> [2] queda en y=30 (t123.out)
+# C: 40x20 rectangle; distance [0]-[2] = 30 and length of [0] = 50 -> 50x30x10 = 15000; variable of the distance = 25 -> 50x25x10 = 12500 (change -2500). Error: length dimension on a dimension. H: the same rectangle on plane 3 (normal (0,-1,0)), without an operation: distance 30 -> [2] stays at y=30 (t123.out)
 @dC = se_documents {"action":"new","kind":"part"}
 @kC = se_sketch {"action":"create","plane":"1"}
 @rC = se_sketch {"action":"rectangle","sketch":"{{kC.sketch}}","points":[0,0,40,20]}
@@ -42,7 +42,7 @@ se_sketch {"action":"close","sketch":"{{kC.sketch}}"}
 @vH = se_sketch_constraint {"action":"dimension","sketch":"{{kH.sketch}}","dimension":"distance","elements":["{{rH.elements[0]}}","{{rH.elements[2]}}"],"value":30}
 ?= vH.elements[1].start[1] 30
 se_documents {"action":"close","document":"{{dC.handle}}","saveChanges":false}
-# E: triángulo (0,0)(40,0)(0,30), [0] horizontal y fija, [2] vertical; ángulo [0]-[1] = 45 (medido antes atan(30/40) = 36.8699) -> cateto vertical 40*tan45 = 40; V = 40*40/2*10 = 8000. Error: ángulo de 200 (> 180)
+# E: triangle (0,0)(40,0)(0,30), [0] horizontal and fixed, [2] vertical; angle [0]-[1] = 45 (previously measured atan(30/40) = 36.8699) -> vertical leg 40*tan45 = 40; V = 40*40/2*10 = 8000. Error: angle of 200 (> 180)
 @dE = se_documents {"action":"new","kind":"part"}
 @kE = se_sketch {"action":"create","plane":"1"}
 @pE = se_sketch {"action":"polyline","sketch":"{{kE.sketch}}","points":[0,0,40,0,0,30]}
@@ -56,7 +56,7 @@ se_sketch {"action":"close","sketch":"{{kE.sketch}}"}
 @xE = se_extrude {"sketch":"{{kE.sketch}}","distance":10}
 ?= xE.volume 8000
 se_documents {"action":"close","document":"{{dE.handle}}","saveChanges":false}
-# K: boceto sin operación. Tangente: la horizontal (y=7) baja a y=r=5; simétrico respecto a x=60: (55,3) -> (65,3); diámetro 30 en un círculo r10 -> r=15; lista: 8 relaciones añadidas - 1 borrada = 7. Errores: paralela con un solo elemento; borrar algo que no es relación.
+# K: sketch without an operation. Tangent: the horizontal line (y=7) moves down to y=r=5; symmetric about x=60: (55,3) -> (65,3); diameter 30 on a circle r10 -> r=15; list: 8 relations added - 1 deleted = 7. Errors: parallel with a single element; deleting something that is not a relation.
 @dK = se_documents {"action":"new","kind":"part"}
 @kK = se_sketch {"action":"create","plane":"1"}
 @c1 = se_sketch {"action":"circle","sketch":"{{kK.sketch}}","center":[0,0],"radius":5}
@@ -91,7 +91,7 @@ se_sketch_constraint {"action":"delete","constraint":"{{eqK.relation}}"}
 @iK = se_sketch {"action":"info","sketch":"{{kK.sketch}}"}
 ?~ iK.items spline
 se_documents {"action":"close","document":"{{dK.handle}}","saveChanges":false}
-# L: lista de un rectángulo 80x60: 4 uniones (la primera, final de [0] (80,0) con inicio de [1]) + 2 horizontales + 2 verticales; info con las 4 líneas. Error: horizontal repetida sobre [0]
+# L: list of an 80x60 rectangle: 4 joins (the first one, end of [0] (80,0) with start of [1]) + 2 horizontals + 2 verticals; info with the 4 lines. Error: repeated horizontal on [0]
 @dL = se_documents {"action":"new","kind":"part"}
 @kL = se_sketch {"action":"create","plane":"1"}
 @rL = se_sketch {"action":"rectangle","sketch":"{{kL.sketch}}","points":[0,0,80,60]}

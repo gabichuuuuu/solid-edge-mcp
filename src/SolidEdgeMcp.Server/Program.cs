@@ -75,7 +75,7 @@ public static class Program
                 options.ServerInstructions = ServerInstructions;
             })
             .WithStdioServerTransport()
-            // IEnumerable<Type> explícito: con Type[] se elegiría la sobrecarga genérica WithTools<T>(instancia).
+            // Explicit IEnumerable<Type>: with Type[] the generic overload WithTools<T>(instance) would be chosen.
             .WithTools((IEnumerable<Type>)ToolTypes, ToolJson)
             .WithRequestFilters(filters => filters.AddCallToolFilter(ArgumentValidator.Filter));
     }
@@ -99,15 +99,15 @@ public static class Program
         typeof(ComTools),
     ];
 
-    /// <summary>Opciones JSON de los argumentos: enumeraciones como cadenas en snake_case.</summary>
+    /// <summary>JSON options for the arguments: enumerations as snake_case strings.</summary>
     public static readonly JsonSerializerOptions ToolJson = CreateToolJson();
 
     private static JsonSerializerOptions CreateToolJson()
     {
         var options = new JsonSerializerOptions(McpJsonUtilities.DefaultOptions);
 
-        // Gana el primer convertidor que admite el tipo y las opciones por defecto ya traen uno de
-        // enumeraciones sin política de nombres: el nuestro va delante (si no, "save_as" no se lee).
+        // The first converter that supports the type wins, and the default options already include one for
+        // enumerations without a naming policy, so ours goes first (otherwise "save_as" is not read).
         options.Converters.Insert(0, new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         return options;
     }

@@ -6,8 +6,8 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Materiales de las bibliotecas de Solid Edge (MatTable). El API da los valores en SI; se devuelven con la unidad en
-/// el nombre. GetMaterialList y GetMatLibFileName dan E_NOTIMPL en Solid Edge 2026: se recorre cada biblioteca.
+/// Materials from the Solid Edge libraries (MatTable). The API gives the values in SI; they are returned with the unit in
+/// the name. GetMaterialList and GetMatLibFileName give E_NOTIMPL in Solid Edge 2026: each library is walked instead.
 /// </summary>
 public static class MaterialService
 {
@@ -59,13 +59,13 @@ public static class MaterialService
         return Describe(context, table, document, name);
     }
 
-    /// <summary>Aplica un material de biblioteca al documento y comprueba que quedó asignado.</summary>
+    /// <summary>Applies a library material to the document and checks that it was assigned.</summary>
     public static object Apply(SeContext context, string? documentHandle, string name, string? library)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         MatTable table = Table(context);
         string lib = FindLibrary(table, name, library);
-        // El material cambia densidad y aspecto, no la topología: las caras y aristas siguen válidas (comprobado).
+        // The material changes density and appearance, not the topology: faces and edges stay valid (verified).
         table.ApplyMaterialToDoc(document, name, lib);
         table.GetCurrentMaterialName(document, out string applied);
         if (!string.Equals(applied, name, StringComparison.Ordinal))
@@ -103,7 +103,7 @@ public static class MaterialService
         };
     }
 
-    /// <summary>Propiedades por IDispatch: con la enumeración tipada de la interop, Solid Edge da DISP_E_BADCALLEE.</summary>
+    /// <summary>Properties through IDispatch: with the typed enumeration of the interop, Solid Edge gives DISP_E_BADCALLEE.</summary>
     private static Dictionary<string, object?> Properties(Func<MatTablePropIndex, object?> read)
     {
         var values = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -139,7 +139,7 @@ public static class MaterialService
         LibraryNames(table).FirstOrDefault(l => string.Equals(l, library, StringComparison.OrdinalIgnoreCase))
         ?? throw ToolException.NotFound($"There is no material library '{library}'.", "Use action 'libraries' to list them.");
 
-    /// <summary>Biblioteca indicada (que debe contener el material) o la primera que lo contiene.</summary>
+    /// <summary>Given library (which must contain the material) or the first one that contains it.</summary>
     private static string FindLibrary(MatTable table, string name, string? library)
     {
         foreach (string lib in library is null ? LibraryNames(table) : [RequireLibrary(table, library)])

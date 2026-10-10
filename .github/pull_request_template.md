@@ -1,29 +1,29 @@
-## Qué cambia
+## What changes
 
-<!-- Resumen y motivo. Enlaza el issue si lo hay. -->
+<!-- Summary and reason. Link the issue if there is one. -->
 
-## Validación
+## Validation
 
-- [ ] `dotnet build SolidEdgeMcp.slnx` sin avisos
-- [ ] Tests de `SolidEdgeMcp.Core.Tests` y `SolidEdgeMcp.Server.Tests` en verde
-- [ ] Guiones de aceptación afectados (`run.ps1 A0x`) pasan contra Solid Edge real, con
-      documentos temporales cerrados sin guardar
-- [ ] Resultado medible comprobado (volumen, caja envolvente, número de caras, archivo exportado)
+- [ ] `dotnet build SolidEdgeMcp.slnx` with no warnings
+- [ ] Tests of `SolidEdgeMcp.Core.Tests` and `SolidEdgeMcp.Server.Tests` pass
+- [ ] Affected acceptance scripts (`run.ps1 A0x`) pass against real Solid Edge, with temporary
+      documents closed without saving
+- [ ] Measurable result checked (volume, bounding box, face count, exported file)
 
-<!-- Indica qué guiones ejecutaste y con qué versión de Solid Edge. -->
+<!-- State which scripts you ran and with which Solid Edge version. -->
 
-## Herramientas nuevas o cambiadas
+## New or changed tools
 
-- [ ] Registradas en `Program.ToolTypes`, con casos de argumentos en `ToolRegistrationTests`
-- [ ] Firmas y constantes tomadas de `reference/api` o de `se_com_describe` / `se_com_constants`
-- [ ] Rutas por `PathGuard`; cada escritura se verifica y se deshace si falla
+- [ ] Registered in `Program.ToolTypes`, with argument cases in `ToolRegistrationTests`
+- [ ] Signatures and constants taken from `reference/api` or from `se_com_describe` / `se_com_constants`
+- [ ] Paths go through `PathGuard`; each write is verified and undone if it fails
 
-## Documentación
+## Documentation
 
-- [ ] `README.md`, `docs/COBERTURA.md` y `ESTADO.md` actualizados
-- [ ] `CHANGELOG.md` actualizado
+- [ ] `README.md` and `docs/COBERTURA.md` updated
+- [ ] `CHANGELOG.md` updated
 
-## Repositorio
+## Repository
 
-- [ ] Sin interop, volcados del API, `publish/`, `policy.json`, logs ni secretos
-- [ ] Commits convencionales en inglés
+- [ ] No interop, API dumps, `publish/`, `policy.json`, logs or secrets
+- [ ] Conventional commits in English

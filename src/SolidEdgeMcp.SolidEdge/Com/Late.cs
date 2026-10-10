@@ -5,8 +5,8 @@ using System.Runtime.InteropServices;
 namespace SolidEdgeMcp.SolidEdge.Com;
 
 /// <summary>
-/// Acceso por nombre (IDispatch) a miembros comunes de objetos heterogéneos: operaciones de
-/// distintos tipos comparten Name, Status o Suppress pero no una interfaz.
+/// Access by name (IDispatch) to members common to heterogeneous objects: operations of
+/// different types share Name, Status or Suppress but not an interface.
 /// </summary>
 public static class Late
 {
@@ -20,9 +20,9 @@ public static class Late
         target.GetType().InvokeMember(method, BindingFlags.InvokeMethod, null, target, args, CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// Llamada por IDispatch con parámetros por referencia (ref/out) en <paramref name="byRef"/>; devuelve los
-    /// argumentos tras la llamada. Sirve cuando la llamada con tipos de la interop falla (p. ej. DISP_E_BADCALLEE
-    /// con parámetros de enumeración en MatTable).
+    /// Call through IDispatch with by-reference (ref/out) parameters in <paramref name="byRef"/>; returns the
+    /// arguments after the call. It is useful when the call through the interop types fails (e.g. DISP_E_BADCALLEE
+    /// with enumeration parameters in MatTable).
     /// </summary>
     public static object?[] CallByRef(object target, string method, object?[] args, params int[] byRef)
     {
@@ -36,7 +36,7 @@ public static class Late
         return args;
     }
 
-    /// <summary>Lee una propiedad; devuelve <c>null</c> si el objeto no la tiene o falla.</summary>
+    /// <summary>Reads a property; returns <c>null</c> if the object does not have it or it fails.</summary>
     public static object? TryGet(object target, string property, params object?[] index)
     {
         try
@@ -55,7 +55,7 @@ public static class Late
         ComErrors.Unwrap(ex) is COMException or MissingMemberException or NotSupportedException or InvalidCastException
             or ArgumentException;
 
-    /// <summary>Elementos de una colección COM (Count + Item, base 1).</summary>
+    /// <summary>Items of a COM collection (Count + Item, 1-based).</summary>
     public static IEnumerable<object> Items(object collection, int max = int.MaxValue)
     {
         int count = Convert.ToInt32(Get(collection, "Count"), CultureInfo.InvariantCulture);

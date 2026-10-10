@@ -1,8 +1,8 @@
 namespace SolidEdgeMcp.SolidEdge.Com;
 
 /// <summary>
-/// Reintenta las llamadas que Solid Edge rechaza mientras está ocupado
-/// (<c>SERVERCALL_RETRYLATER</c>) en lugar de fallar con <c>RPC_E_CALL_REJECTED</c>.
+/// Retries the calls that Solid Edge rejects while it is busy
+/// (<c>SERVERCALL_RETRYLATER</c>) instead of failing with <c>RPC_E_CALL_REJECTED</c>.
 /// </summary>
 internal sealed class OleMessageFilter(int retryWindowMilliseconds) : IOleMessageFilter
 {

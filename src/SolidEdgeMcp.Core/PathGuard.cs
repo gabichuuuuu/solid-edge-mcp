@@ -7,10 +7,10 @@ using Microsoft.Win32.SafeHandles;
 namespace SolidEdgeMcp.Core;
 
 /// <summary>
-/// Única puerta de las rutas de archivo: solo se permiten rutas dentro de las carpetas permitidas o
-/// de la carpeta de trabajo. Resuelve <c>..</c>, enlaces, junctions, nombres 8.3, unidades de red y
-/// mayúsculas antes de comparar. Riesgo residual documentado: entre la comprobación y el uso, otro
-/// proceso podría cambiar un enlace dentro de una carpeta permitida.
+/// Single gate for file paths: only paths inside the allowed folders or
+/// the work folder are allowed. It resolves <c>..</c>, links, junctions, 8.3 names, network drives and
+/// letter casing before comparing. Documented residual risk: between the check and the use, another
+/// process could change a link inside an allowed folder.
 /// </summary>
 public sealed partial class PathGuard
 {
@@ -54,19 +54,19 @@ public sealed partial class PathGuard
         }
     }
 
-    /// <summary>Carpeta de trabajo resuelta; siempre permitida.</summary>
+    /// <summary>Resolved work folder; always allowed.</summary>
     public string WorkFolder { get; }
 
-    /// <summary>Carpetas configuradas que existen, ya resueltas.</summary>
+    /// <summary>Configured folders that exist, already resolved.</summary>
     public List<string> ConfiguredRoots { get; } = [];
 
-    /// <summary>Todas las carpetas permitidas (trabajo + configuradas).</summary>
+    /// <summary>All allowed folders (work + configured).</summary>
     public IReadOnlyList<string> AllowedRoots => _roots;
 
     public List<string> Warnings { get; } = [];
 
     /// <summary>
-    /// Devuelve la ruta canónica si está permitida; si no, lanza <see cref="ToolException"/>.
+    /// Returns the canonical path if it is allowed; otherwise throws <see cref="ToolException"/>.
     /// </summary>
     public string Check(string? path, string argumentName = "path")
     {
@@ -101,7 +101,7 @@ public sealed partial class PathGuard
         }
     }
 
-    /// <summary>Comprueba si un texto parece una ruta absoluta de Windows (para filtrar argumentos genéricos).</summary>
+    /// <summary>Checks whether a text looks like an absolute Windows path (to filter generic arguments).</summary>
     public static bool LooksLikePath(string? value) =>
         !string.IsNullOrWhiteSpace(value)
         && (DriveLike().IsMatch(value) || value.StartsWith(@"\\", StringComparison.Ordinal) || value.StartsWith("//", StringComparison.Ordinal));
@@ -122,7 +122,7 @@ public sealed partial class PathGuard
         return false;
     }
 
-    /// <summary>Validación sintáctica y normalización (sin tocar el disco).</summary>
+    /// <summary>Syntactic validation and normalization (without touching the disk).</summary>
     internal static string ValidateSyntax(string path, string argumentName)
     {
         string p = path.Replace('/', '\\');
@@ -179,7 +179,7 @@ public sealed partial class PathGuard
     private static ToolException Reject(string argumentName, string path, string reason) =>
         new("invalid_path", $"'{argumentName}' is not an accepted path ('{path}'): {reason}.");
 
-    /// <summary>Resuelve el prefijo existente más largo y le añade el resto sin resolver.</summary>
+    /// <summary>Resolves the longest existing prefix and appends the rest unresolved.</summary>
     private static string ResolveLongestExistingPrefix(string full)
     {
         string current = TrimSeparator(full);
@@ -189,7 +189,7 @@ public sealed partial class PathGuard
             string? parent = Path.GetDirectoryName(current);
             if (parent is null)
             {
-                // Ni la raíz existe (unidad o recurso de red inexistente): se compara sin resolver.
+                // Not even the root exists (missing drive or network resource): compare without resolving.
                 return full;
             }
 
@@ -206,14 +206,14 @@ public sealed partial class PathGuard
         return resolved;
     }
 
-    /// <summary>Quita el separador final salvo en la raíz de una unidad (<c>C:\</c>).</summary>
+    /// <summary>Removes the trailing separator except at the root of a drive (<c>C:\</c>).</summary>
     private static string TrimSeparator(string path)
     {
         string trimmed = path.TrimEnd('\\');
         return trimmed.Length == 2 && trimmed[1] == ':' ? trimmed + "\\" : trimmed;
     }
 
-    /// <summary>Ruta final de un archivo o carpeta existente según el sistema de archivos.</summary>
+    /// <summary>Final path of an existing file or folder, as reported by the file system.</summary>
     internal static string ResolveExisting(string path)
     {
         using SafeFileHandle handle = CreateFileW(

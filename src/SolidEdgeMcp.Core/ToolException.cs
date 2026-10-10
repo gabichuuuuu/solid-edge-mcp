@@ -1,8 +1,8 @@
 namespace SolidEdgeMcp.Core;
 
 /// <summary>
-/// Error accionable que se devuelve al cliente MCP. El mensaje no debe contener datos sensibles
-/// ni trazas: el servidor lo transmite tal cual al modelo.
+/// Actionable error returned to the MCP client. The message must not contain sensitive data
+/// or stack traces: the server passes it on to the model as is.
 /// </summary>
 public sealed class ToolException : Exception
 {
@@ -13,13 +13,13 @@ public sealed class ToolException : Exception
         NextStep = nextStep;
     }
 
-    /// <summary>Código estable en snake_case (p. ej. <c>path_not_allowed</c>).</summary>
+    /// <summary>Stable code in snake_case (e.g. <c>path_not_allowed</c>).</summary>
     public string Code { get; }
 
-    /// <summary>Qué puede hacer el cliente para resolverlo.</summary>
+    /// <summary>What the client can do to resolve it.</summary>
     public string? NextStep { get; }
 
-    /// <summary>Texto completo para el cliente: código, causa y siguiente paso.</summary>
+    /// <summary>Full text for the client: code, cause and next step.</summary>
     public string ToClientMessage() =>
         NextStep is null ? $"[{Code}] {Message}" : $"[{Code}] {Message} Next step: {NextStep}";
 

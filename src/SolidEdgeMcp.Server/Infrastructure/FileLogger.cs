@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace SolidEdgeMcp.Server.Infrastructure;
 
 /// <summary>
-/// Log diario en UTF-8 en <c>%LocalAppData%\SolidEdgeMcp\logs</c>. stdout queda reservado al
-/// protocolo MCP; la consola de logs es stderr.
+/// Daily log in UTF-8 under <c>%LocalAppData%\SolidEdgeMcp\logs</c>. stdout is reserved for the
+/// MCP protocol; the log console is stderr.
 /// </summary>
 public sealed class FileLoggerProvider : ILoggerProvider
 {
@@ -50,7 +50,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
             }
             catch (IOException)
             {
-                // Un fallo del log no debe romper una operación.
+                // A logging failure must not break an operation.
             }
         }
     }

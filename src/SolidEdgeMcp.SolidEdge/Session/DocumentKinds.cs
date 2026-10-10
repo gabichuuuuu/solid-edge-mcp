@@ -3,7 +3,7 @@ using SolidEdgeMcp.Core;
 
 namespace SolidEdgeMcp.SolidEdge.Session;
 
-/// <summary>Tipos de documento: nombres estables para el cliente, ProgID y extensión.</summary>
+/// <summary>Document types: stable names for the client, ProgID and extension.</summary>
 public static class DocumentKinds
 {
     public static readonly IReadOnlyList<string> CreatableKinds = ["part", "sheet_metal", "assembly", "draft", "weldment"];

@@ -1,5 +1,5 @@
-# A02: placa 100x60x10 con 4 agujeros Ø6,6 -> V = 60000 - 4*pi*3.3^2*10 = 58631.52 mm3
-# Datos, consulta, vista, selección, edición de operaciones, documentos y exportación.
+# A02: 100x60x10 plate with 4 Ø6.6 holes -> V = 60000 - 4*pi*3.3^2*10 = 58631.52 mm3
+# Data, query, view, selection, feature editing, documents and export.
 @d = se_documents {"action":"new","kind":"part"}
 @k = se_sketch {"action":"create","plane":"1"}
 @r = se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
@@ -32,7 +32,7 @@ se_material {"action":"libraries"}
 @va = se_variables {"action":"add","name":"Thick","value":10}
 @vg = se_variables {"action":"get","name":"Thick"}
 ?= vg.value 10
-# límites (fuera de ellos Solid Edge conserva el valor sin avisar: la herramienta da value_rejected), comentario, exponer y renombrar
+# limits (outside them Solid Edge keeps the value without warning: the tool gives value_rejected), comment, expose and rename
 @lr = se_variables {"action":"limits","name":"Thick","min":5,"max":20}
 ?= lr.limits.type range
 ?= lr.limits.max 20
@@ -71,13 +71,13 @@ se_variables {"action":"delete","name":"Espesor2"}
 se_properties {"action":"set","name":"Project","value":"MCP acceptance"}
 @pl = se_properties {"action":"list","set":"Custom"}
 ?~ pl MCP acceptance
-# sin 'set', todos los conjuntos (alguno trae propiedades sin nombre; antes daba internal_error)
+# without 'set', all the sets (some have unnamed properties; it used to give internal_error)
 se_properties {"action":"set","set":"SummaryInformation","name":"Title","value":"A02 title"}
 @pa = se_properties {"action":"list"}
 ?~ pa A02 title
 ?~ pa ProjectInformation
 se_properties {"action":"delete","name":"Project"}
-# cambiar una variable caduca las caras: se vuelven a consultar
+# changing a variable expires the faces: they are queried again
 @top2 = se_geometry {"action":"faces","direction":[0,0,1]}
 se_selection {"action":"set","handles":["{{top2.items[0].handle}}"]}
 @sel = se_selection {"action":"get"}
@@ -108,7 +108,7 @@ se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
 @inf = se_documents {"action":"info"}
 @ph2 = se_physical {}
 ?= ph2.volume 58631.52 0.05
-# deshacer y rehacer: borrar un agujero y recuperarlo
+# undo and redo: delete a hole and restore it
 @tr3x = se_feature_tree {}
 @del = se_feature_edit {"feature":"{{tr3x.features[8].handle}}","action":"delete"}
 ?= del.volume 58973.64 0.05

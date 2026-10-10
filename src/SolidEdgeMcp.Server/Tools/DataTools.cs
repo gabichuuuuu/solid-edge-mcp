@@ -53,7 +53,7 @@ public enum MaterialAction
     Info,
 }
 
-/// <summary>Datos del documento: tabla de variables, propiedades y material.</summary>
+/// <summary>Document data: variable table, properties and material.</summary>
 [McpServerToolType]
 public sealed class DataTools(ToolRunner runner)
 {

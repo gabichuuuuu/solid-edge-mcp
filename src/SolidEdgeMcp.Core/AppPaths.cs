@@ -1,6 +1,6 @@
 namespace SolidEdgeMcp.Core;
 
-/// <summary>Carpetas propias del servidor bajo <c>%LocalAppData%\SolidEdgeMcp</c>.</summary>
+/// <summary>Folders owned by the server under <c>%LocalAppData%\SolidEdgeMcp</c>.</summary>
 public sealed class AppPaths
 {
     public AppPaths(string dataRoot)
@@ -22,7 +22,7 @@ public sealed class AppPaths
 
     public string DataRoot { get; }
 
-    /// <summary>Carpeta de trabajo, siempre permitida (capturas, exportaciones temporales).</summary>
+    /// <summary>Work folder, always allowed (captures, temporary exports).</summary>
     public string Work { get; }
 
     public string Logs { get; }

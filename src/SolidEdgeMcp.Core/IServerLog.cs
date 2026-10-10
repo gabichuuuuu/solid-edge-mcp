@@ -1,8 +1,8 @@
 namespace SolidEdgeMcp.Core;
 
 /// <summary>
-/// Registro mínimo para las capas sin dependencia de Microsoft.Extensions.Logging. El servidor lo
-/// adapta a <c>ILogger</c> (stderr y archivo).
+/// Minimal log for the layers that do not depend on Microsoft.Extensions.Logging. The server
+/// adapts it to <c>ILogger</c> (stderr and file).
 /// </summary>
 public interface IServerLog
 {

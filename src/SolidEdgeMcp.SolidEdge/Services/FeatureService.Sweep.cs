@@ -5,7 +5,7 @@ using SolidEdgePart;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
-/// <summary>Parámetros de un solevado, barrido o hélice (mm y grados).</summary>
+/// <summary>Parameters of a loft, sweep or helix (mm and degrees).</summary>
 public sealed record SweepSpec(
     string Action,
     string Operation = "add",
@@ -22,13 +22,13 @@ public static partial class FeatureService
 {
     public static readonly IReadOnlyList<string> SweepActions = ["loft", "sweep", "helix"];
 
-    /// <summary>Tipo de sección: perfil de boceto (igProfileBasedCrossSection).</summary>
+    /// <summary>Section type: sketch profile (igProfileBasedCrossSection).</summary>
     private const int ProfileSection = (int)FeaturePropertyConstants.igProfileBasedCrossSection;
 
     /// <summary>
-    /// Solevado entre secciones, barrido de secciones a lo largo de una trayectoria o hélice de una sección
-    /// alrededor de un eje. Como en extrusión y revolución, cada boceto se usa por una copia enlazada de su
-    /// perfil: si la operación falla y se borra, los bocetos se conservan.
+    /// Loft between sections, sweep of sections along a path, or helix of a section
+    /// around an axis. As with extrusion and revolve, each sketch is used through a linked copy of its
+    /// profile: if the feature fails and is deleted, the sketches are kept.
     /// </summary>
     public static object LoftSweep(SeContext context, string? documentHandle, SweepSpec spec)
     {
@@ -139,7 +139,7 @@ public static partial class FeatureService
         }
         catch (ToolException)
         {
-            // Create y Check ya borraron la operación; quedan las copias de los perfiles.
+            // Create and Check have already deleted the feature; the profile copies remain.
             foreach (IncludedProfile copy in included)
             {
                 DeleteIncluded(copy);
@@ -189,7 +189,7 @@ public static partial class FeatureService
         return existing.SweptProtrusions.Add(1, paths, pathTypes, sections.Length, sections, types, origins, null, side, none, 0, null, none, 0, null);
     }
 
-    /// <summary>Hélice desde el inicio de la línea del eje (igStart) hacia su final; el perfil marca el radio.</summary>
+    /// <summary>Helix from the start of the axis line (igStart) toward its end; the profile sets the radius.</summary>
     private static object Helix(ModelDocument model, Model? existing, bool cut, RefAxis axis, object[] sections,
         (double Height, double Pitch, double Turns) size, FeaturePropertyConstants hand)
     {
@@ -210,7 +210,7 @@ public static partial class FeatureService
         return existing.HelixProtrusions.AddFinite(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand);
     }
 
-    /// <summary>Altura, paso y vueltas (m, m, -) a partir de dos de ellos; si se dan los tres deben cuadrar.</summary>
+    /// <summary>Height, pitch and turns (m, m, -) from two of them; if all three are given they must match.</summary>
     private static (double Height, double Pitch, double Turns) HelixSize(double? pitch, double? turns, double? height)
     {
         double? p = pitch is null ? null : Units.MmToM(Units.RequirePositive(pitch.Value, "pitch"));
@@ -233,8 +233,8 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Punto de arranque de una sección (coordenadas 2D del boceto, m): el inicio de su primera línea o arco, o el
-    /// punto de un círculo en +x. Solid Edge une los arranques de las secciones; sin ellos el solevado da E_FAIL.
+    /// Start point of a section (2D sketch coordinates, m): the start of its first line or arc, or the
+    /// point of a circle at +x. Solid Edge joins the start points of the sections; without them the loft gives E_FAIL.
     /// </summary>
     private static double[] StartPoint(Profile included, Profile sketch)
     {

@@ -4,7 +4,7 @@ using SolidEdgeMcp.Core;
 
 namespace SolidEdgeMcp.SolidEdge.Com;
 
-/// <summary>Traducción de errores COM a errores accionables para el cliente.</summary>
+/// <summary>Translates COM errors into actionable errors for the client.</summary>
 public static class ComErrors
 {
     public const int EFail = unchecked((int)0x80004005);
@@ -30,7 +30,7 @@ public static class ComErrors
     public const int CoEServerExecFailure = unchecked((int)0x80080005);
     public const int RegDbEClassNotReg = unchecked((int)0x80040154);
 
-    /// <summary>¿Indica el error que el proceso de Solid Edge ya no está?</summary>
+    /// <summary>Does the error indicate that the Solid Edge process is no longer running?</summary>
     public static bool IsDisconnected(Exception ex) => Unwrap(ex) switch
     {
         InvalidComObjectException => true,
@@ -51,7 +51,7 @@ public static class ComErrors
         return ex;
     }
 
-    /// <summary>Error de desconexión de un objeto concreto cuando Solid Edge sigue respondiendo: el objeto ya no existe.</summary>
+    /// <summary>Disconnection error for a specific object while Solid Edge is still responding: the object no longer exists.</summary>
     public static ToolException ObjectGone(Exception exception, string operation)
     {
         Exception ex = Unwrap(exception);
@@ -61,7 +61,7 @@ public static class ComErrors
             "Query the object again to get a new handle (se_feature_tree, se_documents list, se_geometry).", ex);
     }
 
-    /// <summary>Convierte una excepción COM en <see cref="ToolException"/>; otras se devuelven sin cambios.</summary>
+    /// <summary>Converts a COM exception into a <see cref="ToolException"/>; others are returned unchanged.</summary>
     public static Exception Translate(Exception exception, string operation)
     {
         Exception ex = Unwrap(exception);
@@ -82,9 +82,9 @@ public static class ComErrors
                 "Use se_com_describe on the object to list its members.", ex);
         }
 
-        // .NET convierte algunos HRESULT de COM en otras excepciones (E_NOTIMPL, E_INVALIDARG, E_POINTER,
-        // E_NOINTERFACE). NotImplementedException nunca sale de este código; las demás solo se tratan como COM
-        // si vienen de una llamada por reflexión (envueltas en TargetInvocationException).
+        // .NET converts some COM HRESULTs into other exceptions (E_NOTIMPL, E_INVALIDARG, E_POINTER,
+        // E_NOINTERFACE). NotImplementedException never leaves this code; the others are only treated as COM
+        // errors when they come from a reflection call (wrapped in TargetInvocationException).
         bool fromCall = !ReferenceEquals(ex, exception);
         Exception? com = ex switch
         {

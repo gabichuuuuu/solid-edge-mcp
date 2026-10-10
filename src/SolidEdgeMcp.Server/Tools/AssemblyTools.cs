@@ -48,7 +48,7 @@ public enum BomStructure
     Flat,
 }
 
-/// <summary>Conjuntos: ocurrencias, relaciones, interferencias y lista de materiales.</summary>
+/// <summary>Assemblies: occurrences, relations, interferences and bill of materials.</summary>
 [McpServerToolType]
 public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
 {

@@ -1,9 +1,9 @@
 <Project>
   <!--
-    Interop generada desde las type libraries de la instalación local de Solid Edge
-    (scripts/generate-interop.ps1). No se usa el NuGet Interop.SolidEdge: está deprecado.
-    Se importa en cada proyecto que carga la interop (también ejecutables y tests): las referencias
-    directas a DLL no pasan al deps.json de los proyectos que referencian a otro proyecto.
+    Interop generated from the type libraries of the local Solid Edge installation
+    (scripts/generate-interop.ps1). The Interop.SolidEdge NuGet package is not used: it is deprecated.
+    Imported in every project that loads the interop (executables and tests too): direct references
+    to DLLs do not flow into the deps.json of the projects that reference another project.
   -->
   <ItemGroup>
     <Reference Include="Interop.SolidEdgeConstants" HintPath="$(InteropDir)Interop.SolidEdgeConstants.dll" EmbedInteropTypes="false" Private="true" />
@@ -17,6 +17,6 @@
 
   <Target Name="CheckSolidEdgeInterop" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="!Exists('$(InteropDir)Interop.SolidEdgeFramework.dll')"
-           Text="Falta la interop de Solid Edge en $(InteropDir). Ejecuta scripts\generate-interop.ps1 en un equipo con Solid Edge instalado." />
+           Text="Solid Edge interop is missing in $(InteropDir). Run scripts\generate-interop.ps1 on a machine with Solid Edge installed." />
   </Target>
 </Project>

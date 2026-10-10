@@ -1,5 +1,5 @@
-# A07: plano (se_drawing) de un bloque guardado y exportación PDF/DXF/DWG. Recetas de t51, t61, t63, t64 y t65.
-# Bloque 100x60x20 con agujero pasante Ø10 en (50,30): 120000 - pi*5²*20 = 118429.204; conjunto con solo el bloque (BOM 1)
+# A07: drawing (se_drawing) of a saved block and PDF/DXF/DWG export. Recipes of t51, t61, t63, t64 and t65.
+# Block 100x60x20 with a through hole Ø10 at (50,30): 120000 - pi*5²*20 = 118429.204; assembly with only the block (BOM 1)
 @b = se_documents {"action":"new","kind":"part"}
 @bs = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{bs.sketch}}","points":[0,0,100,60]}
@@ -16,7 +16,7 @@ se_assembly {"action":"insert","path":"{{work}}\\d_blk.par"}
 ?= bm.totalQuantity 1
 se_documents {"action":"save_as","path":"{{work}}\\d_asm.asm","overwrite":true}
 se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
-# Plano nuevo (hoja A2). Vista superior 1:1 en (160,290): tamaño = modelo + margen 12.7 (t51.out) -> 100 + 12.7 = 112.7. Proyectadas: abajo (misma x = 160), derecha y en diagonal (isométrica)
+# New drawing (A2 sheet). Top view 1:1 at (160,290): size = model + margin 12.7 (t51.out) -> 100 + 12.7 = 112.7. Projected views: below (same x = 160), right and diagonal (isometric)
 @d = se_documents {"action":"new","kind":"draft"}
 se_drawing {"action":"sheets"}
 @bv = se_drawing {"action":"base_view","path":"{{work}}\\d_blk.par","orientation":"top","position":[160,290],"scale":1}
@@ -25,8 +25,8 @@ se_drawing {"action":"sheets"}
 ?= pd.view.center[0] 160
 se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"right"}
 @pi = se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"up_right"}
-# Cotas en la vista superior (z=20): borde y=60 -> 100; borde x=100 -> 60; horizontal (0,30)-(50,30) -> 50; vertical (50,0)-(50,30) -> 30; diámetro -> 10;
-#   altura en la vista de abajo -> 20; ángulo borde x=0 / borde y=60 -> 90; en la isométrica dos aristas horizontales perpendiculares se ven a 120° (t65.out). Errores: ninguna arista pasa por (50,45,20) (t51.out); ángulo entre aristas paralelas (t65.out)
+# Dimensions on the top view (z=20): edge y=60 -> 100; edge x=100 -> 60; horizontal (0,30)-(50,30) -> 50; vertical (50,0)-(50,30) -> 30; diameter -> 10;
+#   height on the bottom view -> 20; angle edge x=0 / edge y=60 -> 90; on the isometric view two perpendicular horizontal edges appear at 120° (t65.out). Errors: no edge passes through (50,45,20) (t51.out); angle between parallel edges (t65.out)
 @q1 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[50,60,20]}
 ?= q1.dimension.value 100
 @q2 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[100,30,20]}
@@ -45,7 +45,7 @@ se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"r
 ?= q8.dimension.value 120
 ! [not_found] se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[50,45,20]}
 ! [invalid_argument] se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"angle","points":[0,30,20,100,30,20]}
-# Sección, detalle (doble escala de la vista madre, t51.out) y auxiliar. 8 cotas creadas en la hoja (las fallidas no se crean); sin cotas de modelo que recuperar (t42.out)
+# Section, detail (double scale of the parent view, t51.out) and auxiliary. 8 dimensions created on the sheet (failed ones are not created); no model dimensions to retrieve (t42.out)
 @sv = se_drawing {"action":"section_view","view":"{{bv.view.handle}}","line":[0,30,10,100,30,10]}
 ?= sv.view.type section
 @dv = se_drawing {"action":"detail_view","view":"{{bv.view.handle}}","center":[100,60,20],"radius":12}
@@ -57,8 +57,8 @@ se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"r
 @rd = se_drawing {"action":"retrieve_dimensions","view":"{{bv.view.handle}}"}
 ?= rd.retrieved 0
 se_drawing {"action":"views"}
-# Hoja A3 (420 x 297): vista superior 1:2 en (100,100) -> 100/2 + 12.7 = 62.7; radio del agujero 5; mover (+20,+10) -> x=120; escala 1; borrar.
-#   Lista de piezas del conjunto: 1 fila (d_blk). Renombrar la hoja y pasarla a A2 -> 594
+# A3 sheet (420 x 297): top view 1:2 at (100,100) -> 100/2 + 12.7 = 62.7; hole radius 5; move (+20,+10) -> x=120; scale 1; delete.
+#   Assembly parts list: 1 row (d_blk). Rename the sheet and change it to A2 -> 594
 @s2 = se_drawing {"action":"add_sheet","name":"Detalles","paper":"a3"}
 ?= s2.size[0] 420
 @v3 = se_drawing {"action":"base_view","path":"{{work}}\\d_blk.par","orientation":"top","position":[100,100],"scale":0.5}
@@ -76,11 +76,11 @@ se_drawing {"action":"delete_view","view":"{{v3.view.handle}}"}
 @su = se_drawing {"action":"setup_sheet","sheet":"{{s2.handle}}","name":"Hoja 2","paper":"a2"}
 ?= su.size[0] 594
 se_drawing {"action":"activate_sheet","sheet":"Sheet1"}
-# Exportación del plano (formato según la extensión; .dwg sin receta previa); un plano no se exporta a .stp
+# Drawing export (format from the extension; .dwg without a prior recipe); a drawing is not exported to .stp
 @e1 = se_export {"path":"{{work}}\\a07.pdf","overwrite":true}
 ?= e1.format PDF
-# Plano sin guardar: el resultado avisa de que el cajetín (fecha del archivo) saldrá con «Error: No reference»;
-# guardado, ya no. La captura con 'fit' encuadra la hoja entera (con el cajetín), no solo las vistas.
+# Unsaved drawing: the result warns that the title block (file date) will come out with "Error: No reference";
+# once saved, it no longer does. The 'fit' capture frames the whole sheet (with the title block), not just the views.
 ?~ e1.note never been saved
 se_documents {"action":"save_as","path":"{{work}}\\a07.dft","overwrite":true}
 @e1b = se_export {"path":"{{work}}\\a07.pdf","overwrite":true}

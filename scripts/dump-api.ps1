@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Vuelca en texto las interfaces, miembros y enumeraciones de la interop generada.
+    Dumps the interfaces, members and enumerations of the generated interop as text.
 
 .DESCRIPTION
-    Crea un archivo por ensamblado en reference\api (no se versiona). Sirve para consultar firmas
-    y constantes reales del API de Solid Edge en lugar de suponerlas.
+    Creates one file per assembly in reference\api (not versioned). It is used to look up signatures
+    and real constants of the Solid Edge API instead of guessing them.
 #>
 [CmdletBinding()]
 param(
@@ -32,7 +32,7 @@ function Format-TypeName([Type]$type) {
 }
 
 function Format-Parameter([System.Reflection.ParameterInfo]$p) {
-    # Un [in, out] por referencia se pasa con ref en C#; solo [out] se pasa con out.
+    # An [in, out] by reference is passed with ref in C#; only [out] is passed with out.
     $prefix = if (-not $p.ParameterType.IsByRef) { '' } elseif ($p.IsOut -and -not $p.IsIn) { 'out ' } else { 'ref ' }
     $type = Format-TypeName ($(if ($p.ParameterType.IsByRef) { $p.ParameterType.GetElementType() } else { $p.ParameterType }))
     $text = "$prefix$type $($p.Name)"
@@ -77,5 +77,5 @@ foreach ($file in Get-ChildItem -LiteralPath $InteropDir -Filter 'Interop.*.dll'
     }
     $target = Join-Path $OutputDir (($file.BaseName -replace '^Interop\.', '') + '.txt')
     [System.IO.File]::WriteAllLines($target, $lines, [System.Text.UTF8Encoding]::new($false))
-    '{0,-32} {1,7} líneas' -f (Split-Path -Leaf $target), $lines.Count
+    '{0,-32} {1,7} lines' -f (Split-Path -Leaf $target), $lines.Count
 }

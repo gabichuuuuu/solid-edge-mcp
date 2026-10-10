@@ -5,7 +5,7 @@ using SolidEdgeMcp.SolidEdge.Session;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
-/// <summary>Selección activa de Solid Edge: leer lo que la persona seleccionó y seleccionar objetos por handle.</summary>
+/// <summary>Active Solid Edge selection: reads what the person selected and selects objects by handle.</summary>
 public static class SelectionService
 {
     public static object Get(SeContext context, int offset, int limit)
@@ -30,7 +30,7 @@ public static class SelectionService
         return new { count, offset = start, returned = items.Count, more = start + items.Count < count, items };
     }
 
-    /// <summary>Selecciona los objetos indicados (sustituyendo la selección o añadiéndolos).</summary>
+    /// <summary>Selects the given objects (replacing the selection or adding to it).</summary>
     public static object Set(SeContext context, string[]? handles, bool append)
     {
         if (handles is not { Length: > 0 })
@@ -47,7 +47,7 @@ public static class SelectionService
 
         foreach (object value in objects)
         {
-            // Las caras y aristas de una ocurrencia se seleccionan por su referencia en el conjunto.
+            // Faces and edges of an occurrence are selected through their reference in the assembly.
             set.Add(value is OccurrenceElement element
                 ? element.Reference(context.GetDocument<SolidEdgeAssembly.AssemblyDocument>(null, "assembly"))
                 : value);

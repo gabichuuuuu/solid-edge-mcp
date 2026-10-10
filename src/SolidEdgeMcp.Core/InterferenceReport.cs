@@ -4,11 +4,11 @@ using System.Text.RegularExpressions;
 namespace SolidEdgeMcp.Core;
 
 /// <summary>
-/// Lectura del informe de texto de <c>AssemblyDocument.CheckInterference</c>. Solid Edge 2026 no rellena por el API
-/// las listas de piezas que interfieren (los parámetros de salida vuelven vacíos, comprobado), pero sí las escribe en
-/// el informe. El análisis se basa en la estructura y no en los rótulos, que pueden estar traducidos: cada
-/// interferencia empieza con una línea «k of N» seguida de los nombres de las dos ocurrencias, y la línea con una
-/// unidad cúbica es el volumen común.
+/// Parses the text report of <c>AssemblyDocument.CheckInterference</c>. Solid Edge 2026 does not fill,
+/// through the API, the lists of interfering parts (the output parameters come back empty, verified), but it does write them to
+/// the report. The parsing relies on the structure rather than on the labels, which may be translated: each
+/// interference starts with a line "k of N" followed by the names of the two occurrences, and the line with a
+/// cubic unit is the common volume.
 /// </summary>
 public static partial class InterferenceReport
 {
@@ -27,7 +27,7 @@ public static partial class InterferenceReport
                 continue;
             }
 
-            // Solo cuenta una numeración correlativa con el mismo total (evita confundirla con un nombre).
+            // Only counts a consecutive numbering with the same total (avoids confusing it with a name).
             int index = int.Parse(counter.Groups[1].Value, CultureInfo.InvariantCulture);
             int count = int.Parse(counter.Groups[2].Value, CultureInfo.InvariantCulture);
             if (index != pairs.Count + 1 || (total is { } expected && expected != count))
@@ -73,7 +73,7 @@ public static partial class InterferenceReport
 
     private static double? ToMm3(string value, string unit)
     {
-        // Separador decimal: el último de '.' o ',' (el informe sigue el formato regional).
+        // Decimal separator: the last of '.' or ',' (the report follows the regional format).
         int dot = value.LastIndexOf('.');
         int comma = value.LastIndexOf(',');
         char separator = comma > dot ? ',' : '.';
@@ -101,7 +101,7 @@ public static partial class InterferenceReport
     [GeneratedRegex(@"(?<value>[-+]?\d[\d.,]*)\s*(?<unit>mm|cm|m|in|ft)(\^3|³)\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex Volume();
 
-    /// <summary>Línea de centro de gravedad: tres números con unidad al final.</summary>
+    /// <summary>Center of gravity line: three numbers with a unit at the end.</summary>
     [GeneratedRegex(@"[-+]?\d[\d.,]*\s*\p{L}+\s+[-+]?\d[\d.,]*\s*\p{L}+\s+[-+]?\d[\d.,]*\s*\p{L}+\s*$")]
     private static partial Regex Location();
 }

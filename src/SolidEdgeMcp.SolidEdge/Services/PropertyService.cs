@@ -8,8 +8,8 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Propiedades del documento por conjuntos (SummaryInformation, ProjectInformation, Custom...).
-/// Los cambios quedan en el documento abierto: hay que guardarlo para conservarlos.
+/// Document properties by sets (SummaryInformation, ProjectInformation, Custom...).
+/// Changes stay in the open document: it must be saved to keep them.
 /// </summary>
 public static class PropertyService
 {
@@ -33,7 +33,7 @@ public static class PropertyService
             for (int j = 1; j <= properties.Count && budget > 0; j++, budget--)
             {
                 Property property = properties.Item(j);
-                // Algunos conjuntos tienen propiedades sin nombre: se identifican por su posición.
+                // Some sets have unnamed properties: they are identified by their position.
                 values[string.IsNullOrEmpty(property.Name) ? $"#{j}" : property.Name] = ValueOf(property);
             }
 
@@ -48,7 +48,7 @@ public static class PropertyService
         return new { document = context.DocumentHandle(document), sets = result, truncated = budget <= 0 ? true : (bool?)null };
     }
 
-    /// <summary>Cambia una propiedad existente; en el conjunto Custom la crea si no existe.</summary>
+    /// <summary>Changes an existing property; in the Custom set it creates it if it does not exist.</summary>
     public static object Set(SeContext context, string? documentHandle, string? set, string name, JsonElement value)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);

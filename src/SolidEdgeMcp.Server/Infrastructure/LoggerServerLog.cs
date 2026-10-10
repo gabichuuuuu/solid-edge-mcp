@@ -3,7 +3,7 @@ using SolidEdgeMcp.Core;
 
 namespace SolidEdgeMcp.Server.Infrastructure;
 
-/// <summary>Adapta <see cref="IServerLog"/> de las capas internas a <see cref="ILogger"/>.</summary>
+/// <summary>Adapts <see cref="IServerLog"/> from the internal layers to <see cref="ILogger"/>.</summary>
 public sealed class LoggerServerLog(ILogger<LoggerServerLog> logger) : IServerLog
 {
     public void Info(string message) => logger.LogInformation("{Message}", message);

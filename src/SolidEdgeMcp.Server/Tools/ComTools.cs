@@ -8,8 +8,8 @@ using SolidEdgeMcp.SolidEdge.Com;
 namespace SolidEdgeMcp.Server.Tools;
 
 /// <summary>
-/// Capa genérica: cualquier objeto, propiedad o método del API de Solid Edge. Unidades del API
-/// (metros y radianes). Las rutas de archivo pasan por las carpetas permitidas.
+/// Generic layer: any object, property or method of the Solid Edge API. API units
+/// (metres and radians). File paths go through the allowed folders.
 /// </summary>
 [McpServerToolType]
 public sealed class ComTools(ToolRunner runner)

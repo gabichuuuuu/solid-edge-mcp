@@ -10,9 +10,9 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Conjuntos: ocurrencias (insertar, mover, girar, fijar, sustituir, ocultar y borrar), interferencias y lista de
-/// materiales. Solid Edge fija (ground) cada ocurrencia que se inserta por el API; para colocarla con relaciones hay
-/// que quitar esa fijación, cosa que hace se_relations con la pieza que se mueve.
+/// Assemblies: occurrences (insert, move, rotate, ground, replace, hide and delete), interferences and bill of
+/// materials. Solid Edge grounds each occurrence inserted through the API; to position it with relations
+/// that grounding must be removed, which se_relations does for the part being moved.
 /// </summary>
 public static class AssemblyService
 {
@@ -24,7 +24,7 @@ public static class AssemblyService
             ? throw ToolException.InvalidArgument($"'{argumentName}' is required: an occurrence handle from se_assembly 'list' or 'insert'.")
             : context.Handles.Resolve<Occurrence>(handle, argumentName);
 
-    /// <summary>Documento de pieza o chapa de una ocurrencia (no de un subconjunto).</summary>
+    /// <summary>Part or sheet metal document of an occurrence (not of a subassembly).</summary>
     internal static ModelDocument PartOf(Occurrence occurrence)
     {
         if (occurrence.Subassembly)
@@ -40,8 +40,8 @@ public static class AssemblyService
     }
 
     /// <summary>
-    /// Ocurrencias de primer nivel (y, con <paramref name="recursive"/>, las de los subconjuntos). Las suprimidas ya
-    /// no están en Occurrences: salen al final con su handle de componente suprimido (para 'unsuppress').
+    /// Top-level occurrences (and, with <paramref name="recursive"/>, those of subassemblies). Suppressed ones are already
+    /// not in Occurrences: they are listed at the end with their suppressed-component handle (for 'unsuppress').
     /// </summary>
     public static object List(SeContext context, string? documentHandle, bool recursive, int offset, int limit)
     {
@@ -92,7 +92,7 @@ public static class AssemblyService
         };
     }
 
-    /// <summary>Inserta un archivo (pieza, chapa o subconjunto) con posición (mm) y giros (grados) respecto del conjunto.</summary>
+    /// <summary>Inserts a file (part, sheet metal or subassembly) with a position (mm) and rotations (degrees) relative to the assembly.</summary>
     public static object Insert(SeContext context, string? documentHandle, string? path, double[]? origin, double[]? angles, bool ground)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
@@ -114,12 +114,12 @@ public static class AssemblyService
         return Describe(context, assembly, occurrence, GroundedIds(assembly));
     }
 
-    /// <summary>Tolerancia de posición al comprobar un movimiento (m): 0,0001 mm.</summary>
+    /// <summary>Position tolerance when checking a movement (m): 0.0001 mm.</summary>
     private const double PlacementTolerance = 1e-7;
 
     /// <summary>
-    /// Traslada (delta) o coloca (origen y giros absolutos) una ocurrencia y comprueba que ha llegado: si sus relaciones
-    /// la retienen, se deja donde estaba y se avisa.
+    /// Moves (delta) or places (absolute origin and rotations) an occurrence and checks that it arrived: if its relations
+    /// hold it, it is left where it was and this is reported.
     /// </summary>
     public static object Move(SeContext context, string? handle, double[]? delta, double[]? origin, double[]? angles)
     {
@@ -135,7 +135,7 @@ public static class AssemblyService
                 throw ToolException.InvalidArgument("Pass either 'delta' (relative move) or 'origin'/'angles' (absolute placement), not both.");
             }
 
-            // Occurrence.Move da E_FAIL en Solid Edge 2026 (comprobado); se recoloca el origen.
+            // Occurrence.Move fails with E_FAIL in Solid Edge 2026 (verified); the origin is repositioned.
             (double dx, double dy, double dz) = Vector3(delta, "delta");
             (x, y, z) = (x0 + Units.MmToM(dx), y0 + Units.MmToM(dy), z0 + Units.MmToM(dz));
             occurrence.PutOrigin(x, y, z);
@@ -174,7 +174,7 @@ public static class AssemblyService
         return Placed(context, assembly, occurrence);
     }
 
-    /// <summary>Gira una ocurrencia un ángulo (grados) alrededor del eje que pasa por dos puntos (mm, conjunto).</summary>
+    /// <summary>Rotates an occurrence by an angle (degrees) about the axis through two points (mm, assembly).</summary>
     public static object Rotate(SeContext context, string? handle, double[]? axis, double? angle)
     {
         Occurrence occurrence = Occurrence(context, handle);
@@ -191,7 +191,7 @@ public static class AssemblyService
             throw ToolException.InvalidArgument("The two 'axis' points must be different.");
         }
 
-        // Occurrence.Rotate da E_FAIL en Solid Edge 2026 (comprobado); se calcula y se aplica la matriz girada.
+        // Occurrence.Rotate fails with E_FAIL in Solid Edge 2026 (verified); the rotated matrix is calculated and applied.
         Placement start = Placement.Of(occurrence);
         double[] expected = start.Rotated([points[0].X, points[0].Y, points[0].Z], direction, radians);
         Array matrix = expected;
@@ -207,7 +207,7 @@ public static class AssemblyService
         return Placed(context, occurrence.TopLevelDocument, occurrence);
     }
 
-    /// <summary>Fija o libera una ocurrencia (relación de fijación).</summary>
+    /// <summary>Grounds or releases an occurrence (grounding relation).</summary>
     public static object Ground(SeContext context, string? handle, bool ground)
     {
         Occurrence occurrence = Occurrence(context, handle);
@@ -219,7 +219,7 @@ public static class AssemblyService
         return new { occurrence = description, changed };
     }
 
-    /// <summary>Sustituye el archivo de una ocurrencia (o de todas las del mismo archivo).</summary>
+    /// <summary>Replaces the file of an occurrence (or of all occurrences of the same file).</summary>
     public static object Replace(SeContext context, string? handle, string? path, bool all)
     {
         Occurrence occurrence = Occurrence(context, handle);
@@ -242,7 +242,7 @@ public static class AssemblyService
         return Describe(context, assembly, occurrence, GroundedIds(assembly));
     }
 
-    /// <summary>Suprime una ocurrencia: deja de cargarse y de contar, pero sigue en el conjunto para recuperarla.</summary>
+    /// <summary>Suppresses an occurrence: it stops loading and counting, but stays in the assembly so it can be recovered.</summary>
     public static object Suppress(SeContext context, string? handle)
     {
         Occurrence occurrence = Occurrence(context, handle);
@@ -254,7 +254,7 @@ public static class AssemblyService
         return new { suppressed = name, handle = context.Register(component, "suppressed", (SolidEdgeDocument)assembly) };
     }
 
-    /// <summary>Recupera una ocurrencia suprimida (handle de 'suppress' o de 'list').</summary>
+    /// <summary>Recovers a suppressed occurrence (handle from 'suppress' or 'list').</summary>
     public static object Unsuppress(SeContext context, string? handle)
     {
         if (string.IsNullOrWhiteSpace(handle))
@@ -273,7 +273,7 @@ public static class AssemblyService
         return Describe(context, assembly, occurrence, GroundedIds(assembly));
     }
 
-    /// <summary>Quita la ocurrencia del conjunto (el archivo no se borra).</summary>
+    /// <summary>Removes the occurrence from the assembly (the file is not deleted).</summary>
     public static object Delete(SeContext context, string? handle)
     {
         Occurrence occurrence = Occurrence(context, handle);
@@ -284,8 +284,8 @@ public static class AssemblyService
     }
 
     /// <summary>
-    /// Interferencias: las ocurrencias indicadas entre sí, o contra <paramref name="against"/>; sin ninguna, todas
-    /// las de primer nivel entre sí.
+    /// Interferences: the given occurrences against each other, or against <paramref name="against"/>; with none, all
+    /// top-level occurrences against each other.
     /// </summary>
     public static object Interference(SeContext context, string? documentHandle, string[]? occurrences, string[]? against)
     {
@@ -299,12 +299,12 @@ public static class AssemblyService
             throw ToolException.InvalidArgument("Interference needs at least two occurrences, or 'against'.");
         }
 
-        // 1: conjunto 1 contra conjunto 2; 4: conjunto 1 consigo mismo.
+        // 1: set 1 against set 2; 4: set 1 against itself.
         int method = set2 is null ? 4 : 1;
         Array first = set1;
 
-        // Las listas de salida del API vuelven vacías en Solid Edge 2026 (comprobado): los pares y el volumen común se
-        // leen del informe (nombres + volumen = 1 + 8), que se escribe en una carpeta temporal propia y se borra.
+        // The output lists of the API come back empty in Solid Edge 2026 (verified): the pairs and the common volume are
+        // read from the report (names + volume = 1 + 8), which is written to its own temporary folder and then deleted.
         string report = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "SolidEdgeMcp", $"interference-{Guid.NewGuid():N}.txt");
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(report)!);
         InterferenceStatusConstants status;
@@ -353,8 +353,8 @@ public static class AssemblyService
     }
 
     /// <summary>
-    /// Lista de materiales. top: ocurrencias de primer nivel agrupadas por archivo (los subconjuntos cuentan como
-    /// una línea); flat: solo piezas, con las cantidades multiplicadas por las de sus subconjuntos.
+    /// Bill of materials. top: top-level occurrences grouped by file (subassemblies count as
+    /// one line); flat: parts only, with the quantities multiplied by those of their subassemblies.
     /// </summary>
     public static object Bom(SeContext context, string? documentHandle, string structure)
     {
@@ -394,7 +394,7 @@ public static class AssemblyService
         };
     }
 
-    /// <summary>Quita las relaciones de fijación de una ocurrencia. Devuelve si había alguna.</summary>
+    /// <summary>Removes the grounding relations of an occurrence. Returns whether there were any.</summary>
     internal static bool Unground(AssemblyDocument assembly, Occurrence occurrence)
     {
         int id = occurrence.OccurrenceID;
@@ -412,9 +412,9 @@ public static class AssemblyService
     }
 
     /// <summary>
-    /// Componentes suprimidos (ya no están en Occurrences). Con enlace temprano GetSuppressedComponents da E_POINTER
-    /// (comprobado): Solid Edge necesita una matriz ya creada, cosa que 'out Array' no permite. Por IDispatch se le pasa
-    /// una vacía, que debe ser de SuppressComponent: una de object da DISP_E_TYPEMISMATCH.
+    /// Suppressed components (no longer in Occurrences). With early binding GetSuppressedComponents gives E_POINTER
+    /// (verified): Solid Edge needs an array that already exists, which 'out Array' does not allow. Through IDispatch it is given
+    /// an empty one, which must be typed as SuppressComponent: an object one gives DISP_E_TYPEMISMATCH.
     /// </summary>
     internal static List<SuppressComponent> SuppressedComponents(AssemblyDocument assembly)
     {
@@ -434,7 +434,7 @@ public static class AssemblyService
         }
     }
 
-    /// <summary>Ocurrencias fijadas. La fijación de una ocurrencia suprimida no deja leer su ocurrencia (0x80020005).</summary>
+    /// <summary>Grounded occurrences. Grounding a suppressed occurrence does not allow reading its occurrence (0x80020005).</summary>
     internal static HashSet<int> GroundedIds(AssemblyDocument assembly)
     {
         var ids = new HashSet<int>();
@@ -461,10 +461,10 @@ public static class AssemblyService
         }
     }
 
-    /// <summary>Descripción con posición; marca si alguna relación (no de fijación) puede recolocarla.</summary>
+    /// <summary>Description with position; flags whether any relation (other than grounding) can reposition it.</summary>
     internal static object Placed(SeContext context, AssemblyDocument assembly, Occurrence occurrence)
     {
-        // Mover una ocurrencia no cambia sus caras: los handles de ocurrencia siguen valiendo.
+        // Moving an occurrence does not change its faces: the occurrence handles stay valid.
         return Describe(context, assembly, occurrence, GroundedIds(assembly));
     }
 
@@ -573,10 +573,10 @@ public static class AssemblyService
         $"'{occurrence.Name}' did not move: its relations hold it, so it was left where it was.",
         "See its relations with se_relations action 'list' and 'occurrence'; delete the ones that hold it, then move it again.");
 
-    /// <summary>Ángulos distintos salvo vueltas completas (rad).</summary>
+    /// <summary>Angles that differ, except for full turns (rad).</summary>
     private static bool AngleDiffers(double a, double b) => Math.Abs(Math.IEEERemainder(a - b, 2 * Math.PI)) > 1e-9;
 
-    /// <summary>Si ha cambiado la parte de giro de la matriz (filas de los ejes).</summary>
+    /// <summary>Whether the rotation part of the matrix has changed (axis rows).</summary>
     private static bool RotationDiffers(double[] before, double[] after) =>
         new[] { 0, 1, 2, 4, 5, 6, 8, 9, 10 }.Any(i => Math.Abs(before[i] - after[i]) > 1e-9);
 
@@ -588,7 +588,7 @@ public static class AssemblyService
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Archivo temporal: si Solid Edge aún lo tiene abierto, queda en la carpeta temporal del usuario.
+            // Temporary file: if Solid Edge still has it open, it stays in the user's temporary folder.
         }
     }
 

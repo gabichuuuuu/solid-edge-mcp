@@ -38,7 +38,7 @@ public sealed class PolicyTests : IDisposable
     {
         const string json = """
             {
-              // Carpeta de proyectos
+              // Projects folder
               "allowedRoots": ["D:\\CAD"],
               "startSolidEdgeIfNotRunning": false,
               "operationTimeoutSeconds": 60,

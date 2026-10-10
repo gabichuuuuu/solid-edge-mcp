@@ -1,15 +1,15 @@
-// Política de ejemplo de solid_edge_mcp. Copia este archivo a una ruta propia (por ejemplo
-// %LocalAppData%\SolidEdgeMcp\policy.json, que se carga sin argumentos) y ajusta las carpetas.
-// Se admiten comentarios y comas finales; una propiedad desconocida es un error.
+// Example policy for solid_edge_mcp. Copy this file to a path of your own (for example
+// %LocalAppData%\SolidEdgeMcp\policy.json, which is loaded without arguments) and adjust the folders.
+// Comments and trailing commas are allowed; an unknown property is an error.
 {
-  // Únicas carpetas donde el servidor abre, guarda, exporta e inserta archivos (rutas absolutas;
-  // se expanden las variables de entorno). %LocalAppData%\SolidEdgeMcp\work se permite siempre.
+  // The only folders where the server opens, saves, exports and inserts files (absolute paths;
+  // environment variables are expanded). %LocalAppData%\SolidEdgeMcp\work is always allowed.
   "allowedRoots": [
     "%USERPROFILE%\\Documents"
   ],
-  // Arranca Solid Edge al primer uso si no hay ninguno abierto.
+  // Starts Solid Edge on first use if none is open.
   "startSolidEdgeIfNotRunning": true,
-  // Límite de cada operación COM y del arranque de Solid Edge, en segundos.
+  // Limit for each COM operation and for starting Solid Edge, in seconds.
   "operationTimeoutSeconds": 120,
   "startupTimeoutSeconds": 180,
   "limits": {

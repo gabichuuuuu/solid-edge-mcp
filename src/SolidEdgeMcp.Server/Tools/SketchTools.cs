@@ -66,7 +66,7 @@ public enum RefPlaneAction
     Angle,
 }
 
-/// <summary>Bocetos y planos de referencia (modelado ordenado). Coordenadas en mm.</summary>
+/// <summary>Sketches and reference planes (ordered modelling). Coordinates in mm.</summary>
 [McpServerToolType]
 public sealed class SketchTools(ToolRunner runner)
 {

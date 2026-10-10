@@ -1,5 +1,5 @@
-# A11: opciones de Solid Edge y unidades (se_options). Las opciones de aplicación cambiadas se restauran a su valor leído.
-# Pieza: con la distancia en pulgadas, una extrusión 40x20x10 sigue midiéndose en mm: V = 8000.
+# A11: Solid Edge options and units (se_options). Changed application options are restored to the value they were read as.
+# Part: with the distance unit in inches, a 40x20x10 extrusion is still measured in mm: V = 8000.
 @lst = se_options {"action":"list","filter":"UndoSteps"}
 ?~ lst PartandAsmUndoSteps
 ?~ lst ProfileUndoSteps
@@ -20,7 +20,7 @@
 ! [invalid_argument] se_options {"action":"set","name":"ProfileUndoSteps","value":"many"}
 ! [not_found] se_options {"action":"get","name":"NoSuchOption"}
 ! [invalid_argument] se_options {"action":"set","name":"ColorBackground","value":"#12345"}
-# Opciones y unidades de una pieza
+# Options and units of a part
 @d = se_documents {"action":"new","kind":"part"}
 @po = se_options {"action":"list","scope":"document"}
 ?= po.scope part
@@ -41,7 +41,7 @@ se_sketch {"action":"close","sketch":"{{k.sketch}}"}
 @x = se_extrude {"sketch":"{{k.sketch}}","distance":10}
 ?= x.volume 8000
 se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
-# Opciones de chapa, conjunto y plano
+# Options for sheet metal, assembly and drawing
 @s = se_documents {"action":"new","kind":"sheet_metal"}
 @so = se_options {"action":"get","scope":"document","name":"NeutralFactor"}
 ?= so.value 0.33 0.5

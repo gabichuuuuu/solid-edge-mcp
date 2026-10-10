@@ -23,7 +23,7 @@ public sealed class PathGuardTests : IDisposable
 
     public void Dispose()
     {
-        // Las junctions se quitan primero para no recorrer su destino.
+        // Junctions are removed first so their target is not traversed.
         foreach (string link in _links)
         {
             try
@@ -65,7 +65,7 @@ public sealed class PathGuardTests : IDisposable
     [Fact]
     public void Rejects_misleading_prefix()
     {
-        // C:\...\Permitida2 no está dentro de C:\...\Permitida.
+        // C:\...\Permitida2 is not inside C:\...\Permitida.
         ToolException ex = Assert.Throws<ToolException>(() => Guard().Check(Path.Combine(_allowed2, "a.par")));
         Assert.Equal("path_not_allowed", ex.Code);
     }

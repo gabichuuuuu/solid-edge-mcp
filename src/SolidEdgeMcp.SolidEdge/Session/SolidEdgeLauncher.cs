@@ -7,19 +7,19 @@ using SolidEdgeMcp.SolidEdge.Com;
 namespace SolidEdgeMcp.SolidEdge.Session;
 
 /// <summary>
-/// Arranca Solid Edge sin que dependa del servidor: algunos clientes MCP cierran todo el árbol de
-/// procesos del servidor al terminar, y un Edge.exe hijo del servidor se cerraría con el trabajo sin
-/// guardar de la persona. Primero por activación COM (lo lanza DCOM, fuera del árbol). Si falla (p. ej.
-/// la licencia <c>SE_LICENSE_SERVER</c> se configuró después de iniciar sesión y el entorno de DCOM no
-/// la tiene), se lanza Edge.exe directamente con la variable copiada del registro, avisando de que
-/// entonces sí queda ligado al servidor.
+/// Starts Solid Edge so that it does not depend on the server: some MCP clients close the whole tree of
+/// server processes when they finish, and a child Edge.exe of the server would be closed along with unsaved
+/// work of the person. It first tries COM activation (DCOM launches it, outside the tree). If that fails (e.g.
+/// the <c>SE_LICENSE_SERVER</c> license was set after signing in and the DCOM environment does not
+/// have it), Edge.exe is launched directly with the variable copied from the registry, warning that
+/// it then does stay tied to the server.
 /// </summary>
 internal static class SolidEdgeLauncher
 {
     public const string ProgId = "SolidEdge.Application";
     private const string LicenseVariable = "SE_LICENSE_SERVER";
 
-    /// <summary>Ruta de Edge.exe según el registro COM (LocalServer32), o <c>null</c> si no está instalado.</summary>
+    /// <summary>Path of Edge.exe according to the COM registry (LocalServer32), or <c>null</c> if it is not installed.</summary>
     public static string? FindExecutable()
     {
         using RegistryKey? progId = Registry.ClassesRoot.OpenSubKey($@"{ProgId}\CLSID");
@@ -58,7 +58,7 @@ internal static class SolidEdgeLauncher
         return File.Exists(exe) ? Path.GetFullPath(exe) : null;
     }
 
-    /// <summary>Arranca Solid Edge y devuelve su objeto Application.</summary>
+    /// <summary>Starts Solid Edge and returns its Application object.</summary>
     public static object Start(TimeSpan timeout, IServerLog log)
     {
         string exe = FindExecutable() ?? throw new ToolException(
@@ -86,7 +86,7 @@ internal static class SolidEdgeLauncher
         return StartProcess(exe, remaining > TimeSpan.FromSeconds(30) ? remaining : TimeSpan.FromSeconds(30), log);
     }
 
-    /// <summary>Lanza Edge.exe con la licencia del registro y espera a que se registre en la ROT.</summary>
+    /// <summary>Launches Edge.exe with the license from the registry and waits until it registers in the ROT.</summary>
     private static object StartProcess(string exe, TimeSpan timeout, IServerLog log)
     {
         var environment = Environment.GetEnvironmentVariables()

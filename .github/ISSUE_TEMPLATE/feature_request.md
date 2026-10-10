@@ -1,27 +1,27 @@
 ---
-name: Propuesta de mejora
-about: Nueva herramienta o acción, o cobertura de una función de Solid Edge
+name: Feature request
+about: New tool or action, or coverage of a Solid Edge function
 title: ''
 labels: enhancement
 assignees: ''
 ---
 
-## Qué quieres hacer en Solid Edge
+## What you want to do in Solid Edge
 
-<!-- El encargo o flujo de trabajo, como se lo pedirías al asistente. -->
+<!-- The job or workflow, as you would ask the assistant. -->
 
-## Cómo se hace hoy
+## How it is done today
 
-<!-- ¿Se puede con se_com_* o se_command? Mira la vía y el estado en docs/COBERTURA.md. -->
+<!-- Can it be done with se_com_* or se_command? See the route and status in docs/COBERTURA.md. -->
 
-## Propuesta
+## Proposal
 
-<!-- Herramienta o acción (se_<área> con action), parámetros en mm y grados, qué devuelve. -->
+<!-- Tool or action (se_<area> with action), parameters in mm and degrees, what it returns. -->
 
-## Cómo comprobarlo
+## How to verify it
 
-<!-- Resultado medible esperado: volumen, caja envolvente, número de caras, archivo exportado… -->
+<!-- Expected measurable result: volume, bounding box, face count, exported file… -->
 
-## API de Solid Edge implicada
+## Solid Edge API involved
 
-<!-- Objetos, métodos y constantes si los conoces (se_com_describe, se_com_constants). -->
+<!-- Objects, methods and constants if you know them (se_com_describe, se_com_constants). -->

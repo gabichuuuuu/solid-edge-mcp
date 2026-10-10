@@ -4,7 +4,7 @@ namespace SolidEdgeMcp.Core.Tests;
 
 public sealed class InterferenceReportTests
 {
-    // Informe real de Solid Edge 2026 (bloque 100×60×20 y dos pasadores Ø10×40 que lo atraviesan), con todas las opciones.
+    // Real report from Solid Edge 2026 (block 100×60×20 and two Ø10×40 pins going through it), with all options.
     private const string Full = """
         Report Name: C:\temp\intf2.txt
         Report Time: 10/10/2026 15:47:09
@@ -58,7 +58,7 @@ public sealed class InterferenceReportTests
     [Fact]
     public void Reads_names_only_report_with_two_sets_and_translated_labels()
     {
-        // Rótulos traducidos, coma decimal y volumen en cm³: la lectura no depende del texto de los rótulos.
+        // Translated labels, decimal comma and volume in cm³: the parsing does not depend on the label text.
         const string text = "Informe\r\nConjunto 1:\r\n    1.par:1\r\n\r\nInterferencias:\r\n    1 de 1\r\n    1.par:1\r\n"
             + "    blk.par:1\r\n    Volumen de interferencia 1,5708 cm^3\r\n\r\n    1 interferencias detectadas\r\n";
 

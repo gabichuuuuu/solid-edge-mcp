@@ -11,8 +11,8 @@ using Face = SolidEdgeGeometry.Face;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Relación de conjunto: <paramref name="Occurrence1"/> se mueve hasta <paramref name="Occurrence2"/> (o hasta un
-/// plano del conjunto si se omite). Elementos: caras (se_geometry con la ocurrencia como 'source') o planos de la pieza.
+/// Assembly relation: <paramref name="Occurrence1"/> is moved until it meets <paramref name="Occurrence2"/> (or until an
+/// assembly plane when omitted). Elements: faces (se_geometry with the occurrence as 'source') or planes of the part.
 /// </summary>
 public sealed record RelationSpec(
     string Type,
@@ -30,15 +30,15 @@ public sealed record RelationSpec(
     string? Plane = null);
 
 /// <summary>
-/// Relaciones de conjunto. El sentido de <c>NormalsAligned</c> de Solid Edge no corresponde siempre a «alinear» o
-/// «enfrentar» las caras, así que cada relación se comprueba con la geometría resultante en coordenadas del conjunto
-/// (normales exteriores y distancia con signo) y se invierte si hace falta, como haría una persona al verla.
+/// Assembly relations. The direction of Solid Edge's <c>NormalsAligned</c> does not always correspond to "align" or
+/// "face against" the faces, so each relation is checked against the resulting geometry in assembly coordinates
+/// (outward normals and signed distance) and is inverted if needed, as a person would do when looking at it.
 /// </summary>
 public static class RelationService
 {
     public static readonly IReadOnlyList<string> Types = ["planar", "axial", "insert", "parallel", "tangent", "angle", "rigid_set"];
 
-    /// <summary>Tolerancias del resultado: 0,001 mm y coseno de unos 0,08°.</summary>
+    /// <summary>Result tolerances: 0.001 mm and a cosine of about 0.08°.</summary>
     private const double DistanceTolerance = 1e-6;
     private const double ParallelCosine = 0.999999;
     private const double PerpendicularCosine = 0.0014;
@@ -136,7 +136,7 @@ public static class RelationService
             angle = Units.DegToRad(degrees);
         }
 
-        // Validación previa de la geometría: el error sale antes de tocar el conjunto.
+        // Geometry validation first: the error is raised before touching the assembly.
         switch (spec.Type)
         {
             case "axial" or "parallel":
@@ -195,11 +195,11 @@ public static class RelationService
             }
             else if (spec.Type == "insert")
             {
-                // Como el comando Insertar de Solid Edge: plana enfrentada + axial con el giro bloqueado.
+                // Like the Solid Edge Insert command: planar mate + axial with the rotation locked.
                 AddAxial(relations, firstAxis!, secondAxis!, spec.Flip, "axis", created).FixedRotate = true;
                 if (planar is not null)
                 {
-                    // El eje puede haber girado la pieza: se vuelve a comprobar la cara.
+                    // The axis may have rotated the part: the face is checked again.
                     SetPlanar((PlanarRelation3d)planar, first, second, offset, spec.Align);
                 }
             }
@@ -227,7 +227,7 @@ public static class RelationService
                 assembly.Relations3d.AddGround(moving);
             }
 
-            // Mover una ocurrencia no cambia sus caras: los handles siguen valiendo (las coordenadas se vuelven a consultar).
+            // Moving an occurrence does not change its faces: the handles stay valid (the coordinates are queried again).
             if (ex is ToolException)
             {
                 throw;
@@ -247,9 +247,9 @@ public static class RelationService
     }
 
     /// <summary>
-    /// Crea la relación plana. Si otras relaciones ya impiden girar la pieza y Solid Edge interpreta
-    /// <c>NormalsAligned</c> en el sentido que exigiría una simetría, la relación queda insatisfecha y cambiar después
-    /// <c>NormalsAligned</c> no la recupera (comprobado en Solid Edge 2026): se borra y se crea con el valor contrario.
+    /// Creates the planar relation. If other relations already prevent rotating the part and Solid Edge interprets
+    /// <c>NormalsAligned</c> in the direction that a symmetry would require, the relation is left unsatisfied and changing it afterwards
+    /// <c>NormalsAligned</c> does not recover it (verified in Solid Edge 2026): it is deleted and created with the opposite value.
     /// </summary>
     private static PlanarRelation3d AddPlanar(Relations3d relations, Side first, Side second, bool align, List<object> created)
     {
@@ -280,7 +280,7 @@ public static class RelationService
         }
     }
 
-    /// <summary>Ajusta orientación (enfrentadas o alineadas) y signo del desplazamiento comprobando el resultado.</summary>
+    /// <summary>Adjusts orientation (facing or aligned) and the offset sign, checking the result.</summary>
     private static void SetPlanar(PlanarRelation3d relation, Side first, Side second, double offset, bool align)
     {
         if (offset != 0)
@@ -321,8 +321,8 @@ public static class RelationService
     }
 
     /// <summary>
-    /// Relación axial conservando la orientación actual de la pieza (o la contraria con <paramref name="flip"/>). La
-    /// relación se añade a <paramref name="created"/> en cuanto existe, para deshacerla si algo falla después.
+    /// Axial relation keeping the current orientation of the part (or the opposite one with <paramref name="flip"/>). The
+    /// relation is added to <paramref name="created"/> as soon as it exists, so it can be undone if something fails later.
     /// </summary>
     private static AxialRelation3d AddAxial(Relations3d relations, Side first, Side second, bool flip, string argument, List<object> created)
     {
@@ -356,7 +356,7 @@ public static class RelationService
             "Try again with 'flip' the other way.");
     }
 
-    /// <summary>Ejes paralelos (Solid Edge: axial con desplazamiento paralelo), a la distancia dada o libre si es 0.</summary>
+    /// <summary>Parallel axes (Solid Edge: axial with parallel offset), at the given distance or free if it is 0.</summary>
     private static void AddParallel(Relations3d relations, Side first, Side second, double offset, List<object> created)
     {
         AxialRelation3d relation = relations.AddAxialWithParallelOffset(first.Reference, second.Reference, offset > 0, offset);
@@ -373,9 +373,9 @@ public static class RelationService
     }
 
     /// <summary>
-    /// Tangencia de un cilindro con un plano (por el lado exterior de la cara) o con otro cilindro (exterior). Solid
-    /// Edge elige el semiespacio con <c>IsHalfSpacePositive</c>, que no se puede cambiar después: si el cilindro queda
-    /// del otro lado se borra la relación y se crea con el valor contrario.
+    /// Tangency of a cylinder with a plane (on the outer side of the face) or with another cylinder (external). Solid
+    /// Edge chooses the half-space with <c>IsHalfSpacePositive</c>, which cannot be changed later: if the cylinder ends up
+    /// on the other side the relation is deleted and created with the opposite value.
     /// </summary>
     private static void AddTangent(Relations3d relations, Side first, Side second, double offset, List<object> created)
     {
@@ -400,7 +400,7 @@ public static class RelationService
             "Check that the cylinder's axis can lie parallel to the plane or to the other cylinder and that the occurrence is not held by other relations.");
     }
 
-    /// <summary>Comprueba la tangencia exterior con el desplazamiento pedido; devuelve también lo medido para el error.</summary>
+    /// <summary>Checks the external tangency with the requested offset; also returns the measured values for the error.</summary>
     private static (bool Tangent, string Found) TangentResult(Side first, Side second, double offset)
     {
         (double[] a1, double[] d1, double r1) = CylinderOf(first, "element1");
@@ -420,10 +420,10 @@ public static class RelationService
     }
 
     /// <summary>
-    /// Ángulo entre las normales exteriores de dos caras planas (0° = mismo sentido, 180° = enfrentadas), medido en
-    /// <paramref name="measure"/>, un plano del conjunto perpendicular al eje de giro. Sin plano de medida Solid Edge
-    /// deja la relación sin geometría (missing_geometry) y no mueve la pieza (comprobado en Solid Edge 2026). El
-    /// ángulo de Solid Edge se mide con sus propios sentidos: se comprueba el resultado y se prueban los equivalentes.
+    /// Angle between the outward normals of two planar faces (0° = same direction, 180° = facing each other), measured in
+    /// <paramref name="measure"/>, an assembly plane perpendicular to the rotation axis. Without a measurement plane, Solid Edge
+    /// leaves the relation without geometry (missing_geometry) and does not move the part (verified in Solid Edge 2026). The
+    /// Solid Edge angle is measured with its own directions: the result is checked and the equivalent ones are tried.
     /// </summary>
     private static void AddAngle(Relations3d relations, Side first, Side second, double angle, object measure, List<object> created)
     {
@@ -453,8 +453,8 @@ public static class RelationService
     }
 
     /// <summary>
-    /// Plano de medida del ángulo: el indicado ('1'-'3' o un plano del conjunto) o el plano base perpendicular a las dos
-    /// caras (su normal, paralela al eje de giro). Con caras paralelas el eje no está definido y hay que indicarlo.
+    /// Measurement plane of the angle: the given one ('1'-'3' or an assembly plane) or the base plane perpendicular to both
+    /// faces (its normal, parallel to the rotation axis). With parallel faces the axis is not defined and must be given.
     /// </summary>
     private static object MeasurePlane(SeContext context, AssemblyDocument assembly, Side first, Side second, string? plane)
     {
@@ -495,7 +495,7 @@ public static class RelationService
             "Create an assembly plane perpendicular to the rotation axis (se_ref_plane) and pass its handle as 'plane'.");
     }
 
-    /// <summary>Conjunto rígido: las ocurrencias se mueven juntas, como una sola.</summary>
+    /// <summary>Rigid set: the occurrences move together, as one.</summary>
     private static object RigidSet(SeContext context, string[]? occurrences)
     {
         if (occurrences is not { Length: >= 2 })
@@ -522,7 +522,7 @@ public static class RelationService
         return new { relations = new[] { Describe(context, assembly, relation, []) } };
     }
 
-    /// <summary>Eje, dirección y radio de una cara cilíndrica (m, coordenadas del conjunto).</summary>
+    /// <summary>Axis, direction and radius of a cylindrical face (m, assembly coordinates).</summary>
     private static (double[] Point, double[] Direction, double Radius) CylinderOf(Side side, string argumentName)
     {
         if (side.Element is not Face { Geometry: SolidEdgeGeometry.Cylinder cylinder })
@@ -539,7 +539,7 @@ public static class RelationService
         return (placement?.Point(p) ?? p, Unit(placement?.Vector(d) ?? d), radius);
     }
 
-    /// <summary>Ocurrencia indicada o, si falta, la del handle del elemento (caras y aristas leídas desde una ocurrencia).</summary>
+    /// <summary>Given occurrence or, if missing, the one of the element's handle (faces and edges read from an occurrence).</summary>
     private static Occurrence? OccurrenceOf(SeContext context, string? occurrence, string? element, string occurrenceName, string elementName)
     {
         if (!string.IsNullOrWhiteSpace(occurrence))
@@ -593,7 +593,7 @@ public static class RelationService
         return new Side(value, reference, occurrence);
     }
 
-    /// <summary>Punto y normal exterior de un plano (m, coordenadas del conjunto).</summary>
+    /// <summary>Point and outward normal of a plane (m, assembly coordinates).</summary>
     private static (double[] Point, double[] Normal) PlaneOf(Side side, string argumentName)
     {
         Array root = new double[3];
@@ -624,7 +624,7 @@ public static class RelationService
         return (placement?.Point(point) ?? point, Unit(placement?.Vector(n) ?? n));
     }
 
-    /// <summary>Punto y dirección del eje de un cilindro, un cono, una arista recta o circular (m, conjunto).</summary>
+    /// <summary>Point and direction of the axis of a cylinder, a cone, a straight or circular edge (m, assembly).</summary>
     private static (double[] Point, double[] Direction) AxisOf(Side side, string argumentName)
     {
         Array point = new double[3];
@@ -691,7 +691,7 @@ public static class RelationService
         return info;
     }
 
-    /// <summary>Ocurrencias de la relación; las suprimidas no se pueden leer y se omiten.</summary>
+    /// <summary>Occurrences of the relation; suppressed ones cannot be read and are skipped.</summary>
     private static Occurrence[] Members(object relation) => (relation switch
         {
             GroundRelation3d => new[] { Late.TryGet(relation, "Occurrence") },
@@ -712,7 +712,7 @@ public static class RelationService
         _ => (InteropCatalog.GetTypeName(relation) ?? "relation").Split('.')[^1],
     };
 
-    /// <summary>Estado de la relación. Por IDispatch llega como entero, no como la enumeración.</summary>
+    /// <summary>Status of the relation. Through IDispatch it arrives as an integer, not as the enumeration.</summary>
     private static string DetailedStatus(object relation) => (Late.TryGet(relation, "DetailedStatus") is { } value
         ? (Relation3dDetailedStatusConstants)Convert.ToInt32(value, CultureInfo.InvariantCulture)
         : Relation3dDetailedStatusConstants.igRelation3dDetailedStatusUnknown) switch
@@ -734,7 +734,7 @@ public static class RelationService
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex))
         {
-            // Ya no existe.
+            // No longer exists.
         }
     }
 
@@ -748,6 +748,6 @@ public static class RelationService
         return length < 1e-15 ? v : [v[0] / length, v[1] / length, v[2] / length];
     }
 
-    /// <summary>Elemento resuelto: el objeto de la pieza (o del conjunto), lo que se pasa a la relación y su ocurrencia.</summary>
+    /// <summary>Resolved element: the part (or assembly) object, what is passed to the relation, and its occurrence.</summary>
     private sealed record Side(object Element, object Reference, Occurrence? Occurrence);
 }

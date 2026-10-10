@@ -19,7 +19,7 @@ public enum MeasureAction
     Angle,
 }
 
-/// <summary>Consultas de solo lectura del modelo: geometría, medidas y propiedades físicas (mm).</summary>
+/// <summary>Read-only model queries: geometry, measurements and physical properties (mm).</summary>
 [McpServerToolType]
 public sealed class InspectTools(ToolRunner runner)
 {

@@ -1,8 +1,8 @@
 namespace SolidEdgeMcp.Core;
 
 /// <summary>
-/// Conversión única entre las unidades de las herramientas (mm, grados) y las internas de
-/// Solid Edge (m, rad). Ninguna otra parte del código debe multiplicar por 1000 o por π/180.
+/// Single conversion point between the tool units (mm, degrees) and the internal units of
+/// Solid Edge (m, rad). No other part of the code should multiply by 1000 or by π/180.
 /// </summary>
 public static class Units
 {
@@ -21,7 +21,7 @@ public static class Units
 
     public static double Mm3ToM3(double mm3) => mm3 / (MillimetresPerMetre * MillimetresPerMetre * MillimetresPerMetre);
 
-    /// <summary>Momento de inercia: kg·m² → kg·mm².</summary>
+    /// <summary>Moment of inertia: kg·m² → kg·mm².</summary>
     public static double KgM2ToKgMm2(double kgM2) => kgM2 * MillimetresPerMetre * MillimetresPerMetre;
 
     public static double DegToRad(double degrees) => degrees / DegreesPerRadian;
@@ -30,7 +30,7 @@ public static class Units
 
     public static double[] MToMm(IEnumerable<double> values) => values.Select(MToMm).ToArray();
 
-    /// <summary>Exige un número finito; los NaN e infinitos nunca deben llegar a COM.</summary>
+    /// <summary>Requires a finite number; NaN and infinite values must never reach COM.</summary>
     public static double RequireFinite(double value, string name)
     {
         if (!double.IsFinite(value))
@@ -41,7 +41,7 @@ public static class Units
         return value;
     }
 
-    /// <summary>Exige un número finito y estrictamente positivo (longitudes, espesores, radios).</summary>
+    /// <summary>Requires a finite, strictly positive number (lengths, thicknesses, radii).</summary>
     public static double RequirePositive(double value, string name)
     {
         RequireFinite(value, name);

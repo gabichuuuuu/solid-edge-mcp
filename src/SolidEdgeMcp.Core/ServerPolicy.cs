@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace SolidEdgeMcp.Core;
 
-/// <summary>Límites de salida para no saturar el contexto del cliente.</summary>
+/// <summary>Output limits so the client context is not saturated.</summary>
 public sealed record PolicyLimits
 {
     public int MaxListItems { get; init; } = 500;
@@ -12,33 +12,33 @@ public sealed record PolicyLimits
 
     public int MaxImageHeight { get; init; } = 4096;
 
-    /// <summary>Handles vivos como máximo; se expulsan los menos usados.</summary>
+    /// <summary>Maximum number of live handles; the least used ones are evicted.</summary>
     public int MaxHandles { get; init; } = 5000;
 }
 
 /// <summary>
-/// Configuración de cada instalación (<c>policy.json</c>). Lo que depende del equipo se configura
-/// aquí; nunca se programa.
+/// Per-installation configuration (<c>policy.json</c>). Anything that depends on the machine is configured
+/// here; it is never hard-coded.
 /// </summary>
 public sealed record ServerPolicy
 {
     public const string EnvironmentVariable = "SOLID_EDGE_MCP_POLICY";
 
-    /// <summary>Carpetas en las que se permite abrir, guardar, exportar e insertar archivos.</summary>
+    /// <summary>Folders where opening, saving, exporting and inserting files is allowed.</summary>
     public IReadOnlyList<string> AllowedRoots { get; init; } = [];
 
-    /// <summary>Si no hay un Solid Edge abierto, arrancarlo al primer uso.</summary>
+    /// <summary>If no Solid Edge is open, start it on first use.</summary>
     public bool StartSolidEdgeIfNotRunning { get; init; } = true;
 
-    /// <summary>Tiempo máximo de cada operación COM, en segundos.</summary>
+    /// <summary>Maximum time for each COM operation, in seconds.</summary>
     public int OperationTimeoutSeconds { get; init; } = 120;
 
-    /// <summary>Tiempo máximo para que Solid Edge arranque y se registre, en segundos.</summary>
+    /// <summary>Maximum time for Solid Edge to start and register, in seconds.</summary>
     public int StartupTimeoutSeconds { get; init; } = 180;
 
     public PolicyLimits Limits { get; init; } = new();
 
-    /// <summary>Archivo del que se cargó, o <c>null</c> si se usan los valores por defecto.</summary>
+    /// <summary>File it was loaded from, or <c>null</c> if the default values are used.</summary>
     [JsonIgnore]
     public string? SourceFile { get; init; }
 
@@ -52,8 +52,8 @@ public sealed record ServerPolicy
     };
 
     /// <summary>
-    /// Busca la política en <c>--policy</c>, en <see cref="EnvironmentVariable"/> o en la ruta por
-    /// defecto. Un archivo indicado expresamente debe existir; el de la ruta por defecto es opcional.
+    /// Looks for the policy in <c>--policy</c>, in <see cref="EnvironmentVariable"/> or at the default
+    /// path. A file given explicitly must exist; the one at the default path is optional.
     /// </summary>
     public static ServerPolicy Load(IReadOnlyList<string> args, AppPaths paths, Func<string, string?> getEnvironmentVariable)
     {
@@ -166,5 +166,5 @@ public sealed record ServerPolicy
     private static string Where(string? sourceFile) => sourceFile is null ? "" : $" '{sourceFile}'";
 }
 
-/// <summary>Configuración inválida: el servidor no debe arrancar.</summary>
+/// <summary>Invalid configuration: the server must not start.</summary>
 public sealed class PolicyException(string message, Exception? inner = null) : Exception(message, inner);

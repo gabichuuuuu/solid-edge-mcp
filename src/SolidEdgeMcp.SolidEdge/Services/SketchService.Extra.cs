@@ -9,8 +9,8 @@ using SolidEdgePart;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Elementos de boceto adicionales (elipse, spline, punto, redondeo, aristas del modelo) y restricciones 2D:
-/// relaciones geométricas y cotas que gobiernan el boceto, como hace una persona con «Cota inteligente».
+/// Additional sketch elements (ellipse, spline, point, fillet, model edges) and 2D constraints:
+/// geometric relations and dimensions that drive the sketch, as a person does with "Smart Dimension".
 /// </summary>
 public static partial class SketchService
 {
@@ -19,7 +19,7 @@ public static partial class SketchService
 
     public static readonly IReadOnlyList<string> DimensionTypes = ["length", "radius", "diameter", "distance", "angle"];
 
-    /// <summary>Elipse por centro, semieje mayor, semieje menor y ángulo del eje mayor (grados desde x).</summary>
+    /// <summary>Ellipse by center, major semi-axis, minor semi-axis and angle of the major axis (degrees from x).</summary>
     public static object Ellipse(SeContext context, string sketch, double[]? center, double? radius, double? minorRadius, double? angle)
     {
         Profile profile = Resolve(context, sketch);
@@ -32,13 +32,13 @@ public static partial class SketchService
         }
 
         double a = Units.DegToRad(Units.RequireFinite(angle ?? 0, "angle"));
-        // El eje mayor se da como vector desde el centro (comprobado: no es un punto absoluto).
+        // The major axis is given as a vector from the center (verified: it is not an absolute point).
         Ellipse2d ellipse = profile.Ellipses2d.AddByCenter(x, y, major * Math.Cos(a), major * Math.Sin(a), minor / major,
             Geom2dOrientationConstants.igGeom2dOrientCounterClockwise);
         return new { element = context.RegisterBeside(ellipse, "ellipse2d", sketch), geometry = Describe2d(ellipse) };
     }
 
-    /// <summary>Spline cúbica que pasa por los puntos; cerrada (tangente continua) si <paramref name="closed"/>.</summary>
+    /// <summary>Cubic spline through the points; closed (continuous tangent) if <paramref name="closed"/>.</summary>
     public static object Spline(SeContext context, string sketch, double[]? points, bool closed)
     {
         Profile profile = Resolve(context, sketch);
@@ -65,8 +65,8 @@ public static partial class SketchService
     }
 
     /// <summary>
-    /// Redondeo entre dos elementos que recorta ambos. <paramref name="side"/> es un punto dentro de la esquina que
-    /// se redondea; con dos líneas, por defecto, sobre la bisectriz de su esquina común.
+    /// Fillet between two elements that trims both. <paramref name="side"/> is a point inside the corner that
+    /// is rounded; with two lines, by default, on the bisector of their common corner.
     /// </summary>
     public static object Fillet(SeContext context, string sketch, string[]? elements, double? radius, double[]? side)
     {
@@ -78,7 +78,7 @@ public static partial class SketchService
             : throw ToolException.InvalidArgument("A fillet between curves needs 'points' = [x, y], a point inside the corner to round.");
         try
         {
-            // Sin esquina posible (p. ej. líneas paralelas) Solid Edge no lanza error: devuelve null.
+            // With no possible corner (e.g. parallel lines) Solid Edge does not throw an error: it returns null.
             Arc2d arc = profile.Arcs2d.AddAsFillet(e[0], e[1], r, pick.X, pick.Y)
                 ?? throw new ToolException("fillet_failed", "Solid Edge could not round the corner: the elements do not form a corner for that radius.",
                     "The two elements must meet (or cross) and both be long enough for the radius; pass 'points' inside the corner to round.");
@@ -96,7 +96,7 @@ public static partial class SketchService
         }
     }
 
-    /// <summary>Incluye aristas del modelo en el boceto (proyectadas y enlazadas, como «Incluir» de la interfaz).</summary>
+    /// <summary>Includes model edges in the sketch (projected and linked, like the "Include" command of the UI).</summary>
     public static object Project(SeContext context, string sketch, string[]? edges)
     {
         Profile profile = Resolve(context, sketch);
@@ -111,7 +111,7 @@ public static partial class SketchService
             object edge = context.Handles.Resolve<SolidEdgeGeometry.Edge>(handle, "elements");
             try
             {
-                // El parámetro de salida Geometry2d llega vacío (comprobado): los elementos nuevos se buscan en las colecciones.
+                // The Geometry2d output parameter comes back empty (verified): the new elements are searched for in the collections.
                 int[] before = ElementCounts(profile);
                 profile.IncludeEdge(edge, out _);
                 foreach (object geometry in NewElements(profile, before))
@@ -129,7 +129,7 @@ public static partial class SketchService
         return new { elements = created };
     }
 
-    /// <summary>Relación geométrica entre elementos del boceto; Solid Edge recoloca la geometría para cumplirla.</summary>
+    /// <summary>Geometric relation between sketch elements; Solid Edge repositions the geometry to satisfy it.</summary>
     public static object Relate(SeContext context, string sketch, string type, string[]? elements, int[]? keypoints)
     {
         Profile profile = Resolve(context, sketch);
@@ -169,7 +169,7 @@ public static partial class SketchService
         }
         catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
         {
-            // 0x80040210 llega con un texto engañoso (suscripción PerUser); aparece al repetir una relación que ya existe.
+            // 0x80040210 comes with a misleading text (PerUser subscription); it appears when repeating a relation that already exists.
             string reason = ex.HResult == unchecked((int)0x80040210)
                 ? "it repeats or contradicts a relation the elements already have (HRESULT 0x80040210)"
                 : ex.Message;
@@ -179,8 +179,8 @@ public static partial class SketchService
     }
 
     /// <summary>
-    /// Cota de boceto que gobierna la geometría (como las de la interfaz). Con <paramref name="value"/> fija esa medida
-    /// (mm o grados); sin él bloquea la actual. Su variable se puede cambiar después con se_variables.
+    /// Sketch dimension that drives the geometry (like the ones in the UI). With <paramref name="value"/> it sets that measure
+    /// (mm or degrees); without it, it locks the current one. Its variable can be changed later with se_variables.
     /// </summary>
     public static object Dimension(SeContext context, string sketch, string type, string[]? elements, int[]? keypoints, double? value)
     {
@@ -197,7 +197,7 @@ public static partial class SketchService
             throw ToolException.InvalidArgument("'value' of an angle must be between 0 and 180 degrees (the angle inside the corner of the two lines).");
         }
 
-        // El ángulo interior se convierte al que guarda Solid Edge (ver AngleFrame).
+        // The interior angle is converted to the one Solid Edge stores (see AngleFrame).
         AngleFrame? frame = type == "angle" ? AngleFrame.Of(e) : null;
         Dimension dimension;
         try
@@ -248,7 +248,7 @@ public static partial class SketchService
         };
     }
 
-    /// <summary>Relaciones y cotas del boceto.</summary>
+    /// <summary>Relations and dimensions of the sketch.</summary>
     public static object Constraints(SeContext context, string sketch)
     {
         Profile profile = Resolve(context, sketch);
@@ -298,7 +298,7 @@ public static partial class SketchService
         };
     }
 
-    /// <summary>Elementos 2D del boceto con su handle y geometría (mm), hasta el límite de la lista.</summary>
+    /// <summary>2D elements of the sketch with their handle and geometry (mm), up to the list limit.</summary>
     private static (List<object> Items, bool Truncated) ElementList(SeContext context, Profile profile, string sketch)
     {
         var items = new List<object>();
@@ -321,8 +321,8 @@ public static partial class SketchService
     }
 
     /// <summary>
-    /// Elementos que une una relación, con el punto clave cuando la relación es sobre un punto. GetRelatedObject
-    /// empieza en 1; un índice de punto clave negativo significa el elemento entero.
+    /// Elements joined by a relation, with the key point when the relation is on a point. GetRelatedObject
+    /// starts at 1; a negative key point index means the whole element.
     /// </summary>
     private static object[] RelatedElements(SeContext context, Relation2d relation, string sketch)
     {
@@ -341,7 +341,7 @@ public static partial class SketchService
                 }
                 catch (ToolException)
                 {
-                    // Elemento sin ese punto clave consultable (p. ej. un eje de referencia): se da solo el índice.
+                    // Element without that queryable key point (e.g. a reference axis): only the index is given.
                 }
             }
 
@@ -356,7 +356,7 @@ public static partial class SketchService
         return result;
     }
 
-    /// <summary>Nombre de la relación 2D a partir de su tipo (SolidEdgeFramework.ObjectType).</summary>
+    /// <summary>Name of the 2D relation from its type (SolidEdgeFramework.ObjectType).</summary>
     private static string RelationName(int type) => (SolidEdgeFramework.ObjectType)type switch
     {
         SolidEdgeFramework.ObjectType.igKeyPointRelation2d => "connect",
@@ -382,7 +382,7 @@ public static partial class SketchService
         _ => $"type_{type}",
     };
 
-    /// <summary>Borra una relación o cota del boceto (handle de 'relation' o 'dimension').</summary>
+    /// <summary>Deletes a relation or dimension of the sketch ('relation' or 'dimension' handle).</summary>
     public static object DeleteConstraint(SeContext context, string handle)
     {
         object item = context.Handles.Resolve(handle, "constraint");
@@ -397,7 +397,7 @@ public static partial class SketchService
         return new { deleted = handle };
     }
 
-    /// <summary>Geometría de un elemento 2D en mm (y grados), en coordenadas del boceto.</summary>
+    /// <summary>Geometry of a 2D element in mm (and degrees), in sketch coordinates.</summary>
     internal static object Describe2d(object element)
     {
         static double[] P(double x, double y) => [Geo.Mm(x), Geo.Mm(y)];
@@ -485,8 +485,8 @@ public static partial class SketchService
                 "Lines: 0 start, 1 end, 2 middle. Circles: 0 centre. Arcs: 0 centre, 1 start, 2 end. Ellipses: 0 centre.");
 
     /// <summary>
-    /// Distancia entre dos elementos. Sin puntos clave se toma la línea por su punto medio (distancia entre rectas o de
-    /// punto a recta) y los círculos, arcos, elipses y puntos por su centro.
+    /// Distance between two elements. Without key points the line is taken by its midpoint (distance between lines or from
+    /// point to line), and circles, arcs, ellipses and points by their center.
     /// </summary>
     private static Dimension Distance(Dimensions dimensions, object[] e, int[]? k)
     {
@@ -497,8 +497,8 @@ public static partial class SketchService
             return dimension;
         }
 
-        // Comprobado: entre líneas de sentidos opuestos (el lado superior de un rectángulo va de derecha a izquierda)
-        // Solid Edge mide en otra dirección; invertir el sentido del eje de medida da la distancia real.
+        // Verified: between lines with opposite directions (the top side of a rectangle runs from right to left)
+        // Solid Edge measures in another direction; reversing the direction of the measurement axis gives the real distance.
         dimension.MeasurementAxisDirection = !dimension.MeasurementAxisDirection;
         if (Math.Abs(dimension.Value - expected) <= DistanceTolerance)
         {
@@ -515,8 +515,8 @@ public static partial class SketchService
     private const double DistanceTolerance = 1e-7;
 
     /// <summary>
-    /// Distancia real que debe medir la cota, en m: entre puntos, de punto a recta o entre rectas paralelas. Null si no hay
-    /// una sola evidente (rectas que se cortan, curvas).
+    /// Real distance that the dimension must measure, in m: between points, from point to line or between parallel lines. Null if there is no
+    /// single obvious one (intersecting lines, curves).
     /// </summary>
     private static double? ExpectedDistance(object[] e, (double X, double Y, bool Key)[] picks)
     {
@@ -558,9 +558,9 @@ public static partial class SketchService
     }
 
     /// <summary>
-    /// Ángulo entre dos líneas. Solid Edge guarda el giro antihorario de la dirección (inicio→fin) de la primera a la de la
-    /// segunda, entre 0 y 360°, sin tener en cuenta los puntos de selección (comprobado); la herramienta trabaja con el
-    /// ángulo interior de la esquina que forman (0–180°), medido entre los tramos vistos desde su intersección.
+    /// Angle between two lines. Solid Edge stores the counter-clockwise turn of the direction (start→end) from the first to the
+    /// second, between 0 and 360°, ignoring the selection points (verified); the tool works with the
+    /// interior angle of the corner they form (0–180°), measured between the segments seen from their intersection.
     /// </summary>
     private readonly record struct AngleFrame(int Sense, double Offset)
     {
@@ -581,14 +581,14 @@ public static partial class SketchService
                 throw ToolException.InvalidArgument("The lines are parallel: there is no angle between them.", "Use a 'distance' dimension instead.");
             }
 
-            // Intersección de las rectas y, desde ella, la dirección hacia el centro de cada tramo.
+            // Intersection of the lines and, from it, the direction toward the center of each segment.
             double t = ((b1.X - a1.X) * db.Y - (b1.Y - a1.Y) * db.X) / cross;
             (double X, double Y) corner = (a1.X + t * da.X, a1.Y + t * da.Y);
             (double X, double Y) ua = Toward(corner, a1, a2, da);
             (double X, double Y) ub = Toward(corner, b1, b2, db);
             double psi = Mod(Math.Atan2(ua.X * ub.Y - ua.Y * ub.X, ua.X * ub.X + ua.Y * ub.Y));
             int sense = psi <= Math.PI ? 1 : -1;
-            // Cada línea cuya dirección apunta hacia la esquina gira su dirección 180°.
+            // Each line whose direction points toward the corner has its direction turned by 180°.
             double flips = (Dot(db, ub) < 0 ? Math.PI : 0) - (Dot(da, ua) < 0 ? Math.PI : 0);
             return new AngleFrame(sense, flips);
         }
@@ -606,7 +606,7 @@ public static partial class SketchService
             (double X, double Y) middle = ((start.X + end.X) / 2 - corner.X, (start.Y + end.Y) / 2 - corner.Y);
             double length = Math.Sqrt(middle.X * middle.X + middle.Y * middle.Y);
             double scale = Math.Sqrt(direction.X * direction.X + direction.Y * direction.Y);
-            // Si la intersección es el centro del tramo (líneas en aspa), se usa su dirección.
+            // If the intersection is the center of the segment (crossed lines), its direction is used.
             return length < 1e-9 * scale ? (direction.X / scale, direction.Y / scale) : (middle.X / length, middle.Y / length);
         }
 
@@ -620,7 +620,7 @@ public static partial class SketchService
 
     private static int[] ElementCounts(Profile profile) => ElementCollections.Select(c => Late.Count(c(profile))).ToArray();
 
-    /// <summary>Elementos 2D añadidos al boceto desde <paramref name="before"/> (las colecciones crecen por el final).</summary>
+    /// <summary>2D elements added to the sketch since <paramref name="before"/> (the collections grow at the end).</summary>
     private static IEnumerable<object> NewElements(Profile profile, int[] before)
     {
         for (int i = 0; i < ElementCollections.Length; i++)
@@ -663,7 +663,7 @@ public static partial class SketchService
         }
     }
 
-    /// <summary>Punto clave de un elemento 2D (índices de KeypointIndexConstants), por IDispatch: vale para cualquier tipo.</summary>
+    /// <summary>Key point of a 2D element (KeypointIndexConstants indices), through IDispatch: it works for any type.</summary>
     private static (double X, double Y) KeyPoint(object element, int index)
     {
         try
@@ -678,7 +678,7 @@ public static partial class SketchService
         }
     }
 
-    /// <summary>Punto dentro de la esquina común de dos líneas, sobre la bisectriz, a una distancia del radio.</summary>
+    /// <summary>Point inside the common corner of two lines, on the bisector, at a distance of the radius.</summary>
     private static (double X, double Y) InsideCorner(Line2d a, Line2d b, double radius)
     {
         a.GetStartPoint(out double a1x, out double a1y);

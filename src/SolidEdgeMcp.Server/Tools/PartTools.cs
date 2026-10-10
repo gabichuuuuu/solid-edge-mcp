@@ -54,7 +54,7 @@ public enum HelixHand
     Left,
 }
 
-/// <summary>Agujeros, patrones, vaciado y desmoldeo (modelado ordenado), verificados como el resto de operaciones.</summary>
+/// <summary>Holes, patterns, shell and draft (ordered modelling), verified like the other operations.</summary>
 [McpServerToolType]
 public sealed class PartTools(ToolRunner runner)
 {
