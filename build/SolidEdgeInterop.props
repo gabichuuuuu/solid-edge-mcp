@@ -1,0 +1,22 @@
+<Project>
+  <!--
+    Interop generada desde las type libraries de la instalación local de Solid Edge
+    (scripts/generate-interop.ps1). No se usa el NuGet Interop.SolidEdge: está deprecado.
+    Se importa en cada proyecto que carga la interop (también ejecutables y tests): las referencias
+    directas a DLL no pasan al deps.json de los proyectos que referencian a otro proyecto.
+  -->
+  <ItemGroup>
+    <Reference Include="Interop.SolidEdgeConstants" HintPath="$(InteropDir)Interop.SolidEdgeConstants.dll" EmbedInteropTypes="false" Private="true" />
+    <Reference Include="Interop.SolidEdgeFramework" HintPath="$(InteropDir)Interop.SolidEdgeFramework.dll" EmbedInteropTypes="false" Private="true" />
+    <Reference Include="Interop.SolidEdgeFrameworkSupport" HintPath="$(InteropDir)Interop.SolidEdgeFrameworkSupport.dll" EmbedInteropTypes="false" Private="true" />
+    <Reference Include="Interop.SolidEdgeGeometry" HintPath="$(InteropDir)Interop.SolidEdgeGeometry.dll" EmbedInteropTypes="false" Private="true" />
+    <Reference Include="Interop.SolidEdgePart" HintPath="$(InteropDir)Interop.SolidEdgePart.dll" EmbedInteropTypes="false" Private="true" />
+    <Reference Include="Interop.SolidEdgeAssembly" HintPath="$(InteropDir)Interop.SolidEdgeAssembly.dll" EmbedInteropTypes="false" Private="true" />
+    <Reference Include="Interop.SolidEdgeDraft" HintPath="$(InteropDir)Interop.SolidEdgeDraft.dll" EmbedInteropTypes="false" Private="true" />
+  </ItemGroup>
+
+  <Target Name="CheckSolidEdgeInterop" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(InteropDir)Interop.SolidEdgeFramework.dll')"
+           Text="Falta la interop de Solid Edge en $(InteropDir). Ejecuta scripts\generate-interop.ps1 en un equipo con Solid Edge instalado." />
+  </Target>
+</Project>

@@ -1,0 +1,21 @@
+# Compilación
+bin/
+obj/
+publish/
+artifacts/
+*.user
+.vs/
+.vscode/
+TestResults/
+
+# Interop y referencia del API generadas desde la instalación local de Solid Edge
+lib/interop/
+reference/
+
+# Configuración local
+policy.json
+*.local.json
+
+# Logs
+*.log
+logs/

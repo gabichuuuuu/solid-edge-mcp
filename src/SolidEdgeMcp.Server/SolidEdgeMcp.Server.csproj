@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\..\build\SolidEdgeInterop.props" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>SolidEdgeMcp.Server</RootNamespace>
+    <AssemblyName>SolidEdgeMcp.Server</AssemblyName>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SolidEdgeMcp.Core\SolidEdgeMcp.Core.csproj" />
+    <ProjectReference Include="..\SolidEdgeMcp.SolidEdge\SolidEdgeMcp.SolidEdge.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SolidEdgeMcp.Server.Tests" />
+  </ItemGroup>
+
+</Project>
