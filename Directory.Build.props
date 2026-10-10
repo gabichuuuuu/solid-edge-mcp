@@ -9,6 +9,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Restaura también para win-x64 (publicación autocontenida): sin esto, compilar y publicar reescriben los bloqueos. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <!-- La interop COM integrada de .NET no admite AOT ni recorte de código. -->
     <PublishAot>false</PublishAot>
     <PublishTrimmed>false</PublishTrimmed>
