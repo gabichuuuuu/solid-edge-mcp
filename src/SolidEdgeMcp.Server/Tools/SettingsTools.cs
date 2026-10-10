@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
@@ -23,7 +24,34 @@ public enum OptionScope
     Document,
 }
 
-/// <summary>Opciones de Solid Edge y del documento, y unidades.</summary>
+public enum UiAction
+{
+    Status,
+    Windows,
+    Activate,
+    Arrange,
+    State,
+    Environments,
+    Ribbon,
+    Tab,
+}
+
+public enum ArrangeStyle
+{
+    Tiled,
+    Horizontal,
+    Vertical,
+    Cascade,
+}
+
+public enum WindowStateKind
+{
+    Normal,
+    Minimized,
+    Maximized,
+}
+
+/// <summary>Opciones de Solid Edge y del documento, unidades e interfaz (ventanas, entornos y cinta).</summary>
 [McpServerToolType]
 public sealed class SettingsTools(ToolRunner runner)
 {
@@ -63,6 +91,43 @@ public sealed class SettingsTools(ToolRunner runner)
             OptionAction.Units => runner.RunAsync(tool, actionName, c => OptionService.Units(c, document), cancellationToken),
             OptionAction.SetUnits => runner.RunAsync(tool, actionName, c => OptionService.SetUnits(c, document,
                 ToolRunner.Require(unitType, "unitType", "set_units"), unit, precision), cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
+
+    [McpServerTool(Name = "se_ui", Title = "Solid Edge windows, environments and ribbon", Destructive = false, OpenWorld = false)]
+    [Description("""
+        The Solid Edge user interface. status (main window, active environment and document, automation flags) |
+        windows (document windows/tabs: handle, caption, environment, document, active, state) | activate (window = index, window handle or document handle) |
+        arrange (style tiled|horizontal|vertical|cascade) | state (state normal|minimized|maximized; window optional, default the main window) |
+        environments (all environments, e.g. Part, SheetMetal, Assembly, Detail, Profile) |
+        ribbon (environment, default the active one: tabs with their groups; with tab = name or index: its groups and controls with their command ids, runnable with se_command run) |
+        tab (tab = name or index: activate that ribbon tab of the active environment).
+        Example: {"action":"ribbon","tab":"Home"}.
+        """)]
+    public Task<CallToolResult> Ui(
+        UiAction action,
+        [Description("For activate/state: window index (1-based), window handle or document handle.")] string? window = null,
+        [Description("For arrange.")] ArrangeStyle? style = null,
+        [Description("For state.")] WindowStateKind? state = null,
+        [Description("For ribbon: environment name (see 'environments'); default: the active one.")] string? environment = null,
+        [Description("For ribbon/tab: tab name or 0-based index.")] string? tab = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string tool = "se_ui";
+        string actionName = Snake(action);
+        return action switch
+        {
+            UiAction.Status => runner.RunAsync(tool, actionName, UiService.Status, cancellationToken),
+            UiAction.Windows => runner.RunAsync(tool, actionName, UiService.Windows, cancellationToken),
+            UiAction.Activate => runner.RunAsync(tool, actionName, c => UiService.Activate(c, ToolRunner.Require(window, "window", "activate")), cancellationToken),
+            UiAction.Arrange => runner.RunAsync(tool, actionName, c => UiService.Arrange(c,
+                Snake(style ?? throw ToolException.InvalidArgument("Action 'arrange' requires 'style'."))), cancellationToken),
+            UiAction.State => runner.RunAsync(tool, actionName, c => UiService.SetState(c, window,
+                Snake(state ?? throw ToolException.InvalidArgument("Action 'state' requires 'state'."))), cancellationToken),
+            UiAction.Environments => runner.RunAsync(tool, actionName, UiService.Environments, cancellationToken),
+            UiAction.Ribbon => runner.RunAsync(tool, actionName, c => UiService.Ribbon(c, environment, tab), cancellationToken),
+            UiAction.Tab => runner.RunAsync(tool, actionName, c => UiService.ActivateTab(c, ToolRunner.Require(tab, "tab", "tab")), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

@@ -1,0 +1,43 @@
+# A12: interfaz (se_ui). Ventana principal, ventanas de documento, entornos y cinta. Al final se dejan la ventana
+# principal en su estado inicial y las ventanas que quedan maximizadas. La activación de la pestaña se comprobó con una
+# captura de la ventana (la pestaña Surfacing queda seleccionada).
+@st0 = se_ui {"action":"status"}
+@sm = se_ui {"action":"state","state":"maximized"}
+?= sm.state maximized
+@env = se_ui {"action":"environments"}
+?~ env.environments SheetMetal
+?~ env.environments Detail
+@d1 = se_documents {"action":"new","kind":"part"}
+@d2 = se_documents {"action":"new","kind":"draft"}
+@w = se_ui {"action":"windows"}
+?= w.activeEnvironment Detail
+?= w.windows[?environment="Detail"].active true
+@a1 = se_ui {"action":"activate","window":"{{d1.handle}}"}
+?= a1.activated.document {{d1.handle}}
+?= a1.activated.active true
+?= a1.activeEnvironment Part
+@s1 = se_ui {"action":"status"}
+?= s1.activeDocument {{d1.handle}}
+@ar = se_ui {"action":"arrange","style":"vertical"}
+@ws = se_ui {"action":"state","window":"{{d1.handle}}","state":"maximized"}
+?= ws.state maximized
+# Cinta de la pieza: pestañas, grupos y botones con su id de orden
+@rb = se_ui {"action":"ribbon"}
+?= rb.environment Part
+?= rb.tabs[0].name Home
+?~ rb.tabs[0].groups Solids
+@rh = se_ui {"action":"ribbon","tab":"Home"}
+?~ rh.groups[?name="Solids"].controls Extrude
+@rs = se_ui {"action":"ribbon","environment":"SheetMetal"}
+?= rs.environment SheetMetal
+@t = se_ui {"action":"tab","tab":"Surfacing"}
+?= t.activated Surfacing
+se_ui {"action":"tab","tab":"0"}
+! [not_found] se_ui {"action":"tab","tab":"NoSuchTab"}
+! [not_found] se_ui {"action":"ribbon","environment":"NoSuchEnvironment"}
+! [not_found] se_ui {"action":"activate","window":"99"}
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{d1.handle}}","saveChanges":false}
+se_ui {"action":"state","window":"1","state":"maximized"}
+@sr = se_ui {"action":"state","state":"{{st0.state}}"}
+?= sr.state {{st0.state}}

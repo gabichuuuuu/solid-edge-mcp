@@ -65,6 +65,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sketch_constraint", """{"action":"relation","sketch":"sketch:1","relation":"perpendicular_to"}""", "'relation' must be one of:")]
     [InlineData("se_sketch_constraint", """{"action":"dimension","sketch":"sketch:1","type":"length"}""", "has no argument 'type'")]
     [InlineData("se_options", """{"action":"get","scope":"global"}""", "'scope' must be one of:")]
+    [InlineData("se_ui", """{"action":"arrange","style":"grid"}""", "'style' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -98,6 +99,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sketch_constraint", """{"action":"relation","sketch":"sketch:1","relation":"connect","elements":["line2d:2","arc2d:3"],"keypoints":[1,1]}""")]
     [InlineData("se_options", """{"action":"set","scope":"application","name":"ColorBackground","value":"#FFFFFF"}""")]
     [InlineData("se_options", """{"action":"set_units","unitType":"distance","unit":"inch","precision":3}""")]
+    [InlineData("se_ui", """{"action":"state","window":"doc:2","state":"maximized"}""")]
+    [InlineData("se_ui", """{"action":"ribbon","environment":"SheetMetal","tab":"Home"}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();
