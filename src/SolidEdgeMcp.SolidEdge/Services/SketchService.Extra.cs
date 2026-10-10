@@ -78,7 +78,10 @@ public static partial class SketchService
             : throw ToolException.InvalidArgument("A fillet between curves needs 'points' = [x, y], a point inside the corner to round.");
         try
         {
-            Arc2d arc = profile.Arcs2d.AddAsFillet(e[0], e[1], r, pick.X, pick.Y);
+            // Sin esquina posible (p. ej. líneas paralelas) Solid Edge no lanza error: devuelve null.
+            Arc2d arc = profile.Arcs2d.AddAsFillet(e[0], e[1], r, pick.X, pick.Y)
+                ?? throw new ToolException("fillet_failed", "Solid Edge could not round the corner: the elements do not form a corner for that radius.",
+                    "The two elements must meet (or cross) and both be long enough for the radius; pass 'points' inside the corner to round.");
             return new
             {
                 element = context.RegisterBeside(arc, "arc2d", sketch),
@@ -108,8 +111,13 @@ public static partial class SketchService
             object edge = context.Handles.Resolve<SolidEdgeGeometry.Edge>(handle, "elements");
             try
             {
-                profile.IncludeEdge(edge, out object geometry);
-                created.Add(new { edge = handle, element = context.RegisterBeside(geometry, KindOf(geometry), sketch), geometry = Describe2d(geometry) });
+                // El parámetro de salida Geometry2d llega vacío (comprobado): los elementos nuevos se buscan en las colecciones.
+                int[] before = ElementCounts(profile);
+                profile.IncludeEdge(edge, out _);
+                foreach (object geometry in NewElements(profile, before))
+                {
+                    created.Add(new { edge = handle, element = context.RegisterBeside(geometry, KindOf(geometry), sketch), geometry = Describe2d(geometry) });
+                }
             }
             catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
             {
@@ -180,7 +188,13 @@ public static partial class SketchService
         double? target = value is null ? null
             : type == "angle" ? Units.DegToRad(Units.RequirePositive(value.Value, "value"))
             : Units.MmToM(Units.RequirePositive(value.Value, "value"));
+        if (type == "angle" && target >= Math.PI - 1e-12)
+        {
+            throw ToolException.InvalidArgument("'value' of an angle must be between 0 and 180 degrees (the angle inside the corner of the two lines).");
+        }
 
+        // El ángulo interior se convierte al que guarda Solid Edge (ver AngleFrame).
+        AngleFrame? frame = type == "angle" ? AngleFrame.Of(e) : null;
         Dimension dimension;
         try
         {
@@ -204,10 +218,11 @@ public static partial class SketchService
         dimension.Constraint = true;
         if (target is { } wanted)
         {
-            dimension.Value = wanted;
-            if (Math.Abs(dimension.Value - wanted) > 1e-9)
+            double raw = frame is { } f ? f.ToSolidEdge(wanted) : wanted;
+            dimension.Value = raw;
+            if (Math.Abs(dimension.Value - raw) > 1e-9)
             {
-                double got = dimension.Value;
+                double got = frame is { } g ? g.ToInterior(dimension.Value) : dimension.Value;
                 Late.Call(dimension, "Delete");
                 throw new ToolException("dimension_failed",
                     $"Solid Edge kept the {type} at {Format(type, got)} instead of {Format(type, wanted)}; the dimension was deleted.",
@@ -215,13 +230,15 @@ public static partial class SketchService
             }
         }
 
+        double current = dimension.Value;
         return new
         {
             dimension = context.RegisterBeside(dimension, "dimension", sketch),
             variable = dimension.DisplayName,
             type,
-            measured = Num(type, measured),
-            value = Num(type, dimension.Value),
+            measured = Num(type, frame is { } m ? m.ToInterior(measured) : measured),
+            value = Num(type, frame is { } v ? v.ToInterior(current) : current),
+            variableValue = frame is null ? (double?)null : Num(type, current),
             unit = type == "angle" ? "deg" : "mm",
             elements = e.Select(Describe2d).ToArray(),
         };
@@ -366,7 +383,147 @@ public static partial class SketchService
     private static Dimension Distance(Dimensions dimensions, object[] e, int[]? k)
     {
         (double X, double Y, bool Key)[] picks = e.Select((element, i) => k is null ? DefaultPick(element) : (KeyPoint(element, k[i]).X, KeyPoint(element, k[i]).Y, true)).ToArray();
-        return dimensions.AddDistanceBetweenObjects(e[0], picks[0].X, picks[0].Y, 0, picks[0].Key, e[1], picks[1].X, picks[1].Y, 0, picks[1].Key);
+        Dimension dimension = dimensions.AddDistanceBetweenObjects(e[0], picks[0].X, picks[0].Y, 0, picks[0].Key, e[1], picks[1].X, picks[1].Y, 0, picks[1].Key);
+        if (ExpectedDistance(e, picks) is not { } expected || Math.Abs(dimension.Value - expected) <= DistanceTolerance)
+        {
+            return dimension;
+        }
+
+        // Comprobado: entre líneas de sentidos opuestos (el lado superior de un rectángulo va de derecha a izquierda)
+        // Solid Edge mide en otra dirección; invertir el sentido del eje de medida da la distancia real.
+        dimension.MeasurementAxisDirection = !dimension.MeasurementAxisDirection;
+        if (Math.Abs(dimension.Value - expected) <= DistanceTolerance)
+        {
+            return dimension;
+        }
+
+        double got = dimension.Value;
+        Late.Call(dimension, "Delete");
+        throw new ToolException("dimension_failed",
+            $"Solid Edge measured {Format("distance", got)} instead of the true distance {Format("distance", expected)}; the dimension was deleted.",
+            "Dimension between keypoints instead ('keypoints' [i1, i2]), or use se_sketch_constraint 'length' on a line.");
+    }
+
+    private const double DistanceTolerance = 1e-7;
+
+    /// <summary>
+    /// Distancia real que debe medir la cota, en m: entre puntos, de punto a recta o entre rectas paralelas. Null si no hay
+    /// una sola evidente (rectas que se cortan, curvas).
+    /// </summary>
+    private static double? ExpectedDistance(object[] e, (double X, double Y, bool Key)[] picks)
+    {
+        (double X, double Y)? point0 = picks[0].Key ? (picks[0].X, picks[0].Y) : null;
+        (double X, double Y)? point1 = picks[1].Key ? (picks[1].X, picks[1].Y) : null;
+        Line2d? line0 = picks[0].Key ? null : e[0] as Line2d;
+        Line2d? line1 = picks[1].Key ? null : e[1] as Line2d;
+        return (point0, point1, line0, line1) switch
+        {
+            ({ } a, { } b, _, _) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2)),
+            ({ } a, _, _, { } m) => PointToLine(a, m),
+            (_, { } b, { } m, _) => PointToLine(b, m),
+            (_, _, { } m0, { } m1) when Parallel(m0, m1) => PointToLine(Ends(m1).Start, m0),
+            _ => null,
+        };
+    }
+
+    private static ((double X, double Y) Start, (double X, double Y) End) Ends(Line2d line)
+    {
+        line.GetStartPoint(out double x1, out double y1);
+        line.GetEndPoint(out double x2, out double y2);
+        return ((x1, y1), (x2, y2));
+    }
+
+    private static double PointToLine((double X, double Y) p, Line2d line)
+    {
+        ((double X, double Y) a, (double X, double Y) b) = Ends(line);
+        double dx = b.X - a.X, dy = b.Y - a.Y;
+        return Math.Abs((p.X - a.X) * dy - (p.Y - a.Y) * dx) / Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private static bool Parallel(Line2d a, Line2d b)
+    {
+        ((double X, double Y) a1, (double X, double Y) a2) = Ends(a);
+        ((double X, double Y) b1, (double X, double Y) b2) = Ends(b);
+        (double X, double Y) u = Unit(a2.X - a1.X, a2.Y - a1.Y);
+        (double X, double Y) v = Unit(b2.X - b1.X, b2.Y - b1.Y);
+        return Math.Abs(u.X * v.Y - u.Y * v.X) < 1e-9;
+    }
+
+    /// <summary>
+    /// Ángulo entre dos líneas. Solid Edge guarda el giro antihorario de la dirección (inicio→fin) de la primera a la de la
+    /// segunda, entre 0 y 360°, sin tener en cuenta los puntos de selección (comprobado); la herramienta trabaja con el
+    /// ángulo interior de la esquina que forman (0–180°), medido entre los tramos vistos desde su intersección.
+    /// </summary>
+    private readonly record struct AngleFrame(int Sense, double Offset)
+    {
+        public static AngleFrame Of(object[] e)
+        {
+            if (e is not [Line2d a, Line2d b])
+            {
+                throw ToolException.InvalidArgument("An 'angle' dimension takes two lines.");
+            }
+
+            ((double X, double Y) a1, (double X, double Y) a2) = Ends(a);
+            ((double X, double Y) b1, (double X, double Y) b2) = Ends(b);
+            (double X, double Y) da = (a2.X - a1.X, a2.Y - a1.Y);
+            (double X, double Y) db = (b2.X - b1.X, b2.Y - b1.Y);
+            double cross = da.X * db.Y - da.Y * db.X;
+            if (Math.Abs(cross) < 1e-12 * Math.Sqrt((da.X * da.X + da.Y * da.Y) * (db.X * db.X + db.Y * db.Y)))
+            {
+                throw ToolException.InvalidArgument("The lines are parallel: there is no angle between them.", "Use a 'distance' dimension instead.");
+            }
+
+            // Intersección de las rectas y, desde ella, la dirección hacia el centro de cada tramo.
+            double t = ((b1.X - a1.X) * db.Y - (b1.Y - a1.Y) * db.X) / cross;
+            (double X, double Y) corner = (a1.X + t * da.X, a1.Y + t * da.Y);
+            (double X, double Y) ua = Toward(corner, a1, a2, da);
+            (double X, double Y) ub = Toward(corner, b1, b2, db);
+            double psi = Mod(Math.Atan2(ua.X * ub.Y - ua.Y * ub.X, ua.X * ub.X + ua.Y * ub.Y));
+            int sense = psi <= Math.PI ? 1 : -1;
+            // Cada línea cuya dirección apunta hacia la esquina gira su dirección 180°.
+            double flips = (Dot(db, ub) < 0 ? Math.PI : 0) - (Dot(da, ua) < 0 ? Math.PI : 0);
+            return new AngleFrame(sense, flips);
+        }
+
+        public double ToSolidEdge(double interior) => Mod(Sense * interior + Offset);
+
+        public double ToInterior(double raw)
+        {
+            double angle = Mod(Sense * (raw - Offset));
+            return angle > Math.PI ? 2 * Math.PI - angle : angle;
+        }
+
+        private static (double X, double Y) Toward((double X, double Y) corner, (double X, double Y) start, (double X, double Y) end, (double X, double Y) direction)
+        {
+            (double X, double Y) middle = ((start.X + end.X) / 2 - corner.X, (start.Y + end.Y) / 2 - corner.Y);
+            double length = Math.Sqrt(middle.X * middle.X + middle.Y * middle.Y);
+            double scale = Math.Sqrt(direction.X * direction.X + direction.Y * direction.Y);
+            // Si la intersección es el centro del tramo (líneas en aspa), se usa su dirección.
+            return length < 1e-9 * scale ? (direction.X / scale, direction.Y / scale) : (middle.X / length, middle.Y / length);
+        }
+
+        private static double Dot((double X, double Y) a, (double X, double Y) b) => a.X * b.X + a.Y * b.Y;
+
+        private static double Mod(double angle) => ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    }
+
+    private static readonly Func<Profile, object>[] ElementCollections =
+        [p => p.Lines2d, p => p.Arcs2d, p => p.Circles2d, p => p.Ellipses2d, p => p.EllipticalArcs2d, p => p.BSplineCurves2d, p => p.Points2d];
+
+    private static int[] ElementCounts(Profile profile) => ElementCollections.Select(c => Late.Count(c(profile))).ToArray();
+
+    /// <summary>Elementos 2D añadidos al boceto desde <paramref name="before"/> (las colecciones crecen por el final).</summary>
+    private static IEnumerable<object> NewElements(Profile profile, int[] before)
+    {
+        for (int i = 0; i < ElementCollections.Length; i++)
+        {
+            object collection = ElementCollections[i](profile);
+            int count = Late.Count(collection);
+            for (int j = before[i] + 1; j <= count; j++)
+            {
+                yield return Late.Call(collection, "Item", j)!;
+            }
+        }
     }
 
     private static Dimension Angle(Dimensions dimensions, object[] e)
@@ -428,6 +585,11 @@ public static partial class SketchService
         (double X, double Y) corner = ea[i];
         (double X, double Y) ua = Unit(ea[1 - i].X - corner.X, ea[1 - i].Y - corner.Y);
         (double X, double Y) ub = Unit(eb[1 - j].X - corner.X, eb[1 - j].Y - corner.Y);
+        if (Math.Abs(ua.X * ub.Y - ua.Y * ub.X) < 1e-9)
+        {
+            throw ToolException.InvalidArgument("The lines are parallel or colinear: there is no corner to round.");
+        }
+
         (double X, double Y) bisector = Unit(ua.X + ub.X, ua.Y + ub.Y);
         return (corner.X + bisector.X * radius, corner.Y + bisector.Y * radius);
     }

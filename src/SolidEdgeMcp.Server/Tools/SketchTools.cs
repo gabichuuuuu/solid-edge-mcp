@@ -130,11 +130,11 @@ public sealed class SketchTools(ToolRunner runner)
     [McpServerTool(Name = "se_sketch_constraint", Title = "Sketch relations and dimensions", Destructive = true, OpenWorld = false)]
     [Description("""
         Geometric relations and driving dimensions of a sketch (before 'close'); Solid Edge moves the geometry to satisfy them. elements: handles returned by se_sketch.
-        relation (type: horizontal | vertical | fix (one element) | parallel | perpendicular | equal | tangent | concentric | colinear (two) | connect (two + keypoints [i1,i2]) | symmetric (symmetry line + two)) |
-        dimension (type: length (line) | radius | diameter (circle or arc) | distance (two elements; lines by their middle, circles/arcs/points by their centre, or keypoints [i1,i2]) | angle (two lines); value in mm or degrees sets the size, omitted locks the current one; returns the variable name to change it later with se_variables) |
+        relation (relation: horizontal | vertical | fix (one element) | parallel | perpendicular | equal | tangent | concentric | colinear (two) | connect (two + keypoints [i1,i2]) | symmetric (symmetry line + two)) |
+        dimension (dimension: length (line) | radius | diameter (circle or arc) | distance (true distance between two elements: parallel lines, point/centre to line, or points; circles/arcs by their centre, or keypoints [i1,i2]) | angle (two lines: the angle inside the corner they form, 0-180; the variable stores Solid Edge's counter-clockwise angle from the first line's direction to the second's, returned as variableValue); value in mm or degrees sets the size, omitted locks the current one; returns the variable name to change it later with se_variables) |
         list (relations count and dimensions with their variables) | delete (constraint = relation or dimension handle).
         Keypoints: lines 0 start, 1 end, 2 middle; circles 0 centre; arcs 0 centre, 1 start, 2 end.
-        Example: {"action":"dimension","sketch":"sketch:5","type":"length","elements":["line2d:7"],"value":80}.
+        Example: {"action":"dimension","sketch":"sketch:5","dimension":"length","elements":["line2d:7"],"value":80}.
         """)]
     public Task<CallToolResult> SketchConstraint(
         SketchConstraintAction action,
