@@ -19,6 +19,23 @@ public static class Late
     public static object? Call(object target, string method, params object?[] args) =>
         target.GetType().InvokeMember(method, BindingFlags.InvokeMethod, null, target, args, CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// Llamada por IDispatch con parámetros por referencia (ref/out) en <paramref name="byRef"/>; devuelve los
+    /// argumentos tras la llamada. Sirve cuando la llamada con tipos de la interop falla (p. ej. DISP_E_BADCALLEE
+    /// con parámetros de enumeración en MatTable).
+    /// </summary>
+    public static object?[] CallByRef(object target, string method, object?[] args, params int[] byRef)
+    {
+        var modifier = new ParameterModifier(args.Length);
+        foreach (int position in byRef)
+        {
+            modifier[position] = true;
+        }
+
+        target.GetType().InvokeMember(method, BindingFlags.InvokeMethod, null, target, args, [modifier], CultureInfo.InvariantCulture, null);
+        return args;
+    }
+
     /// <summary>Lee una propiedad; devuelve <c>null</c> si el objeto no la tiene o falla.</summary>
     public static object? TryGet(object target, string property, params object?[] index)
     {

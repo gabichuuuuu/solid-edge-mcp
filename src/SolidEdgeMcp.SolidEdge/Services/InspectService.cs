@@ -207,7 +207,7 @@ public static class InspectService
         return new { angle = Math.Round(angle, 9), supplement = Math.Round(180 - angle, 9), firstDirection = u.Select(Geo.R), secondDirection = v.Select(Geo.R) };
     }
 
-    private static (double Density, double Accuracy) StoredSettings(Model model)
+    internal static (double Density, double Accuracy) StoredSettings(Model model)
     {
         try
         {

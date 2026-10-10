@@ -40,7 +40,16 @@ public enum PropertyAction
     Delete,
 }
 
-/// <summary>Datos del documento: tabla de variables y propiedades.</summary>
+public enum MaterialAction
+{
+    Current,
+    Apply,
+    Libraries,
+    List,
+    Info,
+}
+
+/// <summary>Datos del documento: tabla de variables, propiedades y material.</summary>
 [McpServerToolType]
 public sealed class DataTools(ToolRunner runner)
 {
@@ -105,6 +114,37 @@ public sealed class DataTools(ToolRunner runner)
                 ToolRunner.Require(name, "name", "set"), ToolRunner.RequireValue(value, "value", "set")), cancellationToken),
             PropertyAction.Delete => runner.RunAsync(tool, actionName, c => PropertyService.Delete(c, document,
                 ToolRunner.Require(name, "name", "delete")), cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
+
+    [McpServerTool(Name = "se_material", Title = "Material", Destructive = false, OpenWorld = false)]
+    [Description("""
+        Materials from the Solid Edge libraries. current: material of a part or sheet metal document, its properties, the document density and the mass |
+        apply (name, optional library; default: the first library that has it): assigns it, which updates density and mass |
+        libraries | list (optional library and filter text) | info (name, optional library): properties of a library material.
+        Properties: density kg/m3, elastic modulus and stresses MPa, Poisson ratio, thermal expansion 1/K, conductivity W/(m*K), specific heat J/(kg*K).
+        Example: {"action":"apply","name":"Aluminum, 6061-T6"}.
+        """)]
+    public Task<CallToolResult> Material(
+        MaterialAction action,
+        [Description("apply / info: exact material name, e.g. 'Steel'.")] string? name = null,
+        [Description("Library name (see 'libraries'), e.g. 'Materials'.")] string? library = null,
+        [Description("list: text contained in the material name.")] string? filter = null,
+        [Description("Document handle; default: active document.")] string? document = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string tool = "se_material";
+        string actionName = FeatureTools.Snake(action);
+        return action switch
+        {
+            MaterialAction.Current => runner.RunAsync(tool, actionName, c => MaterialService.Current(c, document), cancellationToken),
+            MaterialAction.Apply => runner.RunAsync(tool, actionName, c => MaterialService.Apply(c, document,
+                ToolRunner.Require(name, "name", actionName), library), cancellationToken),
+            MaterialAction.Libraries => runner.RunAsync(tool, actionName, MaterialService.Libraries, cancellationToken),
+            MaterialAction.List => runner.RunAsync(tool, actionName, c => MaterialService.List(c, library, filter), cancellationToken),
+            MaterialAction.Info => runner.RunAsync(tool, actionName, c => MaterialService.Info(c,
+                ToolRunner.Require(name, "name", actionName), library), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

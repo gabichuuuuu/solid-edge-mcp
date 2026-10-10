@@ -36,7 +36,9 @@ Estado: **✔** probado en Solid Edge 2026; **·** disponible en el API pero sin
 | Selección activa (leer, cambiar) | `se_selection` | ✔ |
 | Vista: encuadrar, orientación, modo, captura PNG | `se_view` | ✔ |
 | Exportar STEP, IGES, Parasolid, STL, JT, SAT, 3MF, PDF, DXF, DWG | `se_export` | ✔ |
-| Material de la biblioteca, estilos de cara, capas | COM (`Properties`, `FaceStyles`, `Layers`) | · |
+| Material: bibliotecas, propiedades, asignar (actualiza densidad y masa) | `se_material` | ✔ |
+| Crear o editar materiales y bibliotecas; galgas de chapa | COM (`Application.GetMaterialTable()`; `GetMaterialList` y `GetMatLibFileName` dan E_NOTIMPL) | · |
+| Estilos de cara, capas | COM (`FaceStyles`, `Layers`) | · |
 | Familias de piezas (`FamilyMembers`), configuraciones (`PartConfigurations`) | COM | · |
 | PMI 3D (`PMI`), vistas con nombre (`NamedViews`), secciones en vivo | COM | · |
 | Simulación y estudios generativos | COM / Orden | · |

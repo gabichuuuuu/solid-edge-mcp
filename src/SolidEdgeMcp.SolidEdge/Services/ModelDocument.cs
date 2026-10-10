@@ -46,6 +46,10 @@ public sealed class ModelDocument
             "Activate or pass a part (.par) or sheet metal (.psm) document."),
     };
 
+    /// <summary>Vista de modelo si el documento es una pieza o una chapa; si no, <c>null</c>.</summary>
+    public static ModelDocument? TryGet(SolidEdgeDocument document) =>
+        document is PartDocument or SheetMetalDocument ? From(document) : null;
+
     /// <summary>Documento del handle indicado o, si no se indica, el del objeto relacionado (boceto, operación...).</summary>
     public static ModelDocument For(SeContext context, string? documentHandle, string relatedHandle) =>
         From(string.IsNullOrWhiteSpace(documentHandle) ? context.DocumentOf(relatedHandle) : context.GetDocument(documentHandle));

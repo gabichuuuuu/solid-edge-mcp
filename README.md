@@ -18,7 +18,7 @@ tiene efecto, se deshace y se informa del motivo y del siguiente paso.
 |---|---|
 | Servidor y sesión | `se_server_info`, `se_session` (conectar, arrancar Solid Edge, estado) |
 | Documentos | `se_documents` (crear pieza, chapa, conjunto, plano o soldadura; abrir, guardar, guardar como, cerrar, deshacer, recalcular) |
-| Datos | `se_properties`, `se_variables` (cotas y variables, fórmulas) |
+| Datos | `se_properties`, `se_variables` (cotas y variables, fórmulas), `se_material` (bibliotecas, propiedades, asignar material) |
 | Consulta | `se_feature_tree`, `se_geometry` (cuerpo, caras, aristas), `se_measure`, `se_physical` (masa, volumen, CDG, inercia), `se_selection` |
 | Vista | `se_view` (encuadre, orientación, modo de visualización, **captura PNG**) |
 | Bocetos | `se_sketch` (líneas, rectángulos, polilíneas, círculos, arcos, eje, cierre validado), `se_ref_plane` |
