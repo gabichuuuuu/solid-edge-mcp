@@ -85,6 +85,29 @@ se_sketch {"action":"spline","sketch":"{{kK.sketch}}","points":[10,0,0,10,-10,0,
 ! [handle_wrong_type] se_sketch_constraint {"action":"delete","constraint":"{{l2.element}}"}
 se_sketch_constraint {"action":"delete","constraint":"{{eqK.relation}}"}
 @lK = se_sketch_constraint {"action":"list","sketch":"{{kK.sketch}}"}
-?= lK.relations 7
+?= lK.relationCount 7
+?~ lK.relations tangent
+?~ lK.relations symmetric
+@iK = se_sketch {"action":"info","sketch":"{{kK.sketch}}"}
+?~ iK.items spline
 se_documents {"action":"close","document":"{{dK.handle}}","saveChanges":false}
+# L: lista de un rectángulo 80x60: 4 uniones (la primera, final de [0] (80,0) con inicio de [1]) + 2 horizontales + 2 verticales; info con las 4 líneas. Error: horizontal repetida sobre [0]
+@dL = se_documents {"action":"new","kind":"part"}
+@kL = se_sketch {"action":"create","plane":"1"}
+@rL = se_sketch {"action":"rectangle","sketch":"{{kL.sketch}}","points":[0,0,80,60]}
+@lL = se_sketch_constraint {"action":"list","sketch":"{{kL.sketch}}"}
+?= lL.relationCount 8
+?= lL.relations[0].type connect
+?= lL.relations[0].elements[0].element {{rL.elements[0]}}
+?= lL.relations[0].elements[0].keypoint 1
+?= lL.relations[0].elements[0].point[0] 80
+?= lL.relations[0].elements[1].element {{rL.elements[1]}}
+?~ lL.relations horizontal
+?~ lL.relations vertical
+@iL = se_sketch {"action":"info","sketch":"{{kL.sketch}}"}
+?= iL.items[0].element {{rL.elements[0]}}
+?= iL.items[0].geometry.length 80
+?= iL.items[1].geometry.length 60
+! [relation_failed] se_sketch_constraint {"action":"relation","sketch":"{{kL.sketch}}","relation":"horizontal","elements":["{{rL.elements[0]}}"]}
+se_documents {"action":"close","document":"{{dL.handle}}","saveChanges":false}
 se_documents {"action":"list"}

@@ -181,7 +181,16 @@ public static partial class SketchService
     public static object Info(SeContext context, string sketch)
     {
         Profile profile = Resolve(context, sketch);
-        return new { sketch, name = NameOf(profile), frame = Frame(profile), elements = Summary(profile) };
+        (List<object> items, bool truncated) = ElementList(context, profile, sketch);
+        return new
+        {
+            sketch,
+            name = NameOf(profile),
+            frame = Frame(profile),
+            elements = Summary(profile),
+            items,
+            truncated = truncated ? true : (bool?)null,
+        };
     }
 
     public static object Delete(SeContext context, string sketch)

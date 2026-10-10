@@ -77,7 +77,7 @@ public sealed class SketchTools(ToolRunner runner)
         line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners [x1,y1,x2,y2]) | polyline (points [x1,y1,x2,y2,...], closed, default true) | circle (center [x,y], radius) | arc (center, start, end; counter-clockwise) |
         ellipse (center, radius = semi-major axis, minorRadius, angle of the major axis in degrees) | spline (cubic through points [x1,y1,...] >= 3; closed, default false) | point (points [x,y]) |
         fillet (elements = two elements meeting at a corner, radius; trims both; points [x,y] inside the corner, default for two lines: their common corner) | project (elements = model edge handles from se_geometry, included and linked into the sketch) |
-        axis (element = line handle; revolution axis for se_revolve, set it before close; a side of the profile can be used: a copy becomes the axis) | close (validates closed loops, or one open chain with open=true for contour flanges, bend/jog lines and paths; required before a feature) | info | delete.
+        axis (element = line handle; revolution axis for se_revolve, set it before close; a side of the profile can be used: a copy becomes the axis) | close (validates closed loops, or one open chain with open=true for contour flanges, bend/jog lines and paths; required before a feature) | info (frame, counts and every element with its handle and geometry) | delete.
         Example: create {"plane":"1"} → rectangle {"sketch":"sketch:5","points":[0,0,100,50]} → close → se_extrude.
         """)]
     public Task<CallToolResult> Sketch(
@@ -132,7 +132,7 @@ public sealed class SketchTools(ToolRunner runner)
         Geometric relations and driving dimensions of a sketch (before 'close'); Solid Edge moves the geometry to satisfy them. elements: handles returned by se_sketch.
         relation (relation: horizontal | vertical | fix (one element) | parallel | perpendicular | equal | tangent | concentric | colinear (two) | connect (two + keypoints [i1,i2]) | symmetric (symmetry line + two)) |
         dimension (dimension: length (line) | radius | diameter (circle or arc) | distance (true distance between two elements: parallel lines, point/centre to line, or points; circles/arcs by their centre, or keypoints [i1,i2]) | angle (two lines: the angle inside the corner they form, 0-180; the variable stores Solid Edge's counter-clockwise angle from the first line's direction to the second's, returned as variableValue); value in mm or degrees sets the size, omitted locks the current one; returns the variable name to change it later with se_variables) |
-        list (relations count and dimensions with their variables) | delete (constraint = relation or dimension handle).
+        list (relations with their type and elements, keypoint and point; dimensions with their variables) | delete (constraint = relation or dimension handle).
         Keypoints: lines 0 start, 1 end, 2 middle; circles 0 centre; arcs 0 centre, 1 start, 2 end.
         Example: {"action":"dimension","sketch":"sketch:5","dimension":"length","elements":["line2d:7"],"value":80}.
         """)]

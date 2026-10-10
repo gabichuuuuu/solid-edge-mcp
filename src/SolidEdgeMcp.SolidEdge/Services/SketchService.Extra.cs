@@ -169,8 +169,12 @@ public static partial class SketchService
         }
         catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
         {
-            throw new ToolException("relation_failed", $"Solid Edge rejected the {type} relation: {ex.Message}",
-                "Check the element types (e.g. parallel needs lines, concentric circles or arcs) and that it does not conflict with existing relations or dimensions.", ex);
+            // 0x80040210 llega con un texto engañoso (suscripción PerUser); aparece al repetir una relación que ya existe.
+            string reason = ex.HResult == unchecked((int)0x80040210)
+                ? "it repeats or contradicts a relation the elements already have (HRESULT 0x80040210)"
+                : ex.Message;
+            throw new ToolException("relation_failed", $"Solid Edge rejected the {type} relation: {reason}",
+                "Check the element types (e.g. parallel needs lines, concentric circles or arcs) and the existing relations (se_sketch_constraint 'list'): rectangle lines are already horizontal/vertical and connected.", ex);
         }
     }
 
@@ -271,8 +275,112 @@ public static partial class SketchService
             });
         }
 
-        return new { sketch, relations = ((Relations2d)profile.Relations2d).Count, dimensions = items };
+        var relations = (Relations2d)profile.Relations2d;
+        var related = new List<object>();
+        for (int i = 1; i <= relations.Count && related.Count < context.MaxListItems; i++)
+        {
+            Relation2d relation = relations.Item(i);
+            related.Add(new
+            {
+                relation = context.RegisterBeside(relation, "relation2d", sketch),
+                type = RelationName(relation.Type),
+                elements = RelatedElements(context, relation, sketch),
+            });
+        }
+
+        return new
+        {
+            sketch,
+            relationCount = relations.Count,
+            relations = related,
+            dimensions = items,
+            truncated = related.Count < relations.Count ? true : (bool?)null,
+        };
     }
+
+    /// <summary>Elementos 2D del boceto con su handle y geometría (mm), hasta el límite de la lista.</summary>
+    private static (List<object> Items, bool Truncated) ElementList(SeContext context, Profile profile, string sketch)
+    {
+        var items = new List<object>();
+        System.Collections.IEnumerable[] groups =
+        [
+            profile.Lines2d, profile.Circles2d, profile.Arcs2d, profile.Ellipses2d,
+            profile.EllipticalArcs2d, profile.BSplineCurves2d, profile.Points2d,
+        ];
+        foreach (object element in groups.SelectMany(g => g.Cast<object>()))
+        {
+            if (items.Count >= context.MaxListItems)
+            {
+                return (items, true);
+            }
+
+            items.Add(new { element = context.RegisterBeside(element, KindOf(element), sketch), geometry = Describe2d(element) });
+        }
+
+        return (items, false);
+    }
+
+    /// <summary>
+    /// Elementos que une una relación, con el punto clave cuando la relación es sobre un punto. GetRelatedObject
+    /// empieza en 1; un índice de punto clave negativo significa el elemento entero.
+    /// </summary>
+    private static object[] RelatedElements(SeContext context, Relation2d relation, string sketch)
+    {
+        relation.GetRelatedObjectCount(out int count);
+        var result = new object[count];
+        for (int j = 1; j <= count; j++)
+        {
+            relation.GetRelatedObject(j, out object element, out int keypoint);
+            double[]? point = null;
+            if (keypoint >= 0)
+            {
+                try
+                {
+                    (double x, double y) = KeyPoint(element, keypoint);
+                    point = [Geo.Mm(x), Geo.Mm(y)];
+                }
+                catch (ToolException)
+                {
+                    // Elemento sin ese punto clave consultable (p. ej. un eje de referencia): se da solo el índice.
+                }
+            }
+
+            result[j - 1] = new
+            {
+                element = context.RegisterBeside(element, KindOf(element), sketch),
+                keypoint = keypoint >= 0 ? keypoint : (int?)null,
+                point,
+            };
+        }
+
+        return result;
+    }
+
+    /// <summary>Nombre de la relación 2D a partir de su tipo (SolidEdgeFramework.ObjectType).</summary>
+    private static string RelationName(int type) => (SolidEdgeFramework.ObjectType)type switch
+    {
+        SolidEdgeFramework.ObjectType.igKeyPointRelation2d => "connect",
+        SolidEdgeFramework.ObjectType.igHorizontalRelation2d => "horizontal",
+        SolidEdgeFramework.ObjectType.igVerticalRelation2d => "vertical",
+        SolidEdgeFramework.ObjectType.igFixRelation2d => "fix",
+        SolidEdgeFramework.ObjectType.igParallelRelation2d => "parallel",
+        SolidEdgeFramework.ObjectType.igPerpendicularRelation2d => "perpendicular",
+        SolidEdgeFramework.ObjectType.igEqualRelation2d => "equal",
+        SolidEdgeFramework.ObjectType.igTangentRelation2d => "tangent",
+        SolidEdgeFramework.ObjectType.igConcentricRelation2d => "concentric",
+        SolidEdgeFramework.ObjectType.igColinearRelation2d => "colinear",
+        SolidEdgeFramework.ObjectType.igSymmetricRelation2d => "symmetric",
+        SolidEdgeFramework.ObjectType.igPointOnRelation2d => "point_on",
+        SolidEdgeFramework.ObjectType.igIntersectRelation2d => "intersect",
+        SolidEdgeFramework.ObjectType.igHorizontalAlignRelation2d => "horizontal_align",
+        SolidEdgeFramework.ObjectType.igVerticalAlignRelation2d => "vertical_align",
+        SolidEdgeFramework.ObjectType.igOffsetRelation2d => "offset",
+        SolidEdgeFramework.ObjectType.igChamferRelation2d => "chamfer",
+        SolidEdgeFramework.ObjectType.igFilletRelation2d => "fillet",
+        SolidEdgeFramework.ObjectType.igSetRelation2d => "set",
+        SolidEdgeFramework.ObjectType.igLinkRelation2d => "link",
+        _ => $"type_{type}",
+    };
 
     /// <summary>Borra una relación o cota del boceto (handle de 'relation' o 'dimension').</summary>
     public static object DeleteConstraint(SeContext context, string handle)
