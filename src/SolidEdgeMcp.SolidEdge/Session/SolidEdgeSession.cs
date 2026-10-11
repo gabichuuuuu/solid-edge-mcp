@@ -18,7 +18,8 @@ public sealed record SessionStatus(
     string? BusyWith,
     double? BusySeconds,
     int QueuedOperations,
-    int LiveHandles);
+    int LiveHandles,
+    IReadOnlyList<DialogInfo>? Dialogs = null);
 
 /// <summary>
 /// Connection to Solid Edge. Every COM access goes through <see cref="RunAsync{T}"/>, which runs it on
@@ -42,7 +43,7 @@ public sealed class SolidEdgeSession : IDisposable
         _appPaths = appPaths;
         _log = log;
         Handles = new HandleRegistry(policy.Limits.MaxHandles);
-        _dispatcher = new StaComDispatcher(log, OperationTimeout);
+        _dispatcher = new StaComDispatcher(log, OperationTimeout, SolidEdgeDialogs.FindOpen);
     }
 
     public HandleRegistry Handles { get; }
@@ -70,11 +71,15 @@ public sealed class SolidEdgeSession : IDisposable
     /// <summary>State without connecting to or starting anything.</summary>
     public async Task<SessionStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
+        // A modal dialog (e.g. a first-use tip) blocks Solid Edge until the person answers it: it is reported
+        // without calling Solid Edge, which would wait for the dialog too.
+        IReadOnlyList<DialogInfo> dialogs = _dispatcher.OpenDialogs();
+        IReadOnlyList<DialogInfo>? shown = dialogs.Count > 0 ? dialogs : null;
         (string Name, TimeSpan Elapsed)? busy = _dispatcher.Current;
-        if (busy is not null)
+        if (busy is not null || dialogs.Any(d => d.WaitsForAnswer))
         {
             return new SessionStatus(_connected, true, null, null, null, null, null, null,
-                busy.Value.Name, Math.Round(busy.Value.Elapsed.TotalSeconds, 1), _dispatcher.Pending, Handles.Count);
+                busy?.Name, busy is { } b ? Math.Round(b.Elapsed.TotalSeconds, 1) : null, _dispatcher.Pending, Handles.Count, shown);
         }
 
         return await _dispatcher.InvokeAsync("status", () =>
@@ -102,7 +107,7 @@ public sealed class SolidEdgeSession : IDisposable
             }
 
             return new SessionStatus(connected, true, app.Version, app.ProcessID, app.Visible, app.Documents.Count,
-                activeDocument, SafeEnvironment(app), null, null, _dispatcher.Pending, Handles.Count);
+                activeDocument, SafeEnvironment(app), null, null, _dispatcher.Pending, Handles.Count, shown);
         }, OperationTimeout, cancellationToken).ConfigureAwait(false);
     }
 

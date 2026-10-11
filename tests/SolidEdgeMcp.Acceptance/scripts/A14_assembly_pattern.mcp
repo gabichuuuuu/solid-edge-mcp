@@ -124,8 +124,8 @@ se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
 se_sketch {"action":"circle","sketch":"{{fs.sketch}}","center":[50,10],"radius":5}
 se_sketch {"action":"close","sketch":"{{fs.sketch}}"}
 ! [invalid_argument] se_assembly_feature {"action":"cut","sketch":"{{fs.sketch}}"}
-@fc = se_assembly_feature {"action":"cut","sketch":"{{fs.sketch}}","occurrences":["{{f1.handle}}","{{f2.handle}}"],"name":"Taladro"}
-?= fc.name Taladro
+@fc = se_assembly_feature {"action":"cut","sketch":"{{fs.sketch}}","occurrences":["{{f1.handle}}","{{f2.handle}}"],"name":"Bore"}
+?= fc.name Bore
 ?= fc.status ok
 ?= fc.extent through_all
 ?= fc.side normal
@@ -146,9 +146,9 @@ se_sketch {"action":"close","sketch":"{{fs3.sketch}}"}
 ! [feature_failed] se_assembly_feature {"action":"cut","sketch":"{{fs3.sketch}}","occurrences":["{{f2.handle}}"],"depth":4}
 @fl = se_assembly_feature {"action":"list"}
 ?= fl.count 2
-@fd = se_assembly_feature {"action":"delete","name":"Taladro"}
+@fd = se_assembly_feature {"action":"delete","name":"Bore"}
 ?= fd.count 1
-! [invalid_argument] se_assembly_feature {"action":"delete","name":"Taladro"}
+! [invalid_argument] se_assembly_feature {"action":"delete","name":"Bore"}
 @ff = se_geometry {"action":"faces","source":"{{f1.handle}}"}
 ?= ff.count 9
 se_view {"action":"fit"}
@@ -159,6 +159,9 @@ se_documents {"action":"close","document":"{{f.handle}}","saveChanges":false}
 #   (65,5)-(70,15) turned 180° about x = 65: a half pocket r5, 5 deep: pi*5*5 + 12.5pi + 10*5 = 167.810 in 3 faces. Holes Ø8 through all at
 #   (35,20) and (65,-20) in both plates: 2*pi*8*10 = 502.655 in 2 faces on each. Ø6 4 deep: pi*6*4 + 9pi = 103.673 (flat bottom).
 #   Ø6 countersunk Ø12 90°: pi*9*3*sqrt(2) + pi*6*7 = 251.905. Counterbore and tapped holes are refused (made in the part).
+#   A cut r4 at (50,15) through both plates mirrored about plane 3 (y = 0) lands at (50,-15); the mirror reports its faces in the
+#   first plate: 2*pi*4*10 = 251.327. About plane 2 (x = 0) it would land outside the plates: it fails and is removed. Holes are
+#   not mirrored (Solid Edge reports a mirrored hole fine even outside the parts).
 @g = se_documents {"action":"new","kind":"assembly"}
 @g1 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,-30,0],"document":"{{g.handle}}"}
 @g2 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,-30,20],"document":"{{g.handle}}"}
@@ -167,7 +170,7 @@ se_documents {"action":"close","document":"{{f.handle}}","saveChanges":false}
 @ra = se_sketch {"action":"axis","sketch":"{{rs.sketch}}","element":"{{rr.elements[3]}}"}
 se_sketch {"action":"close","sketch":"{{rs.sketch}}"}
 ! [invalid_argument] se_assembly_feature {"action":"revolve","sketch":"{{rs.sketch}}","occurrences":["{{g1.handle}}"]}
-@r1 = se_assembly_feature {"action":"revolve","sketch":"{{rs.sketch}}","axis":"{{ra.axis}}","occurrences":["{{g1.handle}}"],"name":"Giro"}
+@r1 = se_assembly_feature {"action":"revolve","sketch":"{{rs.sketch}}","axis":"{{ra.axis}}","occurrences":["{{g1.handle}}"],"name":"Turn"}
 ?~ r1.type revolved_cutout
 ?= r1.angle 360
 ?= r1.parts[0].faces 1
@@ -196,10 +199,34 @@ se_sketch {"action":"close","sketch":"{{rs2.sketch}}"}
 @h3 = se_assembly_feature {"action":"hole","plane":"1","centers":[10,-20,0],"diameter":6,"type":"countersink","countersinkDiameter":12,"occurrences":["{{g1.handle}}"]}
 ?= h3.parts[0].area 251.904731 0.001
 ! [feature_failed] se_assembly_feature {"action":"hole","plane":"1","centers":[90,20,0],"diameter":6,"extent":"finite","depth":4,"occurrences":["{{g2.handle}}"]}
+# After the failed hole (removed with its profile first) the base planes are still there: plane 1 is still xy.
+@ms = se_sketch {"action":"create","plane":"1","document":"{{g.handle}}"}
+?= ms.frame.normal[2] 1
+se_sketch {"action":"circle","sketch":"{{ms.sketch}}","center":[50,15],"radius":4}
+se_sketch {"action":"close","sketch":"{{ms.sketch}}"}
+@mc = se_assembly_feature {"action":"cut","sketch":"{{ms.sketch}}","occurrences":["{{g1.handle}}","{{g2.handle}}"],"name":"Pin_bore","document":"{{g.handle}}"}
+?= mc.parts[1].area 251.327412 0.001
+! [invalid_argument] se_assembly_feature {"action":"cut","sketch":"{{ms.sketch}}","occurrences":["{{g1.handle}}"],"document":"{{g.handle}}"}
+! [invalid_argument] se_assembly_feature {"action":"mirror","features":["Pin_bore"],"document":"{{g.handle}}"}
+! [invalid_argument] se_assembly_feature {"action":"mirror","features":["{{h1.name}}"],"plane":"3","document":"{{g.handle}}"}
+! [feature_failed] se_assembly_feature {"action":"mirror","features":["Pin_bore"],"plane":"2","document":"{{g.handle}}"}
+@m1 = se_assembly_feature {"action":"mirror","features":["Pin_bore"],"plane":"3","name":"Pin_bore_mirror","document":"{{g.handle}}"}
+?= m1.type mirror
+?= m1.status ok
+?= m1.mirrorOf[0] Pin_bore
+?= m1.faces 1
+?= m1.area 251.327412 0.001
+?~ m1.note first part
+?= m1.parts[0].occurrence {{g1.handle}}
+?= m1.parts[1].occurrence {{g2.handle}}
 @gl = se_assembly_feature {"action":"list","document":"{{g.handle}}"}
-?= gl.count 5
-@gd = se_assembly_feature {"action":"delete","name":"Giro","document":"{{g.handle}}"}
-?= gd.count 4
+?= gl.count 7
+?= gl.features[?type="mirror"].name Pin_bore_mirror
+@gd = se_assembly_feature {"action":"delete","name":"Turn","document":"{{g.handle}}"}
+?= gd.count 6
+# "Turn" was sketched on plane 3: deleting it (sketch first) keeps that base plane, still xz.
+@p3 = se_sketch {"action":"create","plane":"3","document":"{{g.handle}}"}
+?= p3.frame.normal[1] -1
 @gf = se_geometry {"action":"faces","source":"{{g1.handle}}"}
 ?= gf.count 9
 se_documents {"action":"close","document":"{{g.handle}}","saveChanges":false}

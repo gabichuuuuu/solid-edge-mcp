@@ -102,34 +102,31 @@ public sealed class DrawingTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_drawing", Title = "Drawings (draft)", Destructive = true, OpenWorld = false)]
     [Description("""
-        Drawings of a draft document (create it with se_documents new kind=draft). Sheet positions in mm from the lower-left corner of the sheet, referring to the centre of a view; model points in mm (part or assembly coordinates).
-        Sheets: sheets (also lists the template backgrounds) | add_sheet (name, paper + portrait or width/height; the background of that size is applied) | setup_sheet (rename, resize, background) | activate_sheet | delete_sheet.
-        Views: views (of a sheet) | base_view (path of a saved .par/.psm/.asm, or model = handle of an open saved model; orientation; scale 0.5 = 1:2, default the largest standard scale that fits; flat = sheet metal flat pattern) |
-        projected_view (view + direction up/down/left/right; diagonals give a pictorial view) | auxiliary_view (view + line: 2 model points along the edge to look square at) |
-        section_view (view + line: 2 model points of the cutting line, extended across the view; flip = look from the other side) | detail_view (view + center model point, radius mm of model, scale default 2x) |
-        move_view (position or delta; views projected from it move only to stay aligned: a top view below it follows horizontal moves) | scale_view | delete_view. Without position, derived views are placed beside their source view.
-        dimension (view + kind + points: model points that pick what to measure, like clicking the edges: length = a point on a straight edge; distance = two points, each a vertex/circle centre (measured exactly there) or a point on an edge (a horizontal/vertical edge is measured square to it), measure aligned/horizontal/vertical; diameter/radius = the centre or a point of a circle/arc; angle = a point on each of two edges. Linear dimensions go outside the outline, stacked; position [x, y] puts the dimension line there) |
-        retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet) | parts_list (assembly view; balloons) | bend_table (view of a sheet metal part, usually its flat pattern: one row per bend) | update (views and title block text; force = full update).
-        Blocks: blocks (definitions and their occurrences on every sheet) | create_block (name + elements = handles of 2D elements drawn on the sheet with se_sketch + position = block origin [x, y] mm; the elements become the block and one occurrence takes their place) |
-        place_block (name + position of the block origin, scale default 1, angle degrees counter-clockwise; sheet) | import_block (path of a saved .dft: the drawing becomes a block named after the file, and the blocks it contains are copied too) | delete_block (name: the block and its occurrences).
+        Drawings of a draft document (create it with se_documents new kind=draft). Sheet positions in mm from the lower-left corner of the sheet (a view position is its centre); model points in mm (part or assembly coordinates).
+        Sheets: sheets (also lists the template backgrounds) | add_sheet (name, paper + portrait or width/height; the matching background is applied) | setup_sheet (rename, resize, background) | activate_sheet | delete_sheet.
+        Views: views | base_view (path of a saved .par/.psm/.asm, or model = handle of an open saved model; orientation; scale, default the largest standard scale that fits; flat = sheet metal flat pattern) | projected_view (view + direction; diagonals give a pictorial view) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | move_view (position or delta) | scale_view | delete_view. Without position, derived views go beside their source view.
+        Dimensions: dimension (view + kind + points = model points that pick what to measure, like clicking the edges; see 'points') | retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet).
+        Tables: parts_list (assembly view; balloons) | bend_table (view of a sheet metal part, usually its flat pattern: one row per bend) | update (views and title block text; force = full update).
+        Blocks: blocks (definitions and their occurrences on every sheet) | create_block (name + elements + position = block origin) | place_block (name + position; scale, angle) | import_block (path of a saved .dft) | delete_block (name: the block and its occurrences).
         Title block: set the draft's properties with se_properties, then 'update'. Export: se_export of the draft to .pdf/.dxf/.dwg. See it: se_view capture.
+        Example: {"action":"projected_view","view":"view:3","direction":"down"}.
         """)]
     public Task<CallToolResult> Drawing(
         DrawingAction action,
         [Description("Sheet handle or name (default: the active sheet).")] string? sheet = null,
         [Description("Drawing view handle: the source of a projected/auxiliary/section/detail view, or the view to move, scale, delete, dimension, list or update.")] string? view = null,
-        [Description("base_view: absolute path of the saved model file; import_block: a saved .dft drawing (allowed folders).")] string? path = null,
+        [Description("base_view: absolute path of the saved model file; import_block: a saved .dft drawing, which becomes a block named after the file (the blocks it contains are copied too). Allowed folders only.")] string? path = null,
         [Description("base_view: handle of an open, saved model document instead of 'path'.")] string? model = null,
         [Description("base_view: view orientation (default front; top for a flat pattern). top_front_right is the usual isometric.")] DrawingOrientation? orientation = null,
         [Description("projected_view: side of the source view where the new view goes. The side of the model it shows follows the drawing's projection angle (in the result): first_angle (ISO E) puts the left view to the right of the front view and the top view below it; third_angle puts the right view to the right and the top view above.")] FoldDirection? direction = null,
         [Description("base_view/detail_view/scale_view/place_block: scale factor (1 = 1:1, 0.5 = 1:2, 2 = 2:1).")] double? scale = null,
-        [Description("View centre [x, y] in mm on the sheet (parts_list, bend_table: the upper left corner; default above the title block; create_block/place_block: the block origin).")] double[]? position = null,
-        [Description("move_view: displacement [dx, dy] in mm on the sheet.")] double[]? delta = null,
-        [Description("auxiliary_view/section_view: two model points [x1, y1, z1, x2, y2, z2] in mm.")] double[]? line = null,
+        [Description("View centre [x, y] in mm on the sheet (parts_list, bend_table: the upper left corner; default above the title block; create_block/place_block: the block origin; dimension: a point the dimension line passes through, default outside the outline, stacked).")] double[]? position = null,
+        [Description("move_view: displacement [dx, dy] in mm on the sheet. Views projected from the moved view move only to stay aligned (a top view below it follows horizontal moves).")] double[]? delta = null,
+        [Description("Two model points [x1, y1, z1, x2, y2, z2] in mm. auxiliary_view: along the edge to look square at; section_view: the cutting line, extended across the view.")] double[]? line = null,
         [Description("detail_view: model point [x, y, z] in mm at the centre of the detail.")] double[]? center = null,
         [Description("detail_view: radius of the detail circle in mm of the model.")] double? radius = null,
         [Description("dimension: what to measure.")] DimensionKind? kind = null,
-        [Description("dimension: model points [x1, y1, z1, ...] in mm that pick the edges, vertices or circles in the view.")] double[]? points = null,
+        [Description("dimension: model points [x1, y1, z1, ...] in mm that pick what to measure in the view. length: a point on a straight edge; distance: two points, each a vertex or circle centre (measured exactly there) or a point on an edge (a horizontal/vertical edge is measured square to it); diameter/radius: the centre or a point of the circle/arc; angle: a point on each of two edges.")] double[]? points = null,
         [Description("dimension (distance): aligned (true distance, default), horizontal or vertical on the sheet.")] MeasureDirection measure = MeasureDirection.Aligned,
         [Description("section_view: look from the other side of the cutting line.")] bool flip = false,
         [Description("base_view: flat pattern of a sheet metal part.")] bool flat = false,
@@ -142,7 +139,7 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("parts_list: add balloons to the view (default true).")] bool balloons = true,
         [Description("parts_list, bend_table: saved table setting name (default: the document default).")] string? style = null,
         [Description("update: full (forced) update of every view.")] bool force = false,
-        [Description("create_block: handles of 2D elements drawn on the sheet (se_sketch with the sheet handle).")] string[]? elements = null,
+        [Description("create_block: handles of 2D elements drawn on the sheet (se_sketch with the sheet handle); they become the block and one occurrence takes their place.")] string[]? elements = null,
         [Description("place_block: rotation in degrees, counter-clockwise (default 0).")] double? angle = null,
         int offset = 0,
         int limit = 100,

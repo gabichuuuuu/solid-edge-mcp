@@ -57,6 +57,7 @@ public enum AssemblyFeatureAction
     Cut,
     Revolve,
     Hole,
+    Mirror,
     Delete,
 }
 
@@ -229,10 +230,11 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         default through all; side auto (along the plane normal, then against it) | normal | reverse | symmetric) | revolve (sketch and its 'axis'
         from se_sketch 'axis' before 'close'; angle degrees, default 360; side) | hole (plane '1'-'3' or an assembly plane; centers [x,y,z,...] mm in
         the assembly; diameter; type simple | countersink (countersinkDiameter, countersinkAngle); extent through_all | finite with depth; direction
-        auto | normal | reverse; counterbore and tapped holes are made in the part with se_hole) | delete (name). 'name' optionally names the new feature.
+        auto | normal | reverse; counterbore and tapped holes are made in the part with se_hole) | mirror (features = names of cutouts;
+        plane '1'-'3' or an assembly plane; it cuts the same parts; holes are not mirrored; faces and area are those in the first part) | delete (name). 'name' optionally names the new feature.
         Each feature is checked by the faces it leaves on every part, and removed if it misses one.
         Example: {"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2","occurrence:3"]};
-        {"action":"hole","plane":"1","centers":[50,10,0],"diameter":8,"occurrences":["occurrence:2"]}.
+        {"action":"hole","plane":"1","centers":[50,10,0],"diameter":8,"occurrences":["occurrence:2"]}; {"action":"mirror","features":["Cutout 1"],"plane":"3"}.
         """)]
     public Task<CallToolResult> AssemblyFeature(
         AssemblyFeatureAction action,
@@ -242,7 +244,8 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         PartFeatureSide side = PartFeatureSide.Auto,
         [Description("revolve: axis handle from se_sketch 'axis'.")] string? axis = null,
         [Description("revolve: angle in degrees (default 360).")] double? angle = null,
-        [Description("hole: assembly plane '1'-'3' or an assembly reference plane handle.")] string? plane = null,
+        [Description("hole, mirror: assembly plane '1'-'3' or an assembly reference plane handle.")] string? plane = null,
+        [Description("mirror: names of the extruded or revolved cutouts to mirror (action 'list').")] string[]? features = null,
         [Description("hole: centers [x1,y1,z1,...] in mm in the assembly, projected onto the plane.")] double[]? centers = null,
         [Description("hole: diameter in mm.")] double? diameter = null,
         HoleType type = HoleType.Simple,
@@ -250,7 +253,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         [Description("hole countersink: angle in degrees (default 90).")] double countersinkAngle = 90,
         ExtrudeExtent extent = ExtrudeExtent.ThroughAll,
         HoleDirection direction = HoleDirection.Auto,
-        [Description("cut, revolve, hole: name of the new feature; delete: the feature name.")] string? name = null,
+        [Description("cut, revolve, hole, mirror: name of the new feature; delete: the feature name.")] string? name = null,
         [Description("Assembly document handle; default: the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -264,6 +267,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyFeatureAction.Hole => runner.RunAsync(tool, act, c => AssemblyFeatureService.Hole(c, document, occurrences,
                 new HoleSpec(plane ?? "", centers, diameter, Snake(type), null, null, countersinkDiameter, countersinkAngle,
                     null, Snake(extent), depth, Snake(direction)), name), cancellationToken),
+            AssemblyFeatureAction.Mirror => runner.RunAsync(tool, act, c => AssemblyFeatureService.Mirror(c, document, features, plane, name), cancellationToken),
             AssemblyFeatureAction.Delete => runner.RunAsync(tool, act, c => AssemblyFeatureService.Delete(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

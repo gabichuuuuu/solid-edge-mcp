@@ -108,31 +108,31 @@ public sealed class SheetMetalTools(ToolRunner runner)
 
     [McpServerTool(Name = "se_sheetmetal", Title = "Sheet metal", Destructive = false, OpenWorld = false)]
     [Description($$"""
-        Sheet metal (.psm): settings, base, edge features and flat pattern. Lengths in mm, angles in degrees.
+        Sheet metal (.psm): settings, base, edge features and flat pattern. Lengths in mm, angles in degrees; radius defaults to the document bend radius.
         settings: thickness, bend radius, relief width/depth, neutral factor | set_settings: changes any of them (the model updates).
-        tab: closed sketch with ONE outline (se_sketch close) -> base tab with the document thickness (first feature) or an extra tab drawn on the plane of a sheet face; direction normal|reverse = side of the thickness. Cut holes afterwards (se_sheetmetal_form normal_cutout).
-        contour_flange: open sketch (se_sketch close with open=true) -> base contour flange (Solid Edge keeps it as a tab plus one flange per further segment, all returned in 'features'): width always grows along the sketch normal, materialSide right|left of the chain, radius.
-        flange: one flange per edge (straight edges on the sheet faces, from se_geometry 'edges'); it rises from the face of the edge, away from the material (top edge -> up). length from that face; angle between flange and sheet (90 = perpendicular, smaller folds it back over the sheet); side inside (default: flange outer face flush with the edge) | outside (inner face at the edge) | bend_outside (bend starts at the edge); radius.
-        hem: one hem per edge (usually the free edge of a flange). hemType closed | open | s_flange (radius2, length2) | closed_loop; length of the folded part; radius; side. Solid Edge may fail (RPC_E_SERVERFAULT) on an edge that meets another hem; the call is then undone.
-        break_corner: cornerType round | chamfer with 'size' on corner edges through the thickness (se_geometry 'edges' with direction = sheet normal).
+        tab: closed sketch with ONE outline -> base tab with the document thickness (first feature) or an extra tab on the plane of a sheet face; direction = side of the thickness. Cut holes afterwards (se_sheetmetal_form normal_cutout).
+        contour_flange: open sketch (se_sketch close with open=true) -> base contour flange, returned as a tab plus one flange per further segment in 'features'; width grows along the sketch normal; materialSide; radius.
+        flange: one flange per straight edge on the sheet faces (se_geometry 'edges'); it rises from the face of the edge, away from the material (top edge -> up); length from that face, angle, side, radius.
+        hem: one hem per edge (usually the free edge of a flange); hemType, length of the folded part, radius, side. An edge that meets another hem may fail (the call is undone).
+        break_corner: cornerType with 'size' on corner edges through the thickness.
         flatten: creates or updates the flat pattern and returns the cut size (x, y); export it with se_export flatPattern=true.
-        bend_angle: 'faces' = one bend face (cylindrical, se_geometry faces type cylinder), 'fixedFace' = a planar face that stays, 'angle' = new angle between the bent part and that face (90 = perpendicular) | bend_radius: 'faces' = bend faces, 'radius' = new inside radius. Unbend is not offered (Solid Edge throws RPC_E_SERVERFAULT).
-        radius defaults to the document bend radius. tab, contour_flange, flange, hem and break_corner are built in synchronous modeling (the only mode where Solid Edge solves them via the API) and the document returns to ordered; flanges and hems need edges of synchronous features (tabs, flanges).
-        Sketch-based features (dimple, cutouts, jog, bend, bead...): se_sheetmetal_form. Verified: a feature that fails or has no effect is reported as an error and everything the call made is undone (Undo, so trimmed faces come back too).
+        bend_angle: faces = one bend face, fixedFace = a planar face that stays, angle = the new angle | bend_radius: faces = bend faces, radius = the new inside radius. Unbend is not offered (Solid Edge throws RPC_E_SERVERFAULT).
+        tab, contour_flange, flange, hem and break_corner are built in synchronous modeling (the only mode where the API solves them), then the document returns to ordered; flanges and hems need edges of synchronous features (tabs, flanges).
+        Sketch-based features (dimple, cutouts, jog, bend, bead...): se_sheetmetal_form. Verified: a feature that fails or has no effect is reported as an error and everything the call made is undone.
         Example: {"action":"flange","edges":["edge:12","edge:15"],"length":20}.
         """)]
     public Task<CallToolResult> SheetMetal(
         SheetMetalAction action,
         [Description("tab / contour_flange: sketch handle.")] string? sketch = null,
-        [Description("flange / hem / break_corner: edge handles from se_geometry 'edges'.")] string[]? edges = null,
+        [Description("flange / hem / break_corner: edge handles from se_geometry 'edges' (break_corner: corner edges along the sheet normal).")] string[]? edges = null,
         [Description("flange / hem: length in mm.")] double? length = null,
-        [Description("flange: angle between flange and sheet in degrees (default 90); bend_angle: the new angle.")] double angle = 90,
-        [Description("flange / hem: material side.")] SheetMetalSide side = SheetMetalSide.Inside,
+        [Description("flange: angle between flange and sheet in degrees (default 90 = perpendicular; smaller folds it back over the sheet); bend_angle: the new angle between the bent part and the fixed face.")] double angle = 90,
+        [Description("flange / hem: inside (default: the flange outer face is flush with the edge) | outside (the inner face is at the edge) | bend_outside (the bend starts at the edge).")] SheetMetalSide side = SheetMetalSide.Inside,
         [Description("flange / hem / contour_flange: bend radius in mm (default: document bend radius); bend_radius: the new inside radius.")] double? radius = null,
-        HemType hemType = HemType.Closed,
+        [Description("hem: closed | open | s_flange (with radius2, length2) | closed_loop.")] HemType hemType = HemType.Closed,
         [Description("hem s_flange: length of the second flange in mm (default: length).")] double? length2 = null,
         [Description("hem s_flange: second bend radius in mm (default: radius).")] double? radius2 = null,
-        CornerType cornerType = CornerType.Round,
+        [Description("break_corner: round (size = radius) or chamfer (size = setback).")] CornerType cornerType = CornerType.Round,
         [Description("break_corner: round radius or chamfer setback in mm.")] double? size = null,
         [Description("contour_flange: extent along the sketch normal in mm.")] double? width = null,
         [Description("tab: side of the thickness (normal or reverse); contour_flange: only normal.")] SheetDirection direction = SheetDirection.Normal,
@@ -142,7 +142,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
         [Description("set_settings: bend relief width in mm.")] double? reliefWidth = null,
         [Description("set_settings: bend relief depth in mm.")] double? reliefDepth = null,
         [Description("set_settings: neutral factor (0-1, e.g. 0.33).")] double? neutralFactor = null,
-        [Description("bend_angle / bend_radius: bend face handles (cylindrical faces of the bends).")] string[]? faces = null,
+        [Description("bend_angle: one bend face; bend_radius: bend faces (cylindrical faces of the bends, se_geometry faces of type cylinder).")] string[]? faces = null,
         [Description("bend_angle: planar face that stays in place.")] string? fixedFace = null,
         [Description("Document handle; default: the document of the sketch/edges, or the active one.")] string? document = null,
         CancellationToken cancellationToken = default)

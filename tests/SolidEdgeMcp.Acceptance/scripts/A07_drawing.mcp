@@ -174,7 +174,7 @@ se_drawing {"action":"delete_view","view":"{{v3.view.handle}}"}
 ! [bend_table_failed] se_drawing {"action":"bend_table","view":"{{bv.view.handle}}"}
 ! [wrong_view] se_drawing {"action":"bend_table","view":"{{va.view.handle}}"}
 ?~ pl.rows d_blk
-@su = se_drawing {"action":"setup_sheet","sheet":"{{s2.handle}}","name":"Hoja 2","paper":"a2"}
+@su = se_drawing {"action":"setup_sheet","sheet":"{{s2.handle}}","name":"Detail sheet","paper":"a2"}
 ?= su.size[0] 594
 se_drawing {"action":"activate_sheet","sheet":"Sheet1"}
 # Drawing export (format from the extension; .dwg without a prior recipe); a drawing is not exported to .stp
@@ -192,7 +192,7 @@ se_view {"action":"capture","width":400,"height":283}
 se_export {"path":"{{work}}\\a07.dxf","overwrite":true}
 se_export {"path":"{{work}}\\a07.dwg","overwrite":true}
 ! [invalid_argument] se_export {"path":"{{work}}\\a07.stp","overwrite":true}
-se_drawing {"action":"delete_sheet","sheet":"Hoja 2"}
+se_drawing {"action":"delete_sheet","sheet":"Detail sheet"}
 ! [last_sheet] se_drawing {"action":"delete_sheet","sheet":"Sheet1"}
 @up = se_drawing {"action":"update"}
 ?= up.outOfDate 0
@@ -230,6 +230,21 @@ se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
 ! [invalid_argument] se_drawing {"action":"place_block","name":"Frame","position":[0,0],"scale":0}
 @lb = se_drawing {"action":"blocks"}
 ?= lb.blocks[?name="Frame"].occurrences 3
+# Block views and labels through the generic layer: a second view "Alt" of "Frame" (Views 1 -> 2) and a label "Tag" with value "A1".
+@bks = se_com_get {"target":"{{bd.handle}}","member":"Blocks"}
+@bk = se_com_invoke {"target":"{{bks.value.handle}}","method":"Item","arguments":["Frame"]}
+@bvs = se_com_get {"target":"{{bk.result.handle}}","member":"Views"}
+@bvc0 = se_com_get {"target":"{{bvs.value.handle}}","member":"Count"}
+?= bvc0.value 1
+@bv = se_com_invoke {"target":"{{bvs.value.handle}}","method":"Add","arguments":["Alt",0,0]}
+@bvc1 = se_com_get {"target":"{{bvs.value.handle}}","member":"Count"}
+?= bvc1.value 2
+@bls = se_com_get {"target":"{{bv.result.handle}}","member":"BlockLabels"}
+@bl = se_com_invoke {"target":"{{bls.value.handle}}","method":"Add","arguments":["Tag","A1","Label",0.01,0.01,4,true,false,false,false,0]}
+@blc = se_com_get {"target":"{{bls.value.handle}}","member":"Count"}
+?= blc.value 1
+@blv = se_com_get {"target":"{{bl.result.handle}}","member":"Value"}
+?= blv.value A1
 se_documents {"action":"save_as","path":"{{work}}\\a07_blocks.dft","overwrite":true}
 @bd2 = se_documents {"action":"new","kind":"draft"}
 @ib = se_drawing {"action":"import_block","path":"{{work}}\\a07_blocks.dft","document":"{{bd2.handle}}"}

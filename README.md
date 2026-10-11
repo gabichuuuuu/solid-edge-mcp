@@ -11,7 +11,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![53 tools](https://img.shields.io/badge/tools-53-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
-[![Functions reviewed: 87 %](https://img.shields.io/badge/functions%20reviewed-87%25-yellowgreen)](docs/COVERAGE.md#progress)
+[![Functions reviewed: 88 %](https://img.shields.io/badge/functions%20reviewed-88%25-yellowgreen)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md)
@@ -55,7 +55,7 @@ for approval.
 
 **🧪 Tested for real**
 
-1816 calls and 789 checks against real Solid Edge 2026, with values calculated by hand.
+1870 calls and 814 checks against real Solid Edge 2026, with values calculated by hand.
 
 </td>
 </tr>
@@ -243,7 +243,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_relations` | Planar (mate and flush), axial, insert, parallel, tangent, angle and rigid set relations, checked geometrically; list and delete. |
 | | `se_assembly_pattern` | Component patterns that follow a part pattern (e.g. a pin repeated on every hole of a hole pattern): list, create, delete and dissolve. |
 | | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them; automatic exploded views with the exploded placement of each component. |
-| | `se_assembly_feature` | Extruded and revolved cutouts and holes (simple or countersink) made in the assembly through chosen parts, from a sketch drawn in the assembly or centers on an assembly plane; list and delete. |
+| | `se_assembly_feature` | Extruded and revolved cutouts and holes (simple or countersink) made in the assembly through chosen parts, from a sketch drawn in the assembly or centers on an assembly plane; mirrors of cutouts about an assembly plane; list and delete. |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
 | **Drawings** | `se_drawing` | Sheets; base, projected, auxiliary, section and detail views; dimensions and dimensions retrieved from the model; parts list; bend table; blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete); update. |
@@ -340,7 +340,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 129/129.
-- Acceptance suite against real Solid Edge 2026: **1816 calls and 789 checks**, with values
+- Acceptance suite against real Solid Edge 2026: **1870 calls and 814 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 53 tools have correct calls, and `A10` runs every value of the action,
@@ -386,6 +386,9 @@ Results (unit tests and acceptance suite run on 2026-10-11):
   `se_documents undo` only undoes what Solid Edge records. To remove an operation, use
   `se_feature_edit`.
 - The `se_command` commands that ask for a selection or a dialog box wait for the person.
+- A Solid Edge dialog that waits for an answer (e.g. a first-use tip) blocks Solid Edge until the person
+  answers it: the blocked call fails with `dialog_open` and names the dialog, and `se_session status`
+  lists it. The server never presses dialog buttons.
 - The Boundary and SmoothBoundary display modes are not applied in Solid Edge 2026.
 - An exported drawing that is not saved shows "Error: No reference" in the title block fields that
   come from the file, such as the date; the server warns about it.

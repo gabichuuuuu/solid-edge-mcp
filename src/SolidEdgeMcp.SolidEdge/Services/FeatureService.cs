@@ -10,7 +10,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// <summary>
 /// Part operations in ordered modelling. Each operation is verified: if Solid Edge marks it
 /// as failed or does not change the volume as expected, it is deleted and an actionable error is returned.
-/// Sketch-based operations use a linked copy of their profile (the UI command "Seleccionar del boceto"):
+/// Sketch-based operations use a linked copy of their profile (the UI command "Select from Sketch"):
 /// if the operation is deleted, the sketch is kept so it can be retried.
 /// </summary>
 public static partial class FeatureService
@@ -218,6 +218,7 @@ public static partial class FeatureService
             }
         }
 
+        double? volume = model.TryVolume();
         return new
         {
             document = context.DocumentHandle(model.Document),
@@ -225,7 +226,8 @@ public static partial class FeatureService
             count,
             offset = Math.Max(offset, 0),
             features = items,
-            volume = Geo.Mm3(model.Volume()),
+            volume = volume is { } v ? Geo.Mm3(v) : (double?)null,
+            note = volume is null ? "Solid Edge cannot read the body (e.g. converted to a mesh): use se_physical for its volume." : null,
         };
     }
 
@@ -316,7 +318,7 @@ public static partial class FeatureService
         }
     }
 
-    /// <summary>Linked copy of the sketch profile for an operation (equivalent to the UI command "Seleccionar del boceto").</summary>
+    /// <summary>Linked copy of the sketch profile for an operation (equivalent to the UI command "Select from Sketch").</summary>
     private static IncludedProfile Include(ModelDocument model, Profile sketchProfile)
     {
         try

@@ -37,7 +37,8 @@ se_ui {"action":"tab","tab":"0"}
 ! [not_found] se_ui {"action":"ribbon","environment":"NoSuchEnvironment"}
 ! [not_found] se_ui {"action":"activate","window":"99"}
 se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}
+# Maximized before closing: the windows of other open documents follow it (MDI), and none may remain.
+se_ui {"action":"state","window":"{{d1.handle}}","state":"maximized"}
 se_documents {"action":"close","document":"{{d1.handle}}","saveChanges":false}
-se_ui {"action":"state","window":"1","state":"maximized"}
 @sr = se_ui {"action":"state","state":"{{st0.state}}"}
 ?= sr.state {{st0.state}}

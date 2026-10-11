@@ -222,31 +222,29 @@ public sealed class PartTools(ToolRunner runner)
 
     [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / slot / web network / lip / scale / copy part", Destructive = false, OpenWorld = false)]
     [Description($$"""
-        Other part features (ordered modelling).
-        rib: 'sketch' = an open chain (se_sketch 'close' with open: true) drawn on a plane across the part, e.g. a diagonal line in a corner; it grows in the sketch plane until it meets the part; 'thickness' mm; side symmetric (default) | normal | reverse (thickness to one side of the sketch plane); 'depth' mm = finite depth instead of up to the part |
-        thicken: 'faces', 'thickness' mm; side auto (default: the side that adds material) | normal | reverse |
-        mirror_body: mirrored copy of the whole body about 'plane' ('1'-'3', refplane or planar face handle), keeping the original.
-        Direct edits (also for imported parts): delete_faces ('faces'; the solid heals: a hole face fills the hole, the side and top faces of a boss remove it) |
-        delete_holes ('diameter' mm: every hole up to that diameter) | delete_rounds ('faces' of rounds or fillets) |
-        offset_faces ('faces', 'distance' mm along their normal: positive outwards = adds material, negative inwards).
-        slot: 'sketch' = an open path (lines, arcs; se_sketch 'close' with open: true) on a plane or face; 'width' mm; rounded ends (the path is extended by half the width) or 'squareEnds': true; through the part, or 'depth' mm; optional 'counterbore' [total width, depth] mm |
-        web_network: 'sketch' = open lines on a plane across a shelled part (e.g. at the height of its open face); 'thickness' mm; each line becomes a wall that grows to the next face, or 'depth' mm |
-        lip: 'edges' = one chain of edges of a rim (e.g. the outer edges of the open face of a shelled part), 'width' and 'height' mm: a strip standing on the rim, flush with the side face of the edges; 'faces' = [the rim face] when it is not the smaller face of the first edge |
-        scale_body: 'scale' = one factor (uniform) or three (x, y, z) about the part origin; the volume is checked against the factors.
-        copy_part: 'path' = a saved .par/.psm file copied into this part (the base body of an empty part, or united with the body); optional 'scale' and a mirror 'plane' (reference plane).
+        Other part features (ordered modelling). Lengths in mm.
+        rib: sketch = an open chain (se_sketch close with open: true) on a plane across the part, e.g. a diagonal line in a corner; it grows in the sketch plane until it meets the part; thickness; side; depth = finite depth instead of up to the part |
+        thicken: faces, thickness; side |
+        mirror_body: mirrored copy of the whole body about 'plane', keeping the original.
+        Direct edits (also for imported parts): delete_faces (faces; the solid heals: a hole face fills the hole, the side and top faces of a boss remove it) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds or fillets) | offset_faces (faces, distance along their normal: positive adds material).
+        slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends (the path is extended by half the width) or squareEnds; through the part, or depth; optional counterbore |
+        web_network: sketch = open lines on a plane across a shelled part (e.g. at the height of its open face); thickness; each line becomes a wall that grows to the next face, or depth |
+        lip: edges = one chain of edges of a rim (e.g. the outer edges of the open face of a shelled part), width and height: a strip standing on the rim, flush with the side face of the edges |
+        scale_body: scale = one factor (uniform) or three (x, y, z) about the part origin; the volume is checked against the factors.
+        copy_part: path = a saved .par/.psm file copied into this part (the base body of an empty part, or united with the body); optional scale and mirror plane.
         Threads: se_hole type tapped (cosmetic) or a helix cut with se_loft_sweep (physical).
         {{VerifiedNote}}
         Example: {"action":"rib","sketch":"sketch:6","thickness":6}; {"action":"slot","sketch":"sketch:8","width":10}; {"action":"scale_body","scale":[2]}.
         """)]
     public Task<CallToolResult> PartFeature(
         PartFeatureAction action,
-        [Description("thicken, delete_faces, delete_rounds, offset_faces: face handles; lip: optional rim face.")] string[]? faces = null,
+        [Description("thicken, delete_faces, delete_rounds, offset_faces: face handles; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
         [Description("rib, slot, web_network: open sketch handle.")] string? sketch = null,
         [Description("rib, thicken, web_network: thickness in mm.")] double? thickness = null,
-        PartFeatureSide side = PartFeatureSide.Auto,
+        [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse.")] PartFeatureSide side = PartFeatureSide.Auto,
         [Description("mirror_body: mirror plane ('1'-'3', refplane or planar face handle); copy_part: optional mirror reference plane.")] string? plane = null,
         [Description("rib, web_network: finite depth in mm (default: up to the part or the next face); slot: depth in mm (default: through the part).")] double? depth = null,
-        [Description("offset_faces: distance in mm along the face normals (negative = inwards).")] double? distance = null,
+        [Description("offset_faces: distance in mm along the face normals (positive outwards adds material, negative inwards).")] double? distance = null,
         [Description("delete_holes: largest hole diameter to delete, mm.")] double? diameter = null,
         [Description("slot, lip: width in mm.")] double? width = null,
         [Description("lip: height in mm.")] double? height = null,
@@ -283,7 +281,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("box: [width, height] in mm along the plane's x and y axes.")] double[]? size = null,
         [Description("cylinder, sphere: radius in mm.")] double? radius = null,
         [Description("box, cylinder: depth in mm from the plane.")] double? depth = null,
-        PartFeatureSide side = PartFeatureSide.Auto,
+        [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse.")] PartFeatureSide side = PartFeatureSide.Auto,
         [Description("box: rotation in degrees about the plane normal, from the plane's x axis towards its y axis (default 0).")] double? angle = null,
         [Description("box: 2 opposite corners or 3 points (an edge, then a point on the opposite edge) [x1,y1,z1, ...] in mm on the plane, instead of center/size/angle.")] double[]? corners = null,
         [Description("Document handle; default: the document of the plane handle or the active document.")] string? document = null,

@@ -348,7 +348,7 @@ public static class InspectService
 
     private static object BodyCollection(ModelDocument model, string member, FeatureTopologyQueryTypeConstants query)
     {
-        Body body = model.RequireModel().Body as Body
+        Body body = model.RequireBody() as Body
             ?? throw new ToolException("no_model", $"'{model.Document.Name}' has no body yet.", "Create a base feature first.");
         return member == "Faces" ? body.Faces[query] : body.Edges[query];
     }

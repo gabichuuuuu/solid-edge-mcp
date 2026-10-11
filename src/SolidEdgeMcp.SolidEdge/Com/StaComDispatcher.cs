@@ -8,6 +8,8 @@ namespace SolidEdgeMcp.SolidEdge.Com;
 /// Single STA thread through which all COM calls pass, one at a time. Registers the OLE
 /// message filter. A COM call in progress cannot be interrupted: if the time limit expires, the client
 /// is informed and the operation keeps running until it finishes; meanwhile the dispatcher is reported as busy.
+/// While a call waits, the modal dialogs of Solid Edge are checked: one that waits for an answer blocks every call,
+/// so the call fails early and the error names the dialog instead of waiting for the whole time limit.
 /// </summary>
 public sealed class StaComDispatcher : IDisposable
 {
@@ -15,13 +17,23 @@ public sealed class StaComDispatcher : IDisposable
     private readonly Thread _thread;
     private readonly IServerLog _log;
     private readonly int _retryWindowMilliseconds;
+    private readonly Func<IReadOnlyList<DialogInfo>> _dialogs;
+    private readonly TimeSpan _dialogGrace;
+    private readonly TimeSpan _pollInterval;
     private volatile WorkItem? _current;
     private bool _disposed;
 
-    public StaComDispatcher(IServerLog log, TimeSpan messageFilterRetryWindow)
+    /// <param name="dialogs">Finds the open modal dialogs (default: none, e.g. in tests without Solid Edge).</param>
+    /// <param name="dialogGrace">How long a dialog that waits for an answer may stay unchanged before the call fails (default 10 s).</param>
+    /// <param name="pollInterval">How often the dialogs are checked while a call waits (default 2 s).</param>
+    public StaComDispatcher(IServerLog log, TimeSpan messageFilterRetryWindow, Func<IReadOnlyList<DialogInfo>>? dialogs = null,
+        TimeSpan? dialogGrace = null, TimeSpan? pollInterval = null)
     {
         _log = log;
         _retryWindowMilliseconds = (int)Math.Clamp(messageFilterRetryWindow.TotalMilliseconds, 1_000, int.MaxValue);
+        _dialogs = dialogs ?? (() => []);
+        _dialogGrace = dialogGrace ?? TimeSpan.FromSeconds(10);
+        _pollInterval = pollInterval ?? TimeSpan.FromSeconds(2);
         _thread = new Thread(Run) { IsBackground = true, Name = "SolidEdge COM (STA)" };
         _thread.SetApartmentState(ApartmentState.STA);
         _thread.Start();
@@ -53,34 +65,85 @@ public sealed class StaComDispatcher : IDisposable
         }
 
         WorkItem? current = _current;
-        if (current is not null && current.Stopwatch.Elapsed > current.Timeout)
+        if (current is not null && (current.Abandoned || current.Stopwatch.Elapsed > current.Timeout))
         {
+            IReadOnlyList<DialogInfo> open = OpenDialogs();
             throw new ToolException(
                 "solid_edge_busy",
-                $"Solid Edge is still busy with '{current.Name}' ({current.Stopwatch.Elapsed.TotalSeconds:F0} s, over its time limit).",
-                "Check Solid Edge for an open dialog or a long computation, close it, and retry. 'se_session' with action 'status' shows when it is free.");
+                $"Solid Edge is still busy with '{current.Name}' ({current.Stopwatch.Elapsed.TotalSeconds:F0} s, past its time limit or abandoned){DialogClause(open)}.",
+                open.Count > 0 ? AnswerDialog : "Check Solid Edge for an open dialog or a long computation, close it, and retry. 'se_session' with action 'status' shows when it is free.");
         }
 
         var item = new WorkItem<T>(name, work, timeout, cancellationToken);
         _queue.Add(item, CancellationToken.None);
-        try
+        var waited = Stopwatch.StartNew();
+        string? dialogSeen = null;
+        var dialogSince = TimeSpan.Zero;
+        while (true)
         {
-            return await item.Completion.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
-        }
-        catch (TimeoutException)
-        {
-            item.Abandon();
-            throw new ToolException(
-                "timeout",
-                $"'{name}' did not finish within {timeout.TotalSeconds:F0} s. It may still be running in Solid Edge.",
-                "Check Solid Edge for an open dialog. Increase operationTimeoutSeconds in policy.json for long operations.");
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            item.Abandon();
-            throw;
+            TimeSpan left = timeout - waited.Elapsed;
+            if (left <= TimeSpan.Zero)
+            {
+                item.Abandon();
+                IReadOnlyList<DialogInfo> open = OpenDialogs();
+                throw new ToolException(
+                    "timeout",
+                    $"'{name}' did not finish within {timeout.TotalSeconds:F0} s. It may still be running in Solid Edge{DialogClause(open)}.",
+                    open.Count > 0 ? AnswerDialog : "Check Solid Edge for an open dialog. Increase operationTimeoutSeconds in policy.json for long operations.");
+            }
+
+            try
+            {
+                return await item.Completion.Task.WaitAsync(left < _pollInterval ? left : _pollInterval, cancellationToken).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                // A dialog that waits for an answer blocks the call (or the one before it in the queue) until the person
+                // answers it; one that stays unchanged for the grace period is not a passing progress window.
+                IReadOnlyList<DialogInfo> blocking = [.. OpenDialogs().Where(d => d.WaitsForAnswer)];
+                string? key = blocking.Count > 0 ? DialogInfo.Describe(blocking) : null;
+                if (key is null || key != dialogSeen)
+                {
+                    dialogSeen = key;
+                    dialogSince = waited.Elapsed;
+                }
+                else if (waited.Elapsed - dialogSince >= _dialogGrace)
+                {
+                    item.Abandon();
+                    throw new ToolException(
+                        "dialog_open",
+                        $"Solid Edge shows a dialog that waits for an answer, so '{name}' cannot finish: {key}.",
+                        AnswerDialog);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                item.Abandon();
+                throw;
+            }
         }
     }
+
+    private const string AnswerDialog =
+        "Ask the person to answer the dialog in Solid Edge (the server never presses dialog buttons: the answer may change options). " +
+        "The pending call then finishes in Solid Edge: check its result (e.g. se_documents list, se_feature_tree) before retrying.";
+
+    /// <summary>Open modal dialogs of Solid Edge; never fails (an error finding them is logged and ignored).</summary>
+    public IReadOnlyList<DialogInfo> OpenDialogs()
+    {
+        try
+        {
+            return _dialogs();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.Warning($"Could not check the Solid Edge dialogs: {ex.Message}");
+            return [];
+        }
+    }
+
+    private static string DialogClause(IReadOnlyList<DialogInfo> dialogs) =>
+        dialogs.Count > 0 ? $"; Solid Edge shows a dialog: {DialogInfo.Describe(dialogs)}" : "";
 
     public Task InvokeAsync(string name, Action work, TimeSpan timeout, CancellationToken cancellationToken) =>
         InvokeAsync(name, () =>

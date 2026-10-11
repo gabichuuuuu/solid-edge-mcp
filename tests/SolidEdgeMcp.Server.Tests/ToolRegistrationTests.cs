@@ -28,6 +28,25 @@ public sealed class ToolRegistrationTests
     }
 
     [Fact]
+    public void Tool_descriptions_and_instructions_fit_the_client_limit()
+    {
+        // Claude Code truncates each tool description and the server instructions at 2,048 characters by default.
+        const int limit = 2048;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        string root = Path.Combine(Path.GetTempPath(), "SolidEdgeMcpTests", Guid.NewGuid().ToString("N"));
+        Program.ConfigureServices(services, new ServerPolicy { StartSolidEdgeIfNotRunning = false }, new AppPaths(root));
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        string[] tooLong = [.. provider.GetServices<McpServerTool>()
+            .Where(t => (t.ProtocolTool.Description?.Length ?? 0) > limit)
+            .Select(t => $"{t.ProtocolTool.Name} ({t.ProtocolTool.Description!.Length})")];
+        Assert.True(tooLong.Length == 0, "Descriptions over the limit: " + string.Join(", ", tooLong));
+        string? instructions = provider.GetRequiredService<IOptions<McpServerOptions>>().Value.ServerInstructions;
+        Assert.InRange(instructions?.Length ?? 0, 1, limit);
+    }
+
+    [Fact]
     public void Enum_arguments_round_trip_in_snake_case()
     {
         Assert.Equal(DocumentAction.SaveAs, JsonSerializer.Deserialize<DocumentAction>("\"save_as\"", Program.ToolJson));
@@ -137,6 +156,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_assembly_feature", """{"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2","occurrence:3"],"depth":4,"side":"symmetric","name":"Bore"}""")]
     [InlineData("se_assembly_feature", """{"action":"revolve","sketch":"sketch:4","axis":"refaxis:11","occurrences":["occurrence:2"],"angle":180,"side":"normal"}""")]
     [InlineData("se_assembly_feature", """{"action":"hole","plane":"1","centers":[35,20,0,65,-20,0],"diameter":8,"type":"countersink","countersinkDiameter":12,"extent":"finite","depth":4,"direction":"reverse","occurrences":["occurrence:2"]}""")]
+    [InlineData("se_assembly_feature", """{"action":"mirror","features":["Cutout 1","Hole 1"],"plane":"3","name":"Mirror A"}""")]
     [InlineData("se_appearance", """{"action":"apply","targets":["face:1","occurrence:2"],"color":"#FF8000","opacity":0.5}""")]
     [InlineData("se_appearance", """{"action":"create","name":"Orange","color":"#FF8000"}""")]
     [InlineData("se_assembly_pattern", """{"action":"create","occurrences":["occurrence:5"],"source":"occurrence:3","pattern":"Pattern_1","reference":"Hole_1"}""")]

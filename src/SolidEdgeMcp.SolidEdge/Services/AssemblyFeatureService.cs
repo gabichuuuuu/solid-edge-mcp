@@ -12,7 +12,7 @@ using TopologyQuery = SolidEdgeGeometry.FeatureTopologyQueryTypeConstants;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Assembly features: extruded and revolved cutouts and holes made in the assembly through some of its parts, from a sketch on
+/// Assembly features: extruded and revolved cutouts, holes and mirrors of cutouts made in the assembly through some of its parts, from a sketch on
 /// an assembly reference plane (se_sketch create in the assembly) or, for holes, from centers on a plane. The part files do not
 /// change. Each feature is checked by the faces it leaves on every part it goes through; verified: a hole of radius 5 through
 /// a 10 mm plate leaves one cylindrical face of 2π·5·10 mm². With the profile on the base plane under the plate, igRight
@@ -41,6 +41,7 @@ public static class AssemblyFeatureService
         FeaturePropertyConstants[] sides = Sides(side, true);
         AssemblyDocument assembly = scope[0].TopLevelDocument;
         CheckName(assembly, name);
+        CheckUnused(assembly, profile);
         AssemblyFeaturesExtrudedCutouts cutouts = assembly.AssemblyFeatures.AssemblyFeaturesExtrudedCutouts;
         object result = Make(context, assembly, scope, sides, name, "extruded_cutout", extent =>
         {
@@ -52,7 +53,7 @@ public static class AssemblyFeatureService
             return cutouts.Add(parts.Length, ref parts, 1, ref profiles,
                 depth is null ? FeaturePropertyConstants.igThroughAll : FeaturePropertyConstants.igFinite,
                 ref extentSide, FeaturePropertyConstants.igLeft, ref length, null, ref flags, null, null);
-        }, "Check that the sketch is closed and that the parts are in its path, or give another side or a depth.");
+        }, "Draw the sketch again, closed and with the parts in its path, or give another side or a depth.");
         Hide(profile);
         return result;
     }
@@ -77,6 +78,7 @@ public static class AssemblyFeatureService
         FeaturePropertyConstants[] sides = Sides(side, true);
         AssemblyDocument assembly = scope[0].TopLevelDocument;
         CheckName(assembly, name);
+        CheckUnused(assembly, profile);
         AssemblyFeaturesRevolvedCutouts revolved = assembly.AssemblyFeatures.AssemblyFeaturesRevolvedCutouts;
         object result = Make(context, assembly, scope, sides, name, "revolved_cutout", extent =>
         {
@@ -86,7 +88,7 @@ public static class AssemblyFeatureService
             KeyPointExtentConstants flags = 0;
             return revolved.Add(parts.Length, ref parts, 1, ref profiles, refAxis, FeaturePropertyConstants.igFinite, extent,
                 FeaturePropertyConstants.igLeft, ref radians, null, ref flags, null, null);
-        }, "Check that the sketch is closed, does not cross the axis and removes material of every part (not only inside existing holes).");
+        }, "Draw the sketch again, closed, not crossing the axis and removing material of every part (not only inside existing holes).");
         Hide(profile);
         return result;
     }
@@ -163,14 +165,66 @@ public static class AssemblyFeatureService
         }
     }
 
-    /// <summary>Deletes an assembly feature by name; the parts get back the material it removed.</summary>
+    /// <summary>
+    /// Mirror of assembly cutouts (by name) about an assembly plane, in the parts the cutouts go through. Verified: the mirror is
+    /// made with MirrorType 1, while igPatternMirror (59) leaves it failed; a cutout mirrored outside the parts is failed too. A
+    /// hole mirrored outside the parts is reported fine, so holes are refused.
+    /// </summary>
+    public static object Mirror(SeContext context, string? documentHandle, string[]? featureNames, string? plane, string? name)
+    {
+        AssemblyDocument assembly = Assembly(context, documentHandle);
+        if (featureNames is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("'features' must list the names of the features to mirror (action 'list').");
+        }
+
+        if (string.IsNullOrWhiteSpace(plane))
+        {
+            throw ToolException.InvalidArgument("'plane' is required: an assembly plane '1'-'3' or an assembly reference plane handle.");
+        }
+
+        object[] parents = featureNames.Select(n => Find(assembly, n)
+            ?? throw ToolException.InvalidArgument($"The assembly has no feature '{n}'.", "List them with action 'list'.")).ToArray();
+        if (parents.FirstOrDefault(p => p is not (AssemblyFeaturesExtrudedCutout or AssemblyFeaturesRevolvedCutout)) is { } other)
+        {
+            throw ToolException.InvalidArgument($"'{NameOf(other)}' is not a cutout: only extruded and revolved cutouts are mirrored (a mirrored hole is reported fine even outside the parts).",
+                "Make the mirrored holes with action 'hole' at the mirrored centers.");
+        }
+
+        CheckName(assembly, name);
+        object mirrorPlane = SketchService.AssemblyPlane(context, assembly, plane);
+        Array features = parents;
+        AssemblyFeaturesMirror mirror = assembly.AssemblyFeatures.AssemblyFeaturesMirrors.Add(parents.Length, ref features, mirrorPlane,
+            (FeaturePropertyConstants)1);
+        string? status = StatusOf(mirror);
+        if (status is not ("ok" or "warning") || FacesOf(mirror).Length == 0)
+        {
+            // A failed mirror is deleted without losing planes (verified: the base planes stay).
+            TryDeleteFeature(mirror);
+            throw new ToolException("feature_failed", $"Solid Edge did not make the mirror in the parts (its status is {status}) and it was removed.",
+                "Check that the plane mirrors the features onto the parts they cut.");
+        }
+
+        if (name is not null)
+        {
+            mirror.Name = name;
+        }
+
+        object described = Describe(context, assembly, mirror, "mirror");
+        return status == "ok" ? described : new { feature = described, warnings = new[] { "Solid Edge reports a warning on this feature." } };
+    }
+
+    /// <summary>
+    /// Deletes an assembly feature by name with its sketch (see <see cref="Discard"/>: deleting it alone also deletes a base plane,
+    /// verified); the parts get back the material it removed.
+    /// </summary>
     public static object Delete(SeContext context, string? documentHandle, string? name)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
         object feature = string.IsNullOrWhiteSpace(name)
             ? throw ToolException.InvalidArgument("'name' is required: the feature name (action 'list').")
             : Find(assembly, name) ?? throw ToolException.InvalidArgument($"The assembly has no feature '{name}'.", "List them with action 'list'.");
-        DeleteFeature(feature);
+        Discard(feature);
         return Find(assembly, name) is null
             ? new { deleted = name, count = Features(assembly).Count() }
             : throw new ToolException("feature_failed", $"Solid Edge did not delete the feature '{name}'.", "Check it with action 'list'.");
@@ -207,19 +261,47 @@ public static class AssemblyFeatureService
     }
 
     /// <summary>
-    /// Creates the feature on each side in turn until it is fine and leaves faces on every part of the scope; a failed attempt is
-    /// deleted before the next one.
+    /// Refuses a sketch that another feature already uses: removing a failed feature removes its sketch (see Discard), which
+    /// would leave the other feature without it. Profiles are compared by name, unique in the assembly.
+    /// </summary>
+    private static void CheckUnused(AssemblyDocument assembly, Profile profile)
+    {
+        string? profileName = Late.TryGetString(profile, "Name");
+        if (profileName is null)
+        {
+            return;
+        }
+
+        foreach ((object feature, _) in Features(assembly))
+        {
+            if (ProfilesOf(feature).Any(p => Late.TryGetString(p, "Name") == profileName))
+            {
+                throw ToolException.InvalidArgument($"The sketch is already used by '{NameOf(feature)}'.", "Draw a new sketch for each feature (se_sketch create).");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Creates the feature on the first side and, while it is not fine or misses a part of the scope, turns it to the next side
+    /// (SetExtentSide on the same feature, verified: a failed cutout became fine). If no side works, it is discarded.
     /// </summary>
     private static object Make(SeContext context, AssemblyDocument assembly, Occurrence[] scope, FeaturePropertyConstants[] sides,
         string? name, string type, Func<FeaturePropertyConstants, object> add, string hint)
     {
         string? problem = null;
+        object? feature = null;
         foreach (FeaturePropertyConstants extent in sides)
         {
-            object feature;
             try
             {
-                feature = add(extent);
+                if (feature is null)
+                {
+                    feature = add(extent);
+                }
+                else
+                {
+                    SetSide(feature, extent);
+                }
             }
             catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
             {
@@ -248,21 +330,36 @@ public static class AssemblyFeatureService
             }
 
             problem = untouched is null ? $"its status is {status}" : $"it does not reach '{untouched.Name}'";
-            TryDeleteFeature(feature);
         }
 
-        throw new ToolException("feature_failed", $"Solid Edge did not make the {type.Replace('_', ' ')} in the parts ({problem}) and it was removed.", hint);
+        if (feature is not null)
+        {
+            Discard(feature);
+        }
+
+        throw new ToolException("feature_failed", $"Solid Edge did not make the {type.Replace('_', ' ')} in the parts ({problem}); it was removed{(type == "hole" ? "" : " with its sketch")}.", hint);
     }
 
     private static object Describe(SeContext context, AssemblyDocument assembly, object feature, string type)
     {
         Array parts = Array.Empty<object>();
-        FeaturePropertyConstants extent;
-        FeaturePropertyConstants side;
+        FeaturePropertyConstants? extent = null;
+        FeaturePropertyConstants? side = null;
         double? depth = null;
         double? angle = null;
+        string[]? mirrorOf = null;
+        SolidEdgeGeometry.Face[]? mirrorFaces = null;
         switch (feature)
         {
+            case AssemblyFeaturesMirror mirror:
+                // A mirror has no scope parts of its own and FacesForScopePart fails on it (verified): it lists the parts of the
+                // features it copies, and its faces as a whole.
+                object[] parents = ParentFeatures(mirror);
+                parts = parents.SelectMany(p => ScopeParts(p).OfType<Occurrence>()).GroupBy(o => o.Name, StringComparer.Ordinal)
+                    .Select(g => g.First()).ToArray();
+                mirrorOf = parents.Select(NameOf).OfType<string>().ToArray();
+                mirrorFaces = FacesOf(mirror);
+                break;
             case AssemblyFeaturesExtrudedCutout cut:
                 cut.GetScopeParts(out _, out parts);
                 extent = cut.GetExtentType();
@@ -296,6 +393,7 @@ public static class AssemblyFeatureService
             status = StatusOf(feature),
             extent = extent switch
             {
+                null => null,
                 FeaturePropertyConstants.igFinite => "finite",
                 FeaturePropertyConstants.igThroughAll => "through_all",
                 var other => other.ToString(),
@@ -304,22 +402,27 @@ public static class AssemblyFeatureService
             angle,
             side = side switch
             {
+                null => null,
                 FeaturePropertyConstants.igRight => "normal",
                 FeaturePropertyConstants.igLeft => "reverse",
                 FeaturePropertyConstants.igSymmetric => "symmetric",
                 var other => other.ToString(),
             },
+            mirrorOf,
+            faces = mirrorFaces?.Length,
+            area = mirrorFaces is null ? (double?)null : Geo.Mm2(mirrorFaces.Sum(f => f.Area)),
+            note = mirrorFaces is null ? null : "Faces and area of the mirror in its first part: Solid Edge gives a feature's faces in its first part only.",
             parts = parts.OfType<Occurrence>().Select(o =>
             {
-                SolidEdgeGeometry.Face[] faces = FacesOn(feature, o);
+                SolidEdgeGeometry.Face[]? faces = mirrorFaces is null ? FacesOn(feature, o) : null;
                 return new
                 {
                     // The scope parts are other COM objects for the same occurrences (verified: each one got a new handle);
                     // the occurrence as the assembly lists it keeps the handle the caller already has.
                     occurrence = context.Register(listed.GetValueOrDefault(o.Name) ?? o, "occurrence", (SolidEdgeDocument)assembly),
                     name = o.Name,
-                    faces = faces.Length,
-                    area = Geo.Mm2(faces.Sum(f => f.Area)),
+                    faces = faces?.Length,
+                    area = faces is null ? (double?)null : Geo.Mm2(faces.Sum(f => f.Area)),
                 };
             }).ToArray(),
         };
@@ -352,7 +455,44 @@ public static class AssemblyFeatureService
         AssemblyFeatures features = assembly.AssemblyFeatures;
         return Items<AssemblyFeaturesExtrudedCutout>(features.AssemblyFeaturesExtrudedCutouts).Select(f => ((object)f, "extruded_cutout"))
             .Concat(Items<AssemblyFeaturesRevolvedCutout>(features.AssemblyFeaturesRevolvedCutouts).Select(f => ((object)f, "revolved_cutout")))
-            .Concat(Items<AssemblyFeaturesHole>(features.AssemblyFeaturesHoles).Select(f => ((object)f, "hole")));
+            .Concat(Items<AssemblyFeaturesHole>(features.AssemblyFeaturesHoles).Select(f => ((object)f, "hole")))
+            .Concat(Items<AssemblyFeaturesMirror>(features.AssemblyFeaturesMirrors).Select(f => ((object)f, "mirror")));
+    }
+
+    private static Array ScopeParts(object feature)
+    {
+        Array parts = Array.Empty<object>();
+        switch (feature)
+        {
+            case AssemblyFeaturesExtrudedCutout cut:
+                cut.GetScopeParts(out _, out parts);
+                break;
+            case AssemblyFeaturesRevolvedCutout revolved:
+                revolved.GetScopeParts(out _, out parts);
+                break;
+            case AssemblyFeaturesHole hole:
+                hole.GetScopeParts(out _, out parts);
+                break;
+        }
+
+        return parts;
+    }
+
+    /// <summary>Features a mirror copies.</summary>
+    private static object[] ParentFeatures(AssemblyFeaturesMirror mirror) =>
+        OutArray(mirror, typeof(AssemblyFeaturesMirror), nameof(AssemblyFeaturesMirror.GetParentFeatures));
+
+    /// <summary>Faces the mirror leaves in the parts; none if it cannot be read.</summary>
+    private static SolidEdgeGeometry.Face[] FacesOf(AssemblyFeaturesMirror mirror)
+    {
+        try
+        {
+            return [.. Late.Items((Faces)mirror.Faces[TopologyQuery.igQueryAll]).OfType<SolidEdgeGeometry.Face>()];
+        }
+        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        {
+            return [];
+        }
     }
 
     private static object? Find(AssemblyDocument assembly, string name) =>
@@ -373,6 +513,68 @@ public static class AssemblyFeatureService
         {
             Late.Call(feature, "Delete");
         }
+    }
+
+    /// <summary>
+    /// Removes a feature, its profiles first. Deleting the feature alone also deletes its profile and the reference
+    /// plane the profile is drawn on (verified: each failed cutout or hole took a base plane of the assembly with it, and later
+    /// sketches on '1' landed on another plane); with the profiles deleted first, the planes stay.
+    /// </summary>
+    private static void Discard(object feature)
+    {
+        foreach (object profile in ProfilesOf(feature))
+        {
+            TryDelete(profile);
+        }
+
+        TryDeleteFeature(feature);
+    }
+
+    private static void SetSide(object feature, FeaturePropertyConstants side)
+    {
+        switch (feature)
+        {
+            case AssemblyFeaturesExtrudedCutout cut:
+                cut.SetExtentSide(side);
+                break;
+            case AssemblyFeaturesRevolvedCutout revolved:
+                revolved.SetExtentSide(side);
+                break;
+            case AssemblyFeaturesHole hole:
+                hole.SetExtentSide(side);
+                break;
+            default:
+                throw new InvalidOperationException($"Unexpected assembly feature {feature.GetType().Name}.");
+        }
+    }
+
+    private static object[] ProfilesOf(object feature)
+    {
+        try
+        {
+            return feature switch
+            {
+                AssemblyFeaturesExtrudedCutout => OutArray(feature, typeof(AssemblyFeaturesExtrudedCutout), nameof(AssemblyFeaturesExtrudedCutout.GetProfiles)),
+                AssemblyFeaturesRevolvedCutout => OutArray(feature, typeof(AssemblyFeaturesRevolvedCutout), nameof(AssemblyFeaturesRevolvedCutout.GetProfiles)),
+                AssemblyFeaturesHole => OutArray(feature, typeof(AssemblyFeaturesHole), nameof(AssemblyFeaturesHole.GetProfiles)),
+                _ => [],
+            };
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException && !ComErrors.IsDisconnected(ex))
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Array from a method (int count, Array items) with both out. Called directly, the out array goes as null and fails
+    /// (verified on GetParentFeatures: NullReferenceException); the interop method invoked with an empty array works.
+    /// </summary>
+    private static object[] OutArray(object target, Type type, string method)
+    {
+        object?[] args = [0, Array.Empty<object>()];
+        type.GetMethod(method)!.Invoke(target, args);
+        return args[1] is Array items ? [.. items.Cast<object>()] : [];
     }
 
     private static void TryDeleteFeature(object feature)

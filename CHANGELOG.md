@@ -8,6 +8,14 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- Solid Edge dialogs: a call that a dialog waiting for an answer blocks (e.g. a first-use tip shown when a drawing opens)
+  fails after 10 s with `dialog_open`, naming the dialog, its message and its buttons, instead of waiting for the time limit;
+  timeouts and `solid_edge_busy` name the open dialog too, and `se_session status` lists it. The server never presses a
+  dialog button.
+- `se_assembly_feature mirror`: mirrors of assembly cutouts about an assembly plane, checked by their status and faces (holes
+  are refused: Solid Edge reports a mirrored hole fine even outside the parts).
+- Checked through the COM layer: 3D sketch lines, PMI model views, family of parts options, the list of material libraries,
+  drawing block views and labels, and converting the body to a mesh (A07, A08, A19).
 - Coverage progress: `scripts/update-progress.ps1` writes a per-area summary at the top of
   `docs/COVERAGE.md` and the "functions reviewed" badge of the README (`-Check` only verifies).
 - Part display configurations (`PartConfigurations`) checked through the COM layer (A19).
@@ -92,6 +100,9 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Changed
 
+- Tool descriptions stay within the 2,048 characters that Claude Code keeps (the descriptions of `se_drawing`,
+  `se_sheetmetal`, `se_part_feature` and `se_sketch` were cut off): the details of each argument moved to the argument
+  descriptions, and a test checks the limit for every tool and the server instructions.
 - README redesigned: banner, highlights, a compact tool overview and collapsible sections for the
   full tool table, the clients other than Claude Code and the acceptance scripts.
 - The internal development notes and AI assistant instructions are no longer published.
@@ -102,6 +113,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- `se_assembly_feature`: deleting a feature, or removing one that failed, no longer deletes a base plane of the assembly
+  (Solid Edge deletes the plane of the feature's sketch with it, so the sketch is now deleted first; later sketches on
+  plane '1' landed on another plane). A side that fails is retried by turning the same feature to the other side, and a sketch
+  already used by another feature is refused.
+- After the body is converted to a mesh, `se_feature_tree` lists the features with a note instead of failing, and
+  `se_geometry` answers `no_brep_body` with the reason (Solid Edge can no longer read the body).
 - `se_assembly_feature`: the parts of a feature keep the occurrence handles the caller already has
   (they used to get new ones).
 - `se_drawing projected_view` returns the drawing's `projection` angle and its description explains

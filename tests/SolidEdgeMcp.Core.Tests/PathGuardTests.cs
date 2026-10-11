@@ -15,9 +15,9 @@ public sealed class PathGuardTests : IDisposable
     public PathGuardTests()
     {
         _base = Path.Combine(Path.GetTempPath(), "SolidEdgeMcpTests", Guid.NewGuid().ToString("N"));
-        _allowed = Directory.CreateDirectory(Path.Combine(_base, "Permitida")).FullName;
-        _allowed2 = Directory.CreateDirectory(Path.Combine(_base, "Permitida2")).FullName;
-        _outside = Directory.CreateDirectory(Path.Combine(_base, "Fuera")).FullName;
+        _allowed = Directory.CreateDirectory(Path.Combine(_base, "Allowed")).FullName;
+        _allowed2 = Directory.CreateDirectory(Path.Combine(_base, "Allowed2")).FullName;
+        _outside = Directory.CreateDirectory(Path.Combine(_base, "Outside")).FullName;
         _work = Path.Combine(_base, "work");
     }
 
@@ -49,9 +49,9 @@ public sealed class PathGuardTests : IDisposable
     [Fact]
     public void Allows_file_inside_root_even_if_it_does_not_exist()
     {
-        string path = Path.Combine(_allowed, "sub", "pieza.par");
+        string path = Path.Combine(_allowed, "sub", "part.par");
         string checkedPath = Guard().Check(path);
-        Assert.EndsWith(@"Permitida\sub\pieza.par", checkedPath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(@"Allowed\sub\part.par", checkedPath, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class PathGuardTests : IDisposable
     [Fact]
     public void Rejects_misleading_prefix()
     {
-        // C:\...\Permitida2 is not inside C:\...\Permitida.
+        // C:\...\Allowed2 is not inside C:\...\Allowed.
         ToolException ex = Assert.Throws<ToolException>(() => Guard().Check(Path.Combine(_allowed2, "a.par")));
         Assert.Equal("path_not_allowed", ex.Code);
     }
@@ -73,7 +73,7 @@ public sealed class PathGuardTests : IDisposable
     [Fact]
     public void Rejects_parent_traversal()
     {
-        string path = _allowed + @"\..\Fuera\a.par";
+        string path = _allowed + @"\..\Outside\a.par";
         Assert.Equal("path_not_allowed", Assert.Throws<ToolException>(() => Guard().Check(path)).Code);
     }
 
@@ -139,7 +139,7 @@ public sealed class PathGuardTests : IDisposable
     [Fact]
     public void Junction_outside_pointing_inside_root_is_allowed()
     {
-        string link = Path.Combine(_outside, "hacia_permitida");
+        string link = Path.Combine(_outside, "to_allowed");
         if (!CreateJunction(link, _allowed))
         {
             Assert.Skip("mklink /J is not available.");
@@ -151,7 +151,7 @@ public sealed class PathGuardTests : IDisposable
     [Fact]
     public void Short_8dot3_name_is_resolved()
     {
-        string longDir = Directory.CreateDirectory(Path.Combine(_allowed, "Nombre muy largo de carpeta")).FullName;
+        string longDir = Directory.CreateDirectory(Path.Combine(_allowed, "A very long folder name")).FullName;
         string? shortPath = GetShortPath(longDir);
         if (shortPath is null || string.Equals(shortPath, longDir, StringComparison.OrdinalIgnoreCase))
         {
@@ -159,7 +159,7 @@ public sealed class PathGuardTests : IDisposable
         }
 
         string checkedPath = Guard().Check(Path.Combine(shortPath, "a.par"));
-        Assert.Contains("Nombre muy largo de carpeta", checkedPath, StringComparison.Ordinal);
+        Assert.Contains("A very long folder name", checkedPath, StringComparison.Ordinal);
     }
 
     [Fact]

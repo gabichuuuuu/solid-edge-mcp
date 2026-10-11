@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
@@ -59,6 +60,37 @@ public sealed class ModelDocument
         "Create a base feature first (se_extrude or se_revolve with operation 'add').");
 
     public Model? TryModel() => Models.Count == 0 ? null : Models.Item(1);
+
+    /// <summary>
+    /// Body of the existing model. Solid Edge fails reading it (E_FAIL) once the body was converted to a mesh
+    /// (Constructions.ConvertToMeshes, verified), so that case gets an error that says why.
+    /// </summary>
+    public object? RequireBody()
+    {
+        Model model = RequireModel();
+        try
+        {
+            return model.Body;
+        }
+        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        {
+            throw new ToolException("no_brep_body", $"Solid Edge cannot read the body of '{Document.Name}' as faces and edges (it fails this way after the body is converted to a mesh).",
+                "Use se_physical for its mass properties. Solid Edge does not undo, suppress or delete the conversion through the API (verified): convert a copy of the part.");
+        }
+    }
+
+    /// <summary>Volume of the body in m³, or null when Solid Edge cannot read the body (e.g. a mesh).</summary>
+    public double? TryVolume()
+    {
+        try
+        {
+            return Volume();
+        }
+        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        {
+            return null;
+        }
+    }
 
     /// <summary>Volume of the body in m³, or 0 if there is no solid.</summary>
     public double Volume() => TryModel()?.Body is SolidEdgeGeometry.Body body ? body.Volume : 0;

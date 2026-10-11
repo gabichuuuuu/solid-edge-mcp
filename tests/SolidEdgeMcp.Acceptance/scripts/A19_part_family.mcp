@@ -97,3 +97,14 @@ se_com_invoke {"target":"{{pc2.result.handle}}","method":"Delete"}
 @pcc = se_com_get {"target":"{{pcs.value.handle}}","member":"Count"}
 ?= pcc.value 2
 se_documents {"action":"close","document":"{{pd.handle}}","saveChanges":false}
+# Family of parts options through the generic COM layer: FamilyofPartsOption[SEFamilyOfPartsOptionSketches = 16] (members
+#   keep the sketches) is written and read back as a boolean.
+@fp = se_documents {"action":"new","kind":"part"}
+@fpm = se_com_get {"target":"{{fp.handle}}","member":"FamilyMembers"}
+se_com_set {"target":"{{fpm.value.handle}}","member":"FamilyofPartsOption","index":[16],"value":true}
+@fo1 = se_com_get {"target":"{{fpm.value.handle}}","member":"FamilyofPartsOption","index":[16]}
+?= fo1.value true
+se_com_set {"target":"{{fpm.value.handle}}","member":"FamilyofPartsOption","index":[16],"value":false}
+@fo2 = se_com_get {"target":"{{fpm.value.handle}}","member":"FamilyofPartsOption","index":[16]}
+?= fo2.value false
+se_documents {"action":"close","document":"{{fp.handle}}","saveChanges":false}

@@ -17,7 +17,7 @@ public enum SessionAction
 public sealed class SessionTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_session", Title = "Solid Edge session", Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Connection to Solid Edge. status: state without starting anything (busy operation, open documents). connect: attach to the running Solid Edge or start it (visible) if allowed. disconnect: release the connection without closing Solid Edge; all handles expire.")]
+    [Description("Connection to Solid Edge. status: state without starting anything (busy operation, open documents, and any Solid Edge dialog that waits for the person: calls fail with dialog_open until it is answered). connect: attach to the running Solid Edge or start it (visible) if allowed. disconnect: release the connection without closing Solid Edge; all handles expire.")]
     public Task<CallToolResult> Session(
         [Description("status | connect | disconnect")] SessionAction action,
         CancellationToken cancellationToken)
