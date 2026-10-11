@@ -20,7 +20,13 @@ public static partial class SketchService
 
     public static object Create(SeContext context, string? documentHandle, string plane)
     {
-        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        SolidEdgeFramework.SolidEdgeDocument document = context.GetDocument(documentHandle);
+        if (document is SolidEdgeAssembly.AssemblyDocument assembly)
+        {
+            return CreateInAssembly(context, assembly, plane);
+        }
+
+        ModelDocument model = ModelDocument.From(document);
         bool switched = model.EnsureOrdered();
         RefPlane refPlane = model.ResolvePlane(context, plane);
         Profile profile = model.Sketches.Add().Profiles.Add(refPlane);
@@ -31,6 +37,29 @@ public static partial class SketchService
             plane = context.Register(refPlane, "refplane", model.Document),
             frame = Frame(profile),
             note = switched ? "The document was switched to ordered modeling." : null,
+        };
+    }
+
+    /// <summary>
+    /// Sketch of an assembly, on one of its reference planes ('1'-'3' or a handle), for assembly features (se_assembly_feature).
+    /// </summary>
+    private static object CreateInAssembly(SeContext context, SolidEdgeAssembly.AssemblyDocument assembly, string plane)
+    {
+        object refPlane = int.TryParse(plane, out int index)
+            ? index is >= 1 and <= 3
+                ? assembly.AsmRefPlanes.Item(index)
+                : throw ToolException.InvalidArgument($"The assembly has base planes '1'-'3', not '{plane}'.")
+            : context.Handles.Resolve(plane, "plane") is SolidEdgeAssembly.AsmRefPlane given
+                ? given
+                : throw new ToolException("handle_wrong_type", $"'{plane}' is not an assembly reference plane.",
+                    "In an assembly, sketch on '1'-'3' or on an assembly reference plane.");
+        var document = (SolidEdgeFramework.SolidEdgeDocument)assembly;
+        Profile profile = assembly.ProfileSets.Add().Profiles.Add(refPlane);
+        return new
+        {
+            sketch = context.Register(profile, "sketch", document),
+            plane = context.Register(refPlane, "asmrefplane", document),
+            frame = Frame(profile),
         };
     }
 

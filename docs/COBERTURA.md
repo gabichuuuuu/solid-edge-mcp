@@ -54,7 +54,7 @@ damages the document in Solid Edge 2026 (do not use).
 
 | Function | Route | Status |
 |---|---|---|
-| Sketch on a principal plane, a reference plane or a planar face | `se_sketch create` | ✔ |
+| Sketch on a principal plane, a reference plane or a planar face; in an assembly, on its base or reference planes | `se_sketch create` | ✔ |
 | Line, rectangle, polyline, circle, arc, ellipse, spline, point, corner fillet and chamfer | `se_sketch` | ✔ |
 | Revolve axis (also one side of the profile: a copy is used and the profile stays closed) | `se_sketch axis` | ✔ |
 | Validate a closed profile or an open chain | `se_sketch close` | ✔ |
@@ -146,7 +146,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Duplicate pattern (occurrences copied onto others at the same relative position) | `se_assembly_pattern duplicate` | ✔ |
 | Component pattern along a curve | COM (`AssemblyPatterns.CreateAlongCurveEx3`: E_NOINTERFACE with part edges, their references and assembly layout lines) | ✘ |
 | Component mirror | — | ✘ `AssemblyMirrors` has no Add (only lists existing mirrors) |
-| Assembly features, parts driven by the assembly | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
+| Extruded cutouts made in the assembly through chosen parts (through all or to a depth; side); list and delete | `se_assembly_feature` | ✔ |
+| Other assembly features (holes, revolved cutouts, protrusions, welds), parts driven by the assembly | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
 | Display configurations (shown and hidden components): list, save, apply, delete; the assembly must be saved (.cfg file) | `se_assembly_config` | ✔ |
 | Exploded views, groups | COM (`AssemblyDocument.AutoExplode` answers "Operation successful" but the explode is not measurable outside the explode environment) / Command | · |
 | Structural frames, pipes, harnesses, fasteners, weldment | COM (`StructuralFrames`, `Pipes`, `Harnesses`, `FastenerSystems`, `WeldmentAssembly`) / Command | · |

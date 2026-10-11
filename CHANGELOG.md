@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_assembly_feature`: extruded cutouts made in the assembly through chosen parts, from a sketch
+  drawn in the assembly (`se_sketch create` now works in assemblies, on their planes).
 - `se_primitive corners`: boxes by two opposite corners or by three points.
 - `se_part_feature slot counterbore`: counterbored slots (total width and depth).
 - `se_ref_plane tangent`: planes tangent to any curved face at an edge end (`points`), and tangent

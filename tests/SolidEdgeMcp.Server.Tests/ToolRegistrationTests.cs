@@ -83,6 +83,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_appearance", """{"action":"apply","targets":"face:1","color":"#FF0000"}""", "'targets'")]
     [InlineData("se_layer", """{"action":"hide","name":"Construction"}""", "'action' must be one of:")]
     [InlineData("se_assembly_config", """{"action":"explode","name":"A"}""", "'action' must be one of:")]
+    [InlineData("se_assembly_feature", """{"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2"],"side":"both"}""", "'side' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -124,6 +125,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sheetmetal", """{"action":"bend_angle","faces":["face:14"],"fixedFace":"face:19","angle":60}""")]
     [InlineData("se_sheetmetal", """{"action":"bend_radius","faces":["face:14","face:15"],"radius":3}""")]
     [InlineData("se_assembly_config", """{"action":"apply","name":"Without covers","document":"doc:3"}""")]
+    [InlineData("se_assembly_feature", """{"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2","occurrence:3"],"depth":4,"side":"symmetric","name":"Bore"}""")]
     [InlineData("se_appearance", """{"action":"apply","targets":["face:1","occurrence:2"],"color":"#FF8000","opacity":0.5}""")]
     [InlineData("se_appearance", """{"action":"create","name":"Orange","color":"#FF8000"}""")]
     [InlineData("se_assembly_pattern", """{"action":"create","occurrences":["occurrence:5"],"source":"occurrence:3","pattern":"Pattern_1","reference":"Hole_1"}""")]

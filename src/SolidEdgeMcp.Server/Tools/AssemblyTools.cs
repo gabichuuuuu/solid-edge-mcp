@@ -51,6 +51,13 @@ public enum AssemblyPatternAction
     Dissolve,
 }
 
+public enum AssemblyFeatureAction
+{
+    List,
+    Cut,
+    Delete,
+}
+
 public enum AssemblyConfigAction
 {
     List,
@@ -200,6 +207,36 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyPatternAction.Duplicate => runner.RunAsync(tool, act, c => AssemblyPatternService.Duplicate(c, occurrences, source, targets, name), cancellationToken),
             AssemblyPatternAction.Delete => runner.RunAsync(tool, act, c => AssemblyPatternService.Delete(c, document, name), cancellationToken),
             AssemblyPatternAction.Dissolve => runner.RunAsync(tool, act, c => AssemblyPatternService.Dissolve(c, document, name), cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
+
+    [McpServerTool(Name = "se_assembly_feature", Title = "Assembly features", Destructive = true, OpenWorld = false)]
+    [Description("""
+        Assembly features: extruded cutouts made in the assembly through some of its parts (the part files do not change), from a closed sketch
+        drawn in the assembly (se_sketch create with plane '1'-'3' of the assembly, draw, close).
+        list (cuts with their status and the faces they leave on each part) | cut (sketch; occurrences = the parts to cut; depth mm, default through all;
+        side auto (along the plane normal, then against it) | normal | reverse | symmetric; name optional) | delete (name).
+        Each cut is checked by the faces it leaves on every part, and removed if it misses one.
+        Example: {"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2","occurrence:3"]}.
+        """)]
+    public Task<CallToolResult> AssemblyFeature(
+        AssemblyFeatureAction action,
+        [Description("cut: closed sketch handle made in the assembly.")] string? sketch = null,
+        [Description("cut: occurrence handles of the parts to cut.")] string[]? occurrences = null,
+        [Description("cut: depth in mm from the sketch plane (default: through all).")] double? depth = null,
+        PartFeatureSide side = PartFeatureSide.Auto,
+        [Description("cut: name of the new feature; delete: the feature name.")] string? name = null,
+        [Description("Assembly document handle; default: the active document.")] string? document = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string tool = "se_assembly_feature";
+        string act = Snake(action);
+        return action switch
+        {
+            AssemblyFeatureAction.List => runner.RunAsync(tool, act, c => AssemblyFeatureService.List(c, document), cancellationToken),
+            AssemblyFeatureAction.Cut => runner.RunAsync(tool, act, c => AssemblyFeatureService.Cut(c, sketch, occurrences, depth, Snake(side), name), cancellationToken),
+            AssemblyFeatureAction.Delete => runner.RunAsync(tool, act, c => AssemblyFeatureService.Delete(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

@@ -110,3 +110,46 @@ se_com_invoke {"target":"{{ss.value.handle}}","method":"Add","arguments":[{"hand
 ?= sc.value 1
 se_com_invoke {"target":"{{ss.value.handle}}","method":"RemoveAll"}
 se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+# Assembly features (se_assembly_feature) from sketches drawn in the assembly. Plates at z 0-10 and 20-30; a circle r5 at (50,10)
+#   on base plane 1 cut through all: one cylindrical face 2pi*5*10 = 314.159 on each plate. A circle r5 at (20,10) cut 4 deep in the
+#   lower plate: wall 2pi*5*4 + floor 25pi = 204.204 (2 faces). A cut 4 deep aimed at the upper plate misses it and is removed. The part
+#   file does not change: the plate still has its 9 faces.
+@f = se_documents {"action":"new","kind":"assembly"}
+@f1 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par"}
+@f2 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,0,20]}
+! [invalid_argument] se_sketch {"action":"create","plane":"4"}
+@fs = se_sketch {"action":"create","plane":"1"}
+?= fs.frame.normal[2] 1
+se_sketch {"action":"circle","sketch":"{{fs.sketch}}","center":[50,10],"radius":5}
+se_sketch {"action":"close","sketch":"{{fs.sketch}}"}
+! [invalid_argument] se_assembly_feature {"action":"cut","sketch":"{{fs.sketch}}"}
+@fc = se_assembly_feature {"action":"cut","sketch":"{{fs.sketch}}","occurrences":["{{f1.handle}}","{{f2.handle}}"],"name":"Taladro"}
+?= fc.name Taladro
+?= fc.status ok
+?= fc.extent through_all
+?= fc.side normal
+?= fc.parts[0].faces 1
+?= fc.parts[0].area 314.159265 0.001
+?= fc.parts[1].area 314.159265 0.001
+@fs2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{fs2.sketch}}","center":[20,10],"radius":5}
+se_sketch {"action":"close","sketch":"{{fs2.sketch}}"}
+@fc2 = se_assembly_feature {"action":"cut","sketch":"{{fs2.sketch}}","occurrences":["{{f1.handle}}"],"depth":4}
+?= fc2.extent finite
+?= fc2.depth 4
+?= fc2.parts[0].faces 2
+?= fc2.parts[0].area 204.203522 0.001
+@fs3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{fs3.sketch}}","center":[80,10],"radius":5}
+se_sketch {"action":"close","sketch":"{{fs3.sketch}}"}
+! [feature_failed] se_assembly_feature {"action":"cut","sketch":"{{fs3.sketch}}","occurrences":["{{f2.handle}}"],"depth":4}
+@fl = se_assembly_feature {"action":"list"}
+?= fl.count 2
+@fd = se_assembly_feature {"action":"delete","name":"Taladro"}
+?= fd.count 1
+! [invalid_argument] se_assembly_feature {"action":"delete","name":"Taladro"}
+@ff = se_geometry {"action":"faces","source":"{{f1.handle}}"}
+?= ff.count 9
+se_view {"action":"fit"}
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a14_cut.png"}
+se_documents {"action":"close","document":"{{f.handle}}","saveChanges":false}
