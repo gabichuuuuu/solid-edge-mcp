@@ -882,6 +882,10 @@ public static partial class DrawingService
             ? throw ToolException.InvalidArgument("'view' is required: a drawing view handle from se_drawing 'views' or from the action that created it.")
             : context.Handles.Resolve<DrawingView>(handle, "view");
 
+    /// <summary>Sheet given by handle or name (default: the active sheet of the drawing).</summary>
+    internal static Sheet SheetFor(SeContext context, string? documentHandle, string? sheet) =>
+        ResolveSheet(context, DraftFor(context, documentHandle, sheet), sheet);
+
     /// <summary>Sheet by handle or name; if none is given, the active one.</summary>
     private static Sheet ResolveSheet(SeContext context, DraftDocument draft, string? sheet)
     {

@@ -96,6 +96,7 @@ public static class Program
         typeof(DrawingTools),
         typeof(AnnotationTools),
         typeof(AppearanceTools),
+        typeof(LayerTools),
         typeof(AppTools),
         typeof(SettingsTools),
         typeof(ComTools),

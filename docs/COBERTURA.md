@@ -44,7 +44,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Create or edit materials and libraries; sheet metal gauges | COM (`Application.GetMaterialTable()`; `GetMaterialList` and `GetMatLibFileName` return E_NOTIMPL) | · |
 | Colours: list, create and delete face styles; apply them (or a #RRGGBB colour with opacity) to the body, faces, features or assembly components; read and remove them | `se_appearance` | ✔ |
 | Remove the style of a feature | — | ✘ `SetStyle` with an empty style keeps it (`not_supported`; apply another one) |
-| Layers | COM (`Layers`) | · |
+| Layers of models and drawings: list, create, activate, show or hide, selectable, delete empty ones, move elements (sketch geometry, drawing views, dimensions, annotations); per sheet in drawings | `se_layer` | ✔ |
 | Part families (`FamilyMembers`), configurations (`PartConfigurations`) | COM | · |
 | 3D PMI (`PMI`), live sections | COM | · |
 | Simulation and generative studies | COM / Command | · |

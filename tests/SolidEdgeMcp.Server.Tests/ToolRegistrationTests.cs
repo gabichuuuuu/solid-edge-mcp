@@ -79,6 +79,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_assembly_pattern", """{"action":"mirror","occurrences":["occurrence:2"]}""", "'action' must be one of:")]
     [InlineData("se_ref_plane", """{"action":"normal_to_edge","edge":"edge:1","at":"middle"}""", "'at' must be one of:")]
     [InlineData("se_appearance", """{"action":"apply","targets":"face:1","color":"#FF0000"}""", "'targets'")]
+    [InlineData("se_layer", """{"action":"hide","name":"Construction"}""", "'action' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -136,6 +137,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_annotation", """{"action":"surface_finish","view":"drawing_view:2","points":[100,30,20],"finish":"no_material_removal","text":"Ra 3.2"}""")]
     [InlineData("se_annotation", """{"action":"feature_control_frame","view":"drawing_view:2","points":[100,30,20],"characteristic":"total_runout","tolerance":"⌀0.1","datums":["A","B"]}""")]
     [InlineData("se_annotation", """{"action":"list","kind":"feature_control_frame"}""")]
+    [InlineData("se_layer", """{"action":"set","name":"Construction","shown":false,"locatable":false}""")]
+    [InlineData("se_layer", """{"action":"assign","name":"Notes","objects":["text_box:4","dimension:5"],"sheet":"Sheet1"}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();
