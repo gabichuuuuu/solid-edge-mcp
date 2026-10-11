@@ -54,13 +54,13 @@ damages the document in Solid Edge 2026 (do not use).
 | Function | Route | Status |
 |---|---|---|
 | Sketch on a principal plane, a reference plane or a planar face | `se_sketch create` | ✔ |
-| Line, rectangle, polyline, circle, arc, ellipse, spline, point, corner fillet | `se_sketch` | ✔ |
+| Line, rectangle, polyline, circle, arc, ellipse, spline, point, corner fillet and chamfer | `se_sketch` | ✔ |
 | Revolve axis (also one side of the profile: a copy is used and the profile stays closed) | `se_sketch axis` | ✔ |
 | Validate a closed profile or an open chain | `se_sketch close` | ✔ |
 | List the elements of a sketch (with keypoints) and its relations and dimensions | `se_sketch info`, `se_sketch_constraint list` | ✔ |
 | Project model edges onto the sketch | `se_sketch project` | ✔ |
 | 2D relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions (length, true distance, interior angle, radius, diameter) | `se_sketch_constraint` | ✔ |
-| Sketch text and chamfer | COM (`Profile.TextProfiles`, `Lines2d`…) | · |
+| Sketch text | — | ✘ `Profile.TextProfiles` has no `Add`: text profiles are created only with the Text command in Solid Edge |
 | 3D sketches | COM (`Sketches3D`) | · |
 | Offset and angled planes | `se_ref_plane` | ✔ |
 | Planes through 3 points (vertices or edge midpoints), midway, normal to an edge (at an end or a distance), tangent to a cylinder or cone; coordinate systems | `se_ref_plane` | ✔ |
@@ -118,7 +118,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Flat pattern and cut size; flat pattern DXF | `se_sheetmetal flatten`, `se_export flatPattern` | ✔ |
 | Dimple, drawn cutout, normal cutout, etch, jog, bend, U/V bead | `se_sheetmetal_form` | ✔ |
 | Contour flange on an edge, lofted flange, multi-edge flange | COM (`ContourFlanges.AddSync`, `LoftedFlanges`, `MultiEdgeFlanges`) | · |
-| Unbend and rebend, change bend angle, resize bend | COM (`Unbends`, `Rebends`, `ChangeBendAngles`, `ResizeBends`) | · |
+| Change the angle or the inside radius of existing bends | `se_sheetmetal bend_angle`, `bend_radius` | ✔ |
+| Unbend and rebend | — | ✘ `Unbends.Add` with the fixed face and the bend face of a flange throws RPC_E_SERVERFAULT |
 | Tab and slot, enclosures, edge rip, convert to sheet metal | COM (`TabAndSlotFeatures`, `Enclosures`, `RipEdges`, `ConvToSMs`) | · |
 | Close corners (`CloseCorners`) | — | ✘ RPC_E_SERVERFAULT; broken graphics until restart |
 | Gussets (`Gussets`) | — | ✘ corrupts the document |

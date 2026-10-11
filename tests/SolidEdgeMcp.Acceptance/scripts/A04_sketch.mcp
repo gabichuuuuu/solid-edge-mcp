@@ -142,4 +142,23 @@ se_documents {"action":"close","document":"{{dL.handle}}","saveChanges":false}
 ! [not_supported] se_sketch {"action":"close","sketch":"{{dM.handle}}"}
 ! [not_supported] se_sketch {"action":"delete","sketch":"{{shM.sheets[0].handle}}"}
 se_documents {"action":"close","document":"{{dM.handle}}","saveChanges":false}
+# N: chamfer of the corner (40,20) of a 40x20 rectangle, 5 along the right side [1] and 10 along the top [2]: A = 800 - 5*10/2 = 775 -> V = 7750;
+#   the right side is trimmed to 15 and the top to 30. Corner (0,0): 2 along the bottom [0] (-> 38) and 6 along the left side [3] (-> 14):
+#   A = 775 - 2*6/2 = 769 -> V = 7690. Errors: parallel sides [1] (x=40) and [3] (x=0); no setbacks
+@dN = se_documents {"action":"new","kind":"part"}
+@kN = se_sketch {"action":"create","plane":"1"}
+@rN = se_sketch {"action":"rectangle","sketch":"{{kN.sketch}}","points":[0,0,40,20]}
+@cN = se_sketch {"action":"chamfer","sketch":"{{kN.sketch}}","elements":["{{rN.elements[1]}}","{{rN.elements[2]}}"],"setbacks":[5,10]}
+?= cN.trimmed[0].length 15
+?= cN.trimmed[1].length 30
+?= cN.geometry.length 11.180340
+@cN2 = se_sketch {"action":"chamfer","sketch":"{{kN.sketch}}","elements":["{{rN.elements[0]}}","{{rN.elements[3]}}"],"setbacks":[2,6]}
+?= cN2.trimmed[0].length 38
+?= cN2.trimmed[1].length 14
+! [chamfer_failed] se_sketch {"action":"chamfer","sketch":"{{kN.sketch}}","elements":["{{rN.elements[1]}}","{{rN.elements[3]}}"],"setbacks":[5]}
+! [invalid_argument] se_sketch {"action":"chamfer","sketch":"{{kN.sketch}}","elements":["{{rN.elements[0]}}","{{rN.elements[3]}}"]}
+se_sketch {"action":"close","sketch":"{{kN.sketch}}"}
+@xN = se_extrude {"sketch":"{{kN.sketch}}","distance":10}
+?= xN.volume 7690 0.01
+se_documents {"action":"close","document":"{{dN.handle}}","saveChanges":false}
 se_documents {"action":"list"}

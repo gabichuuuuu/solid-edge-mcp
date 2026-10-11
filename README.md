@@ -102,7 +102,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **View and application** | `se_view` | Capture the view as an image, framing (on drawings, the whole sheet with the title block), orientation, display mode and named views (list, save the current one, apply, delete). Does not change the model. |
 | | `se_options` | Solid Edge options and document units: list, read and change them; returns the previous value so it can be restored. |
 | | `se_ui` | Windows, environments and ribbon: list, activate and arrange windows; list environments and the tabs, groups and commands of the ribbon. |
-| **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, points, corner fillet, edge projection, revolve axis and validated close; list the elements and relations of a sketch. The same 2D geometry is drawn on drawing sheets (2D drafting). |
+| **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, points, corner fillet and chamfer, edge projection, revolve axis and validated close; list the elements and relations of a sketch. The same 2D geometry is drawn on drawing sheets (2D drafting). |
 | | `se_sketch_constraint` | Geometric relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions that move the geometry, in sketches and on drawing sheets. |
 | | `se_ref_plane` | Reference planes: list; offset, angled, through three points, midway between two planes, normal to an edge and tangent to a cylinder, each checked against its geometry; coordinate systems with their origin and axes. |
 | **Part** | `se_extrude` | Boss or cut by extrusion: blind, through all or up to next; normal, reversed or symmetric. |
@@ -117,7 +117,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, and offset faces; slots along an open path, web networks in shelled parts and scaling of the body. |
 | | `se_primitive` | Box, cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature. |
-| **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), tab, contour flange, flange, hem, corner break and flat pattern with cut size. |
+| **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), tab, contour flange, flange, hem, corner break, flat pattern with cut size, and changes of the angle and radius of existing bends. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
 | **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences. |
 | | `se_relations` | Planar (mate and flush), axial, insert, parallel, tangent, angle and rigid set relations, checked geometrically; list and delete. |
@@ -285,8 +285,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 83/83.
-- Acceptance suite against real Solid Edge 2026: **1322 calls and 509 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 86/86.
+- Acceptance suite against real Solid Edge 2026: **1350 calls and 522 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 49 tools have correct calls, and `A10` runs every value of the action,
@@ -299,8 +299,8 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A01` | Session and errors |
 | `A02` | Full part: data, view and named views, selection, editing, exports and undo |
 | `A03` | Part features, ribs, thicken, mirrored body, reference planes and coordinate systems, direct face edits, slots, web networks and body scale |
-| `A04` | Sketches and dimensions, also on a drawing sheet |
-| `A05` | Sheet metal |
+| `A04` | Sketches, corner chamfers and dimensions, also on a drawing sheet |
+| `A05` | Sheet metal, bend angle and radius changes |
 | `A06` | Assemblies |
 | `A07` | Drawings, annotations, drawing symbols and export to PDF, DXF and DWG |
 | `A08` | COM layer and commands |

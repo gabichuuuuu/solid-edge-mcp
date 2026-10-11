@@ -84,4 +84,32 @@ se_sketch {"action":"close","sketch":"{{ke.sketch}}","open":true}
 ! [file_exists] se_export {"path":"{{work}}\\a05_flat.dxf","flatPattern":true}
 ! [invalid_argument] se_export {"path":"{{work}}\\a05_flat.stp","flatPattern":true}
 se_documents {"action":"close","document":"{{d4.handle}}","saveChanges":false}
+# 5) Bend edits. Tab 100x60 (t=1) and a flange of 20 on the edge y=0 (radius 1: bend faces r1 and r2) -> 7935.619.
+#    bend_radius 3 on the outer bend face: the bend faces become r3 and r4 (7849.779, Solid Edge value). bend_angle 60 with the tab
+#    as fixed face: the outer face of the flange (flat leg 21 - (3 + 1) = 17 -> 1700) gets the normal (0, -cos30, sin30). Errors: two bend faces, angle 200, no radius
+@d5 = se_documents {"action":"new","kind":"sheet_metal"}
+@k5 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k5.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k5.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k5.sketch}}"}
+@tp5 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te5 = se_geometry {"action":"edges","source":"{{tp5.items[0].handle}}","direction":[1,0,0]}
+@fl5 = se_sheetmetal {"action":"flange","edges":["{{te5.items[0].handle}}"],"length":20}
+?= fl5.volume 7935.619 0.01
+@cy5 = se_geometry {"action":"faces","type":"cylinder"}
+@br5 = se_sheetmetal {"action":"bend_radius","faces":["{{cy5.items[?radius=2].handle}}"],"radius":3}
+?= br5.volume 7849.779 0.01
+@cz5 = se_geometry {"action":"faces","type":"cylinder"}
+?= cz5.items[?radius=3].radius 3
+?= cz5.items[?radius=4].radius 4
+@tq5 = se_geometry {"action":"faces","direction":[0,0,1]}
+@ba5 = se_sheetmetal {"action":"bend_angle","faces":["{{cz5.items[?radius=4].handle}}"],"fixedFace":"{{tq5.items[?area=5600].handle}}","angle":60}
+?= ba5.feature.status ok
+@fn5 = se_geometry {"action":"faces","direction":[0,-0.866025404,0.5]}
+?= fn5.count 1
+?= fn5.items[0].area 1700 0.01
+! [invalid_argument] se_sheetmetal {"action":"bend_angle","faces":["{{cz5.items[0].handle}}","{{cz5.items[1].handle}}"],"fixedFace":"{{tq5.items[0].handle}}","angle":60}
+! [invalid_argument] se_sheetmetal {"action":"bend_angle","faces":["{{cz5.items[0].handle}}"],"fixedFace":"{{tq5.items[0].handle}}","angle":200}
+! [invalid_argument] se_sheetmetal {"action":"bend_radius","faces":["{{cz5.items[0].handle}}"]}
+se_documents {"action":"close","document":"{{d5.handle}}","saveChanges":false}
 se_documents {"action":"list"}

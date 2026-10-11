@@ -20,6 +20,7 @@ public enum SketchAction
     Spline,
     Point,
     Fillet,
+    Chamfer,
     Project,
     Axis,
     Close,
@@ -88,7 +89,7 @@ public sealed class SketchTools(ToolRunner runner)
         create (plane: '1' = XY/top (normal +Z), '2' = YZ/right (+X), '3' = XZ/front (-Y), or a refplane / planar face handle) returns the sketch handle and its frame (origin, xAxis, yAxis, normal in model coordinates). Sketch x/y are measured from the frame origin along xAxis/yAxis: on a face the origin is not the model origin (model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis) |
         line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners [x1,y1,x2,y2]) | polyline (points [x1,y1,x2,y2,...], closed, default true) | circle (center [x,y], radius) | arc (center, start, end; counter-clockwise) |
         ellipse (center, radius = semi-major axis, minorRadius, angle of the major axis in degrees) | spline (cubic through points [x1,y1,...] >= 3; closed, default false) | point (points [x,y]) |
-        fillet (elements = two elements meeting at a corner, radius; trims both; points [x,y] inside the corner, default for two lines: their common corner) | project (elements = model edge handles from se_geometry, included and linked into the sketch) |
+        fillet (elements = two elements meeting at a corner, radius; trims both; points [x,y] inside the corner, default for two lines: their common corner) | chamfer (elements = two lines meeting at a corner, setbacks = [d] or [d1, d2] mm from the corner along each line; trims both; points as for fillet) | project (elements = model edge handles from se_geometry, included and linked into the sketch) |
         axis (element = line handle; revolution axis for se_revolve, set it before close; a side of the profile can be used: a copy becomes the axis) | close (validates closed loops, or one open chain with open=true for contour flanges, bend/jog lines and paths; required before a feature) | info (frame, counts and every element with its handle and geometry) | delete.
         Example: create {"plane":"1"} → rectangle {"sketch":"sketch:5","points":[0,0,100,50]} → close → se_extrude.
         """)]
@@ -96,7 +97,7 @@ public sealed class SketchTools(ToolRunner runner)
         SketchAction action,
         [Description("Sketch handle (all actions except create), or a drawing sheet / drawing document handle for the drawing actions and info.")] string? sketch = null,
         [Description("For create: '1' XY, '2' YZ, '3' XZ, or a refplane / planar face handle.")] string? plane = null,
-        [Description("For line, rectangle, polyline, spline, point: flat list of coordinates in mm [x1,y1,x2,y2,...]; for fillet: optional point inside the corner.")] double[]? points = null,
+        [Description("For line, rectangle, polyline, spline, point: flat list of coordinates in mm [x1,y1,x2,y2,...]; for fillet and chamfer: optional point inside the corner.")] double[]? points = null,
         [Description("For circle, arc, ellipse: centre [x,y] in mm.")] double[]? center = null,
         [Description("For circle and fillet: radius in mm; for ellipse: semi-major axis in mm.")] double? radius = null,
         [Description("For arc: start point [x,y] in mm.")] double[]? start = null,
@@ -104,7 +105,8 @@ public sealed class SketchTools(ToolRunner runner)
         [Description("For ellipse: semi-minor axis in mm (radius is the semi-major axis).")] double? minorRadius = null,
         [Description("For ellipse: angle of the major axis from the sketch x axis, in degrees (default 0).")] double? angle = null,
         [Description("For axis: handle of a line of the sketch.")] string? element = null,
-        [Description("For fillet: the two sketch elements; for project: model edge handles.")] string[]? elements = null,
+        [Description("For fillet and chamfer: the two sketch elements; for project: model edge handles.")] string[]? elements = null,
+        [Description("For chamfer: one setback in mm (equal) or two (along the first and the second line).")] double[]? setbacks = null,
         [Description("For polyline (default true) and spline (default false): close the shape.")] bool? closed = null,
         [Description("For close: validate one open chain instead of closed loops.")] bool open = false,
         [Description("For create: document handle; default: active document.")] string? document = null,
@@ -130,6 +132,7 @@ public sealed class SketchTools(ToolRunner runner)
             SketchAction.Spline => runner.RunAsync(tool, name, c => SketchService.Spline(c, handle, points, closed ?? false), cancellationToken),
             SketchAction.Point => runner.RunAsync(tool, name, c => SketchService.Point(c, handle, points), cancellationToken),
             SketchAction.Fillet => runner.RunAsync(tool, name, c => SketchService.Fillet(c, handle, elements, radius, points), cancellationToken),
+            SketchAction.Chamfer => runner.RunAsync(tool, name, c => SketchService.Chamfer(c, handle, elements, setbacks, points), cancellationToken),
             SketchAction.Project => runner.RunAsync(tool, name, c => SketchService.Project(c, handle, elements), cancellationToken),
             SketchAction.Axis => runner.RunAsync(tool, name, c => SketchService.Axis(c, handle, ToolRunner.Require(element, "element", "axis")), cancellationToken),
             SketchAction.Close => runner.RunAsync(tool, name, c => SketchService.Close(c, handle, open), cancellationToken),

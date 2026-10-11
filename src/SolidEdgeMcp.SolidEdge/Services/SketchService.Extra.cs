@@ -96,6 +96,47 @@ public static partial class SketchService
         }
     }
 
+    /// <summary>
+    /// Chamfer between two lines that trims both: <paramref name="setbacks"/> = one distance (equal) or two, measured from the
+    /// corner along the first and the second line. <paramref name="side"/> is a point inside the corner, by default on the
+    /// bisector of the common corner.
+    /// </summary>
+    public static object Chamfer(SeContext context, string sketch, string[]? elements, double[]? setbacks, double[]? side)
+    {
+        Canvas2d canvas = ResolveCanvas(context, sketch);
+        object[] e = Elements(context, elements, 2, 2, "chamfer");
+        (double a, double b) = setbacks switch
+        {
+            [double equal] => (equal, equal),
+            [double first, double second] => (first, second),
+            _ => throw ToolException.InvalidArgument("Action 'chamfer' requires 'setbacks': one distance in mm (equal) or two (along the first and the second line)."),
+        };
+        a = Units.MmToM(Units.RequirePositive(a, "setbacks"));
+        b = Units.MmToM(Units.RequirePositive(b, "setbacks"));
+        (double X, double Y) pick = side is not null ? Geo.Point2(side, "points")
+            : e is [Line2d l1, Line2d l2] ? InsideCorner(l1, l2, Math.Max(a, b))
+            : throw ToolException.InvalidArgument("A chamfer needs two lines; pass 'points' = [x, y], a point inside the corner.");
+        try
+        {
+            // Verified: SetBackA is measured along the second element and SetBackB along the first.
+            Line2d line = canvas.Lines2d.AddAsChamfer(e[0], e[1], pick.X, pick.Y, b, a)
+                ?? throw new ToolException("chamfer_failed", "Solid Edge could not chamfer the corner: the elements do not form a corner for those setbacks.",
+                    "The two lines must meet (or cross) and be longer than the setbacks; pass 'points' inside the corner.");
+            return new
+            {
+                element = context.RegisterBeside(line, "line2d", sketch),
+                geometry = Describe2d(line),
+                trimmed = e.Select(Describe2d).ToArray(),
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException || ex is COMException com && !ComErrors.IsDisconnected(com))
+        {
+            // Lines without a corner (parallel) give E_INVALIDARG, which .NET raises as ArgumentException.
+            throw new ToolException("chamfer_failed", $"Solid Edge could not chamfer the corner: {ex.Message}",
+                "The two lines must meet (or cross) and be longer than the setbacks; pass 'points' inside the corner.", ex);
+        }
+    }
+
     /// <summary>Includes model edges in the sketch (projected and linked, like the "Include" command of the UI).</summary>
     public static object Project(SeContext context, string sketch, string[]? edges)
     {

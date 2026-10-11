@@ -18,6 +18,8 @@ public enum SheetMetalAction
     Hem,
     BreakCorner,
     Flatten,
+    BendAngle,
+    BendRadius,
 }
 
 public enum SheetMetalSide
@@ -114,6 +116,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
         hem: one hem per edge (usually the free edge of a flange). hemType closed | open | s_flange (radius2, length2) | closed_loop; length of the folded part; radius; side. Solid Edge may fail (RPC_E_SERVERFAULT) on an edge that meets another hem; the call is then undone.
         break_corner: cornerType round | chamfer with 'size' on corner edges through the thickness (se_geometry 'edges' with direction = sheet normal).
         flatten: creates or updates the flat pattern and returns the cut size (x, y); export it with se_export flatPattern=true.
+        bend_angle: 'faces' = one bend face (cylindrical, se_geometry faces type cylinder), 'fixedFace' = a planar face that stays, 'angle' = new angle between the bent part and that face (90 = perpendicular) | bend_radius: 'faces' = bend faces, 'radius' = new inside radius. Unbend is not offered (Solid Edge throws RPC_E_SERVERFAULT).
         radius defaults to the document bend radius. tab, contour_flange, flange, hem and break_corner are built in synchronous modeling (the only mode where Solid Edge solves them via the API) and the document returns to ordered; flanges and hems need edges of synchronous features (tabs, flanges).
         Sketch-based features (dimple, cutouts, jog, bend, bead...): se_sheetmetal_form. Verified: a feature that fails or has no effect is reported as an error and everything the call made is undone (Undo, so trimmed faces come back too).
         Example: {"action":"flange","edges":["edge:12","edge:15"],"length":20}.
@@ -123,9 +126,9 @@ public sealed class SheetMetalTools(ToolRunner runner)
         [Description("tab / contour_flange: sketch handle.")] string? sketch = null,
         [Description("flange / hem / break_corner: edge handles from se_geometry 'edges'.")] string[]? edges = null,
         [Description("flange / hem: length in mm.")] double? length = null,
-        [Description("flange: angle between flange and sheet in degrees (default 90).")] double angle = 90,
+        [Description("flange: angle between flange and sheet in degrees (default 90); bend_angle: the new angle.")] double angle = 90,
         [Description("flange / hem: material side.")] SheetMetalSide side = SheetMetalSide.Inside,
-        [Description("flange / hem / contour_flange: bend radius in mm (default: document bend radius).")] double? radius = null,
+        [Description("flange / hem / contour_flange: bend radius in mm (default: document bend radius); bend_radius: the new inside radius.")] double? radius = null,
         HemType hemType = HemType.Closed,
         [Description("hem s_flange: length of the second flange in mm (default: length).")] double? length2 = null,
         [Description("hem s_flange: second bend radius in mm (default: radius).")] double? radius2 = null,
@@ -139,6 +142,8 @@ public sealed class SheetMetalTools(ToolRunner runner)
         [Description("set_settings: bend relief width in mm.")] double? reliefWidth = null,
         [Description("set_settings: bend relief depth in mm.")] double? reliefDepth = null,
         [Description("set_settings: neutral factor (0-1, e.g. 0.33).")] double? neutralFactor = null,
+        [Description("bend_angle / bend_radius: bend face handles (cylindrical faces of the bends).")] string[]? faces = null,
+        [Description("bend_angle: planar face that stays in place.")] string? fixedFace = null,
         [Description("Document handle; default: the document of the sketch/edges, or the active one.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -158,6 +163,8 @@ public sealed class SheetMetalTools(ToolRunner runner)
                 new HemSpec(edges, Snake(hemType), length, radius, length2, radius2, Snake(side))), cancellationToken),
             SheetMetalAction.BreakCorner => runner.RunAsync(tool, name, c => FeatureService.BreakCorner(c, document, edges, Snake(cornerType), size), cancellationToken),
             SheetMetalAction.Flatten => runner.RunAsync(tool, name, c => FeatureService.Flatten(c, document), cancellationToken),
+            SheetMetalAction.BendAngle => runner.RunAsync(tool, name, c => FeatureService.BendAngle(c, document, faces, fixedFace, angle), cancellationToken),
+            SheetMetalAction.BendRadius => runner.RunAsync(tool, name, c => FeatureService.BendRadius(c, document, faces, radius), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }
