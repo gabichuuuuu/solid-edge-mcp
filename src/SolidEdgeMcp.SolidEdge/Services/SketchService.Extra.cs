@@ -445,9 +445,10 @@ public static partial class SketchService
 
             case BSplineCurve2d spline:
             {
-                (double X, double Y) s = KeyPoint(spline, 0);
-                (double X, double Y) e = KeyPoint(spline, 1);
-                return new { type = "spline", start = P(s.X, s.Y), end = P(e.X, e.Y), length = Geo.Mm(spline.Length) };
+                // Verified: the nodes (points it passes through) start at 1; key point 1 is the second node, not the end.
+                spline.GetNode(1, out double x1, out double y1);
+                spline.GetNode(spline.NodeCount, out double x2, out double y2);
+                return new { type = "spline", start = P(x1, y1), end = P(x2, y2), nodes = spline.NodeCount, length = Geo.Mm(spline.Length) };
             }
 
             default:

@@ -42,6 +42,11 @@ Relevant changes to this project are recorded here. The format follows
 
 - Code comments, scripts and documentation are in English.
 
+### Fixed
+
+- `se_sketch`: the end of a spline was reported as its second point; it is now the last one, with
+  the number of nodes.
+
 ## [0.1.0-alpha] - unreleased
 
 First alpha version, developed in a private repository. Validated against Solid Edge Community
