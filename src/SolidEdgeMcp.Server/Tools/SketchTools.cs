@@ -188,9 +188,10 @@ public sealed class SketchTools(ToolRunner runner)
         offset (plane = index or refplane / planar face handle; distance in mm, negative or flip=true for the other side) |
         angle (plane, pivot = plane whose intersection with 'plane' is the hinge, angle in degrees) |
         three_points (points = 3 model points in mm: vertices or midpoints of straight edges) | mid (plane + plane2: midway between two parallel planes or faces) |
-        normal_to_edge (edge handle; at start|end, optional distance in mm along the edge from that end) |
+        normal_to_edge (edge handle; at start|end, optional distance in mm or ratio 0-1 of the edge length along it from that end) |
         tangent (plane = the parallel plane, face = cylindrical or conical face; flip = the other side) |
-        coordinate_system (origin [x,y,z] mm, angles [ax,ay,az] degrees about X, then Y, then Z) | coordinate_systems (list them with their axes).
+        coordinate_system (origin [x,y,z] mm, angles [ax,ay,az] degrees about X, then Y, then Z; or edges = [X edge, Y edge] straight edges,
+        the axes along them pointing away from the origin, an end of either edge) | coordinate_systems (list them with their axes).
         Each new plane is checked against the geometry it comes from. New planes return a handle usable as 'plane' in se_sketch create.
         Example: {"action":"normal_to_edge","edge":"edge:12","at":"start","distance":30}.
         """)]
@@ -205,9 +206,11 @@ public sealed class SketchTools(ToolRunner runner)
         [Description("For mid: the second plane (index or refplane / planar face handle).")] string? plane2 = null,
         [Description("For normal_to_edge: edge handle (se_geometry edges).")] string? edge = null,
         [Description("For normal_to_edge: the end of the edge (default start).")] EdgeEnd at = EdgeEnd.Start,
+        [Description("For normal_to_edge: fraction 0-1 of the edge length from 'at' (instead of distance), e.g. 0.5 = the middle.")] double? ratio = null,
         [Description("For tangent: cylindrical or conical face handle.")] string? face = null,
         [Description("For coordinate_system: origin [x,y,z] in mm.")] double[]? origin = null,
         [Description("For coordinate_system: rotations [ax,ay,az] in degrees.")] double[]? angles = null,
+        [Description("For coordinate_system: two straight edge handles, the X axis then the Y axis (instead of angles).")] string[]? edges = null,
         [Description("Document handle; default: active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -224,10 +227,10 @@ public sealed class SketchTools(ToolRunner runner)
             RefPlaneAction.Mid => runner.RunAsync(tool, name, c => RefPlaneService.Mid(c, document,
                 ToolRunner.Require(plane, "plane", "mid"), ToolRunner.Require(plane2, "plane2", "mid")), cancellationToken),
             RefPlaneAction.NormalToEdge => runner.RunAsync(tool, name, c => RefPlaneService.NormalToEdge(c, document,
-                ToolRunner.Require(edge, "edge", "normal_to_edge"), Snake(at), distance), cancellationToken),
+                ToolRunner.Require(edge, "edge", "normal_to_edge"), Snake(at), distance, ratio), cancellationToken),
             RefPlaneAction.Tangent => runner.RunAsync(tool, name, c => RefPlaneService.Tangent(c, document,
                 ToolRunner.Require(plane, "plane", "tangent"), ToolRunner.Require(face, "face", "tangent"), flip), cancellationToken),
-            RefPlaneAction.CoordinateSystem => runner.RunAsync(tool, name, c => RefPlaneService.AddCoordinateSystem(c, document, origin, angles), cancellationToken),
+            RefPlaneAction.CoordinateSystem => runner.RunAsync(tool, name, c => RefPlaneService.AddCoordinateSystem(c, document, origin, angles, edges), cancellationToken),
             RefPlaneAction.CoordinateSystems => runner.RunAsync(tool, name, c => RefPlaneService.ListCoordinateSystems(c, document), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

@@ -104,7 +104,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_ui` | Windows, environments and ribbon: list, activate and arrange windows; list environments and the tabs, groups and commands of the ribbon. |
 | **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, points, corner fillet and chamfer, edge projection, revolve axis and validated close; list the elements and relations of a sketch. The same 2D geometry is drawn on drawing sheets (2D drafting). |
 | | `se_sketch_constraint` | Geometric relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions that move the geometry, in sketches and on drawing sheets. |
-| | `se_ref_plane` | Reference planes: list; offset, angled, through three points, midway between two planes, normal to an edge and tangent to a cylinder, each checked against its geometry; coordinate systems with their origin and axes. |
+| | `se_ref_plane` | Reference planes: list; offset, angled, through three points, midway between two planes, normal to an edge (at an end, a distance or a fraction of its length) and tangent to a cylinder, each checked against its geometry; coordinate systems by origin and angles or along two edges, with their origin and axes. |
 | **Part** | `se_extrude` | Boss or cut by extrusion: blind, through all or up to next; normal, reversed or symmetric. |
 | | `se_revolve` | Boss or cut by revolution about the sketch axis. |
 | | `se_hole` | Simple, counterbored, countersunk and threaded holes at points on a plane, without a sketch. |
@@ -285,8 +285,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 94/94.
-- Acceptance suite against real Solid Edge 2026: **1401 calls and 565 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 96/96.
+- Acceptance suite against real Solid Edge 2026: **1410 calls and 573 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 49 tools have correct calls, and `A10` runs every value of the action,

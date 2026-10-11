@@ -205,7 +205,7 @@ se_extrude {"sketch":"{{kT.sketch}}","distance":10}
 se_documents {"action":"close","document":"{{dT.handle}}","saveChanges":false}
 # G: more reference planes and coordinate systems. Block 100x60x20 with a hole Ø20 at (50,30). Plane through the corners
 # (0,0,0), (100,0,20), (0,60,20): normal ±(-1200,-2000,6000)/6437.391 = ±(-0.18641,-0.31068,0.93205); mid plane z=10;
-# planes normal to the edge y=0, z=20 at its end (x=100) and 30 mm from either end (x=30, x=70); tangent to the hole
+# planes normal to the edge y=0, z=20 at its end (x=100), 30 mm from either end (x=30, x=70) and at a quarter of its length from either end (x=25, x=75); tangent to the hole
 # parallel to YZ at x=60 and x=40; a coordinate system at (10,20,30) turned 90° about Z.
 @dG = se_documents {"action":"new","kind":"part"}
 @kG = se_sketch {"action":"create","plane":"1"}
@@ -231,6 +231,13 @@ se_extrude {"sketch":"{{kG.sketch}}","distance":20}
 ?= n2.rootPoint[0] 30
 @n3 = se_ref_plane {"action":"normal_to_edge","edge":"{{eG.items[?end=[100,0,20]].handle}}","at":"end","distance":30}
 ?= n3.rootPoint[0] 70
+@n4 = se_ref_plane {"action":"normal_to_edge","edge":"{{eG.items[?end=[100,0,20]].handle}}","at":"start","ratio":0.25}
+?= n4.rootPoint[0] 25
+?= n4.rootPoint[2] 20
+@n5 = se_ref_plane {"action":"normal_to_edge","edge":"{{eG.items[?end=[100,0,20]].handle}}","at":"end","ratio":0.25}
+?= n5.rootPoint[0] 75
+! [invalid_argument] se_ref_plane {"action":"normal_to_edge","edge":"{{eG.items[?end=[100,0,20]].handle}}","ratio":1.5}
+! [invalid_argument] se_ref_plane {"action":"normal_to_edge","edge":"{{eG.items[?end=[100,0,20]].handle}}","ratio":0.5,"distance":10}
 @hG = se_hole {"plane":"{{tG.items[0].handle}}","centers":[50,30,20],"diameter":20}
 @cG = se_geometry {"action":"faces","type":"cylinder"}
 @t1 = se_ref_plane {"action":"tangent","plane":"2","face":"{{cG.items[0].handle}}"}
@@ -245,8 +252,20 @@ se_extrude {"sketch":"{{kG.sketch}}","distance":20}
 ?= cs.origin[2] 30
 ?= cs.xAxis[1] 1
 ?= cs.zAxis[2] 1
+# Coordinate system on two edges with the origin at their corner (100,0,20): X away from it along the top edge y=0 -> (-1,0,0),
+#   Y along the edge x=100 -> (0,1,0), Z = X x Y -> (0,0,-1). An origin off the edges and parallel edges fail; 3 systems
+@ex = se_geometry {"action":"edges","direction":[1,0,0]}
+@ey = se_geometry {"action":"edges","direction":[0,1,0]}
+@ce = se_ref_plane {"action":"coordinate_system","edges":["{{ex.items[?end=[100,0,20]].handle}}","{{ey.items[?start=[100,0,20]].handle}}"],"origin":[100,0,20]}
+?= ce.origin[0] 100
+?= ce.origin[2] 20
+?= ce.xAxis[0] -1
+?= ce.yAxis[1] 1
+?= ce.zAxis[2] -1
+! [invalid_argument] se_ref_plane {"action":"coordinate_system","edges":["{{ex.items[?end=[100,0,20]].handle}}","{{ey.items[?start=[100,0,20]].handle}}"],"origin":[50,0,20]}
+! [invalid_argument] se_ref_plane {"action":"coordinate_system","edges":["{{ex.items[?end=[100,0,20]].handle}}","{{ex.items[?end=[100,0,0]].handle}}"],"origin":[100,0,20]}
 @csl = se_ref_plane {"action":"coordinate_systems"}
-?= csl.count 2
+?= csl.count 3
 se_documents {"action":"close","document":"{{dG.handle}}","saveChanges":false}
 # H: direct edits (se_part_feature). Plate 100x60x10 = 60000 with 2 holes D6.6 (-342.119 each), a R3 round on the top
 #   front edge (-(1-pi/4)*9*100 = -193.142) and a D20 boss up to z=25 (+pi*100*15 = 4712.389) -> 63835.007. Deleting a hole

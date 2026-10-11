@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_ref_plane`: planes normal to an edge at a fraction of its length (`ratio`), and coordinate
+  systems along two straight edges with the origin at an end of either.
 - `se_primitive angle`: boxes turned about the plane normal, kept centred on the given point.
 - `se_drawing bend_table`: bend table of a sheet metal view, placed above the title block or at a
   position.

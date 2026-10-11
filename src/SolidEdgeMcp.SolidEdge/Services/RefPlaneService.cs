@@ -107,11 +107,21 @@ public static class RefPlaneService
     }
 
     /// <summary>
-    /// Plane normal to an edge at its start or end, or at a distance (mm) along it from the start or the end. The X
-    /// direction of the plane is taken from the base plane most perpendicular to the edge.
+    /// Plane normal to an edge at its start or end, or at a distance (mm) or a fraction of its length along it from the start
+    /// or the end. The X direction of the plane is taken from the base plane most perpendicular to the edge.
     /// </summary>
-    public static object NormalToEdge(SeContext context, string? documentHandle, string edgeHandle, string at, double? distance)
+    public static object NormalToEdge(SeContext context, string? documentHandle, string edgeHandle, string at, double? distance, double? ratio = null)
     {
+        if (distance is not null && ratio is not null)
+        {
+            throw ToolException.InvalidArgument("Give 'distance' or 'ratio', not both.");
+        }
+
+        if (ratio is { } r && !(r >= 0 && r <= 1))
+        {
+            throw ToolException.InvalidArgument("'ratio' is a fraction of the edge length, from 0 to 1.");
+        }
+
         ModelDocument model = ModelDocument.For(context, documentHandle, edgeHandle);
         Edge edge = context.Handles.Resolve<Edge>(edgeHandle, "edge");
         Array start = new double[3];
@@ -135,7 +145,18 @@ public static class RefPlaneService
             .MinBy(p => Math.Abs(Dot(PlaneData(p).Normal, Unit(chord))))!;
         RefPlane plane;
         double[]? expectedPoint = null;
-        if (distance is { } d)
+        if (ratio is { } fraction)
+        {
+            plane = Created(model, () => model.RefPlanes.AddNormalToCurveAtArcLengthRatio(edge, orientation, fraction, 0,
+                ReferenceElementConstants.igNormalSide, from));
+            if (edge.Geometry is SolidEdgeGeometry.Line)
+            {
+                double[] origin = at == "start" ? s : e;
+                double[] other = at == "start" ? e : s;
+                expectedPoint = origin.Select((c, k) => c + (other[k] - c) * fraction).ToArray();
+            }
+        }
+        else if (distance is { } d)
         {
             double metres = Units.MmToM(Units.RequirePositive(d, "distance"));
             plane = Created(model, () => model.RefPlanes.AddNormalToCurveAtDistance(edge, from, orientation, ReferenceElementConstants.igPivotEnd, metres));
@@ -173,9 +194,19 @@ public static class RefPlaneService
         return Checked(context, model, plane, PlaneData(parentPlane).Normal, null, "tangent");
     }
 
-    /// <summary>Coordinate system at an origin (mm) rotated by angles (degrees) about X, then Y, then Z.</summary>
-    public static object AddCoordinateSystem(SeContext context, string? documentHandle, double[]? origin, double[]? angles)
+    /// <summary>
+    /// Coordinate system at an origin (mm) rotated by angles (degrees) about X, then Y, then Z; or, with two straight edges,
+    /// its X and Y axes along them, pointing away from the origin, which is an end of either edge.
+    /// </summary>
+    public static object AddCoordinateSystem(SeContext context, string? documentHandle, double[]? origin, double[]? angles, string[]? edges = null)
     {
+        if (edges is not null)
+        {
+            return angles is null
+                ? CoordinateSystemOnEdges(context, documentHandle, origin, edges)
+                : throw ToolException.InvalidArgument("Give 'angles' or 'edges', not both: with edges the axes follow them.");
+        }
+
         ModelDocument model = ModelDocument.Get(context, documentHandle);
         if (origin is { Length: not 3 } || angles is { Length: not 3 })
         {
@@ -195,6 +226,87 @@ public static class RefPlaneService
         return DescribeSystem(context, model, system);
     }
 
+    /// <summary>
+    /// Verified with AddByGeometry: igLeft points an axis along the edge direction (start to end) and igRight against it; the
+    /// origin is the start or end key point of the edge given for it. Z is X x Y. The axes and the origin are checked.
+    /// </summary>
+    private static object CoordinateSystemOnEdges(SeContext context, string? documentHandle, double[]? origin, string[] edgeHandles)
+    {
+        if (edgeHandles is not [string xHandle, string yHandle])
+        {
+            throw ToolException.InvalidArgument("'edges' must be two straight edges: the X axis, then the Y axis.");
+        }
+
+        double[] o = origin is { Length: 3 } point
+            ? point.Select(v => Units.MmToM(Units.RequireFinite(v, "origin"))).ToArray()
+            : throw ToolException.InvalidArgument("With 'edges', 'origin' [x,y,z] in mm is required: an end of either edge.");
+        ModelDocument model = ModelDocument.For(context, documentHandle, xHandle);
+        var axes = new[] { xHandle, yHandle }.Select(h =>
+        {
+            Edge edge = context.Handles.Resolve<Edge>(h, "edges");
+            if (edge.Geometry is not SolidEdgeGeometry.Line)
+            {
+                throw ToolException.InvalidArgument($"'{h}' is not a straight edge.", "Use se_geometry edges (type line).");
+            }
+
+            Array start = new double[3];
+            Array end = new double[3];
+            edge.GetEndPoints(ref start, ref end);
+            return (Edge: edge, Start: Geo.Doubles(start).ToArray(), End: Geo.Doubles(end).ToArray());
+        }).ToArray();
+
+        double[] xDirection = Unit(Minus(axes[0].End, axes[0].Start));
+        double[] yDirection = Unit(Minus(axes[1].End, axes[1].Start));
+        if (Geo.Length(Geo.Cross(xDirection, yDirection)) < 1e-6)
+        {
+            throw ToolException.InvalidArgument("The two edges are parallel: they cannot give the X and Y axes.");
+        }
+
+        var ends = axes.SelectMany(a => new[] { (a.Edge, Point: a.Start, Key: KeyPointType.igKeyPointStart), (a.Edge, Point: a.End, Key: KeyPointType.igKeyPointEnd) });
+        var at = ends.FirstOrDefault(p => Geo.Length(Minus(p.Point, o)) < 1e-6);
+        if (at.Edge is null)
+        {
+            throw ToolException.InvalidArgument("'origin' must be an end of one of the edges.", "Give the corner where the edges meet, e.g. a vertex from se_geometry.");
+        }
+
+        // Each axis points away from the origin: along the edge if the origin is nearer its start, against it otherwise.
+        FeaturePropertyConstants Away((Edge Edge, double[] Start, double[] End) a, out double[] direction)
+        {
+            bool along = Geo.Length(Minus(a.Start, o)) <= Geo.Length(Minus(a.End, o));
+            direction = Unit(along ? Minus(a.End, a.Start) : Minus(a.Start, a.End));
+            return along ? FeaturePropertyConstants.igLeft : FeaturePropertyConstants.igRight;
+        }
+
+        FeaturePropertyConstants xSide = Away(axes[0], out double[] expectedX);
+        FeaturePropertyConstants ySide = Away(axes[1], out _);
+        var systems = (CoordinateSystems)Late.Get(model.Document, "CoordinateSystems")!;
+        int before = systems.Count;
+        SolidEdgePart.CoordinateSystem system = systems.AddByGeometry(CoordinateSystemFeatureConstants.seCoordSysXAxis, axes[0].Edge, xSide,
+            CoordinateSystemFeatureConstants.seCoordSysYAxis, axes[1].Edge, ySide, at.Edge, at.Key);
+        if (systems.Count != before + 1)
+        {
+            throw new ToolException("refplane_failed", "Solid Edge did not add the coordinate system.", "Check the edges with se_geometry.");
+        }
+
+        (double[] actualOrigin, double[] x, _, _) = Axes(system);
+        if (Geo.Length(Minus(actualOrigin, o)) > 1e-6 || Dot(x, expectedX) < 1 - 1e-6)
+        {
+            try
+            {
+                system.Delete();
+            }
+            catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+            {
+                // The error below is what matters; the system stays in the tree.
+            }
+
+            throw new ToolException("refplane_failed", "The coordinate system did not come out at the origin with X along the first edge (removed).",
+                "Check the edges and the origin with se_geometry.");
+        }
+
+        return DescribeSystem(context, model, system);
+    }
+
     public static object ListCoordinateSystems(SeContext context, string? documentHandle)
     {
         ModelDocument model = ModelDocument.Get(context, documentHandle);
@@ -209,11 +321,7 @@ public static class RefPlaneService
     /// </summary>
     private static object DescribeSystem(SeContext context, ModelDocument model, SolidEdgePart.CoordinateSystem system)
     {
-        (double[] rootXy, double[] z) = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysXYPlane]);
-        (double[] rootYz, double[] x) = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysYZPlane]);
-        double[] rootZx = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysZXPlane]).Root;
-        double[] y = Geo.Cross(z, x);
-        double[] origin = x.Select((_, k) => x[k] * Dot(x, rootYz) + y[k] * Dot(y, rootZx) + z[k] * Dot(z, rootXy)).ToArray();
+        (double[] origin, double[] x, double[] y, double[] z) = Axes(system);
         return new
         {
             handle = context.Register(system, "coordsys", model.Document),
@@ -223,6 +331,16 @@ public static class RefPlaneService
             yAxis = y.Select(Geo.R).ToArray(),
             zAxis = z.Select(Geo.R).ToArray(),
         };
+    }
+
+    private static (double[] Origin, double[] X, double[] Y, double[] Z) Axes(SolidEdgePart.CoordinateSystem system)
+    {
+        (double[] rootXy, double[] z) = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysXYPlane]);
+        (double[] rootYz, double[] x) = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysYZPlane]);
+        double[] rootZx = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysZXPlane]).Root;
+        double[] y = Geo.Cross(z, x);
+        double[] origin = x.Select((_, k) => x[k] * Dot(x, rootYz) + y[k] * Dot(y, rootZx) + z[k] * Dot(z, rootXy)).ToArray();
+        return (origin, x, y, z);
     }
 
     /// <summary>Edge and key point (start, end or the middle of a straight edge) at a model point.</summary>
