@@ -12,7 +12,8 @@ public static partial class FeatureService
     /// <summary>
     /// Slot cut along an open path (lines and arcs), through the part or to a finite depth. Verified: the end condition
     /// igFormedEnd gives rounded ends (the path is extended by half the width at each end); igNone gives square ends that stop
-    /// at the ends of the path. The cut side is tried both ways, as a person flips the arrow towards the part.
+    /// at the ends of the path. Optionally with a counterbore at the top. The cut side is tried both ways, as a person flips the
+    /// arrow towards the part.
     /// </summary>
     private static object Slot(SeContext context, string? documentHandle, PartFeatureSpec spec)
     {
@@ -20,6 +21,21 @@ public static partial class FeatureService
         double width = Units.MmToM(Units.RequirePositive(spec.Width ?? throw ToolException.InvalidArgument("slot requires 'width' (mm)."), "width"));
         double? depth = spec.Depth is { } d ? Units.MmToM(Units.RequirePositive(d, "depth")) : null;
         FeaturePropertyConstants ends = spec.SquareEnds ? FeaturePropertyConstants.igNone : FeaturePropertyConstants.igFormedEnd;
+        // Verified: Solid Edge takes the counterbore as an offset on each side of the slot (total width = width + 2 offsets),
+        // around the rounded ends too; with square ends it stops at the ends of the path like the slot.
+        (double cbOffset, double cbDepth) = spec.Counterbore switch
+        {
+            null => (0, 0),
+            [double w, double h] => (Units.MmToM(Units.RequirePositive(w, "counterbore[0]")) - width) / 2 is var offset && offset > 0
+                ? (offset, Units.MmToM(Units.RequirePositive(h, "counterbore[1]")))
+                : throw ToolException.InvalidArgument("The counterbore must be wider than the slot: 'counterbore' is [total width, depth] in mm."),
+            _ => throw ToolException.InvalidArgument("'counterbore' is [total width, depth] in mm."),
+        };
+        if (depth is { } finite && cbDepth >= finite)
+        {
+            throw ToolException.InvalidArgument("The counterbore must be shallower than the slot 'depth'.");
+        }
+        FeaturePropertyConstants type = spec.Counterbore is null ? FeaturePropertyConstants.igRegularSlot : FeaturePropertyConstants.igRecessedCounterboreSlot;
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
         Profile sketchProfile = SketchService.Resolve(context, sketch);
         bool switched = model.EnsureOrdered();
@@ -32,8 +48,8 @@ public static partial class FeatureService
             IncludedProfile included = Include(model, sketchProfile);
             try
             {
-                object feature = Create("slot", included, () => target.Slots.Add(included.Profile, FeaturePropertyConstants.igRegularSlot, ends,
-                    width, 0, 0, depth is null ? FeaturePropertyConstants.igThroughAll : FeaturePropertyConstants.igFinite, side, depth ?? 0,
+                object feature = Create("slot", included, () => target.Slots.Add(included.Profile, type, ends,
+                    width, cbOffset, cbDepth, depth is null ? FeaturePropertyConstants.igThroughAll : FeaturePropertyConstants.igFinite, side, depth ?? 0,
                     0, null, FeaturePropertyConstants.igNone, FeaturePropertyConstants.igNone, 0, 0, null,
                     null, OffsetSideConstants.seOffsetNone, 0, null, OffsetSideConstants.seOffsetNone, 0));
                 object result = Verify(context, model, feature, before, -1, switched, sketch, included);

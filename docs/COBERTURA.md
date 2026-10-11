@@ -90,9 +90,9 @@ damages the document in Solid Edge 2026 (do not use).
 | Thicken faces (the side that adds material by default) | `Thickens` | `se_part_feature thicken` | ✔ |
 | Split, boolean operations between bodies | `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |
 | Primitives: box, cylinder and sphere, added or cut, by their centre on a plane or face (built in synchronous modeling) | `BoxFeatures`, `CylinderFeatures`, `SphereFeatures` | `se_primitive` | ✔ |
-| Slot along an open path (rounded or square ends; through or to a depth) | `Slots` | `se_part_feature slot` | ✔ |
+| Slot along an open path (rounded or square ends; through or to a depth; counterbored) | `Slots` | `se_part_feature slot` | ✔ |
 | Box turned about the plane normal (kept centred on the given point) | `BoxFeatures.AddByCenter` (angle) | `se_primitive angle` | ✔ |
-| Boxes by two or three points; counterbored slots | `BoxFeatures.AddByTwoPoints`, `AddByThreePoints`, `Slots` (`igRecessedCounterboreSlot`) | COM | · |
+| Box by two opposite corners or by three points (an edge, then a point on the opposite edge) | `BoxFeatures.AddByCenter` (corners turned into centre, size and angle) | `se_primitive corners` | ✔ |
 | Tubes | `TubeFeatures` | — | ✘ `TubeFeatures` has no `Add`: tubes are made only with the Tube command |
 | Mirror the whole body about a plane, keeping the original | `MirrorParts` | `se_part_feature mirror_body` | ✔ |
 | Scale the body (uniform or per axis, about the part origin) | `ScaleBodyFeatures` | `se_part_feature scale_body` | ✔ |

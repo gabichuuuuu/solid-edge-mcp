@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_primitive corners`: boxes by two opposite corners or by three points.
+- `se_part_feature slot counterbore`: counterbored slots (total width and depth).
 - `se_ref_plane tangent`: planes tangent to any curved face at an edge end (`points`), and tangent
   to a cylinder at an angle about its axis from a plane through it (`angle`).
 - `se_assembly_pattern duplicate`: occurrences copied onto other occurrences at the same relative

@@ -343,6 +343,29 @@ se_sketch {"action":"close","sketch":"{{kI2.sketch}}","open":true}
 ! [invalid_argument] se_part_feature {"action":"scale_body","scale":[1,2]}
 ! [invalid_argument] se_part_feature {"action":"slot","sketch":"{{kI2.sketch}}"}
 se_documents {"action":"close","document":"{{dI.handle}}","saveChanges":false}
+# Counterbored slots. Block 100x60x20, sketches at z=20. Square ends along (20,20)-(80,20), width 10, counterbore 18 wide and 5 deep:
+#   60*10*20 + 60*(18-10)*5 = 14400. Rounded along (20,45)-(80,45), width 10, counterbore 16 x 5:
+#   (600 + 25pi)*20 + (60*16 + 64pi - 600 - 25pi)*5 = 15983.407.
+@dI2 = se_documents {"action":"new","kind":"part"}
+@kI3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kI3.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kI3.sketch}}"}
+se_extrude {"sketch":"{{kI3.sketch}}","distance":20}
+@pI2 = se_ref_plane {"action":"offset","plane":"1","distance":20}
+@kI4 = se_sketch {"action":"create","plane":"{{pI2.handle}}"}
+se_sketch {"action":"line","sketch":"{{kI4.sketch}}","points":[20,20,80,20]}
+se_sketch {"action":"close","sketch":"{{kI4.sketch}}","open":true}
+! [invalid_argument] se_part_feature {"action":"slot","sketch":"{{kI4.sketch}}","width":10,"counterbore":[8,5]}
+! [invalid_argument] se_part_feature {"action":"slot","sketch":"{{kI4.sketch}}","width":10,"depth":4,"counterbore":[18,5]}
+! [invalid_argument] se_part_feature {"action":"slot","sketch":"{{kI4.sketch}}","width":10,"counterbore":[18]}
+@sl3 = se_part_feature {"action":"slot","sketch":"{{kI4.sketch}}","width":10,"squareEnds":true,"counterbore":[18,5]}
+?= sl3.volumeChange -14400 0.05
+@kI5 = se_sketch {"action":"create","plane":"{{pI2.handle}}"}
+se_sketch {"action":"line","sketch":"{{kI5.sketch}}","points":[20,45,80,45]}
+se_sketch {"action":"close","sketch":"{{kI5.sketch}}","open":true}
+@sl4 = se_part_feature {"action":"slot","sketch":"{{kI5.sketch}}","width":10,"counterbore":[16,5]}
+?= sl4.volumeChange -15983.407 0.05
+se_documents {"action":"close","document":"{{dI2.handle}}","saveChanges":false}
 @dW = se_documents {"action":"new","kind":"part"}
 @kW = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{kW.sketch}}","points":[0,0,100,60]}

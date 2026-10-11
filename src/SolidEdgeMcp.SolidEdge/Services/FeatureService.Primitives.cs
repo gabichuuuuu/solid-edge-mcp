@@ -42,8 +42,23 @@ public static partial class FeatureService
             throw new ToolException("no_model", $"'{model.Document.Name}' has no solid to cut yet.", "Add a primitive or a base feature first.");
         }
 
-        List<(double X, double Y, double Z)> centres = Geo.Points3(spec.Centre, "center", 1);
-        if (centres.Count != 1)
+        List<(double X, double Y, double Z)>? corners = null;
+        if (spec.Corners is not null)
+        {
+            if (spec.Shape != "box" || spec.Centre is not null || spec.Size is not null || spec.Angle is not null)
+            {
+                throw ToolException.InvalidArgument("'corners' place a box (2 opposite corners, or 3 points: the ends of one edge and a point on the opposite edge); give them instead of center, size and angle.");
+            }
+
+            corners = Geo.Points3(spec.Corners, "corners", 2);
+            if (corners.Count > 3)
+            {
+                throw ToolException.InvalidArgument("'corners' has 2 or 3 points [x, y, z] in mm on the plane.");
+            }
+        }
+
+        List<(double X, double Y, double Z)> centres = corners ?? Geo.Points3(spec.Centre, "center", 1);
+        if (corners is null && centres.Count != 1)
         {
             throw ToolException.InvalidArgument("'center' must be one point [x, y, z] in mm on the plane.");
         }
@@ -55,7 +70,7 @@ public static partial class FeatureService
             throw ToolException.InvalidArgument("'angle' rotates a box; a cylinder or a sphere has no angle.");
         }
 
-        if (spec.Shape == "box")
+        if (spec.Shape == "box" && corners is null)
         {
             angle = Units.DegToRad(spec.Angle ?? 0);
             if (spec.Size is not { Length: 2 } size)
@@ -66,7 +81,7 @@ public static partial class FeatureService
             width = Units.MmToM(Units.RequirePositive(size[0], "size[0]"));
             height = Units.MmToM(Units.RequirePositive(size[1], "size[1]"));
         }
-        else
+        else if (spec.Shape != "box")
         {
             radius = Units.MmToM(Units.RequirePositive(spec.Radius ?? throw ToolException.InvalidArgument($"'radius' in mm is required for a {spec.Shape}."), "radius"));
         }
@@ -78,12 +93,16 @@ public static partial class FeatureService
 
         object source = model.ResolvePlaneSource(context, spec.Plane ?? "1");
         (double[] root, double[] normal) = RefPlaneService.PlaneData(source);
-        double[] point = [centre.X, centre.Y, centre.Z];
-        double offPlane = point.Select((c, i) => (c - root[i]) * normal[i]).Sum();
-        if (Math.Abs(offPlane) > OnPlaneTolerance)
+        foreach ((double X, double Y, double Z) given in centres)
         {
-            throw ToolException.InvalidArgument($"The centre is {Geo.Mm(Math.Abs(offPlane))} mm away from the plane; it must lie on it.",
-                "Give a centre on the plane, or choose a plane through the centre (se_ref_plane list shows their root points and normals).");
+            double[] point = [given.X, given.Y, given.Z];
+            double offPlane = point.Select((c, i) => (c - root[i]) * normal[i]).Sum();
+            if (Math.Abs(offPlane) > OnPlaneTolerance)
+            {
+                string pointName = corners is null ? "centre" : "corner";
+                throw ToolException.InvalidArgument($"The {pointName} is {Geo.Mm(Math.Abs(offPlane))} mm away from the plane; it must lie on it.",
+                    $"Give a {pointName} on the plane, or choose a plane through it (se_ref_plane list shows their root points and normals).");
+            }
         }
 
         // The side to try first: along the normal to add, against it to cut (into the part under a face). A sphere has no side.
@@ -109,13 +128,18 @@ public static partial class FeatureService
             ? model.RefPlanes.AddParallelByDistance(source, 0.0, ReferenceElementConstants.igNormalSide, Local: false)
             : null;
         RefPlane plane = own ?? (RefPlane)source;
-        if (angle != 0)
-        {
-            centre = PivotedCentre(plane, centre, width, height, angle);
-        }
-
         try
         {
+            if (corners is not null)
+            {
+                (centre, width, height, angle) = BoxFromCorners(plane, corners);
+            }
+
+            if (angle != 0)
+            {
+                centre = PivotedCentre(plane, centre, width, height, angle);
+            }
+
             for (int i = 0; ; i++)
             {
                 FeaturePropertyConstants side = sides[i];
@@ -236,6 +260,48 @@ public static partial class FeatureService
         return (c.X + shift[0], c.Y + shift[1], c.Z + shift[2]);
     }
 
+    /// <summary>
+    /// Centre, size and angle of a box given by two opposite corners (its sides along the axes of the plane) or by three points:
+    /// the ends of one edge, then a point on the opposite edge.
+    /// </summary>
+    private static ((double X, double Y, double Z) Centre, double Width, double Height, double Angle) BoxFromCorners(RefPlane plane,
+        List<(double X, double Y, double Z)> corners)
+    {
+        Array x = new double[3];
+        Array n = new double[3];
+        plane.GetReferenceDirection(ref x);
+        plane.GetNormal(ref n);
+        double[] u = [.. x.Cast<double>()];
+        double[] normal = [.. n.Cast<double>()];
+        double[] v = Geo.Cross(normal, u);
+        double[][] p = [.. corners.Select(c => new[] { c.X, c.Y, c.Z })];
+        double[] edge = Minus(p[1], p[0]);
+        double width, height, angle;
+        double[] centre;
+        if (p.Length == 2)
+        {
+            (width, height, angle) = (Math.Abs(Dot(edge, u)), Math.Abs(Dot(edge, v)), 0);
+            centre = [.. p[0].Select((c, k) => c + edge[k] / 2)];
+        }
+        else
+        {
+            width = Geo.Length(edge);
+            double[] along = [.. edge.Select(c => c / Math.Max(width, double.Epsilon))];
+            double[] across = Geo.Cross(normal, along);
+            double offset = Dot(Minus(p[2], p[0]), across);
+            (height, angle) = (Math.Abs(offset), Math.Atan2(Dot(along, v), Dot(along, u)));
+            centre = [.. p[0].Select((c, k) => c + edge[k] / 2 + across[k] * offset / 2)];
+        }
+
+        if (width < OnPlaneTolerance || height < OnPlaneTolerance)
+        {
+            throw ToolException.InvalidArgument("The corners do not span a rectangle: they are in line or repeated.",
+                "Give 2 opposite corners, or the ends of one edge and a point on the opposite edge.");
+        }
+
+        return ((centre[0], centre[1], centre[2]), width, height, angle);
+    }
+
     private static object? AddPrimitive(ModelDocument model, string shape, bool cut, RefPlane plane, (double X, double Y, double Z) c,
         double width, double height, double angle, double depth, double radius, FeaturePropertyConstants side)
     {
@@ -272,4 +338,4 @@ public static partial class FeatureService
 
 /// <summary>Arguments of a primitive (mm). Shape: box | cylinder | sphere; operation: add | cut; side: auto | normal | reverse | symmetric.</summary>
 public sealed record PrimitiveSpec(string Shape, string Operation, string? Plane, double[]? Centre, double[]? Size, double? Radius, double? Depth, string Side,
-    double? Angle = null);
+    double? Angle = null, double[]? Corners = null);

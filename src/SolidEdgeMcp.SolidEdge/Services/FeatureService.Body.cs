@@ -21,7 +21,8 @@ public sealed record PartFeatureSpec(
     double[]? Scale = null,
     string[]? Edges = null,
     double? Height = null,
-    string? Path = null);
+    string? Path = null,
+    double[]? Counterbore = null);
 
 public static partial class FeatureService
 {

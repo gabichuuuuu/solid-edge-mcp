@@ -203,7 +203,7 @@ public sealed class PartTools(ToolRunner runner)
         Direct edits (also for imported parts): delete_faces ('faces'; the solid heals: a hole face fills the hole, the side and top faces of a boss remove it) |
         delete_holes ('diameter' mm: every hole up to that diameter) | delete_rounds ('faces' of rounds or fillets) |
         offset_faces ('faces', 'distance' mm along their normal: positive outwards = adds material, negative inwards).
-        slot: 'sketch' = an open path (lines, arcs; se_sketch 'close' with open: true) on a plane or face; 'width' mm; rounded ends (the path is extended by half the width) or 'squareEnds': true; through the part, or 'depth' mm |
+        slot: 'sketch' = an open path (lines, arcs; se_sketch 'close' with open: true) on a plane or face; 'width' mm; rounded ends (the path is extended by half the width) or 'squareEnds': true; through the part, or 'depth' mm; optional 'counterbore' [total width, depth] mm |
         web_network: 'sketch' = open lines on a plane across a shelled part (e.g. at the height of its open face); 'thickness' mm; each line becomes a wall that grows to the next face, or 'depth' mm |
         lip: 'edges' = one chain of edges of a rim (e.g. the outer edges of the open face of a shelled part), 'width' and 'height' mm: a strip standing on the rim, flush with the side face of the edges; 'faces' = [the rim face] when it is not the smaller face of the first edge |
         scale_body: 'scale' = one factor (uniform) or three (x, y, z) about the part origin; the volume is checked against the factors.
@@ -226,12 +226,13 @@ public sealed class PartTools(ToolRunner runner)
         [Description("lip: height in mm.")] double? height = null,
         [Description("lip: edge handles of the rim (se_geometry edges).")] string[]? edges = null,
         [Description("slot: square ends instead of rounded.")] bool squareEnds = false,
+        [Description("slot: counterbore at the top of the slot, [total width, depth] in mm (wider than the slot).")] double[]? counterbore = null,
         [Description("scale_body, copy_part: one factor or three (x, y, z), e.g. [2] or [1, 1, 0.5].")] double[]? scale = null,
         [Description("copy_part: absolute path of the saved part file to copy (allowed folders).")] string? path = null,
         [Description("Document handle; default: the document of the faces, sketch or plane.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
-            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path)), cancellationToken);
+            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore)), cancellationToken);
 
     [McpServerTool(Name = "se_primitive", Title = "Box / cylinder / sphere", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -240,6 +241,7 @@ public sealed class PartTools(ToolRunner runner)
         (box: centre of its base rectangle; cylinder: centre of its base circle; sphere: its centre).
         box: size [width, height] mm along the x and y axes of the plane (the frame returned by se_sketch create on it) and depth mm,
         angle = rotation in degrees about the plane normal (from the plane's x axis towards its y axis);
+        or, instead of center, size and angle, corners = 2 opposite corners (sides along the plane's axes) or 3 points (the ends of one edge, then a point on the opposite edge);
         cylinder: radius and depth mm; sphere: radius mm. side: auto (default: along the plane normal to add, against it to cut,
         then the other way if that changes nothing) | normal | reverse | symmetric.
         Solid Edge builds primitives only in synchronous modeling: the document switches to it for the call and back to ordered,
@@ -257,8 +259,9 @@ public sealed class PartTools(ToolRunner runner)
         [Description("box, cylinder: depth in mm from the plane.")] double? depth = null,
         PartFeatureSide side = PartFeatureSide.Auto,
         [Description("box: rotation in degrees about the plane normal, from the plane's x axis towards its y axis (default 0).")] double? angle = null,
+        [Description("box: 2 opposite corners or 3 points (an edge, then a point on the opposite edge) [x1,y1,z1, ...] in mm on the plane, instead of center/size/angle.")] double[]? corners = null,
         [Description("Document handle; default: the document of the plane handle or the active document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_primitive", Snake(shape), c => FeatureService.Primitive(c, document,
-            new PrimitiveSpec(Snake(shape), Snake(operation), plane, center, size, radius, depth, Snake(side), angle)), cancellationToken);
+            new PrimitiveSpec(Snake(shape), Snake(operation), plane, center, size, radius, depth, Snake(side), angle, corners)), cancellationToken);
 }
