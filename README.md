@@ -7,7 +7,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Solid Edge 2026](https://img.shields.io/badge/Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![44 tools](https://img.shields.io/badge/tools-44-2F6FEB)
+![45 tools](https://img.shields.io/badge/tools-45-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -82,7 +82,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-44 tools, grouped by area.
+45 tools, grouped by area.
 
 | Area | Tool | What it does |
 |---|---|---|
@@ -92,6 +92,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set and delete. |
 | | `se_variables` | Variables and dimensions: list, read, set a value or formula (returns the volume change), create, delete, rename, comment, expose and limit. |
 | | `se_material` | Material libraries: current material, properties and assignment (updates density and mass). |
+| | `se_appearance` | Colours (face styles): list, create and delete styles; colour the body, faces, features or assembly components by style or #RRGGBB with opacity, read them back and remove them. |
 | **Query** | `se_feature_tree` | Features in order with their status, the modeling mode and the volume. |
 | | `se_geometry` | Summary, faces and edges with handles and filters; in assemblies, per occurrence and in assembly coordinates. |
 | | `se_measure` | Minimum distance and angle between faces, edges, planes or occurrences, also in assemblies. |
@@ -143,7 +144,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 44 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 45 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -158,7 +159,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 44 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 45 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -280,11 +281,11 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 53/53.
-- Acceptance suite against real Solid Edge 2026: **1025 calls and 326 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 57/57.
+- Acceptance suite against real Solid Edge 2026: **1068 calls and 353 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
-- Coverage by value: the 44 tools have correct calls, and `A10` runs every value of the action,
+- Coverage by value: the 45 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -303,6 +304,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A10` | Enumeration variants |
 | `A11` | Options and document units |
 | `A12` | Windows, environments and ribbon |
+| `A13` | Colours of a body, faces, features and assembly components |
 
 ## Known limitations
 
@@ -325,13 +327,13 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 ```text
 solid_edge_mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (44 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (45 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A12 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A13 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COBERTURA.md (coverage by function and route)
@@ -358,7 +360,7 @@ one in `C:\Program Files\dotnet`.
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
 calls (`scripts/A01`–`A09`, from session to assemblies, drawings and the COM layer; `A10`, the
 orientation, direction and type values that the others do not use; `A11`–`A12`, options and user
-interface), with volumes, measurements and
+interface; `A13`, colours), with volumes, measurements and
 expected errors calculated by hand. Each script creates and closes its documents without saving:
 
 ```powershell

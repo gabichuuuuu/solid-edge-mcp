@@ -71,6 +71,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_part_feature", """{"action":"thread","faces":["face:1"]}""", "'action' must be one of:")]
     [InlineData("se_part_feature", """{"action":"rib","sketch":"sketch:1","thickness":6,"side":"left"}""", "'side' must be one of:")]
     [InlineData("se_annotation", """{"action":"list","kind":"weld"}""", "'kind' must be one of:")]
+    [InlineData("se_appearance", """{"action":"paint","color":"#FF0000"}""", "'action' must be one of:")]
+    [InlineData("se_appearance", """{"action":"apply","targets":"face:1","color":"#FF0000"}""", "'targets'")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -100,6 +102,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_loft_sweep", """{"action":"helix","sketches":["sketch:1"],"axis":"refaxis:2","pitch":8,"turns":5,"hand":"left"}""")]
     [InlineData("se_part_feature", """{"action":"rib","sketch":"sketch:1","thickness":6,"side":"symmetric","depth":10}""")]
     [InlineData("se_part_feature", """{"action":"mirror_body","plane":"2"}""")]
+    [InlineData("se_appearance", """{"action":"apply","targets":["face:1","occurrence:2"],"color":"#FF8000","opacity":0.5}""")]
+    [InlineData("se_appearance", """{"action":"create","name":"Orange","color":"#FF8000"}""")]
     [InlineData("se_sketch", """{"action":"ellipse","sketch":"sketch:1","center":[0,0],"radius":20,"minorRadius":10,"angle":30}""")]
     [InlineData("se_sketch", """{"action":"fillet","sketch":"sketch:1","elements":["line2d:2","line2d:3"],"radius":5}""")]
     [InlineData("se_sketch_constraint", """{"action":"dimension","sketch":"sketch:1","dimension":"distance","elements":["line2d:2","line2d:4"],"keypoints":[0,1],"value":30}""")]

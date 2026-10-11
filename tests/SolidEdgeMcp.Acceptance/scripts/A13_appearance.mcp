@@ -1,0 +1,68 @@
+# A13: colours (se_appearance). Block 100x50x20: styles created by colour or by name, applied to the body, a face, a feature
+# and an assembly component, read back and removed. A feature style replaces the face styles of its faces. The colours
+# were checked with screenshots of the part and of the assembly.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,50]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":20}
+?= e.volume 100000
+@ls = se_appearance {"action":"list","filter":"Black"}
+?~ ls.styles "name":"Black"
+@cr = se_appearance {"action":"create","name":"mcp_orange","color":"#FF8000","opacity":0.75}
+?= cr.created.color #FF8000
+?= cr.created.opacity 0.75
+! [style_exists] se_appearance {"action":"create","name":"mcp_orange","color":"#00FF00"}
+! [invalid_argument] se_appearance {"action":"create","name":"bad","color":"red"}
+! [invalid_argument] se_appearance {"action":"create","name":"bad","color":"#FF0000","opacity":2}
+# Without targets: the body of the active part, with a style named after the colour.
+@b = se_appearance {"action":"apply","color":"#C00000"}
+?= b.items[0].kind body
+?= b.items[0].style.name #C00000
+?= b.items[0].style.color #C00000
+@f = se_geometry {"action":"faces","direction":[0,0,1]}
+@fa = se_appearance {"action":"apply","targets":["{{f.items[0].handle}}"],"style":"mcp_orange"}
+?= fa.items[0].kind face
+?= fa.items[0].style.name mcp_orange
+@fg = se_appearance {"action":"get","targets":["{{f.items[0].handle}}","{{d.handle}}"]}
+?= fg.items[0].style.opacity 0.75
+?= fg.items[1].style.name #C00000
+se_view {"action":"fit"}
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a13_part.png"}
+# Feature, half transparent: its style replaces the one of the face.
+@ft = se_appearance {"action":"apply","targets":["{{e.feature.handle}}"],"color":"#0060FF","opacity":0.5}
+?= ft.items[0].kind feature
+?~ ft.items[0].style.name #0060FF 50%
+?= ft.items[0].style.opacity 0.5
+@fg2 = se_appearance {"action":"get","targets":["{{f.items[0].handle}}"]}
+?= fg2.items[0].hasOwnStyle false
+! [not_supported] se_appearance {"action":"reset","targets":["{{e.feature.handle}}"]}
+@r = se_appearance {"action":"reset","targets":["{{d.handle}}"]}
+?= r.items[0].hasOwnStyle false
+@rg = se_appearance {"action":"get"}
+?= rg.items[0].hasOwnStyle false
+# A style in use is not deleted; an unused one is.
+! [style_in_use] se_appearance {"action":"delete","name":"#0060FF 50%"}
+@del = se_appearance {"action":"delete","name":"mcp_orange"}
+?= del.deleted mcp_orange
+! [style_not_found] se_appearance {"action":"apply","style":"mcp_orange"}
+! [invalid_argument] se_appearance {"action":"apply","style":"Black","color":"#000000"}
+! [invalid_argument] se_appearance {"action":"get","targets":["{{k.sketch}}"]}
+se_documents {"action":"save_as","path":"{{work}}\\a13_blk.par","overwrite":true}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# Assembly component: the style is created in the assembly.
+@a = se_documents {"action":"new","kind":"assembly"}
+@o = se_assembly {"action":"insert","path":"{{work}}\\a13_blk.par"}
+! [wrong_document_type] se_appearance {"action":"apply","color":"#00A000"}
+@oa = se_appearance {"action":"apply","targets":["{{o.handle}}"],"color":"#00A000"}
+?= oa.items[0].kind occurrence
+?= oa.items[0].style.color #00A000
+@al = se_appearance {"action":"list","filter":"#00A000"}
+?= al.count 1
+se_view {"action":"fit"}
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a13_asm.png"}
+@oc = se_appearance {"action":"get","targets":["{{o.handle}}"]}
+?= oc.items[0].style.name #00A000
+@or = se_appearance {"action":"reset","targets":["{{o.handle}}"]}
+?= or.items[0].hasOwnStyle false
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}

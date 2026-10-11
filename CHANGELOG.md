@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_appearance`: colours of parts and assembly components through face styles (list, create,
+  delete, apply by style or #RRGGBB with opacity, read back and remove). Acceptance script A13.
 - `se_part_feature`: ribs from an open sketch, thicken faces and mirror the whole body. Threads
   on cylinders are not offered: `Threads.Add` is rejected by Solid Edge 2026 (see the coverage matrix).
 - `se_annotation`: text, balloons, callouts, centre marks, centre lines and leaders on drawings,
