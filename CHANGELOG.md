@@ -8,6 +8,9 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- Coverage progress: `scripts/update-progress.ps1` writes a per-area summary at the top of
+  `docs/COBERTURA.md` and the "functions reviewed" badge of the README (`-Check` only verifies).
+- Part display configurations (`PartConfigurations`) checked through the COM layer (A19).
 - `se_assembly_feature` `revolve` (revolved cutouts about a sketch axis, by an angle) and `hole`
   (simple or countersink holes at centers on an assembly plane, through all or to a depth).
 - `se_curve` `contour` (a curve on one face through points on it, open or closed) and `wrap` (a
@@ -87,7 +90,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Changed
 
-- Code comments, scripts and documentation are in English.
+- Code comments, scripts and documentation are in English, including the project notes
+  (`AGENTS.md`, `ESTADO.md`, `PLAN.md`).
 
 ### Fixed
 

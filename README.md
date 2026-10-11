@@ -9,6 +9,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![53 tools](https://img.shields.io/badge/tools-53-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
+[![Functions reviewed: 87 %](https://img.shields.io/badge/functions%20reviewed-87%25-yellowgreen)](docs/COBERTURA.md#progress)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 It lets an AI assistant work in Solid Edge through COM with the breadth of a person: querying
@@ -290,7 +291,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 129/129.
-- Acceptance suite against real Solid Edge 2026: **1798 calls and 774 checks**, with values
+- Acceptance suite against real Solid Edge 2026: **1816 calls and 782 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 53 tools have correct calls, and `A10` runs every value of the action,
@@ -318,7 +319,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A16` | Layers of a part (sketch geometry), a drawing (per sheet: a view and annotations) and an assembly |
 | `A17` | Construction surfaces: extruded, revolved, offset, lofted, swept, stitched and bounded |
 | `A18` | Construction curves (also contours on a face and wrapped sketches) and sweeps or cuts along them |
-| `A19` | Family of parts: members, apply, member file |
+| `A19` | Family of parts: members, apply, member file; part display configurations through the COM layer |
 
 ## Known limitations
 
@@ -352,7 +353,7 @@ solid_edge_mcp/
 ├── config/                        policy.example.json
 ├── docs/                          COBERTURA.md (coverage by function and route)
 ├── lib/interop/  reference/       generated on each machine, not versioned
-├── AGENTS.md  ESTADO.md  PLAN.md  project rules, status and plan (in Spanish)
+├── AGENTS.md  ESTADO.md  PLAN.md  project rules, status and plan
 └── CHANGELOG.md  LICENSE
 ```
 

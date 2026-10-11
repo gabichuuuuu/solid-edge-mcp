@@ -69,3 +69,31 @@ se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
 @po = se_physical {"document":"{{o.handle}}"}
 ?= po.volume 63141.593 0.05
 se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
+# Part display configurations through the generic COM layer: PartConfigurations keep what is shown (here the
+#   visibility of a reference plane), not feature suppression; Apply restores the saved display.
+@pd = se_documents {"action":"new","kind":"part"}
+@prp = se_com_get {"target":"{{pd.handle}}","member":"RefPlanes"}
+@pp1 = se_com_invoke {"target":"{{prp.value.handle}}","method":"Item","arguments":[1]}
+@pv0 = se_com_get {"target":"{{pp1.result.handle}}","member":"Visible"}
+?= pv0.value false
+@pcs = se_com_get {"target":"{{pd.handle}}","member":"PartConfigurations"}
+@pc1 = se_com_invoke {"target":"{{pcs.value.handle}}","method":"Add","arguments":["Hidden"]}
+se_com_set {"target":"{{pp1.result.handle}}","member":"Visible","value":true}
+@pc2 = se_com_invoke {"target":"{{pcs.value.handle}}","method":"Add","arguments":["Shown"]}
+@pci = se_com_items {"target":"{{pd.handle}}","member":"PartConfigurations"}
+?= pci.count 3
+?= pci.items[1].name Hidden
+?= pci.items[2].name Shown
+se_com_invoke {"target":"{{pc1.result.handle}}","method":"Apply"}
+@pv1 = se_com_get {"target":"{{pp1.result.handle}}","member":"Visible"}
+?= pv1.value false
+se_com_invoke {"target":"{{pc2.result.handle}}","method":"Apply"}
+@pv2 = se_com_get {"target":"{{pp1.result.handle}}","member":"Visible"}
+?= pv2.value true
+@pcf = se_com_invoke {"target":"{{pcs.value.handle}}","method":"Find","arguments":["Shown"]}
+@pcn = se_com_get {"target":"{{pcf.result.handle}}","member":"Name"}
+?= pcn.value Shown
+se_com_invoke {"target":"{{pc2.result.handle}}","method":"Delete"}
+@pcc = se_com_get {"target":"{{pcs.value.handle}}","member":"Count"}
+?= pcc.value 2
+se_documents {"action":"close","document":"{{pd.handle}}","saveChanges":false}
