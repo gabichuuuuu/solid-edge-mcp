@@ -294,4 +294,53 @@ se_sketch {"action":"close","sketch":"{{kH2.sketch}}"}
 ! [invalid_argument] se_part_feature {"action":"offset_faces","faces":["{{sH.items[0].handle}}"],"distance":0}
 ! [invalid_argument] se_part_feature {"action":"delete_faces"}
 se_documents {"action":"close","document":"{{dH.handle}}","saveChanges":false}
+# I: slots, web network and body scale. Block 100x60x20; sketches on a plane at z=20 (model x/y).
+#   Slot through along (20,30)-(80,30), width 10, rounded ends: (60*10 + pi*5^2)*20 = 13570.796. Square slot along (20,50)-(80,50),
+#   width 6, depth 5: 60*6*5 = 1800. Scale z by 0.5: (120000 - 13570.796 - 1800)/2 = 52314.602, height 10.
+#   Web network in a shell 2 mm open at the top (23232): line x=50 across, thickness 2 -> 2*18*56 = 2016; line x=25 with depth 10 -> 2*10*56 = 1120
+@dI = se_documents {"action":"new","kind":"part"}
+@kI = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kI.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kI.sketch}}"}
+se_extrude {"sketch":"{{kI.sketch}}","distance":20}
+@pI = se_ref_plane {"action":"offset","plane":"1","distance":20}
+@kI1 = se_sketch {"action":"create","plane":"{{pI.handle}}"}
+se_sketch {"action":"line","sketch":"{{kI1.sketch}}","points":[20,30,80,30]}
+se_sketch {"action":"close","sketch":"{{kI1.sketch}}","open":true}
+@sl1 = se_part_feature {"action":"slot","sketch":"{{kI1.sketch}}","width":10}
+?= sl1.volumeChange -13570.796 0.05
+?= sl1.feature.type Slot
+@kI2 = se_sketch {"action":"create","plane":"{{pI.handle}}"}
+se_sketch {"action":"line","sketch":"{{kI2.sketch}}","points":[20,50,80,50]}
+se_sketch {"action":"close","sketch":"{{kI2.sketch}}","open":true}
+@sl2 = se_part_feature {"action":"slot","sketch":"{{kI2.sketch}}","width":6,"depth":5,"squareEnds":true}
+?= sl2.volumeChange -1800 0.05
+@sc = se_part_feature {"action":"scale_body","scale":[1,1,0.5]}
+?= sc.volume 52314.602 0.05
+@gI = se_geometry {"action":"summary"}
+?= gI.boundingBox.size[2] 10
+! [invalid_argument] se_part_feature {"action":"scale_body","scale":[1]}
+! [invalid_argument] se_part_feature {"action":"scale_body","scale":[1,2]}
+! [invalid_argument] se_part_feature {"action":"slot","sketch":"{{kI2.sketch}}"}
+se_documents {"action":"close","document":"{{dI.handle}}","saveChanges":false}
+@dW = se_documents {"action":"new","kind":"part"}
+@kW = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kW.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kW.sketch}}"}
+se_extrude {"sketch":"{{kW.sketch}}","distance":20}
+@tW = se_geometry {"action":"faces","direction":[0,0,1]}
+@shW = se_shell {"thickness":2,"openFaces":["{{tW.items[0].handle}}"]}
+?= shW.volume 23232 0.05
+@pW = se_ref_plane {"action":"offset","plane":"1","distance":20}
+@kW1 = se_sketch {"action":"create","plane":"{{pW.handle}}"}
+se_sketch {"action":"line","sketch":"{{kW1.sketch}}","points":[50,0,50,60]}
+se_sketch {"action":"close","sketch":"{{kW1.sketch}}","open":true}
+@wn1 = se_part_feature {"action":"web_network","sketch":"{{kW1.sketch}}","thickness":2}
+?= wn1.volumeChange 2016 0.05
+@kW2 = se_sketch {"action":"create","plane":"{{pW.handle}}"}
+se_sketch {"action":"line","sketch":"{{kW2.sketch}}","points":[25,0,25,60]}
+se_sketch {"action":"close","sketch":"{{kW2.sketch}}","open":true}
+@wn2 = se_part_feature {"action":"web_network","sketch":"{{kW2.sketch}}","thickness":2,"depth":10}
+?= wn2.volumeChange 1120 0.05
+se_documents {"action":"close","document":"{{dW.handle}}","saveChanges":false}
 se_documents {"action":"list"}

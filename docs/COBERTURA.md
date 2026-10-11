@@ -82,13 +82,17 @@ damages the document in Solid Edge 2026 (do not use).
 | Loft with guide curves or tangencies, sweep along several paths, conical or variable-pitch helix, thin wall | `LoftedProtrusions.Add`, `AddWithThinWall`, `HelixProtrusions.AddFinite` (optional) | COM | · |
 | Rib from an open sketch (up to the part or to a finite depth; symmetric or to one side) | `Ribs` | `se_part_feature rib` | ✔ |
 | Thread on a cylinder | `Threads` | — | ✘ `Threads.Add` returns E_INVALIDARG for every combination tried (faces or edges as ends, `HoleData` from `Add` or `AddEx` with the ISO Metric table); use `se_hole` tapped (cosmetic) or a helix cut with `se_loft_sweep` (physical) |
-| Web network, lip, vent, mounting boss | `WebNetworks`, `Lips`, `Vents`, `MountingBossCollection` | COM | · |
+| Web network from open lines (to the next face or a finite depth) | `WebNetworks` | `se_part_feature web_network` | ✔ |
+| Lip, vent | `Lips`, `Vents` | COM | · |
+| Mounting boss | `MountingBossCollection` | — | ✘ `Add` leaves the feature failed with a sketch point on a plane above or at the open face of a shelled part, on either side, with or without the optional arguments; the sketch with only a point cannot be included (`CreateIncludedProfile` E_FAIL) |
 | Thicken faces (the side that adds material by default) | `Thickens` | `se_part_feature thicken` | ✔ |
 | Split, boolean operations between bodies | `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |
 | Primitives: box, cylinder and sphere, added or cut, by their centre on a plane or face (built in synchronous modeling) | `BoxFeatures`, `CylinderFeatures`, `SphereFeatures` | `se_primitive` | ✔ |
-| Rotated boxes, boxes by two or three points; tubes, slots | `BoxFeatures.AddByTwoPoints`, `AddByThreePoints`, `TubeFeatures`, `Slots` | COM | · |
+| Slot along an open path (rounded or square ends; through or to a depth) | `Slots` | `se_part_feature slot` | ✔ |
+| Rotated boxes, boxes by two or three points; tubes; counterbored slots | `BoxFeatures.AddByTwoPoints`, `AddByThreePoints`, `TubeFeatures`, `Slots` (`igRecessedCounterboreSlot`) | COM | · |
 | Mirror the whole body about a plane, keeping the original | `MirrorParts` | `se_part_feature mirror_body` | ✔ |
-| Copied part, body scale | `CopiedParts`, `ScaleBodyFeatures` | COM | · |
+| Scale the body (uniform or per axis, about the part origin) | `ScaleBodyFeatures` | `se_part_feature scale_body` | ✔ |
+| Copied part | `CopiedParts` | COM | · |
 | User-defined pattern, pattern along a curve | `UserDefinedPatterns`, `PatternParts` | COM | · |
 
 ## Synchronous modeling and surfaces
@@ -153,7 +157,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Text, balloons, callouts, center marks, centerlines and leaders attached to the views; list and delete | `se_annotation` | ✔ |
 | Surface finish symbols, datum frames and feature control frames (14 characteristics, diameter zone, material condition, datums), attached to the views or free | `se_annotation` | ✔ |
 | Weld symbols; composite and multi-row feature control frames | COM (`WeldSymbols`, `FeatureControlFrame.SecondaryFrame`…) | · |
-| Hole tables, bend tables, blocks | COM (`HoleTables`, `DraftBendTables`, `Blocks`) | · |
+| Hole tables | — | ✘ `HoleTables2.Add` creates an empty table, but `AttachDrawingView` gives E_UNEXPECTED and, after an origin is added (`AddNewXYoriginEx` with the `Reference` of a view line), `AddHole` gives RPC_E_SERVERFAULT; use the Hole Table command in Solid Edge |
+| Bend tables, blocks | COM (`DraftBendTables`, `Blocks`) | · |
 | 2D geometry on the sheet (lines, rectangles, circles, arcs, ellipses, splines, points, fillets) with relations and driving dimensions | `se_sketch`, `se_sketch_constraint` with a sheet or drawing handle | ✔ |
 | Export PDF, DXF, DWG (a drawing that is not saved warns: the title block fields that come from the file, such as the date, show "Error: No reference") | `se_export` | ✔ |
 

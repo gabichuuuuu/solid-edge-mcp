@@ -63,6 +63,9 @@ public enum PartFeatureAction
     DeleteHoles,
     DeleteRounds,
     OffsetFaces,
+    Slot,
+    WebNetwork,
+    ScaleBody,
 }
 
 public enum PartFeatureSide
@@ -189,7 +192,7 @@ public sealed class PartTools(ToolRunner runner)
         runner.RunAsync("se_loft_sweep", Snake(action), c => FeatureService.LoftSweep(c, document,
             new SweepSpec(Snake(action), Snake(operation), sketches, path, origins, axis, pitch, turns, height, Snake(hand))), cancellationToken);
 
-    [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / slot / web network / scale", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Other part features (ordered modelling).
         rib: 'sketch' = an open chain (se_sketch 'close' with open: true) drawn on a plane across the part, e.g. a diagonal line in a corner; it grows in the sketch plane until it meets the part; 'thickness' mm; side symmetric (default) | normal | reverse (thickness to one side of the sketch plane); 'depth' mm = finite depth instead of up to the part |
@@ -198,24 +201,30 @@ public sealed class PartTools(ToolRunner runner)
         Direct edits (also for imported parts): delete_faces ('faces'; the solid heals: a hole face fills the hole, the side and top faces of a boss remove it) |
         delete_holes ('diameter' mm: every hole up to that diameter) | delete_rounds ('faces' of rounds or fillets) |
         offset_faces ('faces', 'distance' mm along their normal: positive outwards = adds material, negative inwards).
+        slot: 'sketch' = an open path (lines, arcs; se_sketch 'close' with open: true) on a plane or face; 'width' mm; rounded ends (the path is extended by half the width) or 'squareEnds': true; through the part, or 'depth' mm |
+        web_network: 'sketch' = open lines on a plane across a shelled part (e.g. at the height of its open face); 'thickness' mm; each line becomes a wall that grows to the next face, or 'depth' mm |
+        scale_body: 'scale' = one factor (uniform) or three (x, y, z) about the part origin; the volume is checked against the factors.
         Threads: se_hole type tapped (cosmetic) or a helix cut with se_loft_sweep (physical).
         {{VerifiedNote}}
-        Example: {"action":"rib","sketch":"sketch:6","thickness":6}; {"action":"offset_faces","faces":["face:9"],"distance":5}.
+        Example: {"action":"rib","sketch":"sketch:6","thickness":6}; {"action":"slot","sketch":"sketch:8","width":10}; {"action":"scale_body","scale":[2]}.
         """)]
     public Task<CallToolResult> PartFeature(
         PartFeatureAction action,
         [Description("thicken, delete_faces, delete_rounds, offset_faces: face handles.")] string[]? faces = null,
-        [Description("rib: open sketch handle.")] string? sketch = null,
-        [Description("rib/thicken: thickness in mm.")] double? thickness = null,
+        [Description("rib, slot, web_network: open sketch handle.")] string? sketch = null,
+        [Description("rib, thicken, web_network: thickness in mm.")] double? thickness = null,
         PartFeatureSide side = PartFeatureSide.Auto,
         [Description("mirror_body: mirror plane ('1'-'3', refplane or planar face handle).")] string? plane = null,
-        [Description("rib: finite depth in mm (default: up to the part).")] double? depth = null,
+        [Description("rib, web_network: finite depth in mm (default: up to the part or the next face); slot: depth in mm (default: through the part).")] double? depth = null,
         [Description("offset_faces: distance in mm along the face normals (negative = inwards).")] double? distance = null,
         [Description("delete_holes: largest hole diameter to delete, mm.")] double? diameter = null,
+        [Description("slot: width in mm.")] double? width = null,
+        [Description("slot: square ends instead of rounded.")] bool squareEnds = false,
+        [Description("scale_body: one factor or three (x, y, z), e.g. [2] or [1, 1, 0.5].")] double[]? scale = null,
         [Description("Document handle; default: the document of the faces, sketch or plane.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
-            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter)), cancellationToken);
+            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale)), cancellationToken);
 
     [McpServerTool(Name = "se_primitive", Title = "Box / cylinder / sphere", Destructive = false, OpenWorld = false)]
     [Description($$"""
