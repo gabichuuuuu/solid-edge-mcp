@@ -7,7 +7,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Solid Edge 2026](https://img.shields.io/badge/Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![45 tools](https://img.shields.io/badge/tools-45-2F6FEB)
+![46 tools](https://img.shields.io/badge/tools-46-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -82,7 +82,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-45 tools, grouped by area.
+46 tools, grouped by area.
 
 | Area | Tool | What it does |
 |---|---|---|
@@ -119,6 +119,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
 | **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences. |
 | | `se_relations` | Planar (mate and flush), axial, insert, parallel, tangent, angle and rigid set relations, checked geometrically; list and delete. |
+| | `se_assembly_pattern` | Component patterns that follow a part pattern (e.g. a pin repeated on every hole of a hole pattern): list, create, delete and dissolve. |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
 | **Drawings** | `se_drawing` | Sheets; base, projected, auxiliary, section and detail views; dimensions and dimensions retrieved from the model; parts list; update. |
@@ -144,7 +145,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 45 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 46 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -159,7 +160,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 45 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 46 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -281,11 +282,11 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 57/57.
-- Acceptance suite against real Solid Edge 2026: **1068 calls and 353 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 59/59.
+- Acceptance suite against real Solid Edge 2026: **1103 calls and 369 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
-- Coverage by value: the 45 tools have correct calls, and `A10` runs every value of the action,
+- Coverage by value: the 46 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -305,6 +306,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A11` | Options and document units |
 | `A12` | Windows, environments and ribbon |
 | `A13` | Colours of a body, faces, features and assembly components |
+| `A14` | Component patterns that follow a part pattern |
 
 ## Known limitations
 
@@ -327,13 +329,13 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 ```text
 solid_edge_mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (45 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (46 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A13 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A14 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COBERTURA.md (coverage by function and route)
@@ -360,7 +362,7 @@ one in `C:\Program Files\dotnet`.
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
 calls (`scripts/A01`–`A09`, from session to assemblies, drawings and the COM layer; `A10`, the
 orientation, direction and type values that the others do not use; `A11`–`A12`, options and user
-interface; `A13`, colours), with volumes, measurements and
+interface; `A13`, colours; `A14`, component patterns), with volumes, measurements and
 expected errors calculated by hand. Each script creates and closes its documents without saving:
 
 ```powershell

@@ -42,6 +42,14 @@ public enum RelationType
     RigidSet,
 }
 
+public enum AssemblyPatternAction
+{
+    List,
+    Create,
+    Delete,
+    Dissolve,
+}
+
 public enum BomStructure
 {
     Top,
@@ -150,6 +158,36 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
                 new RelationSpec(Snake(ToolRunner.RequireValue(type, "type", "add")), occurrence1, element1, occurrence2, element2, axis1, axis2,
                     offset, align, flip, angle, occurrences, plane)), cancellationToken),
             RelationAction.Delete => runner.RunAsync(tool, name, c => RelationService.Delete(c, relation), cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
+
+    [McpServerTool(Name = "se_assembly_pattern", Title = "Component patterns", Destructive = true, OpenWorld = false)]
+    [Description("""
+        Component patterns that follow a pattern of a part, as the assembly Pattern command does: place the occurrences on the first instance (e.g. a pin in the first hole), then repeat them on every instance of the part pattern.
+        list | create (occurrences = the ones to repeat; source = the occurrence whose part has the pattern; pattern = its name, optional if the part has one; reference = the feature the occurrences sit on, default the first feature the pattern repeats; name optional) |
+        delete (name: removes the pattern and its copies) | dissolve (name: the copies become ordinary occurrences).
+        The pattern follows the part: editing the part pattern updates the copies. Component mirrors cannot be created through the API.
+        Example: {"action":"create","occurrences":["occurrence:5"],"source":"occurrence:3","pattern":"Pattern_1"}.
+        """)]
+    public Task<CallToolResult> ComponentPattern(
+        AssemblyPatternAction action,
+        [Description("create: occurrence handles to repeat.")] string[]? occurrences = null,
+        [Description("create: occurrence whose part has the pattern to follow.")] string? source = null,
+        [Description("create: name of the part pattern (se_feature_tree of the part, e.g. 'Pattern_1').")] string? pattern = null,
+        [Description("create: name of the part feature the occurrences sit on (default: the first feature the pattern repeats).")] string? reference = null,
+        [Description("create: name of the new pattern (default 'Pattern N'); delete/dissolve: the pattern name.")] string? name = null,
+        [Description("Assembly document handle; default: the active document.")] string? document = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string tool = "se_assembly_pattern";
+        string act = Snake(action);
+        return action switch
+        {
+            AssemblyPatternAction.List => runner.RunAsync(tool, act, c => AssemblyPatternService.List(c, document), cancellationToken),
+            AssemblyPatternAction.Create => runner.RunAsync(tool, act, c => AssemblyPatternService.Create(c, occurrences, source, pattern, reference, name), cancellationToken),
+            AssemblyPatternAction.Delete => runner.RunAsync(tool, act, c => AssemblyPatternService.Delete(c, document, name), cancellationToken),
+            AssemblyPatternAction.Dissolve => runner.RunAsync(tool, act, c => AssemblyPatternService.Dissolve(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

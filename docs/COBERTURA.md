@@ -128,7 +128,9 @@ damages the document in Solid Edge 2026 (do not use).
 | Faces, edges and summary (volume and exact box, also rotated) of each occurrence in assembly coordinates (own handles; the occurrence is inferred in relations and measurements) | `se_geometry source` = occurrence | ✔ |
 | Interferences | `se_interference` | ✔ |
 | Bill of materials | `se_bom` | ✔ |
-| Component patterns and mirrors | COM (`AssemblyPatterns`, `AssemblyMirrors`) | · |
+| Component pattern that follows a part pattern; list, delete and dissolve patterns | `se_assembly_pattern` | ✔ |
+| Component pattern along a curve, duplicate pattern | COM (`AssemblyPatterns.CreateAlongCurveEx3`, `CreateDuplicateEx`) | · |
+| Component mirror | — | ✘ `AssemblyMirrors` has no Add (only lists existing mirrors) |
 | Assembly features, parts driven by the assembly | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
 | Configurations, exploded views, groups | COM (`Configurations`) / Command | · |
 | Structural frames, pipes, harnesses, fasteners, weldment | COM (`StructuralFrames`, `Pipes`, `Harnesses`, `FastenerSystems`, `WeldmentAssembly`) / Command | · |

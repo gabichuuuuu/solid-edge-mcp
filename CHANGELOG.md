@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_assembly_pattern`: component patterns that follow a part pattern (list, create, delete and
+  dissolve). Acceptance script A14.
 - `se_appearance`: colours of parts and assembly components through face styles (list, create,
   delete, apply by style or #RRGGBB with opacity, read back and remove). Acceptance script A13.
 - `se_part_feature`: ribs from an open sketch, thicken faces and mirror the whole body. Threads

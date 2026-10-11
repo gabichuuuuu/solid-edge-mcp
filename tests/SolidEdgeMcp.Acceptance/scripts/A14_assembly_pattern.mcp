@@ -1,0 +1,56 @@
+# A14: component patterns (se_assembly_pattern). Plate 100x60x10 with a hole Ø10 at (20,30) repeated 3x1 every 30 mm
+# (Pattern_1): 60000 - 3·pi·5²·10 = 57643.806. A pin Ø10x30 placed in the first hole is repeated on the other two
+# (x = 50 and 80); deleting the pattern removes the copies and dissolving it keeps them as ordinary occurrences.
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ps.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+se_extrude {"sketch":"{{ps.sketch}}","distance":10}
+@pt = se_geometry {"action":"faces","direction":[0,0,1]}
+@h = se_hole {"plane":"{{pt.items[0].handle}}","centers":[20,30,10],"diameter":10}
+@pat = se_pattern {"type":"rectangular","features":["{{h.feature.handle}}"],"plane":"1","countX":3,"countY":1,"spacingX":30,"spacingY":10}
+?= pat.volume 57643.806 0.01
+?= pat.feature.name Pattern_1
+se_documents {"action":"save_as","path":"{{work}}\\a14_plate.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@q = se_documents {"action":"new","kind":"part"}
+@qs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{qs.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{qs.sketch}}"}
+se_extrude {"sketch":"{{qs.sketch}}","distance":30}
+se_documents {"action":"save_as","path":"{{work}}\\a14_pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@op = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par"}
+@oq = se_assembly {"action":"insert","path":"{{work}}\\a14_pin.par","origin":[20,30,0]}
+! [invalid_argument] se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","pattern":"Pattern_9"}
+! [invalid_argument] se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","reference":"Hole_9"}
+! [invalid_argument] se_assembly_pattern {"action":"create","source":"{{op.handle}}"}
+# Pattern deleted with its copies.
+@c = se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","name":"Pins"}
+?= c.added 2
+?= c.occurrences 4
+?= c.pattern.type part_pattern
+?~ c.pattern.occurrences "origin":[50,30,0]
+?~ c.pattern.occurrences "origin":[80,30,0]
+@l = se_assembly_pattern {"action":"list"}
+?= l.count 1
+?= l.patterns[0].name Pins
+! [invalid_argument] se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","name":"Pins"}
+@d1 = se_assembly_pattern {"action":"delete","name":"Pins"}
+?= d1.removed 2
+?= d1.occurrences 2
+# Pattern with the default name, with the reference feature given, then dissolved.
+@c2 = se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","pattern":"Pattern_1","reference":"Hole_1"}
+?= c2.added 2
+?~ c2.pattern.name Pattern
+se_view {"action":"fit"}
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a14_pattern.png"}
+@dz = se_assembly_pattern {"action":"dissolve","name":"{{c2.pattern.name}}"}
+?= dz.occurrences 4
+@l2 = se_assembly_pattern {"action":"list"}
+?= l2.count 0
+@ls = se_assembly {"action":"list"}
+?= ls.count 4
+! [invalid_argument] se_assembly_pattern {"action":"delete","name":"Pins"}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
