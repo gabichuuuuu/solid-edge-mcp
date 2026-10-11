@@ -9,7 +9,7 @@ Relevant changes to this project are recorded here. The format follows
 ### Added
 
 - Coverage progress: `scripts/update-progress.ps1` writes a per-area summary at the top of
-  `docs/COBERTURA.md` and the "functions reviewed" badge of the README (`-Check` only verifies).
+  `docs/COVERAGE.md` and the "functions reviewed" badge of the README (`-Check` only verifies).
 - Part display configurations (`PartConfigurations`) checked through the COM layer (A19).
 - `se_assembly_feature` `revolve` (revolved cutouts about a sketch axis, by an angle) and `hole`
   (simple or countersink holes at centers on an assembly plane, through all or to a depth).
@@ -91,7 +91,8 @@ Relevant changes to this project are recorded here. The format follows
 ### Changed
 
 - Code comments, scripts and documentation are in English, including the project notes
-  (`AGENTS.md`, `ESTADO.md`, `PLAN.md`).
+  (`AGENTS.md`, `STATUS.md`, `PLAN.md`). `ESTADO.md` and `docs/COBERTURA.md` were renamed to
+  `STATUS.md` and `docs/COVERAGE.md`.
 
 ### Fixed
 
@@ -145,6 +146,6 @@ Edition 2026.
 ### Documentation
 
 - `README.md`, example policy and coverage matrix
-  ([docs/COBERTURA.md](docs/COBERTURA.md)).
+  ([docs/COVERAGE.md](docs/COVERAGE.md)).
 - End-to-end runs with Claude Code and Codex are summarized in the README.
 - README rewritten, this changelog, and issue and pull request templates.

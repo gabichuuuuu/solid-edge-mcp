@@ -9,7 +9,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![53 tools](https://img.shields.io/badge/tools-53-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
-[![Functions reviewed: 87 %](https://img.shields.io/badge/functions%20reviewed-87%25-yellowgreen)](docs/COBERTURA.md#progress)
+[![Functions reviewed: 87 %](https://img.shields.io/badge/functions%20reviewed-87%25-yellowgreen)](docs/COVERAGE.md#progress)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 It lets an AI assistant work in Solid Edge through COM with the breadth of a person: querying
@@ -67,7 +67,7 @@ was measured afterwards, separately, by reopening the generated files.
   effect, it is deleted or undone, and the error carries a code, the cause and the next step.
 - **Three layers.** Specific tools verified for common tasks; access to any API object and method
   (`se_com_*`); and any interface command (`se_command`). What each route covers, function by
-  function: [docs/COBERTURA.md](docs/COBERTURA.md).
+  function: [docs/COVERAGE.md](docs/COVERAGE.md).
 
 Illustrative example of the sequence an assistant follows for a 100 × 50 × 20 mm block:
 
@@ -144,7 +144,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 Each tool declares its MCP annotations (read-only, destructive…) so the client can decide when to
 ask for approval. What has no specific tool (booleans between bodies, swept or lofted surfaces, 3D
 sketches…) is done with `se_com_*` or `se_command`; details are in
-[docs/COBERTURA.md](docs/COBERTURA.md).
+[docs/COVERAGE.md](docs/COVERAGE.md).
 
 ## Architecture
 
@@ -324,7 +324,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 ## Known limitations
 
 - Some Solid Edge 2026 API functions fail or damage the document (corner closing, gussets,
-  louvers, several hem types…); they are marked with ✘ in [docs/COBERTURA.md](docs/COBERTURA.md).
+  louvers, several hem types…); they are marked with ✘ in [docs/COVERAGE.md](docs/COVERAGE.md).
 - After an `RPC_E_SERVERFAULT`, Solid Edge becomes unstable and must be restarted
   (`se_com_invoke {"target":"app","method":"Quit"}` and `se_session connect`), which closes everything
   that is open.
@@ -351,9 +351,9 @@ solid_edge_mcp/
 │   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A16 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1
 ├── config/                        policy.example.json
-├── docs/                          COBERTURA.md (coverage by function and route)
+├── docs/                          COVERAGE.md (coverage by function and route)
 ├── lib/interop/  reference/       generated on each machine, not versioned
-├── AGENTS.md  ESTADO.md  PLAN.md  project rules, status and plan
+├── AGENTS.md  STATUS.md  PLAN.md  project rules, status and plan
 └── CHANGELOG.md  LICENSE
 ```
 
@@ -400,7 +400,7 @@ DLL, but not overwriting it. This is safe if the changed files are already loade
 2. Register it in `Program.ToolTypes` and add argument cases to `ToolRegistrationTests`.
 3. Validate it against real Solid Edge with temporary documents in an allowed folder, closing them
    without saving, and check the measurable result (volume, bounding box, face count, exported file).
-4. Update this README, [docs/COBERTURA.md](docs/COBERTURA.md) and [CHANGELOG.md](CHANGELOG.md).
+4. Update this README, [docs/COVERAGE.md](docs/COVERAGE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 Commits follow Conventional Commits, in English.
 

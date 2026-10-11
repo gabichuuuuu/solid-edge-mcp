@@ -20,7 +20,7 @@
 
 ## Documentation
 
-- [ ] `README.md` and `docs/COBERTURA.md` updated
+- [ ] `README.md` and `docs/COVERAGE.md` updated
 - [ ] `CHANGELOG.md` updated
 
 ## Repository

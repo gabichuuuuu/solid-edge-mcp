@@ -1,14 +1,14 @@
 <#
 .SYNOPSIS
-    Writes the coverage progress (docs/COBERTURA.md tables) into that file and into the README badge.
+    Writes the coverage progress (docs/COVERAGE.md tables) into that file and into the README badge.
 
 .DESCRIPTION
-    Counts the rows of every table in docs/COBERTURA.md by the first character of their last cell:
+    Counts the rows of every table in docs/COVERAGE.md by the first character of their last cell:
     ✔ works through the MCP, ✘ does not work in Solid Edge (documented, with an alternative when there
     is one), · available in the API but not tested yet. A row is reviewed when it is ✔ or ✘; 100 %
     means that no row is left to test. The summary goes between the progress markers of
-    docs/COBERTURA.md and the "functions reviewed" badge of README.md is updated.
-    Run it after editing docs/COBERTURA.md. With -Check it changes nothing and fails when the files
+    docs/COVERAGE.md and the "functions reviewed" badge of README.md is updated.
+    Run it after editing docs/COVERAGE.md. With -Check it changes nothing and fails when the files
     are out of date.
 
 .EXAMPLE
@@ -21,7 +21,7 @@ param([switch]$Check)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-$coveragePath = Join-Path $root 'docs/COBERTURA.md'
+$coveragePath = Join-Path $root 'docs/COVERAGE.md'
 $readmePath = Join-Path $root 'README.md'
 $utf8 = [Text.UTF8Encoding]::new($false)
 $coverage = [IO.File]::ReadAllText($coveragePath, $utf8)
@@ -31,7 +31,7 @@ $endMarker = '<!-- progress:end -->'
 $start = $coverage.IndexOf($startMarker)
 $end = $coverage.IndexOf($endMarker)
 if ($start -lt 0 -or $end -lt $start) {
-    throw "docs/COBERTURA.md has no '$startMarker' ... '$endMarker' block."
+    throw "docs/COVERAGE.md has no '$startMarker' ... '$endMarker' block."
 }
 
 # Rows by section ("## " headers) outside the progress block; header and separator rows are skipped.
@@ -99,8 +99,8 @@ $block = $lines -join "`n"
 $newCoverage = $coverage.Substring(0, $start) + $block + $coverage.Substring($end + $endMarker.Length)
 
 $color = if ($percent -ge 100) { 'brightgreen' } elseif ($percent -ge 80) { 'yellowgreen' } else { 'yellow' }
-$badge = "[![Functions reviewed: $percent %](https://img.shields.io/badge/functions%20reviewed-$percent%25-$color)](docs/COBERTURA.md#progress)"
-$badgePattern = '(?m)^\[!\[Functions reviewed: [^\]]*\]\([^)]*\)\]\(docs/COBERTURA\.md#progress\)$'
+$badge = "[![Functions reviewed: $percent %](https://img.shields.io/badge/functions%20reviewed-$percent%25-$color)](docs/COVERAGE.md#progress)"
+$badgePattern = '(?m)^\[!\[Functions reviewed: [^\]]*\]\([^)]*\)\]\(docs/COVERAGE\.md#progress\)$'
 if ($readme -notmatch $badgePattern) {
     throw 'README.md has no "Functions reviewed" badge line to update.'
 }

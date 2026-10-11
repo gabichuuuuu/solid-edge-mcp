@@ -41,5 +41,5 @@ assignees: ''
 ## Before submitting
 
 - [ ] Reproduced with new documents in an allowed folder.
-- [ ] The function is not listed as broken (✘) in `docs/COBERTURA.md`.
+- [ ] The function is not listed as broken (✘) in `docs/COVERAGE.md`.
 - [ ] No personal paths, secrets or confidential data in the report or the log.

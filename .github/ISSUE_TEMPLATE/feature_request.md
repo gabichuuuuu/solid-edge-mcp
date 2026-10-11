@@ -12,7 +12,7 @@ assignees: ''
 
 ## How it is done today
 
-<!-- Can it be done with se_com_* or se_command? See the route and status in docs/COBERTURA.md. -->
+<!-- Can it be done with se_com_* or se_command? See the route and status in docs/COVERAGE.md. -->
 
 ## Proposal
 
