@@ -25,7 +25,7 @@ machine or a specific workflow.
 
 <table>
 <tr>
-<td width="25%" valign="top">
+<td width="50%" valign="top">
 
 **🧩 Broad coverage**
 
@@ -33,7 +33,7 @@ Parts, sheet metal, assemblies, drawings and export with 53 tools, plus the whol
 generic COM layer.
 
 </td>
-<td width="25%" valign="top">
+<td width="50%" valign="top">
 
 **📏 Verified changes**
 
@@ -41,7 +41,9 @@ Each modeling operation is measured. If it fails or has no effect, it is undone 
 explains why and what to do next.
 
 </td>
-<td width="25%" valign="top">
+</tr>
+<tr>
+<td width="50%" valign="top">
 
 **🔒 Safe by default**
 
@@ -49,7 +51,7 @@ Files only inside allowed folders. Tools that can change anything are flagged so
 for approval.
 
 </td>
-<td width="25%" valign="top">
+<td width="50%" valign="top">
 
 **🧪 Tested for real**
 
