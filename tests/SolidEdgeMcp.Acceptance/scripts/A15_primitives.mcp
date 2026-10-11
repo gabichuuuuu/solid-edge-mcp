@@ -1,0 +1,61 @@
+# A15: primitives (se_primitive). Solid Edge builds them only in synchronous modeling; the document goes back to ordered.
+# Box 100x60x20 on the XY plane centred at (50,30,0): 120000, box (0,0,0)-(100,60,20).
+#   + cylinder r10 x 30 on the top face at (50,30,20): pi*100*30 = 9424.778 -> 129424.778, top at z=50
+#   - cylinder r5 x 10 cut from the top face at (20,30,20), auto side = into the part: pi*25*10 = 785.398 -> 128639.380
+#   - box 10x10 x 5 cut on the XY plane at (80,30,0): auto tries against the normal (outside, no change), then along it: 500 -> 128139.380
+#   + sphere r10 on the YZ plane at (0,30,10): the half outside the part, 2/3*pi*1000 = 2094.395 -> 130233.775, min x = -10
+#   - sphere r5 cut on the XY plane at (80,50,0): the half inside, 2/3*pi*125 = 261.799 -> 129971.976
+#   + box 20x10 x 10 symmetric on the XZ plane at (50,0,10) (width along x, height along z): the half at y<0, 20*10*5 = 1000 -> 130971.976, min y = -5
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+?= b.volume 120000 0.001
+?~ b.feature.type BoxFeature
+?~ b.modelingMode ordered
+@s1 = se_geometry {"action":"summary"}
+?= s1.boundingBox.min[2] 0 0.0001
+?= s1.boundingBox.max[0] 100 0.0001
+?= s1.boundingBox.max[1] 60 0.0001
+?= s1.boundingBox.max[2] 20 0.0001
+@t1 = se_geometry {"action":"faces","direction":[0,0,1]}
+@c = se_primitive {"shape":"cylinder","plane":"{{t1.items[0].handle}}","center":[50,30,20],"radius":10,"depth":30}
+?= c.volumeChange 9424.778 0.001
+@s2 = se_geometry {"action":"summary"}
+?= s2.boundingBox.max[2] 50 0.0001
+@t2 = se_geometry {"action":"faces","direction":[0,0,1],"type":"plane"}
+@k = se_primitive {"shape":"cylinder","operation":"cut","plane":"{{t2.items[?area=5685.840735].handle}}","center":[20,30,20],"radius":5,"depth":10}
+?= k.volumeChange -785.398 0.001
+@kb = se_primitive {"shape":"box","operation":"cut","plane":"1","center":[80,30,0],"size":[10,10],"depth":5}
+?= kb.volumeChange -500 0.001
+?= kb.volume 128139.380 0.001
+@sp = se_primitive {"shape":"sphere","plane":"2","center":[0,30,10],"radius":10}
+?= sp.volumeChange 2094.395 0.001
+@s3 = se_geometry {"action":"summary"}
+?= s3.boundingBox.min[0] -10 0.0001
+@ks = se_primitive {"shape":"sphere","operation":"cut","plane":"1","center":[80,50,0],"radius":5}
+?= ks.volumeChange -261.799 0.001
+@sy = se_primitive {"shape":"box","plane":"3","center":[50,0,10],"size":[20,10],"depth":10,"side":"symmetric"}
+?= sy.volumeChange 1000 0.001
+?= sy.volume 130971.976 0.001
+@s4 = se_geometry {"action":"summary"}
+?= s4.boundingBox.min[1] -5 0.0001
+# Errors: centre off the plane; box without size; a cut that touches nothing (both sides tried, undone); the volume and mode stay
+! [invalid_argument] se_primitive {"shape":"box","center":[50,30,5],"size":[10,10],"depth":5}
+! [invalid_argument] se_primitive {"shape":"box","center":[50,30,0],"depth":5}
+! [feature_failed] se_primitive {"shape":"cylinder","operation":"cut","center":[500,500,0],"radius":5,"depth":5}
+@s5 = se_geometry {"action":"summary"}
+?= s5.volume 130971.976 0.001
+?~ s5.modelingMode ordered
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# Ordered part (extrude 100x60x20) plus a box 20x20 x 10 on its top face at (50,30,20): +4000 -> 124000; the extrude stays
+@q = se_documents {"action":"new","kind":"part"}
+@sk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{sk.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{sk.sketch}}"}
+se_extrude {"sketch":"{{sk.sketch}}","distance":20}
+@tq = se_geometry {"action":"faces","direction":[0,0,1]}
+@bq = se_primitive {"shape":"box","plane":"{{tq.items[0].handle}}","center":[50,30,20],"size":[20,20],"depth":10}
+?= bq.volume 124000 0.001
+@ft = se_feature_tree {}
+?~ ft.modelingMode ordered
+?~ ft.features[?name="ExtrudedProtrusion_1"].status ok
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}

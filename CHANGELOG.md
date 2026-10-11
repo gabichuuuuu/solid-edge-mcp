@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_primitive`: box, cylinder and sphere, added or cut, placed by their centre on a plane or a
+  planar face. Built in synchronous modeling and checked by the volume. Acceptance script A15.
 - `se_com_invoke`: `{"handle":null}` passes Nothing (a null object) to a VARIANT parameter.
 - `se_annotation`: surface finish symbols, datum frames and feature control frames, attached to
   an edge of a view (directly or on a leader) or free on the sheet.

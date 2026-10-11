@@ -69,6 +69,13 @@ public enum PartFeatureSide
     Symmetric,
 }
 
+public enum PrimitiveShape
+{
+    Box,
+    Cylinder,
+    Sphere,
+}
+
 /// <summary>Holes, patterns, shell, draft, lofts and other part features (ordered modelling), verified like the other operations.</summary>
 [McpServerToolType]
 public sealed class PartTools(ToolRunner runner)
@@ -200,4 +207,31 @@ public sealed class PartTools(ToolRunner runner)
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
             new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth)), cancellationToken);
+
+    [McpServerTool(Name = "se_primitive", Title = "Box / cylinder / sphere", Destructive = false, OpenWorld = false)]
+    [Description($$"""
+        Adds or cuts a box, cylinder or sphere placed by its centre on a plane, without a sketch (part documents).
+        plane = '1'-'3', refplane or planar face handle (default '1', the XY base plane); center = [x,y,z] mm, a point on that plane
+        (box: centre of its base rectangle; cylinder: centre of its base circle; sphere: its centre).
+        box: size [width, height] mm along the x and y axes of the plane (the frame returned by se_sketch create on it) and depth mm;
+        cylinder: radius and depth mm; sphere: radius mm. side: auto (default: along the plane normal to add, against it to cut,
+        then the other way if that changes nothing) | normal | reverse | symmetric.
+        Solid Edge builds primitives only in synchronous modeling: the document switches to it for the call and back to ordered,
+        and the primitive goes into the synchronous part of the feature tree.
+        {{VerifiedNote}}
+        Example: {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}; {"shape":"cylinder","operation":"cut","plane":"face:12","center":[50,30,20],"radius":5,"depth":20}.
+        """)]
+    public Task<CallToolResult> Primitive(
+        PrimitiveShape shape,
+        FeatureOperation operation = FeatureOperation.Add,
+        [Description("Plane: '1'-'3', refplane or planar face handle (default '1').")] string? plane = null,
+        [Description("Centre [x, y, z] in mm, on the plane.")] double[]? center = null,
+        [Description("box: [width, height] in mm along the plane's x and y axes.")] double[]? size = null,
+        [Description("cylinder, sphere: radius in mm.")] double? radius = null,
+        [Description("box, cylinder: depth in mm from the plane.")] double? depth = null,
+        PartFeatureSide side = PartFeatureSide.Auto,
+        [Description("Document handle; default: the document of the plane handle or the active document.")] string? document = null,
+        CancellationToken cancellationToken = default) =>
+        runner.RunAsync("se_primitive", Snake(shape), c => FeatureService.Primitive(c, document,
+            new PrimitiveSpec(Snake(shape), Snake(operation), plane, center, size, radius, depth, Snake(side))), cancellationToken);
 }

@@ -295,7 +295,7 @@ public static class RefPlaneService
         return Describe(context, model, plane, model.RefPlanes.Count);
     }
 
-    private static (double[] Root, double[] Normal) PlaneData(object source)
+    internal static (double[] Root, double[] Normal) PlaneData(object source)
     {
         Array root = new double[3];
         Array normal = new double[3];

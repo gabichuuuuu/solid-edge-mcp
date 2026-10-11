@@ -84,7 +84,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Web network, lip, vent, mounting boss | `WebNetworks`, `Lips`, `Vents`, `MountingBossCollection` | COM | · |
 | Thicken faces (the side that adds material by default) | `Thickens` | `se_part_feature thicken` | ✔ |
 | Split, boolean operations between bodies | `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |
-| Primitives (box, cylinder, sphere), tubes, slots | `BoxFeatures`, `CylinderFeatures`, `SphereFeatures`, `TubeFeatures`, `Slots` | COM | · |
+| Primitives: box, cylinder and sphere, added or cut, by their centre on a plane or face (built in synchronous modeling) | `BoxFeatures`, `CylinderFeatures`, `SphereFeatures` | `se_primitive` | ✔ |
+| Rotated boxes, boxes by two or three points; tubes, slots | `BoxFeatures.AddByTwoPoints`, `AddByThreePoints`, `TubeFeatures`, `Slots` | COM | · |
 | Mirror the whole body about a plane, keeping the original | `MirrorParts` | `se_part_feature mirror_body` | ✔ |
 | Copied part, body scale | `CopiedParts`, `ScaleBodyFeatures` | COM | · |
 | User-defined pattern, pattern along a curve | `UserDefinedPatterns`, `PatternParts` | COM | · |
