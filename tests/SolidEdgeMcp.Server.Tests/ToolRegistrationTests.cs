@@ -126,6 +126,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_appearance", """{"action":"apply","targets":["face:1","occurrence:2"],"color":"#FF8000","opacity":0.5}""")]
     [InlineData("se_appearance", """{"action":"create","name":"Orange","color":"#FF8000"}""")]
     [InlineData("se_assembly_pattern", """{"action":"create","occurrences":["occurrence:5"],"source":"occurrence:3","pattern":"Pattern_1","reference":"Hole_1"}""")]
+    [InlineData("se_assembly_pattern", """{"action":"duplicate","occurrences":["occurrence:5"],"source":"occurrence:2","targets":["occurrence:3","occurrence:4"],"name":"Bolts"}""")]
     [InlineData("se_ref_plane", """{"action":"normal_to_edge","edge":"edge:1","at":"end","distance":30}""")]
     [InlineData("se_ref_plane", """{"action":"coordinate_system","origin":[10,20,30],"angles":[0,0,90]}""")]
     [InlineData("se_ref_plane", """{"action":"coordinate_system","edges":["edge:1","edge:2"],"origin":[100,0,20]}""")]

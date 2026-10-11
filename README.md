@@ -285,8 +285,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 97/97.
-- Acceptance suite against real Solid Edge 2026: **1428 calls and 578 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 98/98.
+- Acceptance suite against real Solid Edge 2026: **1445 calls and 587 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 49 tools have correct calls, and `A10` runs every value of the action,

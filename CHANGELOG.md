@@ -8,6 +8,10 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_assembly_pattern duplicate`: occurrences copied onto other occurrences at the same relative
+  position and orientation (e.g. the bolts of one flange onto the others).
+- The generic layer (`se_com_*`) takes faces and edges read from an occurrence as their reference in
+  the assembly.
 - `se_part_feature copy_part`: copy of a saved part file, scaled or mirrored, as the base body or
   united with the body.
 - `se_ref_plane`: planes normal to an edge at a fraction of its length (`ratio`), and coordinate

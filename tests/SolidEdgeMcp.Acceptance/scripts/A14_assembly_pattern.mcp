@@ -81,3 +81,32 @@ se_assembly {"action":"show","occurrence":"{{ls.occurrences[3].handle}}"}
 @cd = se_assembly_config {"action":"delete","name":"Sin pasadores"}
 ?= cd.count {{cl0.count}}
 se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# Duplicate pattern: the pin on the first plate copied onto a plate 100 mm along y and onto a plate turned 90° about z at
+#   (0,200,0); each copy keeps its place relative to its plate: (20,130,0) and (-30,220,0).
+@b = se_documents {"action":"new","kind":"assembly"}
+@b1 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par"}
+@b2 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,100,0]}
+@b3 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,200,0],"angles":[0,0,90]}
+@bq = se_assembly {"action":"insert","path":"{{work}}\\a14_pin.par","origin":[20,30,0]}
+! [invalid_argument] se_assembly_pattern {"action":"duplicate","occurrences":["{{bq.handle}}"],"source":"{{b1.handle}}"}
+! [invalid_argument] se_assembly_pattern {"action":"duplicate","source":"{{b1.handle}}","targets":["{{b2.handle}}"]}
+! [invalid_argument] se_assembly_pattern {"action":"duplicate","occurrences":["{{bq.handle}}"],"source":"{{b1.handle}}","targets":["{{b1.handle}}"]}
+@du = se_assembly_pattern {"action":"duplicate","occurrences":["{{bq.handle}}"],"source":"{{b1.handle}}","targets":["{{b2.handle}}","{{b3.handle}}"],"name":"Copias"}
+?= du.added 2
+?= du.occurrences 6
+?= du.pattern.type duplicate
+?= du.pattern.instances 2
+?~ du.pattern.occurrences "origin":[20,130,0]
+?~ du.pattern.occurrences "origin":[-30,220,0]
+@dd = se_assembly_pattern {"action":"delete","name":"Copias"}
+?= dd.removed 2
+?= dd.occurrences 4
+# A face read from an occurrence goes into the generic layer as its reference in the assembly (selected here).
+@bf = se_geometry {"action":"faces","source":"{{b2.handle}}","direction":[0,0,1]}
+@ss = se_com_get {"target":"active_document","member":"SelectSet"}
+se_com_invoke {"target":"{{ss.value.handle}}","method":"RemoveAll"}
+se_com_invoke {"target":"{{ss.value.handle}}","method":"Add","arguments":[{"handle":"{{bf.items[0].handle}}"}]}
+@sc = se_com_get {"target":"{{ss.value.handle}}","member":"Count"}
+?= sc.value 1
+se_com_invoke {"target":"{{ss.value.handle}}","method":"RemoveAll"}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}

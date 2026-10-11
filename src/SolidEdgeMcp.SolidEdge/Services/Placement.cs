@@ -50,6 +50,18 @@ public sealed class Placement
         (p[0] * _m[2]) + (p[1] * _m[6]) + (p[2] * _m[10]) + _m[14],
     ];
 
+    /// <summary>Point of the assembly (m) in the coordinates of the part (m): the inverse of <see cref="Point"/>.</summary>
+    public double[] Local(IReadOnlyList<double> p)
+    {
+        double[] d = [p[0] - _m[12], p[1] - _m[13], p[2] - _m[14]];
+        return
+        [
+            (d[0] * _m[0]) + (d[1] * _m[1]) + (d[2] * _m[2]),
+            (d[0] * _m[4]) + (d[1] * _m[5]) + (d[2] * _m[6]),
+            (d[0] * _m[8]) + (d[1] * _m[9]) + (d[2] * _m[10]),
+        ];
+    }
+
     /// <summary>Direction of the part in assembly coordinates (rotation only).</summary>
     public double[] Vector(IReadOnlyList<double> v) =>
     [

@@ -12,7 +12,8 @@ Every Solid Edge function is accessible through one of these routes:
 - **COM**: the generic layer (`se_com_describe` to see members and signatures, `se_com_get`,
   `se_com_set`, `se_com_invoke`, `se_com_items`, `se_com_constants`). It reaches any API object and
   method, in meters and radians, without automatic verification: check the result with
-  `se_geometry`, `se_physical` or `se_view capture`.
+  `se_geometry`, `se_physical` or `se_view capture`. Faces and edges read from an occurrence go in
+  as their reference in the assembly.
 - **Command**: `se_command` runs any interface command (`find` searches by name and environment).
   Commands that ask for a selection or a dialog box wait for the person.
 
@@ -142,7 +143,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Interferences | `se_interference` | ✔ |
 | Bill of materials | `se_bom` | ✔ |
 | Component pattern that follows a part pattern; list, delete and dissolve patterns | `se_assembly_pattern` | ✔ |
-| Component pattern along a curve, duplicate pattern | COM (`AssemblyPatterns.CreateAlongCurveEx3`, `CreateDuplicateEx`) | · |
+| Duplicate pattern (occurrences copied onto others at the same relative position) | `se_assembly_pattern duplicate` | ✔ |
+| Component pattern along a curve | COM (`AssemblyPatterns.CreateAlongCurveEx3`: E_NOINTERFACE with part edges, their references and assembly layout lines) | ✘ |
 | Component mirror | — | ✘ `AssemblyMirrors` has no Add (only lists existing mirrors) |
 | Assembly features, parts driven by the assembly | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
 | Display configurations (shown and hidden components): list, save, apply, delete; the assembly must be saved (.cfg file) | `se_assembly_config` | ✔ |

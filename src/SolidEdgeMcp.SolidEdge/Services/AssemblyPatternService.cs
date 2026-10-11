@@ -11,8 +11,10 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
 /// Component patterns that follow a pattern of a part (e.g. a pin in the first hole repeated on every hole of the plate's
-/// hole pattern), as the "Pattern" command of the assembly does with "part pattern". Solid Edge 2026 does not create
-/// component mirrors through the API (<c>AssemblyMirrors</c> has no Add).
+/// hole pattern), as the "Pattern" command of the assembly does with "part pattern", and duplicate patterns, as the
+/// "Duplicate" command does. Solid Edge 2026 does not create component mirrors through the API (<c>AssemblyMirrors</c> has
+/// no Add) and rejects every curve tried for patterns along a curve (<c>CreateAlongCurveEx3</c>: E_NOINTERFACE with part
+/// edges, their references and lines of an assembly layout).
 /// </summary>
 public static class AssemblyPatternService
 {
@@ -74,6 +76,76 @@ public static class AssemblyPatternService
             TryDelete(assembly, patternTitle);
             throw new ToolException("pattern_failed", "The pattern added no occurrences and was removed.",
                 "Check that the part pattern has more than one instance and that the occurrences are placed at the reference feature.");
+        }
+
+        return new { pattern = Describe(context, assembly, created), added, occurrences = assembly.Occurrences.Count };
+    }
+
+    /// <summary>
+    /// Copies <paramref name="occurrenceHandles"/>, placed relative to the occurrence of <paramref name="fromHandle"/>, onto each
+    /// occurrence of <paramref name="targetHandles"/> at the same relative position and orientation (e.g. the bolts of one flange
+    /// repeated on the other flanges). Checked by the number of copies and their positions.
+    /// </summary>
+    public static object Duplicate(SeContext context, string[]? occurrenceHandles, string? fromHandle, string[]? targetHandles, string? name)
+    {
+        if (occurrenceHandles is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("'occurrences' must list the occurrences to duplicate (e.g. the bolt placed on the first flange).");
+        }
+
+        if (targetHandles is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("'targets' must list the occurrences to copy them onto (e.g. the other flanges).");
+        }
+
+        Occurrence[] sources = occurrenceHandles.Select(h => Occurrence(context, h, "occurrences")).ToArray();
+        Occurrence from = Occurrence(context, fromHandle, "source");
+        Occurrence[] targets = targetHandles.Select(h => Occurrence(context, h, "targets")).ToArray();
+        int[] ids = [.. sources.Select(o => o.OccurrenceID), from.OccurrenceID, .. targets.Select(o => o.OccurrenceID)];
+        if (ids.Distinct().Count() != ids.Length)
+        {
+            throw ToolException.InvalidArgument("'occurrences', 'source' and 'targets' must be different occurrences, each listed once.",
+                "'source' is the occurrence the duplicated ones sit on; 'targets' are the others.");
+        }
+
+        AssemblyDocument assembly = from.TopLevelDocument;
+        string patternTitle = name ?? NextName(assembly);
+        if (Find(assembly, patternTitle) is not null)
+        {
+            throw ToolException.InvalidArgument($"The assembly already has a pattern named '{patternTitle}'.", "Pass another 'name'.");
+        }
+
+        // Each copy keeps the position of its source relative to 'source', seen from each target.
+        Placement reference = Placement.Of(from);
+        double[][] expected = targets.SelectMany(t =>
+        {
+            Placement target = Placement.Of(t);
+            return sources.Select(s => target.Point(reference.Local(Placement.Of(s).Origin)));
+        }).ToArray();
+
+        int before = assembly.Occurrences.Count;
+        Array sourcesArray = sources.Cast<object>().ToArray();
+        Array targetsArray = targets.Cast<object>().ToArray();
+        AssemblyPattern created;
+        try
+        {
+            created = assembly.AssemblyPatterns.CreateDuplicateEx(patternTitle, sources.Length, ref sourcesArray, from, targets.Length, ref targetsArray);
+        }
+        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        {
+            throw new ToolException("pattern_failed", $"Solid Edge did not create the duplicate pattern ({ex.Message}).",
+                "Check that the occurrences to duplicate are not part of another pattern.");
+        }
+
+        int added = assembly.Occurrences.Count - before;
+        Occurrence[] copies = Copies(created);
+        bool placed = expected.All(e => copies.Any(c => Geo.Length([.. Placement.Of(c).Origin.Zip(e, (a, b) => a - b)]) < 1e-6));
+        if (added != expected.Length || !placed)
+        {
+            TryDelete(assembly, patternTitle);
+            throw new ToolException("pattern_failed",
+                $"The duplicate pattern added {added} occurrences ({expected.Length} expected){(placed ? "" : " away from their expected positions")} and was removed.",
+                "Check the occurrences with se_assembly 'list'.");
         }
 
         return new { pattern = Describe(context, assembly, created), added, occurrences = assembly.Occurrences.Count };

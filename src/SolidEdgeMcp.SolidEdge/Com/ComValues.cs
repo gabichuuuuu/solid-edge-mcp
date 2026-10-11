@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Services;
 using SolidEdgeMcp.SolidEdge.Session;
 
 namespace SolidEdgeMcp.SolidEdge.Com;
@@ -182,6 +183,12 @@ public static partial class ComValues
             object resolved = id is GenericCom.ApplicationTarget or GenericCom.ActiveDocumentTarget
                 ? GenericCom.ResolveTarget(context, id)
                 : context.Handles.Resolve(id, argumentName);
+            if (resolved is OccurrenceElement element)
+            {
+                // A face or edge read from an occurrence goes in as its reference in the assembly, the object the API expects there.
+                resolved = element.Reference(element.Occurrence.TopLevelDocument);
+            }
+
             if (type != typeof(object) && !type.IsInstanceOfType(resolved))
             {
                 throw new ToolException("handle_wrong_type",

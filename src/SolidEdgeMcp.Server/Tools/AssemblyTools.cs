@@ -46,6 +46,7 @@ public enum AssemblyPatternAction
 {
     List,
     Create,
+    Duplicate,
     Delete,
     Dissolve,
 }
@@ -172,16 +173,18 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
 
     [McpServerTool(Name = "se_assembly_pattern", Title = "Component patterns", Destructive = true, OpenWorld = false)]
     [Description("""
-        Component patterns that follow a pattern of a part, as the assembly Pattern command does: place the occurrences on the first instance (e.g. a pin in the first hole), then repeat them on every instance of the part pattern.
+        Component patterns that follow a pattern of a part, as the assembly Pattern command does: place the occurrences on the first instance (e.g. a pin in the first hole), then repeat them on every instance of the part pattern. Also duplicate patterns, as the Duplicate command does.
         list | create (occurrences = the ones to repeat; source = the occurrence whose part has the pattern; pattern = its name, optional if the part has one; reference = the feature the occurrences sit on, default the first feature the pattern repeats; name optional) |
+        duplicate (occurrences = the ones to copy, placed on source; targets = the occurrences to copy them onto, at the same relative position and orientation, e.g. the bolts of one flange onto the other flanges; name optional) |
         delete (name: removes the pattern and its copies) | dissolve (name: the copies become ordinary occurrences).
-        The pattern follows the part: editing the part pattern updates the copies. Component mirrors cannot be created through the API.
+        The pattern follows the part: editing the part pattern updates the copies. Component mirrors and patterns along a curve cannot be created through the API.
         Example: {"action":"create","occurrences":["occurrence:5"],"source":"occurrence:3","pattern":"Pattern_1"}.
         """)]
     public Task<CallToolResult> ComponentPattern(
         AssemblyPatternAction action,
-        [Description("create: occurrence handles to repeat.")] string[]? occurrences = null,
-        [Description("create: occurrence whose part has the pattern to follow.")] string? source = null,
+        [Description("create, duplicate: occurrence handles to repeat.")] string[]? occurrences = null,
+        [Description("create: occurrence whose part has the pattern to follow; duplicate: occurrence the repeated ones are placed on.")] string? source = null,
+        [Description("duplicate: occurrences to copy them onto (same relative position as on source).")] string[]? targets = null,
         [Description("create: name of the part pattern (se_feature_tree of the part, e.g. 'Pattern_1').")] string? pattern = null,
         [Description("create: name of the part feature the occurrences sit on (default: the first feature the pattern repeats).")] string? reference = null,
         [Description("create: name of the new pattern (default 'Pattern N'); delete/dissolve: the pattern name.")] string? name = null,
@@ -194,6 +197,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         {
             AssemblyPatternAction.List => runner.RunAsync(tool, act, c => AssemblyPatternService.List(c, document), cancellationToken),
             AssemblyPatternAction.Create => runner.RunAsync(tool, act, c => AssemblyPatternService.Create(c, occurrences, source, pattern, reference, name), cancellationToken),
+            AssemblyPatternAction.Duplicate => runner.RunAsync(tool, act, c => AssemblyPatternService.Duplicate(c, occurrences, source, targets, name), cancellationToken),
             AssemblyPatternAction.Delete => runner.RunAsync(tool, act, c => AssemblyPatternService.Delete(c, document, name), cancellationToken),
             AssemblyPatternAction.Dissolve => runner.RunAsync(tool, act, c => AssemblyPatternService.Dissolve(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
