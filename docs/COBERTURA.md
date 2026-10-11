@@ -108,7 +108,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Delete faces (the solid heals), delete holes up to a diameter, delete rounds; offset faces along their normal (ordered) | `se_part_feature delete_faces`, `delete_holes`, `delete_rounds`, `offset_faces` | ✔ |
 | Move and rotate faces, replace faces | COM (`FaceMoves`, `FaceRotates`, `ReplaceFaces`; in ordered, `FaceMoves.Add` along a face normal leaves the feature failed) | · |
 | Surfaces by extrusion and revolve (open or closed sketch, end caps) and offset from a face; list and delete | `se_surface` | ✔ |
-| Surfaces by sweep, loft, boundaries; stitched surfaces | COM (`Constructions.SweptSurfaces`, `LoftedSurfaces`, `SurfaceByBoundaries`, `StitchSurfaces`…) | · |
+| Lofted surfaces (sections in order, end caps), swept surfaces (along a sketch or a 3D curve), stitched surfaces (area checked), surface filling a closed chain of edges | `se_surface loft`, `sweep`, `stitch`, `bounded` | ✔ |
+| Loft or sweep surfaces with guide curves or tangency, ruled, mid, parting, B-spline and mesh surfaces | COM (`LoftedSurfaces.Add2`, `RuledSurfaces`, `MidSurfaces`, `PartingSurfaces`, `BSplineSurfaces`…) | · |
 | Curves through 3D points (open or closed), intersection of faces, surfaces and the body, sketches projected onto faces, crossing of two sketches, composite of edges; list and delete | `se_curve` | ✔ |
 | Helical curves, curves from a table, contour curves, wrapped sketches | COM (`Constructions.HelicalCurves`, `CurvesByTables`, `ContourCurves`; `ProjectCurves` with `igProjectOptionWrap`) | · |
 

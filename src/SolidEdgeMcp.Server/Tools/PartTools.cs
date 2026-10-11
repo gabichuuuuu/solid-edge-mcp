@@ -102,6 +102,10 @@ public enum SurfaceAction
     Extrude,
     Revolve,
     Offset,
+    Loft,
+    Sweep,
+    Stitch,
+    Bounded,
     Delete,
 }
 
@@ -330,7 +334,11 @@ public sealed class PartTools(ToolRunner runner)
         Construction surfaces of a part (they do not change the solid): list (name, type, status, faces, area mm², bounding box) |
         extrude ('sketch' closed with se_sketch 'close', open: true for an open chain; 'depth' mm; direction normal | reverse | symmetric; endCaps closes a closed profile) |
         revolve ('sketch', 'axis' from se_sketch 'axis' before closing; 'angle' degrees, default 360; direction; endCaps) |
-        offset ('faces' = one face handle; 'distance' mm along its normal: positive out of the material, negative into it) | delete ('name').
+        offset ('faces' = one face handle; 'distance' mm along its normal: positive out of the material, negative into it) |
+        loft ('sketches' = two or more sections in order, open or closed; optional 'origins' [x1,y1,...] = the point of each section that is joined; endCaps) |
+        sweep ('sketches' = sections, 'path' = a sketch (se_sketch 'close', open: true for an open chain) or a curve from se_curve; endCaps) |
+        stitch ('surfaces' = two or more surface handles that meet along edges: one surface, its area checked) |
+        bounded ('edges' = a closed chain of edge handles of the body, a surface or a curve: the surface that fills it) | delete ('name').
         Each surface is checked by its status and its faces, and deleted if Solid Edge does not make it.
         Example: {"action":"extrude","sketch":"sketch:5","depth":20}; {"action":"offset","faces":["face:12"],"distance":5}.
         """)]
@@ -341,9 +349,15 @@ public sealed class PartTools(ToolRunner runner)
         [Description("revolve: axis handle from se_sketch 'axis'.")] string? axis = null,
         [Description("revolve: angle in degrees (default 360).")] double angle = 360,
         FeatureDirection direction = FeatureDirection.Normal,
-        [Description("extrude, revolve: close the ends of a closed profile.")] bool endCaps = false,
+        [Description("extrude, revolve, loft, sweep: close the ends of closed profiles.")] bool endCaps = false,
         [Description("offset: one face handle.")] string[]? faces = null,
         [Description("offset: distance in mm along the face normal (negative = into the material).")] double? distance = null,
+        [Description("loft, sweep: section sketch handles, in order.")] string[]? sketches = null,
+        [Description("sweep: path = sketch handle or curve handle (se_curve).")] string? path = null,
+        [Description("loft, sweep: point [x, y] (sketch mm) of each section that is joined, [x1,y1,x2,y2,...]; default: the start of each section's first element.")] double[]? origins = null,
+        [Description("stitch: surface handles (action 'list').")] string[]? surfaces = null,
+        [Description("stitch: gap tolerance in mm (default: Solid Edge's).")] double? tolerance = null,
+        [Description("bounded: edge handles of a closed chain (se_geometry edges).")] string[]? edges = null,
         [Description("delete: surface name (action 'list').")] string? name = null,
         [Description("Document handle; default: the document of the sketch or face, or the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
@@ -356,6 +370,10 @@ public sealed class PartTools(ToolRunner runner)
             SurfaceAction.Extrude => runner.RunAsync(tool, act, c => FeatureService.ExtrudeSurface(c, document, sketch, depth, Snake(direction), endCaps), cancellationToken),
             SurfaceAction.Revolve => runner.RunAsync(tool, act, c => FeatureService.RevolveSurface(c, document, sketch, axis, angle, Snake(direction), endCaps), cancellationToken),
             SurfaceAction.Offset => runner.RunAsync(tool, act, c => FeatureService.OffsetSurface(c, document, faces, distance), cancellationToken),
+            SurfaceAction.Loft => runner.RunAsync(tool, act, c => FeatureService.LoftSurface(c, document, sketches, origins, endCaps), cancellationToken),
+            SurfaceAction.Sweep => runner.RunAsync(tool, act, c => FeatureService.SweepSurface(c, document, sketches, path, origins, endCaps), cancellationToken),
+            SurfaceAction.Stitch => runner.RunAsync(tool, act, c => FeatureService.StitchSurface(c, document, surfaces, tolerance), cancellationToken),
+            SurfaceAction.Bounded => runner.RunAsync(tool, act, c => FeatureService.BoundedSurface(c, document, edges), cancellationToken),
             SurfaceAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteSurface(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

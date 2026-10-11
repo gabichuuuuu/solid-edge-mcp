@@ -117,7 +117,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_loft_sweep` | Loft, sweep (along a sketch or a 3D curve) and helix, as a boss or a cut. |
 | | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, and offset faces; slots along an open path, web networks and lips in shelled parts, scaling of the body, and copies of saved parts (scaled or mirrored). |
 | | `se_primitive` | Box (optionally turned about the plane normal), cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
-| | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps) and offset from a face; list and delete. |
+| | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps), offset from a face, lofted through sections, swept along a sketch or a 3D curve, stitched, and filling a closed chain of edges; list and delete. |
 | | `se_curve` | Construction curves: through 3D points, intersections of faces, surfaces and the body, sketches projected onto faces, crossings of two sketches and chains of edges; list and delete. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature. |
 | **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), tab, contour flange, flange, hem, corner break, flat pattern with cut size, and changes of the angle and radius of existing bends. |
@@ -289,8 +289,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 118/118.
-- Acceptance suite against real Solid Edge 2026: **1694 calls and 729 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 123/123.
+- Acceptance suite against real Solid Edge 2026: **1746 calls and 738 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 53 tools have correct calls, and `A10` runs every value of the action,
@@ -316,7 +316,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A14` | Component patterns that follow a part pattern; display configurations |
 | `A15` | Primitives: box (also turned), cylinder and sphere added and cut, on base planes and faces |
 | `A16` | Layers of a part (sketch geometry), a drawing (per sheet: a view and annotations) and an assembly |
-| `A17` | Construction surfaces: extruded, revolved and offset |
+| `A17` | Construction surfaces: extruded, revolved, offset, lofted, swept, stitched and bounded |
 | `A18` | Construction curves and sweeps or cuts along them |
 | `A19` | Family of parts: members, apply, member file |
 

@@ -63,3 +63,69 @@ se_sketch {"action":"close","sketch":"{{k4.sketch}}"}
 ! [invalid_argument] se_surface {"action":"revolve","sketch":"{{k3.sketch}}","angle":180}
 ! [invalid_argument] se_surface {"action":"revolve","sketch":"{{k3.sketch}}","axis":"{{x3.axis}}","angle":400}
 se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# Lofted, swept, stitched and bounded surfaces (in new parts, without a solid):
+#   square 20x20 at z=0 and z=30 lofted: 4 faces 20*30 = 2400; with end caps + 2*400 = 3200; circles r10: 2*pi*10*30 = 1884.956
+#   circle r5 swept 50 along z (a sketch line, or a straight curve through two points): 2*pi*5*50 = 1570.796; with caps + 2*pi*25
+#   two extruded lines (50 and 30 long, depth 20) meeting at a corner stitched: one surface, 1000 + 600 = 1600 in 2 faces
+#   the four edges of the top face of a box 100x60x20 filled: 6000 at z=20
+@d = se_documents {"action":"new","kind":"part"}
+?~ d.kind part
+@a = se_sketch {"action":"create","plane":"1","document":"{{d.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{a.sketch}}","points":[-10,-10,10,10]}
+se_sketch {"action":"close","sketch":"{{a.sketch}}"}
+@r = se_ref_plane {"action":"offset","plane":"1","distance":30,"document":"{{d.handle}}"}
+@b = se_sketch {"action":"create","plane":"{{r.handle}}","document":"{{d.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{b.sketch}}","points":[-10,-10,10,10]}
+se_sketch {"action":"close","sketch":"{{b.sketch}}"}
+@lo = se_surface {"action":"loft","sketches":["{{a.sketch}}","{{b.sketch}}"],"document":"{{d.handle}}"}
+?= lo.surface.area 2400 0.05
+@loc = se_surface {"action":"loft","sketches":["{{a.sketch}}","{{b.sketch}}"],"endCaps":true,"document":"{{d.handle}}"}
+?= loc.surface.area 3200 0.05
+@c1 = se_sketch {"action":"create","plane":"1","document":"{{d.handle}}"}
+se_sketch {"action":"circle","sketch":"{{c1.sketch}}","center":[50,0],"radius":10}
+se_sketch {"action":"close","sketch":"{{c1.sketch}}"}
+@c2 = se_sketch {"action":"create","plane":"{{r.handle}}","document":"{{d.handle}}"}
+se_sketch {"action":"circle","sketch":"{{c2.sketch}}","center":[50,0],"radius":10}
+se_sketch {"action":"close","sketch":"{{c2.sketch}}"}
+@lc = se_surface {"action":"loft","sketches":["{{c1.sketch}}","{{c2.sketch}}"],"document":"{{d.handle}}"}
+?= lc.surface.area 1884.956 0.05
+@p = se_sketch {"action":"create","plane":"3","document":"{{d.handle}}"}
+se_sketch {"action":"line","sketch":"{{p.sketch}}","points":[100,0,100,50]}
+se_sketch {"action":"close","sketch":"{{p.sketch}}","open":true}
+@s = se_sketch {"action":"create","plane":"1","document":"{{d.handle}}"}
+se_sketch {"action":"circle","sketch":"{{s.sketch}}","center":[100,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{s.sketch}}"}
+@sw = se_surface {"action":"sweep","sketches":["{{s.sketch}}"],"path":"{{p.sketch}}","document":"{{d.handle}}"}
+?= sw.surface.area 1570.796 0.05
+@cv = se_curve {"action":"points","points":[150,0,0,150,0,50],"document":"{{d.handle}}"}
+@s2 = se_sketch {"action":"create","plane":"1","document":"{{d.handle}}"}
+se_sketch {"action":"circle","sketch":"{{s2.sketch}}","center":[150,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{s2.sketch}}"}
+@sw2 = se_surface {"action":"sweep","sketches":["{{s2.sketch}}"],"path":"{{cv.curve.handle}}","endCaps":true,"document":"{{d.handle}}"}
+?= sw2.surface.area 1727.876 0.05
+@e1 = se_sketch {"action":"create","plane":"1","document":"{{d.handle}}"}
+se_sketch {"action":"line","sketch":"{{e1.sketch}}","points":[0,100,50,100]}
+se_sketch {"action":"close","sketch":"{{e1.sketch}}","open":true}
+@x1 = se_surface {"action":"extrude","sketch":"{{e1.sketch}}","depth":20,"document":"{{d.handle}}"}
+@e2 = se_sketch {"action":"create","plane":"1","document":"{{d.handle}}"}
+se_sketch {"action":"line","sketch":"{{e2.sketch}}","points":[50,100,50,130]}
+se_sketch {"action":"close","sketch":"{{e2.sketch}}","open":true}
+@x2 = se_surface {"action":"extrude","sketch":"{{e2.sketch}}","depth":20,"document":"{{d.handle}}"}
+@st = se_surface {"action":"stitch","surfaces":["{{x1.surface.handle}}","{{x2.surface.handle}}"],"document":"{{d.handle}}"}
+?= st.surface.area 1600 0.05
+! [invalid_argument] se_surface {"action":"loft","sketches":["{{a.sketch}}"],"document":"{{d.handle}}"}
+! [invalid_argument] se_surface {"action":"sweep","sketches":["{{s.sketch}}"],"document":"{{d.handle}}"}
+! [invalid_argument] se_surface {"action":"stitch","surfaces":["{{x1.surface.handle}}"],"document":"{{d.handle}}"}
+! [invalid_argument] se_surface {"action":"bounded","document":"{{d.handle}}"}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@d2 = se_documents {"action":"new","kind":"part"}
+?~ d2.kind part
+@k = se_sketch {"action":"create","plane":"1","document":"{{d2.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20,"document":"{{d2.handle}}"}
+@t = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{d2.handle}}"}
+@te = se_geometry {"action":"edges","source":"{{t.items[0].handle}}","document":"{{d2.handle}}"}
+@bd = se_surface {"action":"bounded","edges":["{{te.items[0].handle}}","{{te.items[1].handle}}","{{te.items[2].handle}}","{{te.items[3].handle}}"],"document":"{{d2.handle}}"}
+?= bd.surface.area 6000 0.05
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}

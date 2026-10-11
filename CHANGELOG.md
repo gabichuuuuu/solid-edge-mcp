@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_surface` `loft`, `sweep` (along a sketch or a curve), `stitch` and `bounded` (fills a closed
+  chain of edges).
 - `se_part_family`: family of parts (family variables, members with values and suppressed
   features, apply a member to the master with a check, member files, copy, rename and delete).
 - `se_drawing` blocks: create a block from 2D elements of a sheet, place it scaled and turned,
