@@ -8,6 +8,10 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- No installation detail is assumed where it can be read: view orientations run the interop command of the active
+  environment (looked up by name), an automatic explode is checked by the components it moved instead of a status text
+  in Solid Edge's language, and planes made normal to an edge or tangent to a face and the angle relation's measurement
+  plane use the base planes found by their orientation.
 - Base planes by orientation: `'xy'`, `'yz'` and `'xz'` find the plane through the origin with that normal in any template
   (parts and assemblies); `'1'`-`'3'` keep following the template's order.
 - Each installation is read instead of assumed: `se_ui find` finds a button by the text this Solid Edge shows (any

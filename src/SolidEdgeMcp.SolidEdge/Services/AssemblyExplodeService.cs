@@ -47,16 +47,11 @@ public static class AssemblyExplodeService
                 "Auto explode follows the assembly relations: relate the components first (se_relations).", ex);
         }
 
-        if (!string.Equals(result?.Trim(), "Operation successful", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ToolException("explode_failed", $"Solid Edge did not explode the assembly: {result}",
-                "Auto explode follows the assembly relations: relate the components first (se_relations).");
-        }
-
+        // The status text comes in Solid Edge's language, so the explode is checked by the components it moved.
         object[] components = Components(context, assembly, out int moved);
         return moved > 0
             ? new { document = context.DocumentHandle((SolidEdgeDocument)assembly), moved, spread = spread, by, components, note = Collapse }
-            : throw new ToolException("explode_failed", "Solid Edge did not move any component.",
+            : throw new ToolException("explode_failed", $"Solid Edge did not move any component ({result?.Trim()}).",
                 "Auto explode follows the assembly relations: relate the components first (se_relations), or give a larger 'spread'.");
     }
 

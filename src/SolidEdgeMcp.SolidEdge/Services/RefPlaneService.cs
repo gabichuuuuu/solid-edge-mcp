@@ -141,7 +141,7 @@ public static class RefPlaneService
             throw ToolException.InvalidArgument("The edge is closed (a full circle); pick an open edge.");
         }
 
-        RefPlane orientation = Enumerable.Range(1, 3).Select(i => model.RefPlanes.Item(i))
+        RefPlane orientation = OrientedPlanes.Bases(Late.Items(model.RefPlanes)).OfType<RefPlane>()
             .MinBy(p => Math.Abs(Dot(PlaneData(p).Normal, Unit(chord))))!;
         RefPlane plane;
         double[]? expectedPoint = null;
@@ -236,7 +236,7 @@ public static class RefPlaneService
             $"The point ({string.Join(", ", target.Select(Geo.Mm))}) is not on the face '{faceHandle}'.", "Use an end of an edge that bounds the face.");
 
         object parentPlane = parent is null
-            ? Enumerable.Range(1, 3).Select(i => ResolveParent(context, model, $"{i}")).MinBy(p => Math.Abs(Dot(PlaneData(p).Normal, outward)))!
+            ? new[] { "xy", "yz", "xz" }.Select(o => ResolveParent(context, model, o)).MinBy(p => Math.Abs(Dot(PlaneData(p).Normal, outward)))!
             : ResolveParent(context, model, parent);
         if (Math.Abs(Math.Abs(Dot(PlaneData(parentPlane).Normal, outward)) - 1) < 1e-6)
         {
@@ -563,7 +563,7 @@ public static class RefPlaneService
 
     private static object ResolveParent(SeContext context, ModelDocument model, string value, string argumentName = "plane")
     {
-        if (int.TryParse(value, out _))
+        if (int.TryParse(value, out _) || OrientedPlanes.TryAxis(value, out _))
         {
             return model.ResolvePlane(context, value, argumentName);
         }

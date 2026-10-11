@@ -29,6 +29,27 @@ public static class CommandService
     private static IEnumerable<Type> CommandEnums =>
         InteropCatalog.Enums.Where(e => e.Name.EndsWith(Suffix, StringComparison.Ordinal)).DistinctBy(e => e.Name);
 
+    /// <summary>
+    /// Id of the interop command constant &lt;environment prefix&gt;&lt;name&gt; (e.g. Part + ViewISOView) of an environment, falling
+    /// back to the part environment; null when the interop has no such constant.
+    /// </summary>
+    internal static int? IdOf(string? environment, string name)
+    {
+        foreach (string env in new[] { environment, "Part" }.OfType<string>())
+        {
+            string enumName = EnvironmentEnums.GetValueOrDefault(env, env + Suffix);
+            string prefix = enumName[..^Suffix.Length];
+            Type? constants = CommandEnums.FirstOrDefault(e => string.Equals(e.Name, enumName, StringComparison.OrdinalIgnoreCase));
+            string member = prefix + name;
+            if (constants is not null && Enum.GetNames(constants).Contains(member, StringComparer.Ordinal))
+            {
+                return Convert.ToInt32(Enum.Parse(constants, member), CultureInfo.InvariantCulture);
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Searches commands by text in their name (does not need Solid Edge).</summary>
     public static object Find(string query, string? environment, int offset, int limit)
     {

@@ -477,13 +477,12 @@ public static class RelationService
         if (Geo.Length(axis) < 1e-6)
         {
             throw ToolException.InvalidArgument("The faces are parallel, so the rotation axis is not defined: give the measurement 'plane'.",
-                "'plane' = '1' (XY), '2' (YZ) or '3' (XZ) assembly base plane, or an assembly plane handle, perpendicular to the rotation axis.");
+                "'plane' = 'xy', 'yz' or 'xz' assembly base plane ('1'-'3' in the template's order), or an assembly plane handle, perpendicular to the rotation axis.");
         }
 
         axis = Unit(axis);
-        for (int index = 1; index <= 3; index++)
+        foreach (object basePlane in OrientedPlanes.Bases(Late.Items(assembly.AsmRefPlanes)))
         {
-            object basePlane = Late.Call(assembly.AsmRefPlanes, "Item", index)!;
             (_, double[] normal) = PlaneOf(new Side(basePlane, basePlane, null), "plane");
             if (Math.Abs(Dot(normal, axis)) >= ParallelCosine)
             {

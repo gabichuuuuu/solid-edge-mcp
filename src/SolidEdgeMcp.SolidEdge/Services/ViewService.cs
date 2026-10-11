@@ -11,18 +11,21 @@ public sealed record CapturedImage(byte[] Data, string MimeType, string? SavedTo
 /// <summary>View: fit, orient, display mode and image capture.</summary>
 public static class ViewService
 {
-    /// <summary>Standard view commands; the identifiers match in part, sheet metal and assembly.</summary>
-    private static readonly Dictionary<string, int> Orientations = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    /// Standard view commands by the name of their interop constant (&lt;Environment&gt;View&lt;Name&gt;, e.g. PartViewISOView),
+    /// looked up in the active environment; the ids verified in Solid Edge 2026 are only a fallback.
+    /// </summary>
+    private static readonly Dictionary<string, (string Name, int Id)> Orientations = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["iso"] = 32810,
-        ["front"] = 32811,
-        ["right"] = 32812,
-        ["top"] = 32813,
-        ["left"] = 33109,
-        ["bottom"] = 33110,
-        ["back"] = 45079,
-        ["dimetric"] = 45078,
-        ["trimetric"] = 45077,
+        ["iso"] = ("ISOView", 32810),
+        ["front"] = ("FrontView", 32811),
+        ["right"] = ("RightView", 32812),
+        ["top"] = ("TopView", 32813),
+        ["left"] = ("LeftView", 33109),
+        ["bottom"] = ("BottomView", 33110),
+        ["back"] = ("BackView", 45079),
+        ["dimetric"] = ("DimetricView", 45078),
+        ["trimetric"] = ("TrimetricView", 45077),
     };
 
     public static IReadOnlyCollection<string> OrientationNames => Orientations.Keys;
@@ -48,7 +51,7 @@ public static class ViewService
     public static object Orient(SeContext context, string? handle, string orientation)
     {
         SolidEdgeDocument document = Activate(context, handle);
-        if (!Orientations.TryGetValue(orientation, out int command))
+        if (!Orientations.TryGetValue(orientation, out (string Name, int Id) view))
         {
             throw ToolException.InvalidArgument($"Unknown orientation '{orientation}'.", $"Use one of: {string.Join(", ", Orientations.Keys)}.");
         }
@@ -60,6 +63,7 @@ public static class ViewService
 
         using var shown = new ShownWindow(context.Application, window);
         window.Activate();
+        int command = CommandService.IdOf(Late.TryGetString(context.Application, "ActiveEnvironment"), "View" + view.Name) ?? view.Id;
         context.Application.StartCommand((SolidEdgeCommandConstants)command);
         window.View.Fit();
         return new { orientation, document = document.Name };

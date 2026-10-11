@@ -37,6 +37,28 @@ internal static class OrientedPlanes
             "List the planes and their normals with se_ref_plane action 'list', or pass a plane index or handle.");
     }
 
+    /// <summary>
+    /// The three base planes (xy, yz, xz) found by their orientation; when a template lacks one of them, its first three
+    /// planes in order.
+    /// </summary>
+    public static IReadOnlyList<object> Bases(IEnumerable<object> planes)
+    {
+        object[] all = [.. planes];
+        var found = new List<object>();
+        foreach (int axis in new[] { 2, 0, 1 })
+        {
+            object? plane = all.FirstOrDefault(p => Read(p) is ({ } normal, { } root) && Math.Abs(Math.Abs(normal[axis]) - 1) < 1e-6 && Math.Abs(root[axis]) < 1e-9);
+            if (plane is null)
+            {
+                return [.. all.Take(3)];
+            }
+
+            found.Add(plane);
+        }
+
+        return found;
+    }
+
     private static (double[]? Normal, double[]? Root) Read(object plane)
     {
         Array normal = new double[3];
