@@ -261,12 +261,14 @@ public static partial class DrawingService
 
     /// <summary>
     /// Feature control frame: on a leader from the edge picked by a model point of a view, or free at a sheet position. The
-    /// frame is the characteristic, the tolerance and the datums, or the whole text in Solid Edge codes.
+    /// frame is the characteristic, the tolerance and the datums, or the whole text in Solid Edge codes; up to three more
+    /// rows below it, each with its own characteristic or, in a composite frame, sharing the characteristic of the first.
     /// </summary>
     public static object AddFeatureControlFrame(SeContext context, string? documentHandle, string? sheetRef, string? viewHandle, double[]? points,
-        double[]? position, string? characteristic, string? tolerance, string[]? datums, string? text)
+        double[]? position, string? characteristic, string? tolerance, string[]? datums, string? text, string[]? rows = null, bool composite = false)
     {
         string content = string.IsNullOrEmpty(text) ? FrameText(characteristic, tolerance, datums) : text;
+        string[] extra = RowTexts(rows, composite);
         DraftDocument draft;
         FeatureControlFrame frame;
         (double X, double Y) at;
@@ -284,6 +286,7 @@ public static partial class DrawingService
             return Checked(context, draft, "feature_control_frame", frame, () =>
             {
                 SetFrame(frame, content);
+                SetRows(frame, extra, composite);
                 RequireAround(frame, at, "feature control frame");
             });
         }
@@ -296,6 +299,7 @@ public static partial class DrawingService
         return Checked(context, draft, "feature_control_frame", frame, () =>
         {
             SetFrame(frame, content);
+            SetRows(frame, extra, composite);
             OnLeader(frame, at, "feature control frame");
         });
     }
@@ -318,6 +322,81 @@ public static partial class DrawingService
 
         return string.Join(FrameCell, cells);
     }
+
+    /// <summary>
+    /// Texts of the rows below the first: cells split by '|', the first one a characteristic name (not in a composite frame,
+    /// whose rows share the characteristic of the first row), ⌀ or Ø as the diameter code; a row with %VB is taken as codes.
+    /// </summary>
+    private static string[] RowTexts(string[]? rows, bool composite)
+    {
+        if (rows is null or [])
+        {
+            return composite ? throw ToolException.InvalidArgument("'composite' needs 'rows': the lower rows, e.g. [\"⌀0.05|A\"].") : [];
+        }
+
+        if (rows.Length > 3)
+        {
+            throw ToolException.InvalidArgument("A feature control frame has at most 4 rows: give up to 3 in 'rows'.");
+        }
+
+        return rows.Select(row =>
+        {
+            if (row.Contains(FrameCell, StringComparison.Ordinal))
+            {
+                return row;
+            }
+
+            string[] cells = row.Split('|', StringSplitOptions.TrimEntries);
+            if (cells.Any(string.IsNullOrEmpty))
+            {
+                throw ToolException.InvalidArgument($"Row '{row}' has an empty cell.", "Write the cells split by '|', e.g. 'perpendicularity|0.02|A'.");
+            }
+
+            bool named = Characteristics.TryGetValue(cells[0], out string? code);
+            if (named == composite)
+            {
+                throw ToolException.InvalidArgument(composite
+                    ? $"Row '{row}': the rows of a composite frame share the characteristic of the first row; start with the tolerance, e.g. '⌀0.05|A'."
+                    : $"Row '{row}' must start with its characteristic, e.g. 'perpendicularity|0.02|A' (or set composite for rows that share the first one).",
+                    $"Characteristics: {string.Join(", ", Characteristics.Keys)}.");
+            }
+
+            IEnumerable<string> values = cells.Skip(named ? 1 : 0).Select(c => c.Replace("⌀", "%DI", StringComparison.Ordinal).Replace("Ø", "%DI", StringComparison.Ordinal));
+            return string.Join(FrameCell, named ? values.Prepend(code!) : values);
+        }).ToArray();
+    }
+
+    /// <summary>Lower rows of the frame; checked by reading them back and by the frame growing one row height each.</summary>
+    private static void SetRows(FeatureControlFrame frame, string[] rows, bool composite)
+    {
+        if (rows.Length == 0)
+        {
+            return;
+        }
+
+        double[] before = RangeOf(frame);
+        frame.CompositeFrame = composite;
+        frame.SecondaryFrame = rows[0];
+        if (rows.Length > 1)
+        {
+            frame.TertiaryFrame = rows[1];
+        }
+
+        if (rows.Length > 2)
+        {
+            frame.QuaternaryFrame = rows[2];
+        }
+
+        double[] after = RangeOf(frame);
+        if (!RowsOf(frame).SequenceEqual(rows) || frame.CompositeFrame != composite
+            || after[3] - after[1] < (rows.Length + 1) * (before[3] - before[1]) * 0.9)
+        {
+            throw new ToolException("annotation_failed", "Solid Edge did not keep the rows of the feature control frame.", "Check the codes in 'rows'.");
+        }
+    }
+
+    private static IEnumerable<string> RowsOf(FeatureControlFrame frame) =>
+        new[] { frame.SecondaryFrame, frame.TertiaryFrame, frame.QuaternaryFrame }.Where(r => !string.IsNullOrEmpty(r));
 
     private static void SetFrame(FeatureControlFrame frame, string content)
     {
@@ -642,6 +721,12 @@ public static partial class DrawingService
                 string text = frame.PrimaryFrame;
                 info["text"] = text;
                 info["characteristic"] = Characteristics.FirstOrDefault(c => text.StartsWith(c.Value + FrameCell, StringComparison.Ordinal) || text == c.Value).Key;
+                string[] rows = [.. RowsOf(frame)];
+                if (rows.Length > 0)
+                {
+                    info["rows"] = rows;
+                    info["composite"] = frame.CompositeFrame;
+                }
                 info["attached"] = frame.IsTerminatorAttachedToEntity;
                 info["terminator"] = TerminatorOf(frame);
                 break;

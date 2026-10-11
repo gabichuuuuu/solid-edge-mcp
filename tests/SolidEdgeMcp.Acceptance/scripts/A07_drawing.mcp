@@ -108,8 +108,23 @@ se_annotation {"action":"delete","annotation":"{{tx.annotation.handle}}"}
 ?= fp.annotation.at[1] 150 0.5
 ! [invalid_argument] se_annotation {"action":"feature_control_frame","characteristic":"flatness","tolerance":"0.05"}
 ! [invalid_argument] se_annotation {"action":"datum","view":"{{bv.view.handle}}","points":[50,0,20]}
+# Frames of several rows: composite position ⌀0.2 | A over ⌀0.05 | A (one characteristic cell for both) free at (300,150),
+#   two rows of 7 mm; flatness 0.05 over perpendicularity 0.02 | A and parallelism 0.03 | A on a leader from the right edge
+#   (100,20) -> (210,280). A composite row with a characteristic, a plain row without one and 4 more rows fail; 4 frames
+@fk = se_annotation {"action":"feature_control_frame","characteristic":"position","tolerance":"⌀0.2","datums":["A"],"rows":["⌀0.05|A"],"composite":true,"position":[300,150]}
+?= fk.annotation.composite true
+?~ fk.annotation.rows[0] %DI0.05%VBA
+?= fk.annotation.size[1] 14 0.1
+@fm = se_annotation {"action":"feature_control_frame","view":"{{bv.view.handle}}","points":[100,20,20],"characteristic":"flatness","tolerance":"0.05","rows":["perpendicularity|0.02|A","parallelism|0.03|A"],"position":[260,230]}
+?= fm.annotation.composite false
+?~ fm.annotation.rows[0] %PP%VB0.02%VBA
+?~ fm.annotation.rows[1] %PR%VB0.03%VBA
+?= fm.annotation.terminator[1] 280 0.01
+! [invalid_argument] se_annotation {"action":"feature_control_frame","characteristic":"position","tolerance":"⌀0.2","rows":["position|⌀0.05|A"],"composite":true,"position":[300,100]}
+! [invalid_argument] se_annotation {"action":"feature_control_frame","characteristic":"flatness","tolerance":"0.05","rows":["0.02|A"],"position":[300,100]}
+! [invalid_argument] se_annotation {"action":"feature_control_frame","characteristic":"position","tolerance":"0.2","rows":["0.1","0.1","0.1","0.1"],"composite":true,"position":[300,100]}
 @lf = se_annotation {"action":"list","kind":"feature_control_frame"}
-?= lf.count 2
+?= lf.count 4
 # Weld symbols on the top view: fillet a5 on the arrow side of the top edge (50,60) -> terminator (160,320), the reference
 #   line from (200,350) to the right (the symbol box stays between its leader and the line, not at the sheet origin);
 #   V groove on both sides of the left edge (0,50) -> (110,310), all around and field weld, 15 mm up-right by default;

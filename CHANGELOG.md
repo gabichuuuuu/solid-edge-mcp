@@ -10,6 +10,8 @@ Relevant changes to this project are recorded here. The format follows
 
 - `se_annotation weld`: weld symbols on a leader from an edge of a view (weld type, arrow side,
   other side or both, size, all around and field weld).
+- `se_annotation feature_control_frame`: up to three more rows, each with its characteristic or
+  sharing the first one in a composite frame.
 - `se_sketch chamfer`: corner chamfer between two lines with one or two setbacks.
 - `se_sheetmetal bend_angle` and `bend_radius`: change the angle or the inside radius of existing bends.
 - `se_part_feature`: slots along an open path (rounded or square ends, through or to a depth),

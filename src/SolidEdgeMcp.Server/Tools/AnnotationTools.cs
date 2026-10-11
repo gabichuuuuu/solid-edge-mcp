@@ -98,6 +98,7 @@ public sealed class AnnotationTools(ToolRunner runner)
         surface_finish (view + points = a point on the edge; finish, text = roughness e.g. 'Ra 3.2'; position = symbol on a leader, default on the edge) |
         datum (view + points + text = the letter; position = frame on a leader, default on the edge) |
         feature_control_frame (characteristic + tolerance (⌀ or Ø for a diameter zone) + datums, or text = the whole frame in Solid Edge codes;
+        rows = up to 3 more rows 'characteristic|tolerance|datum…', or with composite 'tolerance|datum…' sharing the first characteristic;
         view + points = on a leader from that edge, position = the frame (default 15 mm up-right); or only position = a free frame) |
         weld (view + points = a point on the welded edge; weld type, weldSide (arrow / other / both), text = size e.g. 'a5', allAround, field; position = start of the reference line, default 15 mm up-right) | delete (annotation handle).
         Annotations picked from a view stay attached to it. Each one is checked (text kept, leader attached, drawn where expected) and removed if the check fails.
@@ -113,6 +114,8 @@ public sealed class AnnotationTools(ToolRunner runner)
         [Description("feature_control_frame: geometric characteristic.")] GeometricCharacteristic? characteristic = null,
         [Description("feature_control_frame: tolerance value, e.g. '0.05' or '⌀0.1'; %MC / %LC add the maximum / least material symbol.")] string? tolerance = null,
         [Description("feature_control_frame: datum labels in order, e.g. [\"A\",\"B\"].")] string[]? datums = null,
+        [Description("feature_control_frame: up to 3 rows below the first, cells split by '|': 'perpendicularity|0.02|A', or with composite '⌀0.05|A'.")] string[]? rows = null,
+        [Description("feature_control_frame: composite frame, the rows share the characteristic cell of the first row.")] bool composite = false,
         [Description("weld: weld type (default fillet).")] WeldType weld = WeldType.Fillet,
         [Description("weld: side of the reference line: arrow (below), other (above) or both.")] WeldSide weldSide = WeldSide.Arrow,
         [Description("weld: weld all around (circle at the bend of the leader).")] bool allAround = false,
@@ -139,7 +142,7 @@ public sealed class AnnotationTools(ToolRunner runner)
             AnnotationAction.SurfaceFinish => runner.RunAsync(tool, act, c => DrawingService.AddSurfaceFinish(c, view, points, position, text, Snake(finish)), cancellationToken),
             AnnotationAction.Datum => runner.RunAsync(tool, act, c => DrawingService.AddDatum(c, view, points, position, text), cancellationToken),
             AnnotationAction.FeatureControlFrame => runner.RunAsync(tool, act, c => DrawingService.AddFeatureControlFrame(c, document, sheet, view, points, position,
-                characteristic is { } g ? Snake(g) : null, tolerance, datums, text), cancellationToken),
+                characteristic is { } g ? Snake(g) : null, tolerance, datums, text, rows, composite), cancellationToken),
             AnnotationAction.Weld => runner.RunAsync(tool, act, c => DrawingService.AddWeld(c, view, points, position, Snake(weld), Snake(weldSide), text, allAround, field), cancellationToken),
             AnnotationAction.Delete => runner.RunAsync(tool, act, c => DrawingService.DeleteAnnotation(c, annotation), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),

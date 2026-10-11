@@ -159,7 +159,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Text, balloons, callouts, center marks, centerlines and leaders attached to the views; list and delete | `se_annotation` | ✔ |
 | Surface finish symbols, datum frames and feature control frames (14 characteristics, diameter zone, material condition, datums), attached to the views or free | `se_annotation` | ✔ |
 | Weld symbols (14 weld types on the arrow side, the other side or both, size, all around, field weld) on a leader from an edge | `se_annotation weld` | ✔ |
-| Composite and multi-row feature control frames | COM (`FeatureControlFrame.SecondaryFrame`…) | · |
+| Composite and multi-row feature control frames (up to 4 rows) | `se_annotation feature_control_frame rows`, `composite` | ✔ |
 | Hole tables | — | ✘ `HoleTables2.Add` creates an empty table, but `AttachDrawingView` gives E_UNEXPECTED and, after an origin is added (`AddNewXYoriginEx` with the `Reference` of a view line), `AddHole` gives RPC_E_SERVERFAULT; use the Hole Table command in Solid Edge |
 | Bend tables, blocks | COM (`DraftBendTables`, `Blocks`) | · |
 | 2D geometry on the sheet (lines, rectangles, circles, arcs, ellipses, splines, points, fillets) with relations and driving dimensions | `se_sketch`, `se_sketch_constraint` with a sheet or drawing handle | ✔ |
