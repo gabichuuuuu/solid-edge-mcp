@@ -76,6 +76,7 @@ public static class ExportService
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        bool wasDirty = document.Dirty;
         try
         {
             if (flatPattern)
@@ -105,9 +106,13 @@ public static class ExportService
 
         // Drawing templates fill the title block with file data (e.g. the date): if unsaved they come out
         // as "Error: No reference" (verified with the A3 template of Solid Edge 2026).
+        // Verified: exporting a saved drawing to PDF marks it modified although nothing in it changed, and Solid Edge
+        // refuses to clear the flag (setting Dirty gives E_FAIL).
         string? note = draft && DocumentService.PathOf(document) is null
             ? "The drawing has never been saved: title-block fields taken from its file (such as the date) show 'Error: No reference'. Save it (se_documents save_as) and export again if the title block matters."
-            : null;
+            : !wasDirty && document.Dirty
+                ? "Solid Edge marks the document as modified after this export although its content did not change: close it with saveChanges=false, or save it."
+                : null;
         return new { document = document.Name, path = target, format, bytes = file.Length, note };
     }
 }

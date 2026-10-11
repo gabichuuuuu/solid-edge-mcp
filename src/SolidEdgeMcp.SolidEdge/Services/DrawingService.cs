@@ -223,7 +223,25 @@ public static partial class DrawingService
             PlaceAway(sheet, view, from, fold.X, fold.Y);
         }
 
-        return Result(context, draft, view, null);
+        return Result(context, draft, view, null, fold.X == 0 || fold.Y == 0 ? ProjectionOf(draft) : null);
+    }
+
+    /// <summary>
+    /// Projection angle of the drawing: it decides which side of the model a view placed beside another shows (first angle:
+    /// the view to the right of a front view is the left view; third angle: the right view).
+    /// </summary>
+    private static string? ProjectionOf(DraftDocument draft)
+    {
+        try
+        {
+            return draft.FilePreferences.DVProjectionAngle == DrawingViewProjectionAngleConstants.ProjectionAngleFirst
+                ? "first_angle"
+                : "third_angle";
+        }
+        catch (COMException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Auxiliary view: looks perpendicular to a line of the model seen in the source view (an inclined edge).</summary>
@@ -740,7 +758,7 @@ public static partial class DrawingService
         };
     }
 
-    private static object Result(SeContext context, DraftDocument draft, DrawingView view, string? note)
+    private static object Result(SeContext context, DraftDocument draft, DrawingView view, string? note, string? projection = null)
     {
         if (note is null && view.Parent is Sheet sheet)
         {
@@ -752,7 +770,7 @@ public static partial class DrawingService
             }
         }
 
-        return new { view = DescribeView(context, draft, view), note };
+        return new { view = DescribeView(context, draft, view), projection, note };
     }
 
     private static object DescribeView(SeContext context, DraftDocument draft, DrawingView view)

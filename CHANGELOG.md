@@ -92,10 +92,19 @@ Relevant changes to this project are recorded here. The format follows
 
 - Code comments, scripts and documentation are in English, including the project notes
   (`AGENTS.md`, `STATUS.md`, `PLAN.md`). `ESTADO.md` and `docs/COBERTURA.md` were renamed to
-  `STATUS.md` and `docs/COVERAGE.md`.
+  `STATUS.md` and `docs/COVERAGE.md`. Test data are in English too, and the project notes no longer
+  mention the local development environment.
 
 ### Fixed
 
+- `se_assembly_feature`: the parts of a feature keep the occurrence handles the caller already has
+  (they used to get new ones).
+- `se_drawing projected_view` returns the drawing's `projection` angle and its description explains
+  which side of the model a view placed beside another shows (first or third angle).
+- `se_documents save_as` saves once more when Solid Edge leaves the document modified right after
+  saving it.
+- `se_export` notes when Solid Edge marks the document modified after exporting it (a saved drawing
+  exported to PDF); `move_view` explains how projected views follow.
 - `se_sketch`: the end of a spline was reported as its second point; it is now the last one, with
   the number of nodes.
 

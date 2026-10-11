@@ -287,6 +287,8 @@ public static class AssemblyFeatureService
                 throw new InvalidOperationException($"Unexpected assembly feature {feature.GetType().Name}.");
         }
 
+        Dictionary<string, Occurrence> listed = AssemblyService.Items<Occurrence>(assembly.Occurrences)
+            .GroupBy(o => o.Name, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         return new
         {
             name = NameOf(feature),
@@ -312,7 +314,9 @@ public static class AssemblyFeatureService
                 SolidEdgeGeometry.Face[] faces = FacesOn(feature, o);
                 return new
                 {
-                    occurrence = context.Register(o, "occurrence", (SolidEdgeDocument)assembly),
+                    // The scope parts are other COM objects for the same occurrences (verified: each one got a new handle);
+                    // the occurrence as the assembly lists it keeps the handle the caller already has.
+                    occurrence = context.Register(listed.GetValueOrDefault(o.Name) ?? o, "occurrence", (SolidEdgeDocument)assembly),
                     name = o.Name,
                     faces = faces.Length,
                     area = Geo.Mm2(faces.Sum(f => f.Area)),

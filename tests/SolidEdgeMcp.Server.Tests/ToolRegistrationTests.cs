@@ -166,7 +166,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_annotation", """{"action":"center_mark","view":"drawing_view:2","points":[50,30,20]}""")]
     [InlineData("se_annotation", """{"action":"callout","view":"drawing_view:2","points":[50,35,20],"text":"HOLE D10 THRU","position":[240,320]}""")]
     [InlineData("se_annotation", """{"action":"list","kind":"center_mark"}""")]
-    [InlineData("se_view", """{"action":"save_view","name":"Detalle","description":"Vista del agujero"}""")]
+    [InlineData("se_view", """{"action":"save_view","name":"Detail","description":"Hole view"}""")]
     [InlineData("se_view", """{"action":"apply_view","name":"iso"}""")]
     [InlineData("se_primitive", """{"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}""")]
     [InlineData("se_primitive", """{"shape":"box","center":[0,0,0],"size":[40,20],"depth":10,"angle":30}""")]

@@ -291,7 +291,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 129/129.
-- Acceptance suite against real Solid Edge 2026: **1816 calls and 782 checks**, with values
+- Acceptance suite against real Solid Edge 2026: **1816 calls and 789 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 53 tools have correct calls, and `A10` runs every value of the action,

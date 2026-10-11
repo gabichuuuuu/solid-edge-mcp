@@ -14,7 +14,8 @@ se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
 se_assembly {"action":"insert","path":"{{work}}\\d_blk.par"}
 @bm = se_bom {}
 ?= bm.totalQuantity 1
-se_documents {"action":"save_as","path":"{{work}}\\d_asm.asm","overwrite":true}
+@svasm = se_documents {"action":"save_as","path":"{{work}}\\d_asm.asm","overwrite":true}
+?= svasm.dirty false
 se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
 # New drawing (A2 sheet). Top view 1:1 at (160,290): size = model + margin 12.7 (t51.out) -> 100 + 12.7 = 112.7. Projected views: below (same x = 160), right and diagonal (isometric)
 @d = se_documents {"action":"new","kind":"draft"}
@@ -23,6 +24,7 @@ se_drawing {"action":"sheets"}
 ?= bv.view.size[0] 112.7
 @pd = se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"down"}
 ?= pd.view.center[0] 160
+?= pd.projection first_angle
 se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"right"}
 @pi = se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"up_right"}
 # Dimensions on the top view (z=20): edge y=60 -> 100; edge x=100 -> 60; horizontal (0,30)-(50,30) -> 50; vertical (50,0)-(50,30) -> 30; diameter -> 10;
@@ -155,7 +157,7 @@ se_annotation {"action":"delete","annotation":"{{tx.annotation.handle}}"}
 ?= lw.count 3
 # A3 sheet (420 x 297): top view 1:2 at (100,100) -> 100/2 + 12.7 = 62.7; hole radius 5; move (+20,+10) -> x=120; scale 1; delete.
 #   Assembly parts list: 1 row (d_blk). Rename the sheet and change it to A2 -> 594
-@s2 = se_drawing {"action":"add_sheet","name":"Detalles","paper":"a3"}
+@s2 = se_drawing {"action":"add_sheet","name":"Details","paper":"a3"}
 ?= s2.size[0] 420
 @v3 = se_drawing {"action":"base_view","path":"{{work}}\\d_blk.par","orientation":"top","position":[100,100],"scale":0.5}
 ?= v3.view.size[0] 62.7
@@ -181,9 +183,11 @@ se_drawing {"action":"activate_sheet","sheet":"Sheet1"}
 # Unsaved drawing: the result warns that the title block (file date) will come out with "Error: No reference";
 # once saved, it no longer does. The 'fit' capture frames the whole sheet (with the title block), not just the views.
 ?~ e1.note never been saved
-se_documents {"action":"save_as","path":"{{work}}\\a07.dft","overwrite":true}
+@svdft = se_documents {"action":"save_as","path":"{{work}}\\a07.dft","overwrite":true}
+?= svdft.dirty false
 @e1b = se_export {"path":"{{work}}\\a07.pdf","overwrite":true}
 ?= e1b.document a07.dft
+?~ e1b.note marks the document as modified
 se_view {"action":"capture","width":400,"height":283}
 se_export {"path":"{{work}}\\a07.dxf","overwrite":true}
 se_export {"path":"{{work}}\\a07.dwg","overwrite":true}

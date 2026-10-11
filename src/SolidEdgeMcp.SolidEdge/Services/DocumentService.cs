@@ -140,6 +140,12 @@ public static class DocumentService
         else
         {
             document.SaveAs(target);
+            if (document.Dirty)
+            {
+                // Seen with a draft and an assembly of a model that was open (not reproduced on demand): they came back
+                // modified right after SaveAs and a second save left them clean, as after Save As in the interface.
+                document.Save();
+            }
         }
 
         if (!File.Exists(target))

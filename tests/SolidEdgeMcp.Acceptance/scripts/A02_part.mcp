@@ -56,18 +56,18 @@ se_variables {"action":"set","name":"Thick","value":200}
 se_variables {"action":"limits","name":"Thick"}
 @s25 = se_variables {"action":"set","name":"Thick","value":25}
 ?= s25.variable.value 25
-@cm = se_variables {"action":"comment","name":"Thick","comment":"espesor de la placa"}
-?~ cm.comment espesor de la placa
-@ex = se_variables {"action":"expose","name":"Thick","exposeName":"Espesor"}
-?= ex.exposedAs Espesor
-@rn = se_variables {"action":"rename","name":"Thick","newName":"Espesor2"}
-?= rn.name Espesor2
+@cm = se_variables {"action":"comment","name":"Thick","comment":"plate thickness"}
+?~ cm.comment plate thickness
+@ex = se_variables {"action":"expose","name":"Thick","exposeName":"Thickness"}
+?= ex.exposedAs Thickness
+@rn = se_variables {"action":"rename","name":"Thick","newName":"Thickness2"}
+?= rn.name Thickness2
 ! [not_found] se_variables {"action":"get","name":"Thick"}
 @dims = se_variables {"action":"list","kind":"dimension","filter":"ExtrudedProtrusion*"}
-@rd = se_variables {"action":"rename","name":"{{dims.variables[0].name}}","newName":"Espesor_placa"}
+@rd = se_variables {"action":"rename","name":"{{dims.variables[0].name}}","newName":"Plate_thickness"}
 ?= rd.kind dimension
 ?= rd.value 10
-se_variables {"action":"delete","name":"Espesor2"}
+se_variables {"action":"delete","name":"Thickness2"}
 se_properties {"action":"set","name":"Project","value":"MCP acceptance"}
 @pl = se_properties {"action":"list","set":"Custom"}
 ?~ pl MCP acceptance
@@ -88,26 +88,26 @@ se_view {"action":"render_mode","mode":"seRenderModeSmoothVHL"}
 ! [not_supported] se_view {"action":"render_mode","mode":"seRenderModeSmoothBoundary"}
 se_view {"action":"fit"}
 @cap = se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\plate.png"}
-# Named views: the 6 standard ones; the iso view saved as "Detalle" looks along (-1,1,-1)/sqrt(3) = -0.57735, 0.57735, -0.57735;
-#   top looks along -z; applying "Detalle" again restores the iso direction. A repeated name, an unknown view and deleting a
-#   standard view fail; after deleting "Detalle" there are 6 again
+# Named views: the 6 standard ones; the iso view saved as "Detail" looks along (-1,1,-1)/sqrt(3) = -0.57735, 0.57735, -0.57735;
+#   top looks along -z; applying "Detail" again restores the iso direction. A repeated name, an unknown view and deleting a
+#   standard view fail; after deleting "Detail" there are 6 again
 @nv0 = se_view {"action":"named_views"}
 ?= nv0.count 6
-@sv = se_view {"action":"save_view","name":"Detalle","description":"Iso de la placa"}
+@sv = se_view {"action":"save_view","name":"Detail","description":"Plate iso"}
 ?= sv.saved.direction[0] -0.57735 0.0001
 ?= sv.saved.direction[1] 0.57735 0.0001
 ?= sv.saved.direction[2] -0.57735 0.0001
 ?= sv.saved.standard false
-?~ sv.saved.description Iso de la placa
+?~ sv.saved.description Plate iso
 @at = se_view {"action":"apply_view","name":"top"}
 ?= at.applied.direction[2] -1 0.0001
 ?= at.applied.up[1] 1 0.0001
-@ad = se_view {"action":"apply_view","name":"Detalle"}
+@ad = se_view {"action":"apply_view","name":"Detail"}
 ?= ad.applied.direction[1] 0.57735 0.0001
-! [invalid_argument] se_view {"action":"save_view","name":"Detalle"}
+! [invalid_argument] se_view {"action":"save_view","name":"Detail"}
 ! [not_found] se_view {"action":"apply_view","name":"Nope"}
 ! [not_supported] se_view {"action":"delete_view","name":"iso"}
-se_view {"action":"delete_view","name":"Detalle"}
+se_view {"action":"delete_view","name":"Detail"}
 @nv1 = se_view {"action":"named_views"}
 ?= nv1.count 6
 @sup = se_feature_edit {"feature":"{{h.feature.handle}}","action":"suppress"}

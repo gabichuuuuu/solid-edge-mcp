@@ -92,9 +92,9 @@ public sealed class PathGuardTests : IDisposable
     }
 
     [Theory]
-    [InlineData(@"relativo\a.par")]
-    [InlineData(@"\sin\unidad.par")]
-    [InlineData(@"C:sin\barra.par")]
+    [InlineData(@"relative\a.par")]
+    [InlineData(@"\no\drive.par")]
+    [InlineData(@"C:no\slash.par")]
     [InlineData(@"\\?\C:\x\a.par")]
     [InlineData(@"\\.\C:\x\a.par")]
     public void Rejects_non_absolute_and_device_prefixes(string path)

@@ -68,20 +68,20 @@ se_layer {"action":"create","name":"Views"}
 ! [not_supported] se_layer {"action":"delete","name":"Notes"}
 ! [not_found] se_layer {"action":"assign","name":"Missing","objects":["{{tx.annotation.handle}}"]}
 # the names are shared by all the sheets; the active layer and the visibility are kept per sheet (Notes is hidden only on
-#   Sheet1). Reading Sheet1 while Detalles is active activates it for the call and then restores Detalles
-@s2 = se_drawing {"action":"add_sheet","name":"Detalles","paper":"a3"}
-@d0 = se_layer {"action":"list","sheet":"Detalles"}
+#   Sheet1). Reading Sheet1 while Details is active activates it for the call and then restores Details
+@s2 = se_drawing {"action":"add_sheet","name":"Details","paper":"a3"}
+@d0 = se_layer {"action":"list","sheet":"Details"}
 ?= d0.count 3
-?~ d0.owner Detalles
+?~ d0.owner Details
 ?= d0.active Default
 ?= d0.layers[?name="Notes"].shown true
-@d1 = se_layer {"action":"activate","name":"Notes","sheet":"Detalles"}
+@d1 = se_layer {"action":"activate","name":"Notes","sheet":"Details"}
 ?= d1.active.active true
 @d2 = se_layer {"action":"list","sheet":"Sheet1"}
 ?= d2.active Default
 ?= d2.layers[?name="Notes"].shown false
 @ss = se_drawing {"action":"sheets"}
-?= ss.sheets[?name="Detalles"].active true
+?= ss.sheets[?name="Details"].active true
 @d3 = se_layer {"action":"list"}
 ?= d3.active Notes
 se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}
