@@ -280,7 +280,7 @@ public static class VariableService
         return variables.Query(criterion, NamedByBoth, varType, true);
     }
 
-    private static object Find(SolidEdgeDocument document, string name)
+    internal static object Find(SolidEdgeDocument document, string name)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -316,7 +316,7 @@ public static class VariableService
             "List them with se_variables action 'list' (names are case-sensitive).");
     }
 
-    private static string? NameOf(object item) =>
+    internal static string? NameOf(object item) =>
         Late.TryGetString(item, "DisplayName") is { Length: > 0 } display ? display : Late.TryGetString(item, "Name");
 
     private static object Describe(SeContext context, SolidEdgeDocument document, object item)
@@ -408,7 +408,7 @@ public static class VariableService
     private static string JsonText(object value) => System.Text.Json.JsonSerializer.Serialize(value);
 
     /// <summary>Unit type (<see cref="UnitTypeConstants"/>): of the variable or, for dimensions, according to their type.</summary>
-    private static int UnitsOf(object item)
+    internal static int UnitsOf(object item)
     {
         if (item is Dimension dimension)
         {
@@ -431,7 +431,7 @@ public static class VariableService
         return units is null ? (int)UnitTypeConstants.igUnitScalar : Convert.ToInt32(units, CultureInfo.InvariantCulture);
     }
 
-    private static double FromDatabase(double value, int units) => units switch
+    internal static double FromDatabase(double value, int units) => units switch
     {
         (int)UnitTypeConstants.igUnitDistance => Units.MToMm(value),
         (int)UnitTypeConstants.igUnitAngle => Units.RadToDeg(value),
@@ -440,7 +440,7 @@ public static class VariableService
         _ => value,
     };
 
-    private static double ToDatabase(double value, int units) => units switch
+    internal static double ToDatabase(double value, int units) => units switch
     {
         (int)UnitTypeConstants.igUnitDistance => Units.MmToM(value),
         (int)UnitTypeConstants.igUnitAngle => Units.DegToRad(value),
@@ -449,7 +449,7 @@ public static class VariableService
         _ => value,
     };
 
-    private static string UnitLabel(int units) => units switch
+    internal static string UnitLabel(int units) => units switch
     {
         (int)UnitTypeConstants.igUnitDistance => "mm",
         (int)UnitTypeConstants.igUnitAngle => "deg",

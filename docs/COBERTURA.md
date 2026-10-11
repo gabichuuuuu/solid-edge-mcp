@@ -46,7 +46,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Colours: list, create and delete face styles; apply them (or a #RRGGBB colour with opacity) to the body, faces, features or assembly components; read and remove them | `se_appearance` | ✔ |
 | Remove the style of a feature | — | ✘ `SetStyle` with an empty style keeps it (`not_supported`; apply another one) |
 | Layers of models and drawings: list, create, activate, show or hide, selectable, delete empty ones, move elements (sketch geometry, drawing views, dimensions, annotations); per sheet in drawings | `se_layer` | ✔ |
-| Part families (`FamilyMembers`), configurations (`PartConfigurations`) | COM | · |
+| Family of parts: family variables, members (values, suppressed features, description), apply to the master, member files, copy, rename, delete | `se_part_family` | ✔ |
+| Part configurations (`PartConfigurations`), family options (`FamilyofPartsOption`), suppressed relationships, live rules of a member | COM | · |
 | 3D PMI (`PMI`), live sections | COM | · |
 | Simulation and generative studies | COM / Command | · |
 
@@ -85,7 +86,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Thread on a cylinder | `Threads` | — | ✘ `Threads.Add` returns E_INVALIDARG for every combination tried (faces or edges as ends, `HoleData` from `Add` or `AddEx` with the ISO Metric table); use `se_hole` tapped (cosmetic) or a helix cut with `se_loft_sweep` (physical) |
 | Web network from open lines (to the next face or a finite depth) | `WebNetworks` | `se_part_feature web_network` | ✔ |
 | Lip on a chain of rim edges (flush with the side face) | `Lips` | `se_part_feature lip` | ✔ |
-| Vent | `Vents` | COM | · |
+| Vent | `Vents` | — | ✘ `AddFinite` and `AddThroughAll` return E_FAIL for every combination tried (circle or four-line boundary; elements of the sketch, of an included profile or the profiles themselves; ribs and spars crossing or ending on the boundary; both sides; all optional arguments; ordered and synchronous) |
 | Mounting boss | `MountingBossCollection` | — | ✘ `Add` leaves the feature failed with a sketch point on a plane above or at the open face of a shelled part, on either side, with or without the optional arguments; the sketch with only a point cannot be included (`CreateIncludedProfile` E_FAIL) |
 | Thicken faces (the side that adds material by default) | `Thickens` | `se_part_feature thicken` | ✔ |
 | Split, boolean operations between bodies | `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |

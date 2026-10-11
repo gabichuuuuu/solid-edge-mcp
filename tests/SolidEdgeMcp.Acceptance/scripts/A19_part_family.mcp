@@ -1,0 +1,71 @@
+# A19: family of parts (se_part_family). Master: box 100x60x20 with a boss r10 x 10 on top = 120000 + 1000*pi = 123141.593.
+#   Family variable: the depth of the box. Thin (depth 10) = 60000 + 3141.593 = 63141.593; NoBoss (boss suppressed, the
+#   master's current depth 20 when it is created) = 120000; NoBoss edited to depth 15 with the boss = 90000 + 3141.593.
+#   The member file of Thin, opened on its own, has the volume of Thin.
+@d = se_documents {"action":"new","kind":"part"}
+?~ d.kind part
+@k = se_sketch {"action":"create","plane":"1","document":"{{d.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":20,"document":"{{d.handle}}"}
+@t = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{d.handle}}"}
+@k2 = se_sketch {"action":"create","plane":"{{t.items[0].handle}}","document":"{{d.handle}}"}
+se_sketch {"action":"circle","sketch":"{{k2.sketch}}","center":[50,30],"radius":10}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@boss = se_extrude {"sketch":"{{k2.sketch}}","distance":10,"document":"{{d.handle}}"}
+?= boss.volume 123141.593 0.05
+se_documents {"action":"save_as","path":"{{work}}\\fam_master.par","overwrite":true,"document":"{{d.handle}}"}
+@l0 = se_part_family {"action":"list","document":"{{d.handle}}"}
+?= l0.count 0
+@av = se_part_family {"action":"add_variables","variables":["ExtrudedProtrusion_1_FiniteDepth"],"document":"{{d.handle}}"}
+?= av.added[0] ExtrudedProtrusion_1_FiniteDepth
+?= av.family.variables[0].value 20
+@m1 = se_part_family {"action":"add_member","name":"Thin","variables":["ExtrudedProtrusion_1_FiniteDepth"],"values":[10],"description":"10 mm plate","document":"{{d.handle}}"}
+?= m1.member.values[0].value 10
+?= m1.member.status not_created
+?~ m1.member.description 10 mm plate
+@m2 = se_part_family {"action":"add_member","name":"NoBoss","suppress":["{{boss.feature.handle}}"],"document":"{{d.handle}}"}
+?= m2.member.values[0].value 20
+?= m2.member.suppressed[0].handle {{boss.feature.handle}}
+! [already_exists] se_part_family {"action":"add_member","name":"Thin","document":"{{d.handle}}"}
+! [invalid_argument] se_part_family {"action":"add_member","name":"Bad","variables":["ExtrudedProtrusion_1_FiniteDepth"],"values":[10,20],"document":"{{d.handle}}"}
+! [invalid_argument] se_part_family {"action":"add_member","name":"Bad?","document":"{{d.handle}}"}
+! [not_found] se_part_family {"action":"apply","name":"Nope","document":"{{d.handle}}"}
+# apply: the master takes the member's depth and suppressions
+@a1 = se_part_family {"action":"apply","name":"Thin","document":"{{d.handle}}"}
+?= a1.volume 63141.593 0.05
+?= a1.volumeChange -60000 0.05
+@a2 = se_part_family {"action":"apply","name":"NoBoss","document":"{{d.handle}}"}
+?= a2.volume 120000 0.05
+@ft = se_feature_tree {"document":"{{d.handle}}"}
+?= ft.features[?suppressed=true].handle {{boss.feature.handle}}
+@ed = se_part_family {"action":"edit_member","name":"NoBoss","variables":["ExtrudedProtrusion_1_FiniteDepth"],"values":[15],"unsuppress":["{{boss.feature.handle}}"],"document":"{{d.handle}}"}
+?= ed.member.values[0].value 15
+?= ed.member.suppressed []
+@a3 = se_part_family {"action":"apply","name":"NoBoss","document":"{{d.handle}}"}
+?= a3.volume 93141.593 0.05
+! [invalid_argument] se_part_family {"action":"edit_member","name":"NoBoss","document":"{{d.handle}}"}
+# copy, rename and delete
+@cp = se_part_family {"action":"copy_member","name":"Thin","newName":"Thin2","document":"{{d.handle}}"}
+?= cp.member.values[0].value 10
+@rn = se_part_family {"action":"edit_member","name":"Thin2","newName":"Thick","variables":["ExtrudedProtrusion_1_FiniteDepth"],"values":[30],"document":"{{d.handle}}"}
+?= rn.member.name Thick
+?= rn.member.values[0].value 30
+@l1 = se_part_family {"action":"list","document":"{{d.handle}}"}
+?= l1.count 3
+?= l1.members[?name="Thick"].values[0].value 30
+# populate: the member file next to the saved master (replaced if an earlier run left it)
+@p1 = se_part_family {"action":"populate","name":"Thin","overwrite":true,"document":"{{d.handle}}"}
+?~ p1.file Thin.par
+?= p1.member.status up_to_date
+! [file_exists] se_part_family {"action":"populate","name":"Thick","path":"{{work}}\\Thin.par","document":"{{d.handle}}"}
+! [invalid_argument] se_part_family {"action":"populate","name":"Thick","path":"{{work}}\\Thick.psm","document":"{{d.handle}}"}
+@dl = se_part_family {"action":"delete_member","name":"Thick","document":"{{d.handle}}"}
+?= dl.family.count 2
+@rv = se_part_family {"action":"remove_variable","name":"ExtrudedProtrusion_1_FiniteDepth","document":"{{d.handle}}"}
+?= rv.family.variables []
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@o = se_documents {"action":"open","path":"{{work}}\\Thin.par"}
+@po = se_physical {"document":"{{o.handle}}"}
+?= po.volume 63141.593 0.05
+se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}

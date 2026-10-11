@@ -7,7 +7,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Solid Edge 2026](https://img.shields.io/badge/Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![52 tools](https://img.shields.io/badge/tools-52-2F6FEB)
+![53 tools](https://img.shields.io/badge/tools-53-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -82,7 +82,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-52 tools, grouped by area.
+53 tools, grouped by area.
 
 | Area | Tool | What it does |
 |---|---|---|
@@ -91,6 +91,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Documents** | `se_documents` | Create a part, sheet metal, assembly, drawing or weldment; open, activate, save, save as or copy, close; undo and redo what Solid Edge records; recalculate. |
 | **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set and delete. |
 | | `se_variables` | Variables and dimensions: list, read, set a value or formula (returns the volume change), create, delete, rename, comment, expose and limit. |
+| | `se_part_family` | Family of parts: family variables, members with their values and suppressed features, apply a member to the master (checked), write member files, copy, rename and delete members. |
 | | `se_material` | Material libraries: current material, properties and assignment (updates density and mass). |
 | | `se_appearance` | Colours (face styles): list, create and delete styles; colour the body, faces, features or assembly components by style or #RRGGBB with opacity, read them back and remove them. |
 | | `se_layer` | Layers of models and drawing sheets: list, create, activate, show or hide, make selectable or not, delete empty ones and move sketch geometry, drawing views, dimensions and annotations between them. |
@@ -166,7 +167,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 52 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 53 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -288,11 +289,11 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 113/113.
-- Acceptance suite against real Solid Edge 2026: **1657 calls and 702 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 118/118.
+- Acceptance suite against real Solid Edge 2026: **1694 calls and 729 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
-- Coverage by value: the 52 tools have correct calls, and `A10` runs every value of the action,
+- Coverage by value: the 53 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -315,6 +316,9 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A14` | Component patterns that follow a part pattern; display configurations |
 | `A15` | Primitives: box (also turned), cylinder and sphere added and cut, on base planes and faces |
 | `A16` | Layers of a part (sketch geometry), a drawing (per sheet: a view and annotations) and an assembly |
+| `A17` | Construction surfaces: extruded, revolved and offset |
+| `A18` | Construction curves and sweeps or cuts along them |
+| `A19` | Family of parts: members, apply, member file |
 
 ## Known limitations
 
@@ -337,7 +341,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 ```text
 solid_edge_mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (52 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (53 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/

@@ -87,6 +87,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_assembly_config", """{"action":"collapse"}""", "'action' must be one of:")]
     [InlineData("se_assembly_config", """{"action":"explode","by":"level"}""", "'by' must be one of:")]
     [InlineData("se_assembly_feature", """{"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2"],"side":"both"}""", "'side' must be one of:")]
+    [InlineData("se_part_family", """{"action":"create_member","name":"Short"}""", "'action' must be one of:")]
+    [InlineData("se_part_family", """{"action":"add_member","name":"Short","values":"60"}""", "'values'")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -150,6 +152,9 @@ public sealed class ToolRegistrationTests
     [InlineData("se_ui", """{"action":"ribbon","environment":"SheetMetal","tab":"Home"}""")]
     [InlineData("se_variables", """{"action":"limits","name":"Thick","min":5,"max":20,"maxExclusive":true}""")]
     [InlineData("se_variables", """{"action":"limits","name":"Thick","values":[10,20,30]}""")]
+    [InlineData("se_part_family", """{"action":"add_member","name":"Short","variables":["Length"],"values":[60],"suppress":["feature:7"],"description":"short"}""")]
+    [InlineData("se_part_family", """{"action":"edit_member","name":"Short","unsuppress":["feature:7"],"newName":"Shorter"}""")]
+    [InlineData("se_part_family", """{"action":"populate","name":"Short","path":"C:\\work\\Short.par","overwrite":true}""")]
     [InlineData("se_relations", """{"action":"add","type":"angle","element1":"face:3","element2":"face:4","angle":30,"plane":"2"}""")]
     [InlineData("se_relations", """{"action":"add","type":"rigid_set","occurrences":["occurrence:2","occurrence:3"]}""")]
     [InlineData("se_relations", """{"action":"add","type":"parallel","element1":"face:3","element2":"face:4","offset":30}""")]

@@ -44,6 +44,19 @@ public enum PropertyAction
     Delete,
 }
 
+public enum PartFamilyAction
+{
+    List,
+    AddVariables,
+    RemoveVariable,
+    AddMember,
+    EditMember,
+    Apply,
+    Populate,
+    CopyMember,
+    DeleteMember,
+}
+
 public enum MaterialAction
 {
     Current,
@@ -110,6 +123,56 @@ public sealed class DataTools(ToolRunner runner)
                 ToolRunner.Require(name, "name", "expose"), expose, exposeName), cancellationToken),
             VariableAction.Limits => runner.RunAsync(tool, actionName, c => VariableService.Limits(c, document,
                 ToolRunner.Require(name, "name", "limits"), min, max, values, minExclusive, maxExclusive), cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
+
+    [McpServerTool(Name = "se_part_family", Title = "Family of parts", Destructive = true, OpenWorld = false)]
+    [Description("""
+        Family of parts of a part or sheet metal document (the master): family variables (variables or dimensions that change between members) and members with their values and suppressed features.
+        list (family variables with the master's current values; members with values, suppressed features, status and file) |
+        add_variables ('variables' = names from se_variables list) | remove_variable ('name') |
+        add_member ('name'; optional 'variables' + 'values' in mm, degrees... in the same order, 'suppress' = feature handles from se_feature_tree, 'description'; a new member starts with the master's current values; variables not yet in the family are added) |
+        edit_member ('name'; 'variables' + 'values', 'suppress', 'unsuppress', 'description', 'newName') |
+        apply ('name': the master takes the member's values and suppressions, both checked; returns the volume change) |
+        populate ('name'; writes or updates the member file: 'path', else the member's file, else <member name>.par next to the saved master; 'overwrite' to replace another file) |
+        copy_member ('name', 'newName') | delete_member ('name').
+        Example: {"action":"add_member","name":"Short","variables":["Length"],"values":[60]}; {"action":"apply","name":"Short"}.
+        """)]
+    public Task<CallToolResult> PartFamily(
+        PartFamilyAction action,
+        [Description("Member name (remove_variable: the variable name).")] string? name = null,
+        [Description("add_variables, add_member, edit_member: variable or dimension names (se_variables list).")] string[]? variables = null,
+        [Description("add_member, edit_member: values of 'variables' in the same order (mm, degrees, mm2, mm3 or plain number).")] double[]? values = null,
+        [Description("add_member, edit_member: feature handles (se_feature_tree) suppressed in the member.")] string[]? suppress = null,
+        [Description("edit_member: feature handles no longer suppressed in the member.")] string[]? unsuppress = null,
+        [Description("add_member, edit_member: member description.")] string? description = null,
+        [Description("edit_member: rename; copy_member: name of the copy.")] string? newName = null,
+        [Description("populate: absolute path of the member file (allowed folders).")] string? path = null,
+        [Description("populate: replace an existing file that is not this member's file.")] bool overwrite = false,
+        [Description("Document handle; default: active document.")] string? document = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string tool = "se_part_family";
+        string act = FeatureTools.Snake(action);
+        return action switch
+        {
+            PartFamilyAction.List => runner.RunAsync(tool, act, c => PartFamilyService.List(c, document), cancellationToken),
+            PartFamilyAction.AddVariables => runner.RunAsync(tool, act, c => PartFamilyService.AddVariables(c, document, variables), cancellationToken),
+            PartFamilyAction.RemoveVariable => runner.RunAsync(tool, act, c => PartFamilyService.RemoveVariable(c, document,
+                ToolRunner.Require(name, "name", act)), cancellationToken),
+            PartFamilyAction.AddMember => runner.RunAsync(tool, act, c => PartFamilyService.AddMember(c, document,
+                ToolRunner.Require(name, "name", act), variables, values, suppress, description), cancellationToken),
+            PartFamilyAction.EditMember => runner.RunAsync(tool, act, c => PartFamilyService.EditMember(c, document,
+                ToolRunner.Require(name, "name", act), variables, values, suppress, unsuppress, description, newName), cancellationToken),
+            PartFamilyAction.Apply => runner.RunAsync(tool, act, c => PartFamilyService.Apply(c, document,
+                ToolRunner.Require(name, "name", act)), cancellationToken),
+            PartFamilyAction.Populate => runner.RunAsync(tool, act, c => PartFamilyService.Populate(c, document,
+                ToolRunner.Require(name, "name", act), path, overwrite), cancellationToken),
+            PartFamilyAction.CopyMember => runner.RunAsync(tool, act, c => PartFamilyService.CopyMember(c, document,
+                ToolRunner.Require(name, "name", act), ToolRunner.Require(newName, "newName", act)), cancellationToken),
+            PartFamilyAction.DeleteMember => runner.RunAsync(tool, act, c => PartFamilyService.DeleteMember(c, document,
+                ToolRunner.Require(name, "name", act)), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

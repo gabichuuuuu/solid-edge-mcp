@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_part_family`: family of parts (family variables, members with values and suppressed
+  features, apply a member to the master with a check, member files, copy, rename and delete).
 - `se_drawing` blocks: create a block from 2D elements of a sheet, place it scaled and turned,
   import a saved drawing as a block, list and delete blocks.
 - `se_assembly_config explode` and `exploded`: automatic exploded views (spread distance, by part
