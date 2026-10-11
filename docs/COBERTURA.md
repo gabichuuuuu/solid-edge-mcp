@@ -64,8 +64,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Sketch text | — | ✘ `Profile.TextProfiles` has no `Add`: text profiles are created only with the Text command in Solid Edge |
 | 3D sketches | COM (`Sketches3D`) | · |
 | Offset and angled planes | `se_ref_plane` | ✔ |
-| Planes through 3 points (vertices or edge midpoints), midway, normal to an edge (at an end, a distance or a fraction of its length), tangent to a cylinder or cone; coordinate systems by origin and angles or along two edges | `se_ref_plane` | ✔ |
-| Planes tangent to a curved surface at a key point | COM (`RefPlanes.AddTangentToCurvedSurfaceAtKeyPoint`) | · |
+| Planes through 3 points (vertices or edge midpoints), midway, normal to an edge (at an end, a distance or a fraction of its length), tangent to a cylinder or cone (parallel to a plane or at an angle about the axis); coordinate systems by origin and angles or along two edges | `se_ref_plane` | ✔ |
+| Planes tangent to a curved surface (cylinder, sphere…) at an edge end | `se_ref_plane tangent points` | ✔ |
 | Reference axes | — | ✘ `RefAxes` has no Add (the axes come from features such as revolves) |
 
 ## Part (ordered modeling)

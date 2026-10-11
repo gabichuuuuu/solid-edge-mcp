@@ -178,12 +178,30 @@ public static class RefPlaneService
         return Checked(context, model, plane, expectedNormal, expectedPoint, "normal to edge");
     }
 
-    /// <summary>Plane parallel to a plane and tangent to a cylindrical or conical face, on one side or the other.</summary>
-    public static object Tangent(SeContext context, string? documentHandle, string parent, string faceHandle, bool flip)
+    /// <summary>
+    /// Plane tangent to a face: parallel to a plane and tangent to a cylindrical or conical face, on one side or the other; with
+    /// <paramref name="point"/>, tangent to any curved face at a model point (an edge end on it); with <paramref name="angle"/>,
+    /// tangent to a cylinder turned about its axis from a plane that contains the axis.
+    /// </summary>
+    public static object Tangent(SeContext context, string? documentHandle, string? parent, string faceHandle, bool flip, double[]? point = null, double? angle = null)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, faceHandle);
-        object parentPlane = ResolveParent(context, model, parent);
         Face face = context.Handles.Resolve<Face>(faceHandle, "face");
+        if (point is not null)
+        {
+            return angle is null
+                ? TangentAtPoint(context, model, parent, face, faceHandle, point, flip)
+                : throw ToolException.InvalidArgument("Give 'points' (tangent at a point) or 'angle' (tangent to a cylinder at an angle), not both.");
+        }
+
+        object parentPlane = ResolveParent(context, model, parent ?? throw ToolException.InvalidArgument(
+            "'plane' is required for tangent: the parallel plane, or with 'angle' a plane through the cylinder axis.",
+            "Or give 'points' = [x,y,z] for a plane tangent to the face at that point."));
+        if (angle is not null)
+        {
+            return TangentAtAngle(context, model, parentPlane, face, faceHandle, angle.Value, flip);
+        }
+
         if (face.Geometry is not (SolidEdgeGeometry.Cylinder or SolidEdgeGeometry.Cone))
         {
             throw ToolException.InvalidArgument($"'{faceHandle}' is not a cylindrical or conical face.", "Use se_geometry faces with type 'cylinder'.");
@@ -192,6 +210,102 @@ public static class RefPlaneService
         KeyPointExtentConstants side = flip ? KeyPointExtentConstants.igReverseTangentNormal : KeyPointExtentConstants.igTangentNormal;
         RefPlane plane = Created(model, () => model.RefPlanes.AddParallelByTangent(parentPlane, face, side));
         return Checked(context, model, plane, PlaneData(parentPlane).Normal, null, "tangent");
+    }
+
+    /// <summary>
+    /// Plane tangent to a curved face at a model point (an end of an edge, on the face), its normal out of the face (flip: into
+    /// it). The parent plane only sets the x axis of the new plane; by default the base plane most across the tangent plane.
+    /// </summary>
+    private static object TangentAtPoint(SeContext context, ModelDocument model, string? parent, Face face, string faceHandle, double[] point, bool flip)
+    {
+        if (face.Geometry is SolidEdgeGeometry.Plane)
+        {
+            throw ToolException.InvalidArgument($"'{faceHandle}' is planar: a plane on it is an offset at distance 0.", "Use action 'offset' with that face.");
+        }
+
+        if (point is not { Length: 3 })
+        {
+            throw ToolException.InvalidArgument("For tangent, 'points' is one model point [x,y,z] in mm: an end of an edge on the face.");
+        }
+
+        double[] target = Geo.Points3(point, "points", 1).Select(p => new[] { p.X, p.Y, p.Z }).First();
+        Edge[] edges = Late.Items(((Body)model.RequireModel().Body).Edges[TopologyQuery.igQueryAll]).Cast<Edge>().ToArray();
+        (Edge edge, KeyPointType type) = Snap(edges, target) ?? throw ToolException.InvalidArgument(
+            $"There is no edge end of the model at ({string.Join(", ", target.Select(Geo.Mm))}).", "Use edge ends from se_geometry edges (start, end).");
+        double[] outward = NormalAt(face, target) ?? throw ToolException.InvalidArgument(
+            $"The point ({string.Join(", ", target.Select(Geo.Mm))}) is not on the face '{faceHandle}'.", "Use an end of an edge that bounds the face.");
+
+        object parentPlane = parent is null
+            ? Enumerable.Range(1, 3).Select(i => ResolveParent(context, model, $"{i}")).MinBy(p => Math.Abs(Dot(PlaneData(p).Normal, outward)))!
+            : ResolveParent(context, model, parent);
+        if (Math.Abs(Math.Abs(Dot(PlaneData(parentPlane).Normal, outward)) - 1) < 1e-6)
+        {
+            throw ToolException.InvalidArgument("'plane' is parallel to the tangent plane: it must cross it (it sets the x axis of the new plane).",
+                "Omit 'plane' to use the base plane most across it.");
+        }
+
+        ReferenceElementConstants side = flip ? ReferenceElementConstants.igReverseNormalSide : ReferenceElementConstants.igNormalSide;
+        RefPlane plane = Created(model, () => model.RefPlanes.AddTangentToCurvedSurfaceAtKeyPoint(face, parentPlane, edge, type, 0, side));
+        return Checked(context, model, plane, flip ? outward.Select(c => -c).ToArray() : outward, target, "tangent", signed: true);
+    }
+
+    /// <summary>
+    /// Plane tangent to a cylinder where it is turned <paramref name="angle"/> degrees about the axis from a plane that contains
+    /// the axis, positive towards that plane's normal; its normal out of the face (flip: into it). Checked by the distance to the
+    /// axis (the radius) and the angle of the normal with the plane.
+    /// </summary>
+    private static object TangentAtAngle(SeContext context, ModelDocument model, object parentPlane, Face face, string faceHandle, double angle, bool flip)
+    {
+        if (face.Geometry is not SolidEdgeGeometry.Cylinder cylinder)
+        {
+            throw ToolException.InvalidArgument($"'{faceHandle}' is not a cylindrical face: a tangent plane at an angle needs a cylinder.",
+                "For other curved faces give 'points' = an edge end on the face.");
+        }
+
+        Array basePoint = new double[3];
+        Array direction = new double[3];
+        cylinder.GetCylinderData(ref basePoint, ref direction, out double radius);
+        double[] axisPoint = Geo.Doubles(basePoint).ToArray();
+        double[] axis = Unit(Geo.Doubles(direction).ToArray());
+        (double[] parentRoot, double[] parentNormal) = PlaneData(parentPlane);
+        if (Math.Abs(Dot(parentNormal, axis)) > 1e-6 || Math.Abs(Dot(parentNormal, Minus(axisPoint, parentRoot))) > Tolerance)
+        {
+            throw ToolException.InvalidArgument("'plane' must contain the cylinder axis: the angle is measured about the axis from it.",
+                "Use a base plane or a reference plane through the axis.");
+        }
+
+        double radians = Units.DegToRad(Units.RequireFinite(angle, "angle"));
+        FeaturePropertyConstants towards = radians >= 0 ? FeaturePropertyConstants.igLeft : FeaturePropertyConstants.igRight;
+        ReferenceElementConstants side = flip ? ReferenceElementConstants.igReverseNormalSide : ReferenceElementConstants.igNormalSide;
+        RefPlane plane = Created(model, () => model.RefPlanes.AddTangentToCylinderOrConeAtAngle(face, parentPlane, Math.Abs(radians), 0, towards, side));
+
+        (double[] root, double[] normal) = PlaneData(plane);
+        double[] outward = flip ? normal.Select(c => -c).ToArray() : normal;
+        bool tangent = Math.Abs(Dot(normal, axis)) < 1e-6
+            && Math.Abs(Dot(outward, Minus(root, axisPoint)) - radius) < Tolerance
+            && Math.Abs(Dot(outward, parentNormal) - Math.Sin(radians)) < 1e-6;
+        return tangent ? Describe(context, model, plane, model.RefPlanes.Count) : Discard(plane, "tangent");
+    }
+
+    /// <summary>Unit normal of the face at a point (m), or null when the point is not on the face.</summary>
+    private static double[]? NormalAt(Face face, double[] point)
+    {
+        Array points = point.ToArray();
+        Array guess = new double[2];
+        Array deviations = new double[1];
+        Array param = new double[2];
+        Array flags = new int[1];
+        face.GetParamAtPoint(1, ref points, ref guess, ref deviations, ref param, ref flags);
+        Array back = new double[3];
+        face.GetPointAtParam(1, ref param, ref back);
+        if (Geo.Length(Minus(Geo.Doubles(back).ToArray(), point)) > Tolerance)
+        {
+            return null;
+        }
+
+        Array normal = new double[3];
+        face.GetNormal(1, ref param, ref normal);
+        return Unit(Geo.Doubles(normal).ToArray());
     }
 
     /// <summary>
@@ -391,26 +505,27 @@ public static class RefPlaneService
     }
 
     /// <summary>Checks the new plane (normal parallel to the expected one, expected point on it); deletes it if it is wrong.</summary>
-    private static object Checked(SeContext context, ModelDocument model, RefPlane plane, double[]? normal, double[]? point, string what)
+    /// <summary>Checks the normal (with its sign when <paramref name="signed"/>) and a point of a new plane, or deletes it.</summary>
+    private static object Checked(SeContext context, ModelDocument model, RefPlane plane, double[]? normal, double[]? point, string what, bool signed = false)
     {
         (double[] root, double[] actual) = PlaneData(plane);
-        bool parallel = normal is null || Math.Abs(Math.Abs(Dot(actual, normal)) - 1) < 1e-6;
+        bool parallel = normal is null || Math.Abs((signed ? Dot(actual, normal) : Math.Abs(Dot(actual, normal))) - 1) < 1e-6;
         bool onPlane = point is null || Math.Abs(Dot(actual, Minus(point, root))) < Tolerance;
-        if (!parallel || !onPlane)
-        {
-            try
-            {
-                plane.Delete();
-            }
-            catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
-            {
-                // The error being reported is the wrong plane.
-            }
+        return parallel && onPlane ? Describe(context, model, plane, model.RefPlanes.Count) : Discard(plane, what);
+    }
 
-            throw new ToolException("refplane_failed", $"The {what} plane is not where expected and was deleted.", "Check the inputs with se_geometry.");
+    private static object Discard(RefPlane plane, string what)
+    {
+        try
+        {
+            plane.Delete();
+        }
+        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        {
+            // The error being reported is the wrong plane.
         }
 
-        return Describe(context, model, plane, model.RefPlanes.Count);
+        throw new ToolException("refplane_failed", $"The {what} plane is not where expected and was deleted.", "Check the inputs with se_geometry.");
     }
 
     internal static (double[] Root, double[] Normal) PlaneData(object source)

@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_ref_plane tangent`: planes tangent to any curved face at an edge end (`points`), and tangent
+  to a cylinder at an angle about its axis from a plane through it (`angle`).
 - `se_assembly_pattern duplicate`: occurrences copied onto other occurrences at the same relative
   position and orientation (e.g. the bolts of one flange onto the others).
 - The generic layer (`se_com_*`) takes faces and edges read from an occurrence as their reference in

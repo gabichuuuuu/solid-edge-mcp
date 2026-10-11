@@ -131,6 +131,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_ref_plane", """{"action":"coordinate_system","origin":[10,20,30],"angles":[0,0,90]}""")]
     [InlineData("se_ref_plane", """{"action":"coordinate_system","edges":["edge:1","edge:2"],"origin":[100,0,20]}""")]
     [InlineData("se_ref_plane", """{"action":"normal_to_edge","edge":"edge:1","ratio":0.25}""")]
+    [InlineData("se_ref_plane", """{"action":"tangent","face":"face:3","points":[10,0,30],"flip":true}""")]
+    [InlineData("se_ref_plane", """{"action":"tangent","face":"face:3","plane":"3","angle":-30}""")]
     [InlineData("se_sketch", """{"action":"ellipse","sketch":"sketch:1","center":[0,0],"radius":20,"minorRadius":10,"angle":30}""")]
     [InlineData("se_sketch", """{"action":"fillet","sketch":"sketch:1","elements":["line2d:2","line2d:3"],"radius":5}""")]
     [InlineData("se_sketch_constraint", """{"action":"dimension","sketch":"sketch:1","dimension":"distance","elements":["line2d:2","line2d:4"],"keypoints":[0,1],"value":30}""")]

@@ -394,4 +394,42 @@ se_documents {"action":"close","document":"{{cJ1.handle}}","saveChanges":false}
 @cp3 = se_part_feature {"action":"copy_part","path":"{{work}}\\a03_copy_src.par","scale":[0.5]}
 ?= cp3.volume 15000 0.01
 se_documents {"action":"close","document":"{{cJ2.handle}}","saveChanges":false}
+# K: tangent planes at a point and at an angle. Cylinder r10 h30 on plane 1: tangent at the start of its top edge (10,0,30)
+#   with the normal out of the face (+x), or into it with flip. At 30° about the axis from plane 3 (normal -y) the point is
+#   30° from -x towards -y, (-8.660,-5,15), outward normal (-0.866,-0.5,0); at -30° on the other side; at 120° from plane 2
+#   (normal +x) the outward normal makes sin 120° with +x: (0.866,0.5,0). Hemisphere r20: tangent at (20,0,0), normal +x.
+@dK = se_documents {"action":"new","kind":"part"}
+@cK = se_primitive {"shape":"cylinder","plane":"1","center":[0,0,0],"radius":10,"depth":30}
+@fK = se_geometry {"action":"faces","type":"cylinder"}
+@tk1 = se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}","points":[10,0,30]}
+?= tk1.normal[0] 1
+?= tk1.rootPoint[0] 10
+@tk2 = se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}","points":[10,0,30],"plane":"1","flip":true}
+?= tk2.normal[0] -1
+! [invalid_argument] se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}","points":[10,0,30],"plane":"2"}
+! [invalid_argument] se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}","points":[5,5,5]}
+! [invalid_argument] se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}","points":[10,0,30],"angle":30}
+@ta1 = se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}","plane":"3","angle":30}
+?= ta1.normal[0] -0.866025404
+?= ta1.normal[1] -0.5
+?= ta1.rootPoint[1] -5
+@ta2 = se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}","plane":"3","angle":-30}
+?= ta2.normal[1] 0.5
+?= ta2.rootPoint[1] 5
+@ta3 = se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}","plane":"2","angle":120}
+?= ta3.normal[0] 0.866025404
+?= ta3.normal[1] 0.5
+! [invalid_argument] se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}","plane":"1","angle":30}
+! [invalid_argument] se_ref_plane {"action":"tangent","face":"{{fK.items[0].handle}}"}
+@pK = se_geometry {"action":"faces","direction":[0,0,1]}
+! [invalid_argument] se_ref_plane {"action":"tangent","face":"{{pK.items[0].handle}}","points":[10,0,30]}
+se_documents {"action":"close","document":"{{dK.handle}}","saveChanges":false}
+@dK2 = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"sphere","plane":"1","center":[0,0,0],"radius":20}
+se_primitive {"shape":"box","operation":"cut","plane":"1","center":[0,0,0],"size":[50,50],"depth":25}
+@sK = se_geometry {"action":"faces","type":"sphere"}
+@tk3 = se_ref_plane {"action":"tangent","face":"{{sK.items[0].handle}}","points":[20,0,0]}
+?= tk3.normal[0] 1
+?= tk3.rootPoint[0] 20
+se_documents {"action":"close","document":"{{dK2.handle}}","saveChanges":false}
 se_documents {"action":"list"}

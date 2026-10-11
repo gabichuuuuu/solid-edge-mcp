@@ -189,7 +189,9 @@ public sealed class SketchTools(ToolRunner runner)
         angle (plane, pivot = plane whose intersection with 'plane' is the hinge, angle in degrees) |
         three_points (points = 3 model points in mm: vertices or midpoints of straight edges) | mid (plane + plane2: midway between two parallel planes or faces) |
         normal_to_edge (edge handle; at start|end, optional distance in mm or ratio 0-1 of the edge length along it from that end) |
-        tangent (plane = the parallel plane, face = cylindrical or conical face; flip = the other side) |
+        tangent (plane = the parallel plane, face = cylindrical or conical face; flip = the other side; or face = any curved face + points = [x,y,z] an edge end on it:
+        tangent there, plane optional (sets the x axis); or face = cylinder + plane through its axis + angle in degrees about the axis from it, positive towards
+        the plane's normal; with points or angle the normal points out of the face, flip = into it) |
         coordinate_system (origin [x,y,z] mm, angles [ax,ay,az] degrees about X, then Y, then Z; or edges = [X edge, Y edge] straight edges,
         the axes along them pointing away from the origin, an end of either edge) | coordinate_systems (list them with their axes).
         Each new plane is checked against the geometry it comes from. New planes return a handle usable as 'plane' in se_sketch create.
@@ -197,17 +199,17 @@ public sealed class SketchTools(ToolRunner runner)
         """)]
     public Task<CallToolResult> RefPlane(
         RefPlaneAction action,
-        [Description("For offset/angle: parent plane index ('1'-'3') or refplane / planar face handle.")] string? plane = null,
+        [Description("For offset/angle/tangent: parent plane index ('1'-'3') or refplane / planar face handle.")] string? plane = null,
         [Description("For offset: distance in mm.")] double? distance = null,
         [Description("For angle: hinge plane index or handle.")] string? pivot = null,
-        [Description("For angle: angle in degrees.")] double? angle = null,
+        [Description("For angle: angle in degrees; tangent: angle about the cylinder axis from 'plane'.")] double? angle = null,
         [Description("Create the plane on the other side of the parent's normal (tangent: the other side of the face).")] bool flip = false,
-        [Description("For three_points: [x1,y1,z1, x2,y2,z2, x3,y3,z3] in mm.")] double[]? points = null,
+        [Description("For three_points: [x1,y1,z1, x2,y2,z2, x3,y3,z3] in mm; tangent: the point [x,y,z] on the face.")] double[]? points = null,
         [Description("For mid: the second plane (index or refplane / planar face handle).")] string? plane2 = null,
         [Description("For normal_to_edge: edge handle (se_geometry edges).")] string? edge = null,
         [Description("For normal_to_edge: the end of the edge (default start).")] EdgeEnd at = EdgeEnd.Start,
         [Description("For normal_to_edge: fraction 0-1 of the edge length from 'at' (instead of distance), e.g. 0.5 = the middle.")] double? ratio = null,
-        [Description("For tangent: cylindrical or conical face handle.")] string? face = null,
+        [Description("For tangent: cylindrical or conical face handle (with points: any curved face).")] string? face = null,
         [Description("For coordinate_system: origin [x,y,z] in mm.")] double[]? origin = null,
         [Description("For coordinate_system: rotations [ax,ay,az] in degrees.")] double[]? angles = null,
         [Description("For coordinate_system: two straight edge handles, the X axis then the Y axis (instead of angles).")] string[]? edges = null,
@@ -229,7 +231,7 @@ public sealed class SketchTools(ToolRunner runner)
             RefPlaneAction.NormalToEdge => runner.RunAsync(tool, name, c => RefPlaneService.NormalToEdge(c, document,
                 ToolRunner.Require(edge, "edge", "normal_to_edge"), Snake(at), distance, ratio), cancellationToken),
             RefPlaneAction.Tangent => runner.RunAsync(tool, name, c => RefPlaneService.Tangent(c, document,
-                ToolRunner.Require(plane, "plane", "tangent"), ToolRunner.Require(face, "face", "tangent"), flip), cancellationToken),
+                plane, ToolRunner.Require(face, "face", "tangent"), flip, points, angle), cancellationToken),
             RefPlaneAction.CoordinateSystem => runner.RunAsync(tool, name, c => RefPlaneService.AddCoordinateSystem(c, document, origin, angles, edges), cancellationToken),
             RefPlaneAction.CoordinateSystems => runner.RunAsync(tool, name, c => RefPlaneService.ListCoordinateSystems(c, document), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
