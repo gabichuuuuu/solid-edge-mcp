@@ -102,7 +102,7 @@ public static partial class AssemblyFeatureService
 
         CheckName(assembly, name);
         object refPlane = SketchService.AssemblyPlane(context, assembly, plane);
-        (double[] seedMin, double[] seedMax, int seedFaces) = FeatureBox(parents[0]);
+        (double[] seedMin, double[] seedMax, int seedFaces) = FeatureBox(assembly, parents[0]);
         ProfileSet set = assembly.ProfileSets.Add();
         Profile profile = set.Profiles.Add(refPlane);
         double u = 0;
@@ -279,6 +279,20 @@ public static partial class AssemblyFeatureService
         }
     }
 
+    /// <summary>Whether Solid Edge gives the assembly's AssemblyFeatures (false after a frame made before any assembly feature).</summary>
+    internal static bool FeaturesAvailable(AssemblyDocument assembly)
+    {
+        try
+        {
+            _ = assembly.AssemblyFeatures;
+            return true;
+        }
+        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        {
+            return false;
+        }
+    }
+
     private static AssemblyFeatures FeaturesOf(AssemblyDocument assembly)
     {
         try
@@ -291,7 +305,7 @@ public static partial class AssemblyFeatureService
                 ? kept
                 : throw new ToolException("solid_edge_limitation",
                     "Solid Edge does not give the assembly features of this assembly: it stops doing so for good when a structural frame is added to an assembly without assembly features (frames made with se_frame avoid it).",
-                    "Rebuild the assembly making the frames with se_frame, or make these features with the Solid Edge commands.");
+                    "Run se_frame repair: it makes the frames again so that assembly features work.");
         }
     }
 
@@ -481,10 +495,10 @@ public static partial class AssemblyFeatureService
     /// Box (m, assembly coordinates) of the faces a cutout or hole leaves in its first part, and their number; or of the
     /// faces of a pattern, which are in the first part of the features it repeats.
     /// </summary>
-    private static (double[] Min, double[] Max, int Faces) FeatureBox(object feature)
+    private static (double[] Min, double[] Max, int Faces) FeatureBox(AssemblyDocument assembly, object feature)
     {
         object source = feature is AssemblyFeaturesPattern pattern ? ParentFeatures(pattern).FirstOrDefault() ?? feature : feature;
-        Occurrence? first = ScopeParts(source).OfType<Occurrence>().FirstOrDefault();
+        Occurrence? first = ScopeParts(assembly, source).FirstOrDefault();
         if (first is null)
         {
             return ([], [], 0);

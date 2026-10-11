@@ -107,4 +107,28 @@ se_documents {"action":"close","document":"{{w.handle}}","saveChanges":false}
 @wrf = se_frame {"action":"list","document":"{{wr.handle}}"}
 ?= wrf.frames[0].cutLength 100 0.001
 se_documents {"action":"close","document":"{{wr.handle}}","saveChanges":false}
+# A frame made through the COM layer before any assembly feature: Solid Edge refuses assembly features for good
+#   (solid_edge_limitation); se_frame repair makes the frame again (same section, path and name), and then a 4 mm fillet weld
+#   between the slab top and the rounded DIN tube of a se_frame frame works: 4 x 4 / 2 x 100 = 800 mm3 (y 6-10, z 10-14).
+@x = se_documents {"action":"new","kind":"weldment"}
+@xs = se_assembly {"action":"insert","path":"{{work}}\\a20_slab.par","document":"{{x.handle}}"}
+@xl = se_com_get {"target":"{{x.handle}}","member":"LineSegments"}
+@xg = se_com_invoke {"target":"{{xl.value.handle}}","method":"Add","arguments":[{"type":"double[]","value":[0,0.01,-0.01]},{"type":"double[]","value":[0.1,0.01,-0.01]}]}
+@xf = se_com_get {"target":"{{x.handle}}","member":"StructuralFrames"}
+se_com_invoke {"target":"{{xf.value.handle}}","method":"Add","arguments":["{{work}}\\a20_section.par",1,{"type":"object[]","value":[{"handle":"{{xg.result.handle}}"}]}]}
+! [solid_edge_limitation] se_assembly_feature {"action":"list","document":"{{x.handle}}"}
+@xr = se_frame {"action":"repair","document":"{{x.handle}}"}
+?= xr.repaired true
+?= xr.frames[0].cutLength 100 0.001
+@xr2 = se_frame {"action":"repair","document":"{{x.handle}}"}
+?= xr2.repaired false
+@xt = se_frame {"action":"frame","section":"DIN/Square Tubing/SquareTubing 20x20x1.6","points":[0,40,20,100,40,20],"document":"{{x.handle}}"}
+@xft = se_geometry {"action":"faces","source":"{{xs.handle}}","direction":[0,0,1],"document":"{{x.handle}}"}
+@xfo = se_geometry {"action":"faces","source":"{{xt.members[0].occurrence}}","direction":[0,-1,0],"document":"{{x.handle}}"}
+@xw = se_assembly_feature {"action":"fillet_weld","faces":["{{xft.items[0].handle}}"],"targetFaces":["{{xfo.items[0].handle}}"],"leg":4,"document":"{{x.handle}}"}
+?= xw.volume 800 0.01
+?= xw.boundingBox.min[1] 26 0.001
+@xa = se_assembly_feature {"action":"list","document":"{{x.handle}}"}
+?= xa.count 1
+se_documents {"action":"close","document":"{{x.handle}}","saveChanges":false}
 @l = se_documents {"action":"list"}

@@ -14,3 +14,19 @@ se_session {"action":"connect"}
 ! se_export {"path":"C:\\Windows\\Temp\\x.stp"}
 ! [handle_not_found] se_sketch {"action":"info","sketch":"sketch:99999"}
 se_documents {"action":"list"}
+# Quit and restart: refused while a document has unsaved changes (the server never discards them); with none, Solid Edge is
+#   closed and started again, and the old handles expire.
+@qp = se_documents {"action":"new","kind":"part"}
+@qk = se_sketch {"action":"create","plane":"1","document":"{{qp.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{qk.sketch}}","points":[0,0,10,10]}
+se_sketch {"action":"close","sketch":"{{qk.sketch}}"}
+se_extrude {"sketch":"{{qk.sketch}}","distance":10,"document":"{{qp.handle}}"}
+! [unsaved_changes] se_session {"action":"quit"}
+se_documents {"action":"close","document":"{{qp.handle}}","saveChanges":false}
+@rs = se_session {"action":"restart"}
+?= rs.quit.quit true
+?= rs.connect.connected true
+?= rs.connect.openDocuments 0
+! [handle_expired] se_documents {"action":"activate","document":"{{qp.handle}}"}
+@st2 = se_session {"action":"status"}
+?= st2.connected true

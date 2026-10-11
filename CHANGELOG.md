@@ -8,6 +8,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- MCP prompts for common workflows (`/mcp__solid-edge__<name>` in Claude Code): `model_part`, `part_from_template`,
+  `manufacturing_drawing` and `welded_frame`.
+- `se_session quit` and `restart`: close Solid Edge (refused while a document has unsaved changes) and start it again,
+  to recover a Solid Edge that misbehaves.
+- `se_frame repair`: makes again the frames of an assembly that got them before any assembly feature (outside
+  `se_frame`), where Solid Edge refuses assembly features; deleting the frames brings them back (verified).
 - `se_frame`: structural frames and pipes in an assembly, along a polyline or assembly sketch lines. Sections, pipes and
   fittings come from the libraries installed with Solid Edge (`library` lists them; they are copied into the work folder
   and used from there) or from your own parts; frames are mitred or butted at the corners. Each frame reports its cut
@@ -143,6 +149,11 @@ Relevant changes to this project are recorded here. The format follows
 ### Fixed
 
 - `se_geometry summary` on a body converted to a mesh fails with `no_brep_body` (it said only E_FAIL).
+- `se_assembly_feature list` in an assembly reopened from its file: Solid Edge can hand back the parts of a hole or
+  cutout as dead objects; the parts are now found by the faces the feature leaves on them.
+- Closing a document releases the wrappers of its objects, so a new object that Solid Edge creates at the same address
+  is not mistaken for a dead one (RPC_E_DISCONNECTED on a reopened assembly).
+- Quitting Solid Edge through `se_com_invoke` no longer reports an internal error.
 - `se_part_feature scale_body` on a part with several design bodies checks the volume of the scaled (first) body instead of
   failing, and `unite` always keeps the first model's body as the target, so the part stays measurable.
 - `se_options set`: when Solid Edge rejects an application option while no document is open (display colors such as

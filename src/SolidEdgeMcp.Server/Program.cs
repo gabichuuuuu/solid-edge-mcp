@@ -8,6 +8,7 @@ using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.Server.Prompts;
 using SolidEdgeMcp.Server.Tools;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -77,6 +78,7 @@ public static class Program
             .WithStdioServerTransport()
             // Explicit IEnumerable<Type>: with Type[] the generic overload WithTools<T>(instance) would be chosen.
             .WithTools((IEnumerable<Type>)ToolTypes, ToolJson)
+            .WithPrompts<SolidEdgePrompts>()
             .WithRequestFilters(filters => filters.AddCallToolFilter(ArgumentValidator.Filter));
     }
 

@@ -197,6 +197,13 @@ public static class DocumentService
             }
         }
 
+        // The wrappers of the closed document's objects are released now. Left to the garbage collector, a wrapper of a
+        // dead object could be handed out again for a new object that Solid Edge creates at the same address, with its old
+        // interfaces (verified: an occurrence of a reopened assembly failed with RPC_E_DISCONNECTED).
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
         // Solid Edge can end up with no active document even when others are open; the last one is activated, as in the UI.
         SolidEdgeDocument? active = TryActive(context);
         if (active is null && documents.Count > 0 && documents.Item(documents.Count) is SolidEdgeDocument last)

@@ -111,6 +111,60 @@ public sealed class SolidEdgeSession : IDisposable
         }, OperationTimeout, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Closes Solid Edge and waits for its process to end, refusing while a document has unsaved changes (the server never
+    /// discards them). Handles stop being valid; connect starts it again. Used to recover a Solid Edge that misbehaves.
+    /// </summary>
+    public Task<object> QuitAsync(CancellationToken cancellationToken) =>
+        _dispatcher.InvokeAsync<object>("quit", () =>
+        {
+            Application? app = TryGetApplication(false);
+            if (app is null)
+            {
+                return new { quit = false, note = "Solid Edge is not running." };
+            }
+
+            var unsaved = new List<string>();
+            Documents documents = app.Documents;
+            for (int i = 1; i <= documents.Count; i++)
+            {
+                if (documents.Item(i) is SolidEdgeDocument document && document.Dirty)
+                {
+                    unsaved.Add(document.Name);
+                }
+            }
+
+            if (unsaved.Count > 0)
+            {
+                throw new ToolException("unsaved_changes", $"Solid Edge has documents with unsaved changes: {string.Join(", ", unsaved)}.",
+                    "Save them (se_documents save) or close them deciding what to do with the changes (se_documents close), then quit again.");
+            }
+
+            int processId = app.ProcessID;
+            int open = documents.Count;
+            try
+            {
+                app.Quit();
+            }
+            catch (Exception ex) when (ComErrors.IsDisconnected(ex) || ex is InvalidCastException)
+            {
+                // Solid Edge went away while answering.
+            }
+
+            Reset("Solid Edge was closed");
+            bool ended = true;
+            try
+            {
+                ended = System.Diagnostics.Process.GetProcessById(processId).WaitForExit(60_000);
+            }
+            catch (ArgumentException)
+            {
+                // Already gone.
+            }
+
+            return new { quit = ended, processId, closedDocuments = open, note = ended ? null : "Solid Edge is still closing; check se_session status." };
+        }, TimeSpan.FromSeconds(Math.Max(90, _policy.OperationTimeoutSeconds)), cancellationToken);
+
     /// <summary>Releases the connection without closing Solid Edge. Handles stop being valid.</summary>
     public Task DisconnectAsync(CancellationToken cancellationToken) =>
         _dispatcher.InvokeAsync("disconnect", () => Reset("the server disconnected from Solid Edge"), OperationTimeout, cancellationToken);
@@ -165,8 +219,9 @@ public sealed class SolidEdgeSession : IDisposable
                 {
                     _application.DisplayAlerts = true;
                 }
-                catch (Exception ex) when (ex is COMException or InvalidComObjectException)
+                catch (Exception ex) when (ex is COMException or InvalidComObjectException or InvalidCastException)
                 {
+                    // Solid Edge was closed by the operation (Quit): there is nothing to restore.
                 }
             }
         }

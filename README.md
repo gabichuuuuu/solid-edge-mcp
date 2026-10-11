@@ -76,6 +76,7 @@ was measured afterwards, separately, by reopening the generated files.
 | Sheet metal part with a 100 × 60 tab and two 20 flanges; flat pattern to DXF and an A3 drawing with the flat pattern and an isometric view to PDF | Claude Code | 9,871.239 mm³ = 6000 + 2·(75π + 1700); box 100 × 60 × 21; DXF with the contour and 2 bend lines; one-page A3 PDF |
 | Assembly with a 120 × 80 × 10 base and two 20 × 20 × 30 blocks: mates, interference check, bill of materials, and an A3 drawing with a parts list to PDF | Claude Code | 50 calls, 0 errors; 6 mates solved and both blocks fully defined; no interference; BOM 1 + 2; one-page A3 PDF |
 | Plate with 4 holes and 4 R5 fillets, 6061-T6 aluminum, exported to STEP | Codex | 20 calls, 0 errors; 58,416.92 mm³ = 58,631.52 − 4·(25 − 25π/4)·10; 0.15843 kg |
+| Prompt `/mcp__solid-edge__model_part`: a 100 × 60 × 10 steel plate with four Ø8 holes 10 mm from the corners and R5 vertical corner rounds, saved | Claude Code | 17 turns, 0 errors; 57,774.78 mm³ = 60,000 − 4·(25 − 25π/4)·10 − 4·π·4²·10; 0.4525 kg; bounding box 100 × 60 × 10 |
 | Weldment: a 200 × 100 × 10 base plate, a mitred frame of a 20 × 20 section of its own on a closed rectangle, a 4 mm fillet weld between the plate and one bar, and an assembly hole repeated in 3 columns | Claude Code | 30 turns, 0 errors; cut length 520 mm = 180 + 80 + 180 + 80, bars of 64,000 mm³; bead 1,440 mm³ = 4·4/2·180; 1 + 2 hole faces |
 
 ## Quick start
@@ -205,7 +206,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | Area | Tool | What it does |
 |---|---|---|
 | **Server and session** | `se_server_info` | Version, allowed folders, work folder, limits and configuration warnings. Does not need Solid Edge. |
-| | `se_session` | Status, connect (attaches to the open Solid Edge or starts it visibly) and disconnect. |
+| | `se_session` | Status, connect (attaches to the open Solid Edge or starts it visibly), disconnect, quit and restart (refused while a document has unsaved changes). |
 | **Documents** | `se_documents` | Create a part, sheet metal, assembly, drawing or weldment; open, activate, save, save as or copy, close; undo and redo what Solid Edge records; recalculate. |
 | **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set and delete. |
 | | `se_variables` | Variables and dimensions: list, read, set a value or formula (returns the volume change), create, delete, rename, comment, expose and limit. |
@@ -245,7 +246,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_assembly_pattern` | Component patterns that follow a part pattern (e.g. a pin repeated on every hole of a hole pattern): list, create, delete and dissolve. |
 | | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them; automatic exploded views with the exploded placement of each component. |
 | | `se_assembly_feature` | Extruded and revolved cutouts and holes (simple or countersink) made in the assembly through chosen parts, from a sketch drawn in the assembly or centers on an assembly plane; mirrors of cutouts about an assembly plane; rectangular patterns of cutouts and holes; extruded and revolved protrusions (assembly bodies); fillet welds (bead) and label welds in a weldment; list and delete. |
-| | `se_frame` | Structural frames (sections from the installed library or your own part, mitred or butted) and pipes with elbows and fittings, along a polyline or assembly sketch lines; members and segments with their extent and cut lengths; list the library, list and delete. |
+| | `se_frame` | Structural frames (sections from the installed library or your own part, mitred or butted) and pipes with elbows and fittings, along a polyline or assembly sketch lines; members and segments with their extent and cut lengths; list the library, list, delete and repair (frames made elsewhere before any assembly feature). |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
 | **Drawings** | `se_drawing` | Sheets; base, projected, auxiliary, section and detail views; dimensions and dimensions retrieved from the model; parts list; bend table; blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete); update. |
@@ -260,6 +261,14 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_command` | Searches for and runs interface commands, as if the person clicked them. |
 
 </details>
+
+### Prompts
+
+Workflow prompts, which Claude Code shows as `/mcp__solid-edge__<name>` commands: `model_part` (a part from a
+description, feature by feature, checked and optionally saved with a material), `part_from_template` (a variant of a
+saved part from variable values, with its drawing, STEP and PDF), `manufacturing_drawing` (views, dimensions and parts
+list of a part or assembly, to PDF) and `welded_frame` (plates, structural frames, fillet welds and holes in a
+weldment). Example: `/mcp__solid-edge__model_part "a 100 x 60 x 10 plate with four 8 mm holes" "<folder>\plate.par" "Steel"`.
 
 Each tool declares its MCP annotations (read-only, destructive…) so the client can decide when to
 ask for approval. What has no specific tool (booleans between bodies, 3D sketches…) is done with
@@ -341,7 +350,7 @@ Logs go to `%LocalAppData%\SolidEdgeMcp\logs` (one UTF-8 file per day; each oper
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 153/153.
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 157/157.
 - Acceptance suite against real Solid Edge 2026: **2077 calls and 947 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
@@ -382,9 +391,8 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 
 - Some Solid Edge 2026 API functions fail or damage the document (corner closing, gussets,
   louvers, several hem types…); they are marked with ✘ in [docs/COVERAGE.md](docs/COVERAGE.md).
-- After an `RPC_E_SERVERFAULT`, Solid Edge becomes unstable and must be restarted
-  (`se_com_invoke {"target":"app","method":"Quit"}` and `se_session connect`), which closes everything
-  that is open.
+- After an `RPC_E_SERVERFAULT`, or when features that worked start failing, Solid Edge is unstable and must
+  be restarted with `se_session restart` (refused while a document has unsaved changes).
 - Solid Edge does not record as an undoable step an operation created through the API from a sketch:
   `se_documents undo` only undoes what Solid Edge records. To remove an operation, use
   `se_feature_edit`.

@@ -15,6 +15,7 @@ public enum FrameAction
     Frame,
     Pipe,
     Delete,
+    Repair,
 }
 
 public enum FrameLibrary
@@ -41,7 +42,8 @@ public sealed class FrameTools(ToolRunner runner, PathGuard guard)
         library (kind frames: section parts installed with Solid Edge, e.g. 'DIN/Square Tubing/SquareTubing 20x20x1.6'; kind pipes: pipes and fittings, e.g. 'DIN/Pipe/Pipe_100_mm'; filter) |
         list (frames with their cut length and members, pipes with their segments and fittings) |
         frame (section = a library name or the absolute path of a part of your own; one member per segment, each an occurrence of the section; endCondition at the corners miter | butt1 | butt2 | none) |
-        pipe (diameter = outside diameter mm, e.g. 114.3 for DIN 100; pipe part; elbow at corners, tee, cross, coupling) | delete (name of a frame or pipe, with its members or segments).
+        pipe (diameter = outside diameter mm, e.g. 114.3 for DIN 100; pipe part; elbow at corners, tee, cross, coupling) | delete (name of a frame or pipe, with its members or segments) |
+        repair (an assembly whose frames were made before any assembly feature, outside se_frame, where Solid Edge refuses assembly features: makes its frames again so that they work).
         Library parts are copied into the work folder and used from there. Members and segments report their boundingBox in the assembly; se_geometry with a member occurrence gives its real faces (e.g. for se_assembly_feature fillet_weld).
         Checked: a frame or pipe that makes no member or segment is removed.
         Example: {"action":"frame","section":"DIN/Square Tubing/SquareTubing 20x20x1.6","points":[0,0,0,500,0,0,500,300,0]}; {"action":"pipe","diameter":114.3,"pipe":"DIN/Pipe/Pipe_100_mm","elbow":"DIN/Fitting/Butt/Butt_Elbow90_100_mm","points":[0,0,0,500,0,0,500,0,500]}.
@@ -90,6 +92,7 @@ public sealed class FrameTools(ToolRunner runner, PathGuard guard)
             FrameAction.Pipe => runner.RunAsync(tool, act, c => FrameService.Pipe(c, document, diameter, points, lines,
                 new PipeParts(pipe, elbow, tee, cross, coupling), name), cancellationToken, precheck: precheck),
             FrameAction.Delete => runner.RunAsync(tool, act, c => FrameService.Delete(c, document, name), cancellationToken),
+            FrameAction.Repair => runner.RunAsync(tool, act, c => FrameService.Repair(c, document), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

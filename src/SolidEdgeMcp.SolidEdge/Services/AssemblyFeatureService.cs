@@ -359,11 +359,11 @@ public static partial class AssemblyFeatureService
             case AssemblyFeaturesPattern pattern:
                 // Like a mirror: the parts of the features it repeats, and its faces as a whole (FacesForScopePart fails on it, verified).
                 object[] repeated = ParentFeatures(pattern);
-                parts = repeated.SelectMany(p => ScopeParts(p).OfType<Occurrence>()).GroupBy(o => o.Name, StringComparer.Ordinal)
+                parts = repeated.SelectMany(p => ScopeParts(assembly, p)).GroupBy(o => o.Name, StringComparer.Ordinal)
                     .Select(g => g.First()).ToArray();
                 patternOf = repeated.Select(NameOf).OfType<string>().ToArray();
                 mirrorFaces = FeatureFaces(pattern);
-                (double[] lo, double[] hi, int count) = FeatureBox(pattern);
+                (double[] lo, double[] hi, int count) = FeatureBox(assembly, pattern);
                 box = count > 0 ? Box(lo, hi) : null;
                 break;
             case AssemblyFeaturesExtrudedProtrusion protrusion:
@@ -392,19 +392,19 @@ public static partial class AssemblyFeatureService
                 // A mirror has no scope parts of its own and FacesForScopePart fails on it (verified): it lists the parts of the
                 // features it copies, and its faces as a whole.
                 object[] parents = ParentFeatures(mirror);
-                parts = parents.SelectMany(p => ScopeParts(p).OfType<Occurrence>()).GroupBy(o => o.Name, StringComparer.Ordinal)
+                parts = parents.SelectMany(p => ScopeParts(assembly, p)).GroupBy(o => o.Name, StringComparer.Ordinal)
                     .Select(g => g.First()).ToArray();
                 mirrorOf = parents.Select(NameOf).OfType<string>().ToArray();
                 mirrorFaces = FacesOf(mirror);
                 break;
             case AssemblyFeaturesExtrudedCutout cut:
-                cut.GetScopeParts(out _, out parts);
+                parts = ScopeParts(assembly, cut);
                 extent = cut.GetExtentType();
                 side = cut.GetExtentSide();
                 depth = extent == FeaturePropertyConstants.igFinite ? Geo.Mm(cut.GetDepth()) : null;
                 break;
             case AssemblyFeaturesRevolvedCutout revolved:
-                revolved.GetScopeParts(out _, out parts);
+                parts = ScopeParts(assembly, revolved);
                 extent = revolved.GetExtentType();
                 side = revolved.GetExtentSide();
                 // A full turn is read back as 0.
@@ -412,7 +412,7 @@ public static partial class AssemblyFeatureService
                 angle = turned < 1e-9 ? 360 : turned;
                 break;
             case AssemblyFeaturesHole hole:
-                hole.GetScopeParts(out _, out parts);
+                parts = ScopeParts(assembly, hole);
                 extent = hole.GetExtentType();
                 side = hole.GetExtentSide();
                 depth = extent == FeaturePropertyConstants.igFinite ? Geo.Mm(hole.GetDepth()) : null;
@@ -518,7 +518,12 @@ public static partial class AssemblyFeatureService
         }
     }
 
-    private static Array ScopeParts(object feature)
+    /// <summary>
+    /// Parts a cutout or hole goes through. Verified: in an assembly reopened from its file, GetScopeParts can hand back an
+    /// occurrence that is already disconnected (RPC_E_DISCONNECTED on any call); the parts are then the occurrences on which
+    /// the feature leaves faces.
+    /// </summary>
+    private static Occurrence[] ScopeParts(AssemblyDocument assembly, object feature)
     {
         Array parts = Array.Empty<object>();
         switch (feature)
@@ -532,9 +537,27 @@ public static partial class AssemblyFeatureService
             case AssemblyFeaturesHole hole:
                 hole.GetScopeParts(out _, out parts);
                 break;
+            default:
+                return [];
         }
 
-        return parts;
+        Occurrence[] given = [.. (parts ?? Array.Empty<object>()).OfType<Occurrence>()];
+        return given.All(Alive)
+            ? given
+            : [.. Items<Occurrence>(assembly.Occurrences).Where(o => !o.Subassembly && FacesOn(feature, o).Length > 0)];
+    }
+
+    private static bool Alive(Occurrence occurrence)
+    {
+        try
+        {
+            _ = occurrence.Name;
+            return true;
+        }
+        catch (COMException ex) when (ex.HResult == unchecked((int)0x80010108))
+        {
+            return false;
+        }
     }
 
     /// <summary>Features a mirror copies.</summary>

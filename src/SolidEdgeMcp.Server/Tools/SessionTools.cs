@@ -11,15 +11,17 @@ public enum SessionAction
     Status,
     Connect,
     Disconnect,
+    Quit,
+    Restart,
 }
 
 [McpServerToolType]
 public sealed class SessionTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_session", Title = "Solid Edge session", Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Connection to Solid Edge. status: state without starting anything (busy operation, open documents, and any Solid Edge dialog that waits for the person: calls fail with dialog_open until it is answered). connect: attach to the running Solid Edge or start it (visible) if allowed. disconnect: release the connection without closing Solid Edge; all handles expire.")]
+    [McpServerTool(Name = "se_session", Title = "Solid Edge session", Destructive = false, Idempotent = false, OpenWorld = false)]
+    [Description("Connection to Solid Edge. status: state without starting anything (busy operation, open documents, and any Solid Edge dialog that waits for the person: calls fail with dialog_open until it is answered). connect: attach to the running Solid Edge or start it (visible) if allowed. disconnect: release the connection without closing Solid Edge; all handles expire. quit: close Solid Edge (refused while a document has unsaved changes). restart: quit and start it again, e.g. when Solid Edge misbehaves (features failing that worked before).")]
     public Task<CallToolResult> Session(
-        [Description("status | connect | disconnect")] SessionAction action,
+        [Description("status | connect | disconnect | quit | restart")] SessionAction action,
         CancellationToken cancellationToken)
     {
         return action switch
@@ -31,6 +33,14 @@ public sealed class SessionTools(ToolRunner runner)
             {
                 await runner.Session.DisconnectAsync(cancellationToken).ConfigureAwait(false);
                 return new { connected = false };
+            }),
+            SessionAction.Quit => runner.RunLocalAsync("se_session", "quit",
+                async () => await runner.Session.QuitAsync(cancellationToken).ConfigureAwait(false)),
+            SessionAction.Restart => runner.RunLocalAsync("se_session", "restart", async () =>
+            {
+                object quit = await runner.Session.QuitAsync(cancellationToken).ConfigureAwait(false);
+                object connect = await runner.Session.RunAsync("connect", SessionService.Connect, cancellationToken).ConfigureAwait(false);
+                return new { quit, connect };
             }),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

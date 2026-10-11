@@ -205,6 +205,101 @@ public static class FrameService
             : new { deleted = name, frames = assembly.StructuralFrames.Count, pipes = assembly.Pipes.Count, occurrences = assembly.Occurrences.Count };
     }
 
+    /// <summary>
+    /// Repairs an assembly whose frames were made before any assembly feature (outside se_frame), where Solid Edge refuses
+    /// assembly features for good: deletes its frames (verified: the AssemblyFeatures property works again), prepares the
+    /// assembly as se_frame does and makes every frame again with the same section, path, end condition and name. The
+    /// members are new occurrences.
+    /// </summary>
+    public static object Repair(SeContext context, string? documentHandle)
+    {
+        AssemblyDocument assembly = Assembly(context, documentHandle);
+        if (AssemblyFeatureService.FeaturesAvailable(assembly))
+        {
+            return new { repaired = false, frames = assembly.StructuralFrames.Count, note = "Assembly features already work in this assembly: nothing to repair." };
+        }
+
+        StructuralFrames frames = assembly.StructuralFrames;
+        var definitions = new List<(string Name, string Section, object[] Paths, StructuralFrameEndConditionConstants? Condition)>();
+        foreach (StructuralFrame frame in Items<StructuralFrame>(frames))
+        {
+            string? section = Members(assembly, frame).Select(m => m.OccurrenceFileName).FirstOrDefault(f => !string.IsNullOrWhiteSpace(f));
+            object[] paths = FramePath(frame);
+            if (section is null || paths.Length == 0)
+            {
+                throw new ToolException("solid_edge_limitation", $"The section or the path of frame '{frame.Name}' cannot be read, so it cannot be made again.",
+                    "Delete the frame (se_frame delete) and make it again with se_frame frame.");
+            }
+
+            StructuralFrameEndConditionConstants? condition = null;
+            try
+            {
+                frame.GetGlobalEndCondition(out StructuralFrameEndConditionConstants value, out _);
+                condition = value;
+            }
+            catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+            {
+                // Made again with Solid Edge's default.
+            }
+
+            definitions.Add((frame.Name, section, paths, condition));
+        }
+
+        foreach (StructuralFrame frame in Items<StructuralFrame>(frames).ToList())
+        {
+            frames.Delete(frame);
+        }
+
+        LeaveFrameEnvironment(context);
+        if (!AssemblyFeatureService.FeaturesAvailable(assembly))
+        {
+            throw new ToolException("solid_edge_limitation", "Solid Edge still refuses the assembly features after deleting the frames; they were not made again.",
+                "Close the assembly without saving to get the frames back.");
+        }
+
+        AssemblyFeatureService.PrepareForFrame(assembly);
+        var made = new List<object>();
+        foreach ((string name, string section, object[] paths, StructuralFrameEndConditionConstants? condition) in definitions)
+        {
+            Array pathArray = paths;
+            StructuralFrame frame = condition is { } c
+                ? frames.Add(section, paths.Length, ref pathArray, c)
+                : frames.Add(section, paths.Length, ref pathArray);
+            LeaveFrameEnvironment(context);
+            if (!string.Equals(frame.Name, name, StringComparison.Ordinal))
+            {
+                try
+                {
+                    frame.Name = name;
+                }
+                catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+                {
+                    // Solid Edge keeps its own name for the frame made again.
+                }
+            }
+
+            made.Add(DescribeFrame(context, assembly, frame));
+        }
+
+        context.ModelChanged((SolidEdgeDocument)assembly, "repair");
+        return new { repaired = true, frames = made };
+    }
+
+    /// <summary>Path objects of a frame (line segments, sketch lines). Verified: GetFramePathObjects gives them, GetFramePath DISP_E_TYPEMISMATCH.</summary>
+    private static object[] FramePath(StructuralFrame frame)
+    {
+        try
+        {
+            Array segments = Array.Empty<object>();
+            frame.GetFramePathObjects(out _, ref segments);
+            return [.. segments.Cast<object>()];
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsDisconnected(ex))
+        {
+            return [];
+        }
+    }
+
     private static object DescribeFrame(SeContext context, AssemblyDocument assembly, StructuralFrame frame)
     {
         double? cutLength = null;
