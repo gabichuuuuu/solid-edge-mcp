@@ -11,7 +11,7 @@ Relevant changes to this project are recorded here. The format follows
 - `se_sketch chamfer`: corner chamfer between two lines with one or two setbacks.
 - `se_sheetmetal bend_angle` and `bend_radius`: change the angle or the inside radius of existing bends.
 - `se_part_feature`: slots along an open path (rounded or square ends, through or to a depth),
-  web networks in shelled parts and scaling of the body (uniform or per axis).
+  web networks and lips in shelled parts, and scaling of the body (uniform or per axis).
 - `se_assembly_config`: display configurations of assemblies (list, save, apply and delete).
 - `se_part_feature`: direct edits for imported or finished parts: delete faces (the solid
   heals), delete holes up to a diameter, delete rounds and offset faces along their normal.

@@ -83,7 +83,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Rib from an open sketch (up to the part or to a finite depth; symmetric or to one side) | `Ribs` | `se_part_feature rib` | ✔ |
 | Thread on a cylinder | `Threads` | — | ✘ `Threads.Add` returns E_INVALIDARG for every combination tried (faces or edges as ends, `HoleData` from `Add` or `AddEx` with the ISO Metric table); use `se_hole` tapped (cosmetic) or a helix cut with `se_loft_sweep` (physical) |
 | Web network from open lines (to the next face or a finite depth) | `WebNetworks` | `se_part_feature web_network` | ✔ |
-| Lip, vent | `Lips`, `Vents` | COM | · |
+| Lip on a chain of rim edges (flush with the side face) | `Lips` | `se_part_feature lip` | ✔ |
+| Vent | `Vents` | COM | · |
 | Mounting boss | `MountingBossCollection` | — | ✘ `Add` leaves the feature failed with a sketch point on a plane above or at the open face of a shelled part, on either side, with or without the optional arguments; the sketch with only a point cannot be included (`CreateIncludedProfile` E_FAIL) |
 | Thicken faces (the side that adds material by default) | `Thickens` | `se_part_feature thicken` | ✔ |
 | Split, boolean operations between bodies | `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |

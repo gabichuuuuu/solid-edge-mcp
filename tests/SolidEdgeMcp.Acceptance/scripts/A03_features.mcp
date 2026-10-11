@@ -297,7 +297,8 @@ se_documents {"action":"close","document":"{{dH.handle}}","saveChanges":false}
 # I: slots, web network and body scale. Block 100x60x20; sketches on a plane at z=20 (model x/y).
 #   Slot through along (20,30)-(80,30), width 10, rounded ends: (60*10 + pi*5^2)*20 = 13570.796. Square slot along (20,50)-(80,50),
 #   width 6, depth 5: 60*6*5 = 1800. Scale z by 0.5: (120000 - 13570.796 - 1800)/2 = 52314.602, height 10.
-#   Web network in a shell 2 mm open at the top (23232): line x=50 across, thickness 2 -> 2*18*56 = 2016; line x=25 with depth 10 -> 2*10*56 = 1120
+#   Lip 1 wide and 2 high on the 4 outer edges of the rim of a shell 2 mm open at the top (23232): 1*2*(320 - 4) = 632.
+#   Web network in that shell: line x=50 across, thickness 2 -> 2*18*56 = 2016; line x=25 with depth 10 -> 2*10*56 = 1120
 @dI = se_documents {"action":"new","kind":"part"}
 @kI = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{kI.sketch}}","points":[0,0,100,60]}
@@ -331,6 +332,11 @@ se_extrude {"sketch":"{{kW.sketch}}","distance":20}
 @tW = se_geometry {"action":"faces","direction":[0,0,1]}
 @shW = se_shell {"thickness":2,"openFaces":["{{tW.items[0].handle}}"]}
 ?= shW.volume 23232 0.05
+@rW = se_geometry {"action":"faces","direction":[0,0,1]}
+@eW = se_geometry {"action":"edges","source":"{{rW.items[?area=624].handle}}"}
+@lW = se_part_feature {"action":"lip","edges":["{{eW.items[?start=[0,0,20]].handle}}","{{eW.items[?start=[100,0,20]].handle}}","{{eW.items[?start=[100,60,20]].handle}}","{{eW.items[?start=[0,60,20]].handle}}"],"width":1,"height":2}
+?= lW.volumeChange 632 0.05
+! [invalid_argument] se_part_feature {"action":"lip","edges":["{{eW.items[0].handle}}"],"width":1}
 @pW = se_ref_plane {"action":"offset","plane":"1","distance":20}
 @kW1 = se_sketch {"action":"create","plane":"{{pW.handle}}"}
 se_sketch {"action":"line","sketch":"{{kW1.sketch}}","points":[50,0,50,60]}

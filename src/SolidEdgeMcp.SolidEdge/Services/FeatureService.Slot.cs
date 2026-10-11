@@ -1,10 +1,12 @@
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
+using Edge = SolidEdgeGeometry.Edge;
+using Face = SolidEdgeGeometry.Face;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
-/// <summary>Slots along an open path, web networks inside shelled parts and scaling of the whole body.</summary>
+/// <summary>Slots along an open path, web networks and lips of shelled parts, and scaling of the whole body.</summary>
 public static partial class FeatureService
 {
     /// <summary>
@@ -90,6 +92,48 @@ public static partial class FeatureService
         throw last!;
     }
 
+    /// <summary>
+    /// Lip along a chain of edges of a rim (e.g. the outer edges of the open face of a shelled part): a strip of the given width
+    /// and height on the rim, flush with the side of the edges. Verified: one outer edge of 100 with width 1 and height 2 adds 200;
+    /// the four outer edges of a 100x60 rim add 1*2*(320 - 4) = 632 (with the faces swapped the lip lies outside the side face:
+    /// 1*2*(320 + 8) = 656).
+    /// </summary>
+    private static object Lip(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        if (spec.Edges is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("lip requires 'edges': one chain of edges of the rim (se_geometry 'edges').");
+        }
+
+        double width = Units.MmToM(Units.RequirePositive(spec.Width ?? throw ToolException.InvalidArgument("lip requires 'width' (mm)."), "width"));
+        double height = Units.MmToM(Units.RequirePositive(spec.Height ?? throw ToolException.InvalidArgument("lip requires 'height' (mm)."), "height"));
+        ModelDocument model = ModelDocument.For(context, documentHandle, spec.Edges[0]);
+        Array edges = spec.Edges.Select(h => (object)context.Handles.Resolve<Edge>(h, "edges")).ToArray();
+        var first = (Edge)edges.GetValue(0)!;
+        Array adjacent = Array.Empty<object>();
+        first.GetFaces(out int count, ref adjacent);
+        if (count != 2)
+        {
+            throw ToolException.InvalidArgument($"The first edge touches {count} faces; a lip needs an edge between the rim face and a side face.");
+        }
+
+        // The cap is the face the lip stands on (the rim) and the side the face it is flush with; swapped, the lip grows outside
+        // the side face. Without 'faces', the cap is the smaller face (a rim is narrow).
+        Face[] pair = [(Face)adjacent.GetValue(0)!, (Face)adjacent.GetValue(1)!];
+        Face cap = spec.Faces is [string capHandle]
+            ? context.Handles.Resolve<Face>(capHandle, "faces")
+            : pair.MinBy(f => f.Area)!;
+        Face? side = pair.FirstOrDefault(f => f.Tag != cap.Tag);
+        if (side is null || pair.All(f => f.Tag != cap.Tag))
+        {
+            throw ToolException.InvalidArgument("The face in 'faces' must be one of the two faces of the first edge (the rim face the lip stands on).");
+        }
+        bool switched = model.EnsureOrdered();
+        Model target = model.RequireModel();
+        double before = model.Volume();
+        object feature = Create("lip", () => target.Lips.Add(edges.Length, ref edges, side, cap, width, height));
+        return Verify(context, model, feature, before, 1, switched);
+    }
     /// <summary>
     /// Scales the whole body about the part origin: one factor (uniform) or one per axis. Verified: the volume is multiplied by
     /// the product of the factors and the centre of volume by each factor.
