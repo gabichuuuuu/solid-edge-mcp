@@ -90,7 +90,9 @@ damages the document in Solid Edge 2026 (do not use).
 | Split, boolean operations between bodies | `Splits`, `Unions`, `Subtracts`, `Intersects`, `BooleanFeatures` | COM | · |
 | Primitives: box, cylinder and sphere, added or cut, by their centre on a plane or face (built in synchronous modeling) | `BoxFeatures`, `CylinderFeatures`, `SphereFeatures` | `se_primitive` | ✔ |
 | Slot along an open path (rounded or square ends; through or to a depth) | `Slots` | `se_part_feature slot` | ✔ |
-| Rotated boxes, boxes by two or three points; tubes; counterbored slots | `BoxFeatures.AddByTwoPoints`, `AddByThreePoints`, `TubeFeatures`, `Slots` (`igRecessedCounterboreSlot`) | COM | · |
+| Box turned about the plane normal (kept centred on the given point) | `BoxFeatures.AddByCenter` (angle) | `se_primitive angle` | ✔ |
+| Boxes by two or three points; counterbored slots | `BoxFeatures.AddByTwoPoints`, `AddByThreePoints`, `Slots` (`igRecessedCounterboreSlot`) | COM | · |
+| Tubes | `TubeFeatures` | — | ✘ `TubeFeatures` has no `Add`: tubes are made only with the Tube command |
 | Mirror the whole body about a plane, keeping the original | `MirrorParts` | `se_part_feature mirror_body` | ✔ |
 | Scale the body (uniform or per axis, about the part origin) | `ScaleBodyFeatures` | `se_part_feature scale_body` | ✔ |
 | Copied part | `CopiedParts` | COM | · |

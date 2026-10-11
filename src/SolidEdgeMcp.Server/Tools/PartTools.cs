@@ -235,7 +235,8 @@ public sealed class PartTools(ToolRunner runner)
         Adds or cuts a box, cylinder or sphere placed by its centre on a plane, without a sketch (part documents).
         plane = '1'-'3', refplane or planar face handle (default '1', the XY base plane); center = [x,y,z] mm, a point on that plane
         (box: centre of its base rectangle; cylinder: centre of its base circle; sphere: its centre).
-        box: size [width, height] mm along the x and y axes of the plane (the frame returned by se_sketch create on it) and depth mm;
+        box: size [width, height] mm along the x and y axes of the plane (the frame returned by se_sketch create on it) and depth mm,
+        angle = rotation in degrees about the plane normal (from the plane's x axis towards its y axis);
         cylinder: radius and depth mm; sphere: radius mm. side: auto (default: along the plane normal to add, against it to cut,
         then the other way if that changes nothing) | normal | reverse | symmetric.
         Solid Edge builds primitives only in synchronous modeling: the document switches to it for the call and back to ordered,
@@ -252,8 +253,9 @@ public sealed class PartTools(ToolRunner runner)
         [Description("cylinder, sphere: radius in mm.")] double? radius = null,
         [Description("box, cylinder: depth in mm from the plane.")] double? depth = null,
         PartFeatureSide side = PartFeatureSide.Auto,
+        [Description("box: rotation in degrees about the plane normal, from the plane's x axis towards its y axis (default 0).")] double? angle = null,
         [Description("Document handle; default: the document of the plane handle or the active document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_primitive", Snake(shape), c => FeatureService.Primitive(c, document,
-            new PrimitiveSpec(Snake(shape), Snake(operation), plane, center, size, radius, depth, Snake(side))), cancellationToken);
+            new PrimitiveSpec(Snake(shape), Snake(operation), plane, center, size, radius, depth, Snake(side), angle)), cancellationToken);
 }

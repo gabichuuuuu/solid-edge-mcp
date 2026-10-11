@@ -115,7 +115,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_draft` | Face draft relative to a neutral plane. |
 | | `se_loft_sweep` | Loft, sweep and helix, as a boss or a cut. |
 | | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, and offset faces; slots along an open path, web networks and lips in shelled parts, and scaling of the body. |
-| | `se_primitive` | Box, cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
+| | `se_primitive` | Box (optionally turned about the plane normal), cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature. |
 | **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), tab, contour flange, flange, hem, corner break, flat pattern with cut size, and changes of the angle and radius of existing bends. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
@@ -285,8 +285,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 93/93.
-- Acceptance suite against real Solid Edge 2026: **1389 calls and 556 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 94/94.
+- Acceptance suite against real Solid Edge 2026: **1401 calls and 565 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 49 tools have correct calls, and `A10` runs every value of the action,
@@ -310,7 +310,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A12` | Windows, environments and ribbon |
 | `A13` | Colours of a body, faces, features and assembly components |
 | `A14` | Component patterns that follow a part pattern; display configurations |
-| `A15` | Primitives: box, cylinder and sphere added and cut, on base planes and faces |
+| `A15` | Primitives: box (also turned), cylinder and sphere added and cut, on base planes and faces |
 | `A16` | Layers of a part (sketch geometry), a drawing (per sheet: a view and annotations) and an assembly |
 
 ## Known limitations

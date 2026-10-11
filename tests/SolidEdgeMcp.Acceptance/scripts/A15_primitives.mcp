@@ -59,3 +59,28 @@ se_extrude {"sketch":"{{sk.sketch}}","distance":20}
 ?~ ft.modelingMode ordered
 ?~ ft.features[?name="ExtrudedProtrusion_1"].status ok
 se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+# Rotated boxes. 40x20 x 10 at (0,0,0) turned 30 degrees: Solid Edge turns about the first corner, the tool keeps the centre ->
+#   centre of volume (0,0,5); top face box 22.32 x 18.66 (20cos30 + 10sin30, 20sin30 + 10cos30). A cut 10x4 x 5 turned -45 on the
+#   top face at its centre removes 200. On plane 2 (x axis = y, y axis = z): 60 degrees puts the 40 edges along (0, 0.5, 0.866),
+#   centre (0,10,5) + 5 along x. A cylinder with an angle fails
+@r = se_documents {"action":"new","kind":"part"}
+@rb = se_primitive {"shape":"box","center":[0,0,0],"size":[40,20],"depth":10,"angle":30}
+@rp = se_physical {}
+?= rp.centerOfVolume[0] 0 0.001
+?= rp.centerOfVolume[1] 0 0.001
+@rt = se_geometry {"action":"faces","direction":[0,0,1]}
+?= rt.items[0].boundingBox.max[0] 22.320508 0.001
+?= rt.items[0].boundingBox.max[1] 18.660254 0.001
+@rc = se_primitive {"shape":"box","operation":"cut","plane":"{{rt.items[0].handle}}","center":[0,0,10],"size":[10,4],"depth":5,"angle":-45}
+?= rc.volumeChange -200 0.01
+! [invalid_argument] se_primitive {"shape":"cylinder","center":[0,0,0],"radius":5,"depth":5,"angle":10}
+se_documents {"action":"close","document":"{{r.handle}}","saveChanges":false}
+@r2 = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"box","plane":"2","center":[0,10,5],"size":[40,20],"depth":10,"angle":60}
+@rq = se_physical {}
+?= rq.centerOfVolume[0] 5 0.001
+?= rq.centerOfVolume[1] 10 0.001
+?= rq.centerOfVolume[2] 5 0.001
+@re = se_geometry {"action":"edges","direction":[0,0.5,0.866025404]}
+?= re.count 4
+se_documents {"action":"close","document":"{{r2.handle}}","saveChanges":false}

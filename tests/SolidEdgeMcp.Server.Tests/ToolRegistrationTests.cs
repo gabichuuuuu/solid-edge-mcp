@@ -146,6 +146,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_view", """{"action":"save_view","name":"Detalle","description":"Vista del agujero"}""")]
     [InlineData("se_view", """{"action":"apply_view","name":"iso"}""")]
     [InlineData("se_primitive", """{"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}""")]
+    [InlineData("se_primitive", """{"shape":"box","center":[0,0,0],"size":[40,20],"depth":10,"angle":30}""")]
     [InlineData("se_primitive", """{"shape":"cylinder","operation":"cut","plane":"face:12","center":[50,30,20],"radius":5,"depth":20,"side":"reverse"}""")]
     [InlineData("se_annotation", """{"action":"surface_finish","view":"drawing_view:2","points":[100,30,20],"finish":"no_material_removal","text":"Ra 3.2"}""")]
     [InlineData("se_annotation", """{"action":"feature_control_frame","view":"drawing_view:2","points":[100,30,20],"characteristic":"total_runout","tolerance":"⌀0.1","datums":["A","B"]}""")]

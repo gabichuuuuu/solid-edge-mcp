@@ -49,9 +49,15 @@ public static partial class FeatureService
         }
 
         (double X, double Y, double Z) centre = centres[0];
-        double width = 0, height = 0, depth = 0, radius = 0;
+        double width = 0, height = 0, depth = 0, radius = 0, angle = 0;
+        if (spec.Angle is not null && spec.Shape != "box")
+        {
+            throw ToolException.InvalidArgument("'angle' rotates a box; a cylinder or a sphere has no angle.");
+        }
+
         if (spec.Shape == "box")
         {
+            angle = Units.DegToRad(spec.Angle ?? 0);
             if (spec.Size is not { Length: 2 } size)
             {
                 throw ToolException.InvalidArgument("'size' [width, height] in mm is required for a box: along the x and y axes of the plane (the frame of se_sketch create).");
@@ -103,6 +109,11 @@ public static partial class FeatureService
             ? model.RefPlanes.AddParallelByDistance(source, 0.0, ReferenceElementConstants.igNormalSide, Local: false)
             : null;
         RefPlane plane = own ?? (RefPlane)source;
+        if (angle != 0)
+        {
+            centre = PivotedCentre(plane, centre, width, height, angle);
+        }
+
         try
         {
             for (int i = 0; ; i++)
@@ -111,7 +122,7 @@ public static partial class FeatureService
                 try
                 {
                     return InSynchronous(context, model, what, cut ? -1 : 1,
-                        () => AddPrimitive(model, spec.Shape, cut, plane, centre, width, height, depth, radius, side), nextStep);
+                        () => AddPrimitive(model, spec.Shape, cut, plane, centre, width, height, angle, depth, radius, side), nextStep);
                 }
                 catch (ToolException ex) when (ex.Code == "feature_failed" && i + 1 < sides.Length)
                 {
@@ -205,8 +216,28 @@ public static partial class FeatureService
         };
     }
 
+    /// <summary>
+    /// Verified: Solid Edge rotates a box about its first corner (centre - width/2 x - height/2 y of the plane), not about its
+    /// centre. The centre passed is moved by d - R(d), d being the corner-to-centre vector, so the rotated box stays centred on
+    /// the given point.
+    /// </summary>
+    private static (double X, double Y, double Z) PivotedCentre(RefPlane plane, (double X, double Y, double Z) c, double width, double height, double angle)
+    {
+        Array x = new double[3];
+        Array n = new double[3];
+        plane.GetReferenceDirection(ref x);
+        plane.GetNormal(ref n);
+        double[] u = [.. x.Cast<double>()];
+        double[] normal = [.. n.Cast<double>()];
+        double[] v = Geo.Cross(normal, u);
+        double[] d = [.. u.Select((_, k) => width / 2 * u[k] + height / 2 * v[k])];
+        double[] turned = Geo.Cross(normal, d);
+        double[] shift = [.. d.Select((_, k) => d[k] - (d[k] * Math.Cos(angle) + turned[k] * Math.Sin(angle)))];
+        return (c.X + shift[0], c.Y + shift[1], c.Z + shift[2]);
+    }
+
     private static object? AddPrimitive(ModelDocument model, string shape, bool cut, RefPlane plane, (double X, double Y, double Z) c,
-        double width, double height, double depth, double radius, FeaturePropertyConstants side)
+        double width, double height, double angle, double depth, double radius, FeaturePropertyConstants side)
     {
         // Verified: with vbKeyPointExtent false the key point object must be empty (VT_EMPTY); a null object (VT_DISPATCH) gives E_NOINTERFACE.
         KeyPointExtentConstants flags = KeyPointExtentConstants.igTangentNormal;
@@ -215,7 +246,7 @@ public static partial class FeatureService
         {
             Model created = shape switch
             {
-                "box" => model.Models.AddBoxByCenter(c.X, c.Y, c.Z, width, height, 0, depth, plane, side, false, null, ref flags),
+                "box" => model.Models.AddBoxByCenter(c.X, c.Y, c.Z, width, height, angle, depth, plane, side, false, null, ref flags),
                 "cylinder" => model.Models.AddCylinderByCenterAndRadius(c.X, c.Y, c.Z, radius, depth, plane, side, false, null, ref flags),
                 _ => model.Models.AddSphereByCenterAndRadius(c.X, c.Y, c.Z, radius, plane, side, false, false, null, ref flags),
             };
@@ -229,8 +260,8 @@ public static partial class FeatureService
 
         return (shape, cut) switch
         {
-            ("box", false) => target.BoxFeatures.AddByCenter(c.X, c.Y, c.Z, width, height, 0, depth, plane, side, false, null, ref flags),
-            ("box", true) => target.BoxFeatures.AddCutoutByCenter(c.X, c.Y, c.Z, width, height, 0, depth, plane, inside, side, false, null, ref flags),
+            ("box", false) => target.BoxFeatures.AddByCenter(c.X, c.Y, c.Z, width, height, angle, depth, plane, side, false, null, ref flags),
+            ("box", true) => target.BoxFeatures.AddCutoutByCenter(c.X, c.Y, c.Z, width, height, angle, depth, plane, inside, side, false, null, ref flags),
             ("cylinder", false) => target.CylinderFeatures.AddByCenterAndRadius(c.X, c.Y, c.Z, radius, depth, plane, side, false, null, ref flags),
             ("cylinder", true) => target.CylinderFeatures.AddCutoutByCenterAndRadius(c.X, c.Y, c.Z, radius, depth, plane, inside, side, false, null, ref flags),
             (_, false) => target.SphereFeatures.AddByCenterAndRadius(c.X, c.Y, c.Z, radius, plane, side, false, false, null, ref flags),
@@ -240,4 +271,5 @@ public static partial class FeatureService
 }
 
 /// <summary>Arguments of a primitive (mm). Shape: box | cylinder | sphere; operation: add | cut; side: auto | normal | reverse | symmetric.</summary>
-public sealed record PrimitiveSpec(string Shape, string Operation, string? Plane, double[]? Centre, double[]? Size, double? Radius, double? Depth, string Side);
+public sealed record PrimitiveSpec(string Shape, string Operation, string? Plane, double[]? Centre, double[]? Size, double? Radius, double? Depth, string Side,
+    double? Angle = null);
