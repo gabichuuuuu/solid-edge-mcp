@@ -95,7 +95,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Tubes | `TubeFeatures` | — | ✘ `TubeFeatures` has no `Add`: tubes are made only with the Tube command |
 | Mirror the whole body about a plane, keeping the original | `MirrorParts` | `se_part_feature mirror_body` | ✔ |
 | Scale the body (uniform or per axis, about the part origin) | `ScaleBodyFeatures` | `se_part_feature scale_body` | ✔ |
-| Copied part | `CopiedParts` | COM | · |
+| Copied part (scaled, mirrored about a reference plane): base body of an empty part or united with the body | `Models.AddCopiedPart` | `se_part_feature copy_part` | ✔ |
 | User-defined pattern, pattern along a curve | `UserDefinedPatterns`, `PatternParts` | COM | · |
 
 ## Synchronous modeling and surfaces

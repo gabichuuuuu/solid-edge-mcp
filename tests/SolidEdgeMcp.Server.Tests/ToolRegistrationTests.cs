@@ -116,6 +116,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_part_feature", """{"action":"delete_holes","diameter":7}""")]
     [InlineData("se_part_feature", """{"action":"slot","sketch":"sketch:4","width":10,"depth":5,"squareEnds":true}""")]
     [InlineData("se_part_feature", """{"action":"scale_body","scale":[1,1,0.5]}""")]
+    [InlineData("se_part_feature", """{"action":"copy_part","path":"C:\\work\\block.par","scale":[0.5],"plane":"2"}""")]
     [InlineData("se_part_feature", """{"action":"web_network","sketch":"sketch:7","thickness":2}""")]
     [InlineData("se_part_feature", """{"action":"lip","edges":["edge:1","edge:2"],"faces":["face:3"],"width":1,"height":2}""")]
     [InlineData("se_sketch", """{"action":"chamfer","sketch":"sketch:2","elements":["line2d:3","line2d:4"],"setbacks":[5,10]}""")]

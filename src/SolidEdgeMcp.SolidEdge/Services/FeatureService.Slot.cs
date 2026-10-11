@@ -175,4 +175,53 @@ public static partial class FeatureService
 
         return result;
     }
+
+    /// <summary>
+    /// Copy of a saved part file (scaled, optionally mirrored about a reference plane): in an empty part it is the base body;
+    /// otherwise it is united with the body. Verified: a copy that touches the body adds its volume; one that adds nothing
+    /// (inside the body) is left failed, and is deleted here.
+    /// </summary>
+    private static object CopyPart(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        string file = context.Paths.Check(spec.Path, "path");
+        if (System.IO.Path.GetExtension(file).ToLowerInvariant() is not (".par" or ".psm"))
+        {
+            throw ToolException.InvalidArgument("copy_part copies a part or sheet metal file (.par or .psm).");
+        }
+
+        if (!File.Exists(file))
+        {
+            throw ToolException.NotFound($"The file '{file}' does not exist.", "Save the part to copy first (se_documents save_as) or check the path.");
+        }
+
+        double[] factors = spec.Scale switch
+        {
+            null => [1, 1, 1],
+            [double uniform] => [uniform, uniform, uniform],
+            [double x, double y, double z] => [x, y, z],
+            _ => throw ToolException.InvalidArgument("'scale' is one factor (uniform) or three (x, y, z).", "Example: [2] or [1, 1, 0.5]."),
+        };
+        foreach (double factor in factors)
+        {
+            Units.RequirePositive(factor, "scale");
+        }
+
+        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        object mirror = System.Reflection.Missing.Value;
+        if (spec.Plane is not null)
+        {
+            mirror = model.ResolvePlaneSource(context, spec.Plane) as RefPlane
+                ?? throw ToolException.InvalidArgument("The mirror 'plane' of copy_part must be a reference plane ('1'-'3' or a refplane handle).");
+        }
+
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        object feature = Create("copied part", () =>
+        {
+            Model copy = model.Models.AddCopiedPart(file, factors[0], factors[1], factors[2], mirror);
+            CopiedParts copies = copy.CopiedParts;
+            return copies.Item(copies.Count);
+        });
+        return Verify(context, model, feature, before, 1, switched);
+    }
 }

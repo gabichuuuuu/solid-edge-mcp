@@ -368,4 +368,30 @@ se_sketch {"action":"close","sketch":"{{kW2.sketch}}","open":true}
 @wn2 = se_part_feature {"action":"web_network","sketch":"{{kW2.sketch}}","thickness":2,"depth":10}
 ?= wn2.volumeChange 1120 0.05
 se_documents {"action":"close","document":"{{dW.handle}}","saveChanges":false}
+# J: copied part. Block 100x60x20 saved and closed; copied into an empty part = its base body (120000, centre (50,30,10)); the
+#   same copy again lies inside the body, adds nothing and is deleted; mirrored about plane 2 (x = 0) it touches the block and is
+#   united -> 240000, centre x 0. Scaled 0.5 into another empty part -> 15000. A missing file and a .asm fail
+@dJ = se_documents {"action":"new","kind":"part"}
+@kJ = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kJ.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kJ.sketch}}"}
+se_extrude {"sketch":"{{kJ.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\a03_copy_src.par","overwrite":true}
+se_documents {"action":"close","document":"{{dJ.handle}}","saveChanges":false}
+@cJ1 = se_documents {"action":"new","kind":"part"}
+@cp1 = se_part_feature {"action":"copy_part","path":"{{work}}\\a03_copy_src.par"}
+?= cp1.volume 120000 0.01
+?~ cp1.feature.type CopiedPart
+! [feature_failed] se_part_feature {"action":"copy_part","path":"{{work}}\\a03_copy_src.par"}
+@cp2 = se_part_feature {"action":"copy_part","path":"{{work}}\\a03_copy_src.par","plane":"2"}
+?= cp2.volume 240000 0.01
+@pJ = se_physical {}
+?= pJ.centerOfVolume[0] 0 0.001
+! [not_found] se_part_feature {"action":"copy_part","path":"{{work}}\\no_such_part.par"}
+! [invalid_argument] se_part_feature {"action":"copy_part","path":"{{work}}\\a03_copy_src.asm"}
+se_documents {"action":"close","document":"{{cJ1.handle}}","saveChanges":false}
+@cJ2 = se_documents {"action":"new","kind":"part"}
+@cp3 = se_part_feature {"action":"copy_part","path":"{{work}}\\a03_copy_src.par","scale":[0.5]}
+?= cp3.volume 15000 0.01
+se_documents {"action":"close","document":"{{cJ2.handle}}","saveChanges":false}
 se_documents {"action":"list"}

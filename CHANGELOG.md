@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_part_feature copy_part`: copy of a saved part file, scaled or mirrored, as the base body or
+  united with the body.
 - `se_ref_plane`: planes normal to an edge at a fraction of its length (`ratio`), and coordinate
   systems along two straight edges with the origin at an end of either.
 - `se_primitive angle`: boxes turned about the plane normal, kept centred on the given point.
