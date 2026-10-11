@@ -26,7 +26,7 @@ public sealed class AppearanceTools(ToolRunner runner)
         Colours of parts, sheet metal and assemblies, through the face styles of the document. Colours are '#RRGGBB' with an opacity from 0 (transparent) to 1 (opaque).
         list (styles of the document with their colour and opacity; filter = text in the name) | create (name + color [+ opacity]) | delete (name; refused while in use) |
         get (targets: the style each one has) | apply (targets + style = a style name, or color [+ opacity]: a style named after the colour, created if missing) | reset (targets: remove their own style).
-        targets: a part or sheet metal document (its body; the default is the active document), body, faces (se_geometry faces), features (se_feature tree) or assembly occurrences (se_assembly list; the style must exist in the assembly).
+        targets: a part or sheet metal document (its body; the default is the active document), body, faces (se_geometry faces), features (se_feature_tree) or assembly occurrences (se_assembly list; the style must exist in the assembly).
         A target without a style of its own (null) shows the one of its feature, body or part. A feature style replaces the face styles of its faces; Solid Edge cannot remove a feature style through the API (apply another one).
         Example: {"action":"apply","targets":["face:12"],"color":"#FF8000"}.
         """)]

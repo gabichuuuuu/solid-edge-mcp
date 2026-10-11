@@ -172,7 +172,7 @@ public static class AppearanceService
                 Occurrence occurrence => new Target(handle, "occurrence", occurrence, context.DocumentOf(handle)),
                 _ when handle.StartsWith("feature:", StringComparison.Ordinal) => PartTarget(context, handle, "feature", value),
                 _ => throw ToolException.InvalidArgument($"'{handle}' cannot be coloured.",
-                    "Pass a part or sheet metal document, a body, faces (se_geometry faces), features (se_feature tree) or assembly occurrences (se_assembly list)."),
+                    "Pass a part or sheet metal document, a body, faces (se_geometry faces), features (se_feature_tree) or assembly occurrences (se_assembly list)."),
             };
         }).ToArray();
     }
