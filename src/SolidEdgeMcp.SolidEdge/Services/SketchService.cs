@@ -1,3 +1,4 @@
+using SolidEdgeDraft;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Session;
@@ -9,7 +10,8 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// Ordered-modelling sketches: they are created on a plane, drawn in mm with 2D coordinates of the
 /// plane and closed by validating the profile before being used in an operation. They are
 /// standalone sketches (like the Sketch command of the UI): each operation uses a linked copy
-/// of its profile, so the sketch survives if the operation fails and is deleted.
+/// of its profile, so the sketch survives if the operation fails and is deleted. The drawing actions
+/// and the 2D constraints also work on a drawing sheet (see <see cref="Canvas2d"/>).
 /// </summary>
 public static partial class SketchService
 {
@@ -34,21 +36,21 @@ public static partial class SketchService
 
     public static object Line(SeContext context, string sketch, double[]? points)
     {
-        Profile profile = Resolve(context, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
         List<(double X, double Y)> p = Geo.Points2(points, "points", 2);
         if (p.Count != 2)
         {
             throw ToolException.InvalidArgument("'points' must be [x1, y1, x2, y2] for a line.", "Use action 'polyline' for more points.");
         }
 
-        Line2d line = profile.Lines2d.AddBy2Points(p[0].X, p[0].Y, p[1].X, p[1].Y);
+        Line2d line = canvas.Lines2d.AddBy2Points(p[0].X, p[0].Y, p[1].X, p[1].Y);
         return new { element = context.RegisterBeside(line, "line2d", sketch) };
     }
 
     /// <summary>Rectangle from two opposite corners: four connected lines, horizontal and vertical.</summary>
     public static object Rectangle(SeContext context, string sketch, double[]? corners)
     {
-        Profile profile = Resolve(context, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
         List<(double X, double Y)> c = Geo.Points2(corners, "points", 2);
         if (c.Count != 2 || Math.Abs(c[0].X - c[1].X) < 1e-9 || Math.Abs(c[0].Y - c[1].Y) < 1e-9)
         {
@@ -56,8 +58,8 @@ public static partial class SketchService
         }
 
         (double X, double Y)[] v = [c[0], (c[1].X, c[0].Y), c[1], (c[0].X, c[1].Y)];
-        Line2d[] lines = Chain(profile, v, closed: true);
-        var relations = (Relations2d)profile.Relations2d;
+        Line2d[] lines = Chain(canvas, v, closed: true);
+        Relations2d relations = canvas.Relations2d;
         relations.AddHorizontal(lines[0]);
         relations.AddHorizontal(lines[2]);
         relations.AddVertical(lines[1]);
@@ -67,29 +69,29 @@ public static partial class SketchService
 
     public static object Polyline(SeContext context, string sketch, double[]? points, bool closed)
     {
-        Profile profile = Resolve(context, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
         List<(double X, double Y)> p = Geo.Points2(points, "points", closed ? 3 : 2);
-        Line2d[] lines = Chain(profile, p, closed);
+        Line2d[] lines = Chain(canvas, p, closed);
         return new { elements = lines.Select(l => context.RegisterBeside(l, "line2d", sketch)).ToArray() };
     }
 
     public static object Circle(SeContext context, string sketch, double[]? center, double? radius)
     {
-        Profile profile = Resolve(context, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
         (double x, double y) = Geo.Point2(center, "center");
         double r = Units.MmToM(Units.RequirePositive(radius ?? throw ToolException.InvalidArgument("Action 'circle' requires 'radius' (mm)."), "radius"));
-        Circle2d circle = profile.Circles2d.AddByCenterRadius(x, y, r);
+        Circle2d circle = canvas.Circles2d.AddByCenterRadius(x, y, r);
         return new { element = context.RegisterBeside(circle, "circle2d", sketch) };
     }
 
     /// <summary>Arc from center, start and end (counter-clockwise from start to end).</summary>
     public static object Arc(SeContext context, string sketch, double[]? center, double[]? start, double[]? end)
     {
-        Profile profile = Resolve(context, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
         (double xc, double yc) = Geo.Point2(center, "center");
         (double xs, double ys) = Geo.Point2(start, "start");
         (double xe, double ye) = Geo.Point2(end, "end");
-        Arc2d arc = profile.Arcs2d.AddByCenterStartEnd(xc, yc, xs, ys, xe, ye);
+        Arc2d arc = canvas.Arcs2d.AddByCenterStartEnd(xc, yc, xs, ys, xe, ye);
         return new { element = context.RegisterBeside(arc, "arc2d", sketch) };
     }
 
@@ -175,19 +177,20 @@ public static partial class SketchService
                     : "Make every loop closed (endpoints must coincide), without self-intersections, then call 'close' again. 'rectangle' and 'polyline' connect their lines automatically.");
         }
 
-        return new { sketch, closed = !open, elements = Summary(profile) };
+        return new { sketch, closed = !open, elements = Summary(Canvas2d.Of(profile)) };
     }
 
     public static object Info(SeContext context, string sketch)
     {
-        Profile profile = Resolve(context, sketch);
-        (List<object> items, bool truncated) = ElementList(context, profile, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
+        (List<object> items, bool truncated) = ElementList(context, canvas, sketch);
         return new
         {
             sketch,
-            name = NameOf(profile),
-            frame = Frame(profile),
-            elements = Summary(profile),
+            name = canvas.Name,
+            sheet = canvas.Sheet is null ? (bool?)null : true,
+            frame = canvas.Profile is { } profile ? Frame(profile) : null,
+            elements = Summary(canvas),
             items,
             truncated = truncated ? true : (bool?)null,
         };
@@ -214,6 +217,8 @@ public static partial class SketchService
     public static Profile Resolve(SeContext context, string sketch) => context.Handles.Resolve(sketch, "sketch") switch
     {
         Profile profile => profile,
+        Sheet or DraftDocument => throw new ToolException("not_supported", $"'{sketch}' is a drawing sheet: this action applies only to model sketches.",
+            "On a sheet you can draw (line, rectangle, polyline, circle, arc, ellipse, spline, point, fillet), list (info) and constrain the geometry."),
         Sketch owner => owner.Profiles.Count > 0
             ? owner.Profiles.Item(1)
             : throw new ToolException("empty_sketch", $"The sketch '{sketch}' has no profile.", "Create a new sketch with se_sketch action 'create'."),
@@ -278,9 +283,9 @@ public static partial class SketchService
     /// <summary>Name of the sketch in the tree (Sketch_N) or, if it has none, that of the profile.</summary>
     private static string NameOf(Profile profile) => profile.Parent is Sketch owner ? owner.Name : profile.Name;
 
-    private static Line2d[] Chain(Profile profile, IReadOnlyList<(double X, double Y)> points, bool closed)
+    private static Line2d[] Chain(Canvas2d canvas, IReadOnlyList<(double X, double Y)> points, bool closed)
     {
-        Lines2d lines2d = profile.Lines2d;
+        Lines2d lines2d = canvas.Lines2d;
         var lines = new List<Line2d>();
         for (int i = 0; i + 1 < points.Count; i++)
         {
@@ -292,7 +297,7 @@ public static partial class SketchService
             lines.Add(lines2d.AddBy2Points(points[^1].X, points[^1].Y, points[0].X, points[0].Y));
         }
 
-        var relations = (Relations2d)profile.Relations2d;
+        Relations2d relations = canvas.Relations2d;
         for (int i = 0; i + 1 < lines.Count; i++)
         {
             relations.AddKeypoint(lines[i], LineEnd, lines[i + 1], LineStart);
@@ -330,16 +335,16 @@ public static partial class SketchService
         return [x3, y3, z3];
     }
 
-    private static object Summary(Profile profile) => new
+    private static object Summary(Canvas2d canvas) => new
     {
-        lines = profile.Lines2d.Count,
-        circles = profile.Circles2d.Count,
-        arcs = profile.Arcs2d.Count,
-        ellipses = NonZero(profile.Ellipses2d.Count),
-        splines = NonZero(profile.BSplineCurves2d.Count),
-        points = NonZero(profile.Points2d.Count),
-        relations = NonZero(((Relations2d)profile.Relations2d).Count),
-        dimensions = NonZero(((Dimensions)profile.Dimensions).Count),
+        lines = canvas.Lines2d.Count,
+        circles = canvas.Circles2d.Count,
+        arcs = canvas.Arcs2d.Count,
+        ellipses = NonZero(canvas.Ellipses2d.Count),
+        splines = NonZero(canvas.BSplineCurves2d.Count),
+        points = NonZero(canvas.Points2d.Count),
+        relations = NonZero(canvas.Relations2d.Count),
+        dimensions = NonZero(canvas.Dimensions.Count),
     };
 
     private static int? NonZero(int count) => count == 0 ? null : count;

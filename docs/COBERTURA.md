@@ -152,7 +152,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Surface finish symbols, datum frames and feature control frames (14 characteristics, diameter zone, material condition, datums), attached to the views or free | `se_annotation` | ✔ |
 | Weld symbols; composite and multi-row feature control frames | COM (`WeldSymbols`, `FeatureControlFrame.SecondaryFrame`…) | · |
 | Hole tables, bend tables, blocks | COM (`HoleTables`, `DraftBendTables`, `Blocks`) | · |
-| 2D geometry on the sheet | COM (`Sheet.Lines2d`, `Circles2d`, `Arcs2d`…) | · |
+| 2D geometry on the sheet (lines, rectangles, circles, arcs, ellipses, splines, points, fillets) with relations and driving dimensions | `se_sketch`, `se_sketch_constraint` with a sheet or drawing handle | ✔ |
 | Export PDF, DXF, DWG (a drawing that is not saved warns: the title block fields that come from the file, such as the date, show "Error: No reference") | `se_export` | ✔ |
 
 ## Notes

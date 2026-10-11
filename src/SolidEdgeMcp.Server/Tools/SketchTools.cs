@@ -84,7 +84,7 @@ public sealed class SketchTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_sketch", Title = "Sketch (profile)", Destructive = true, OpenWorld = false)]
     [Description("""
-        2D sketches (profiles) for part features, in mm, in the sketch's own x/y coordinates.
+        2D sketches (profiles) for part features, in mm, in the sketch's own x/y coordinates. Drawing sheets take the same 2D geometry (2D drafting): pass a sheet handle (se_drawing sheets) or a drawing document handle (its active sheet) as 'sketch', with x/y in mm from the lower-left corner of the sheet; create, axis, close, project and delete apply only to model sketches.
         create (plane: '1' = XY/top (normal +Z), '2' = YZ/right (+X), '3' = XZ/front (-Y), or a refplane / planar face handle) returns the sketch handle and its frame (origin, xAxis, yAxis, normal in model coordinates). Sketch x/y are measured from the frame origin along xAxis/yAxis: on a face the origin is not the model origin (model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis) |
         line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners [x1,y1,x2,y2]) | polyline (points [x1,y1,x2,y2,...], closed, default true) | circle (center [x,y], radius) | arc (center, start, end; counter-clockwise) |
         ellipse (center, radius = semi-major axis, minorRadius, angle of the major axis in degrees) | spline (cubic through points [x1,y1,...] >= 3; closed, default false) | point (points [x,y]) |
@@ -94,7 +94,7 @@ public sealed class SketchTools(ToolRunner runner)
         """)]
     public Task<CallToolResult> Sketch(
         SketchAction action,
-        [Description("Sketch handle (all actions except create).")] string? sketch = null,
+        [Description("Sketch handle (all actions except create), or a drawing sheet / drawing document handle for the drawing actions and info.")] string? sketch = null,
         [Description("For create: '1' XY, '2' YZ, '3' XZ, or a refplane / planar face handle.")] string? plane = null,
         [Description("For line, rectangle, polyline, spline, point: flat list of coordinates in mm [x1,y1,x2,y2,...]; for fillet: optional point inside the corner.")] double[]? points = null,
         [Description("For circle, arc, ellipse: centre [x,y] in mm.")] double[]? center = null,
@@ -141,7 +141,7 @@ public sealed class SketchTools(ToolRunner runner)
 
     [McpServerTool(Name = "se_sketch_constraint", Title = "Sketch relations and dimensions", Destructive = true, OpenWorld = false)]
     [Description("""
-        Geometric relations and driving dimensions of a sketch (before 'close'); Solid Edge moves the geometry to satisfy them. elements: handles returned by se_sketch.
+        Geometric relations and driving dimensions of a sketch (before 'close') or of the 2D geometry of a drawing sheet; Solid Edge moves the geometry to satisfy them. elements: handles returned by se_sketch.
         relation (relation: horizontal | vertical | fix (one element) | parallel | perpendicular | equal | tangent | concentric | colinear (two) | connect (two + keypoints [i1,i2]) | symmetric (symmetry line + two)) |
         dimension (dimension: length (line) | radius | diameter (circle or arc) | distance (true distance between two elements: parallel lines, point/centre to line, or points; circles/arcs by their centre, or keypoints [i1,i2]) | angle (two lines: the angle inside the corner they form, 0-180; the variable stores Solid Edge's counter-clockwise angle from the first line's direction to the second's, returned as variableValue); value in mm or degrees sets the size, omitted locks the current one; returns the variable name to change it later with se_variables) |
         list (relations with their type and elements, keypoint and point; dimensions with their variables) | delete (constraint = relation or dimension handle).
@@ -150,7 +150,7 @@ public sealed class SketchTools(ToolRunner runner)
         """)]
     public Task<CallToolResult> SketchConstraint(
         SketchConstraintAction action,
-        [Description("Sketch handle (relation, dimension, list).")] string? sketch = null,
+        [Description("Sketch or drawing sheet handle (relation, dimension, list).")] string? sketch = null,
         [Description("For relation: relation type.")] SketchRelation? relation = null,
         [Description("For dimension: dimension type.")] SketchDimension? dimension = null,
         [Description("Sketch element handles.")] string[]? elements = null,

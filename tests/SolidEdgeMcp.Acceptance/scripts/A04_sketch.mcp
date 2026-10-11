@@ -110,4 +110,36 @@ se_documents {"action":"close","document":"{{dK.handle}}","saveChanges":false}
 ?= iL.items[1].geometry.length 60
 ! [relation_failed] se_sketch_constraint {"action":"relation","sketch":"{{kL.sketch}}","relation":"horizontal","elements":["{{rL.elements[0]}}"]}
 se_documents {"action":"close","document":"{{dL.handle}}","saveChanges":false}
+# M: the same 2D tools on a drawing sheet (sheet handle or drawing handle = its active sheet), in mm from its lower-left
+#   corner. Fillet R5 at (150,50) trims the bottom side to 95 and the right one to 55; a length dimension of 80 moves the end
+#   of the line, a 30 diameter shrinks the circle and a horizontal relation levels the line at y=50. A spline through 3 points
+#   ends at the last one. Validating or deleting a sheet as a sketch fails
+@dM = se_documents {"action":"new","kind":"draft"}
+@shM = se_drawing {"action":"sheets"}
+@rM = se_sketch {"action":"rectangle","sketch":"{{shM.sheets[0].handle}}","points":[50,50,150,110]}
+@cM = se_sketch {"action":"circle","sketch":"{{dM.handle}}","center":[100,80],"radius":20}
+@lM = se_sketch {"action":"line","sketch":"{{dM.handle}}","points":[200,50,260,90]}
+@sM = se_sketch {"action":"spline","sketch":"{{dM.handle}}","points":[50,200,80,230,120,210]}
+?= sM.geometry.end[0] 120
+?= sM.geometry.end[1] 210
+@fM = se_sketch {"action":"fillet","sketch":"{{dM.handle}}","elements":["{{rM.elements[0]}}","{{rM.elements[1]}}"],"radius":5}
+?= fM.geometry.center[0] 145
+?= fM.trimmed[0].length 95
+?= fM.trimmed[1].length 55
+@dlM = se_sketch_constraint {"action":"dimension","sketch":"{{dM.handle}}","dimension":"length","elements":["{{lM.element}}"],"value":80}
+?= dlM.value 80
+@ddM = se_sketch_constraint {"action":"dimension","sketch":"{{dM.handle}}","dimension":"diameter","elements":["{{cM.element}}"],"value":30}
+?= ddM.elements[0].radius 15
+@hM = se_sketch_constraint {"action":"relation","sketch":"{{dM.handle}}","relation":"horizontal","elements":["{{lM.element}}"]}
+?= hM.elements[0].end[1] 50
+?= hM.elements[0].length 80
+@iM = se_sketch {"action":"info","sketch":"{{shM.sheets[0].handle}}"}
+?= iM.sheet true
+?= iM.elements.lines 5
+?= iM.elements.dimensions 2
+@gM = se_drawing {"action":"dimensions"}
+?= gM.count 2
+! [not_supported] se_sketch {"action":"close","sketch":"{{dM.handle}}"}
+! [not_supported] se_sketch {"action":"delete","sketch":"{{shM.sheets[0].handle}}"}
+se_documents {"action":"close","document":"{{dM.handle}}","saveChanges":false}
 se_documents {"action":"list"}

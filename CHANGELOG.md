@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_sketch` and `se_sketch_constraint` draw and constrain 2D geometry on drawing sheets: pass
+  a sheet handle or a drawing handle (its active sheet) as `sketch`.
 - `se_layer`: layers of parts, sheet metal, assemblies and drawing sheets (list, create,
   activate, show or hide, selectable, delete empty ones and move elements between them).
   Acceptance script A16.

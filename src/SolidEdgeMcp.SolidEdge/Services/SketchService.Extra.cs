@@ -22,7 +22,7 @@ public static partial class SketchService
     /// <summary>Ellipse by center, major semi-axis, minor semi-axis and angle of the major axis (degrees from x).</summary>
     public static object Ellipse(SeContext context, string sketch, double[]? center, double? radius, double? minorRadius, double? angle)
     {
-        Profile profile = Resolve(context, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
         (double x, double y) = Geo.Point2(center, "center");
         double major = Units.MmToM(Units.RequirePositive(radius ?? throw ToolException.InvalidArgument("Action 'ellipse' requires 'radius' (semi-major axis, mm)."), "radius"));
         double minor = Units.MmToM(Units.RequirePositive(minorRadius ?? throw ToolException.InvalidArgument("Action 'ellipse' requires 'minorRadius' (semi-minor axis, mm)."), "minorRadius"));
@@ -33,7 +33,7 @@ public static partial class SketchService
 
         double a = Units.DegToRad(Units.RequireFinite(angle ?? 0, "angle"));
         // The major axis is given as a vector from the center (verified: it is not an absolute point).
-        Ellipse2d ellipse = profile.Ellipses2d.AddByCenter(x, y, major * Math.Cos(a), major * Math.Sin(a), minor / major,
+        Ellipse2d ellipse = canvas.Ellipses2d.AddByCenter(x, y, major * Math.Cos(a), major * Math.Sin(a), minor / major,
             Geom2dOrientationConstants.igGeom2dOrientCounterClockwise);
         return new { element = context.RegisterBeside(ellipse, "ellipse2d", sketch), geometry = Describe2d(ellipse) };
     }
@@ -41,26 +41,26 @@ public static partial class SketchService
     /// <summary>Cubic spline through the points; closed (continuous tangent) if <paramref name="closed"/>.</summary>
     public static object Spline(SeContext context, string sketch, double[]? points, bool closed)
     {
-        Profile profile = Resolve(context, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
         List<(double X, double Y)> p = Geo.Points2(points, "points", 3);
         Array flat = p.SelectMany(q => new[] { q.X, q.Y }).ToArray();
         int order = Math.Min(4, p.Count);
         BSplineCurve2d curve = closed
-            ? profile.BSplineCurves2d.AddByPointsWithCloseOption(order, p.Count, ref flat, true)
-            : profile.BSplineCurves2d.AddByPoints(order, p.Count, ref flat);
+            ? canvas.BSplineCurves2d.AddByPointsWithCloseOption(order, p.Count, ref flat, true)
+            : canvas.BSplineCurves2d.AddByPoints(order, p.Count, ref flat);
         return new { element = context.RegisterBeside(curve, "bspline2d", sketch), geometry = Describe2d(curve) };
     }
 
     public static object Point(SeContext context, string sketch, double[]? points)
     {
-        Profile profile = Resolve(context, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
         List<(double X, double Y)> p = Geo.Points2(points, "points", 1);
         if (p.Count != 1)
         {
             throw ToolException.InvalidArgument("'points' must be one point [x, y] for action 'point'.");
         }
 
-        Point2d point = profile.Points2d.Add(p[0].X, p[0].Y);
+        Point2d point = canvas.Points2d.Add(p[0].X, p[0].Y);
         return new { element = context.RegisterBeside(point, "point2d", sketch), geometry = Describe2d(point) };
     }
 
@@ -70,7 +70,7 @@ public static partial class SketchService
     /// </summary>
     public static object Fillet(SeContext context, string sketch, string[]? elements, double? radius, double[]? side)
     {
-        Profile profile = Resolve(context, sketch);
+        Canvas2d canvas = ResolveCanvas(context, sketch);
         object[] e = Elements(context, elements, 2, 2, "fillet");
         double r = Units.MmToM(Units.RequirePositive(radius ?? throw ToolException.InvalidArgument("Action 'fillet' requires 'radius' (mm)."), "radius"));
         (double X, double Y) pick = side is not null ? Geo.Point2(side, "points")
@@ -79,7 +79,7 @@ public static partial class SketchService
         try
         {
             // With no possible corner (e.g. parallel lines) Solid Edge does not throw an error: it returns null.
-            Arc2d arc = profile.Arcs2d.AddAsFillet(e[0], e[1], r, pick.X, pick.Y)
+            Arc2d arc = canvas.Arcs2d.AddAsFillet(e[0], e[1], r, pick.X, pick.Y)
                 ?? throw new ToolException("fillet_failed", "Solid Edge could not round the corner: the elements do not form a corner for that radius.",
                     "The two elements must meet (or cross) and both be long enough for the radius; pass 'points' inside the corner to round.");
             return new
@@ -132,8 +132,8 @@ public static partial class SketchService
     /// <summary>Geometric relation between sketch elements; Solid Edge repositions the geometry to satisfy it.</summary>
     public static object Relate(SeContext context, string sketch, string type, string[]? elements, int[]? keypoints)
     {
-        Profile profile = Resolve(context, sketch);
-        var relations = (Relations2d)profile.Relations2d;
+        Canvas2d canvas = ResolveCanvas(context, sketch);
+        Relations2d relations = canvas.Relations2d;
         (int count, string usage) = type switch
         {
             "horizontal" or "vertical" or "fix" => (1, "one line (fix: any element)"),
@@ -184,8 +184,8 @@ public static partial class SketchService
     /// </summary>
     public static object Dimension(SeContext context, string sketch, string type, string[]? elements, int[]? keypoints, double? value)
     {
-        Profile profile = Resolve(context, sketch);
-        var dimensions = (Dimensions)profile.Dimensions;
+        Canvas2d canvas = ResolveCanvas(context, sketch);
+        Dimensions dimensions = canvas.Dimensions;
         int count = type is "distance" or "angle" ? 2 : 1;
         object[] e = Elements(context, elements, count, count, $"dimension '{type}'");
         int[]? k = keypoints is null ? null : Keypoints(keypoints, count);
@@ -251,8 +251,8 @@ public static partial class SketchService
     /// <summary>Relations and dimensions of the sketch.</summary>
     public static object Constraints(SeContext context, string sketch)
     {
-        Profile profile = Resolve(context, sketch);
-        var dimensions = (Dimensions)profile.Dimensions;
+        Canvas2d canvas = ResolveCanvas(context, sketch);
+        Dimensions dimensions = canvas.Dimensions;
         var items = new List<object>();
         for (int i = 1; i <= dimensions.Count; i++)
         {
@@ -275,7 +275,7 @@ public static partial class SketchService
             });
         }
 
-        var relations = (Relations2d)profile.Relations2d;
+        Relations2d relations = canvas.Relations2d;
         var related = new List<object>();
         for (int i = 1; i <= relations.Count && related.Count < context.MaxListItems; i++)
         {
@@ -299,13 +299,13 @@ public static partial class SketchService
     }
 
     /// <summary>2D elements of the sketch with their handle and geometry (mm), up to the list limit.</summary>
-    private static (List<object> Items, bool Truncated) ElementList(SeContext context, Profile profile, string sketch)
+    private static (List<object> Items, bool Truncated) ElementList(SeContext context, Canvas2d canvas, string sketch)
     {
         var items = new List<object>();
         System.Collections.IEnumerable[] groups =
         [
-            profile.Lines2d, profile.Circles2d, profile.Arcs2d, profile.Ellipses2d,
-            profile.EllipticalArcs2d, profile.BSplineCurves2d, profile.Points2d,
+            canvas.Lines2d, canvas.Circles2d, canvas.Arcs2d, canvas.Ellipses2d,
+            canvas.EllipticalArcs2d, canvas.BSplineCurves2d, canvas.Points2d,
         ];
         foreach (object element in groups.SelectMany(g => g.Cast<object>()))
         {
