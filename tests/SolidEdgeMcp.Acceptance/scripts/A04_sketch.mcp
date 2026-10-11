@@ -162,3 +162,16 @@ se_sketch {"action":"close","sketch":"{{kN.sketch}}"}
 ?= xN.volume 7690 0.01
 se_documents {"action":"close","document":"{{dN.handle}}","saveChanges":false}
 se_documents {"action":"list"}
+# Base planes by orientation ('xy', 'yz', 'xz'): found by their normal through the origin, whatever the template's order.
+@ox = se_documents {"action":"new","kind":"part"}
+@oxy = se_sketch {"action":"create","plane":"xy","document":"{{ox.handle}}"}
+?= oxy.frame.normal[2] 1
+@oyz = se_sketch {"action":"create","plane":"YZ","document":"{{ox.handle}}"}
+?= oyz.frame.normal[0] 1
+@oxz = se_sketch {"action":"create","plane":"xz","document":"{{ox.handle}}"}
+?= oxz.frame.normal[1] -1
+se_documents {"action":"close","document":"{{ox.handle}}","saveChanges":false}
+@oa = se_documents {"action":"new","kind":"assembly"}
+@oaz = se_sketch {"action":"create","plane":"xz","document":"{{oa.handle}}"}
+?= oaz.frame.normal[1] -1
+se_documents {"action":"close","document":"{{oa.handle}}","saveChanges":false}

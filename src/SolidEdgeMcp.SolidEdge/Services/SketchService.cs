@@ -42,7 +42,9 @@ public static partial class SketchService
 
     /// <summary>Base plane '1'-'3' of an assembly or an assembly reference plane handle.</summary>
     internal static object AssemblyPlane(SeContext context, SolidEdgeAssembly.AssemblyDocument assembly, string plane) =>
-        int.TryParse(plane, out int index)
+        OrientedPlanes.TryAxis(plane, out int axis)
+            ? OrientedPlanes.Find(Com.Late.Items(assembly.AsmRefPlanes), axis, plane)
+            : int.TryParse(plane, out int index)
             ? index is >= 1 and <= 3
                 ? assembly.AsmRefPlanes.Item(index)
                 : throw ToolException.InvalidArgument($"The assembly has base planes '1'-'3', not '{plane}'.")

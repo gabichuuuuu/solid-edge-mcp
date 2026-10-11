@@ -212,6 +212,11 @@ public sealed class ModelDocument
     /// </summary>
     public object ResolvePlaneSource(SeContext context, string plane, string argumentName = "plane")
     {
+        if (OrientedPlanes.TryAxis(plane, out int axis))
+        {
+            return OrientedPlanes.Find(Late.Items(RefPlanes), axis, plane);
+        }
+
         if (int.TryParse(plane, out int index))
         {
             int count = RefPlanes.Count;

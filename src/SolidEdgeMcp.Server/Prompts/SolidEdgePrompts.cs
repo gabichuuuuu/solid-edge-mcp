@@ -29,8 +29,8 @@ public sealed class SolidEdgePrompts
         $"""
         Model this part in Solid Edge: {description}
 
-        Workflow: se_documents new (kind part). For each feature: se_sketch create on a base plane ('1' = xy, '2' = yz,
-        '3' = xz) or on a face handle from se_geometry, draw (rectangle, circle, line, arc, polyline), close, then se_extrude
+        Workflow: se_documents new (kind part). For each feature: se_sketch create on a base plane ('xy', 'yz' or 'xz',
+        which find the plane by its orientation in any template) or on a face handle from se_geometry, draw (rectangle, circle, line, arc, polyline), close, then se_extrude
         or se_revolve (operation add or cut). Holes: se_hole. Rounds and chamfers: se_round / se_chamfer on edge handles from
         se_geometry 'edges'. Patterns: se_pattern. Shell, draft, ribs and other features: se_shell, se_draft, se_part_feature.
         Compare the volume each call returns with the expected one before going on.

@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- Base planes by orientation: `'xy'`, `'yz'` and `'xz'` find the plane through the origin with that normal in any template
+  (parts and assemblies); `'1'`-`'3'` keep following the template's order.
 - Each installation is read instead of assumed: `se_ui find` finds a button by the text this Solid Edge shows (any
   language or ribbon theme) with its tab, group and command id; `se_documents templates` lists the default template of
   each kind (Solid Edge's options) and the templates in its folders; a weldment uses the weldment template set in Solid
