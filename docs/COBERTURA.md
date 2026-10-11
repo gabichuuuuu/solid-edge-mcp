@@ -170,7 +170,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Composite and multi-row feature control frames (up to 4 rows) | `se_annotation feature_control_frame rows`, `composite` | ✔ |
 | Hole tables | — | ✘ `HoleTables2.Add` creates an empty table, but `AttachDrawingView` gives E_UNEXPECTED and, after an origin is added (`AddNewXYoriginEx` with the `Reference` of a view line), `AddHole` gives RPC_E_SERVERFAULT; use the Hole Table command in Solid Edge |
 | Bend table of a sheet metal view (flat pattern or bent), placed above the title block or at a position | `se_drawing bend_table` | ✔ |
-| Blocks | COM (`Blocks`) | · |
+| Blocks: create from 2D elements of a sheet, place (position, scale, angle), import a saved drawing as a block, list, delete | `se_drawing blocks`, `create_block`, `place_block`, `import_block`, `delete_block` | ✔ |
+| Block labels, block views, editing a block's graphics | COM (`BlockLabels`, `BlockViews`) | · |
 | 2D geometry on the sheet (lines, rectangles, circles, arcs, ellipses, splines, points, fillets) with relations and driving dimensions | `se_sketch`, `se_sketch_constraint` with a sheet or drawing handle | ✔ |
 | Export PDF, DXF, DWG (a drawing that is not saved warns: the title block fields that come from the file, such as the date, show "Error: No reference") | `se_export` | ✔ |
 

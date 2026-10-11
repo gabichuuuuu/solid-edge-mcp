@@ -193,4 +193,49 @@ se_drawing {"action":"delete_sheet","sheet":"Hoja 2"}
 @up = se_drawing {"action":"update"}
 ?= up.outOfDate 0
 se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# Blocks: a 40x20 rectangle at (50,50) and a circle r5 in it become block "Frame" with its origin at (50,50); one occurrence
+# takes their place (range 50..90 x 50..70). Placed at (200,100) with scale 2 it spans 200..280 x 100..140; turned 30° at
+# (300,100) its box is x 300-10 = 290 to 300+40cos30 = 334.641, y 100 to 100+40sin30+20cos30 = 137.321.
+# Saved and imported into a new drawing: the file becomes block "a07_blocks" and brings "Frame" along (the template has its
+# own blocks, so counts are not checked); after deleting "Frame" it can no longer be placed.
+@bd = se_documents {"action":"new","kind":"draft"}
+@bsh = se_drawing {"action":"sheets","document":"{{bd.handle}}"}
+@br = se_sketch {"action":"rectangle","sketch":"{{bsh.sheets[0].handle}}","points":[50,50,90,70]}
+@bc = se_sketch {"action":"circle","sketch":"{{bsh.sheets[0].handle}}","center":[70,60],"radius":5}
+! [invalid_argument] se_drawing {"action":"create_block","name":"Frame","elements":["{{bc.element}}"]}
+@cb = se_drawing {"action":"create_block","name":"Frame","elements":["{{br.elements[0]}}","{{br.elements[1]}}","{{br.elements[2]}}","{{br.elements[3]}}","{{bc.element}}"],"position":[50,50]}
+?= cb.block.name Frame
+?= cb.block.occurrences 1
+?= cb.occurrence.range.min[0] 50 0.01
+?= cb.occurrence.range.max[0] 90 0.01
+?= cb.occurrence.range.max[1] 70 0.01
+@bi = se_sketch {"action":"info","sketch":"{{bsh.sheets[0].handle}}"}
+?= bi.elements.lines 0
+! [invalid_argument] se_drawing {"action":"create_block","name":"Frame","elements":["{{bc.element}}"],"position":[0,0]}
+@pb = se_drawing {"action":"place_block","name":"Frame","position":[200,100],"scale":2}
+?= pb.scale 2
+?= pb.range.min[0] 200 0.01
+?= pb.range.max[0] 280 0.01
+?= pb.range.max[1] 140 0.01
+@pr = se_drawing {"action":"place_block","name":"Frame","position":[300,100],"angle":30}
+?= pr.angle 30
+?= pr.range.min[0] 290 0.01
+?= pr.range.max[0] 334.641 0.01
+?= pr.range.max[1] 137.321 0.01
+! [not_found] se_drawing {"action":"place_block","name":"Nope","position":[0,0]}
+! [invalid_argument] se_drawing {"action":"place_block","name":"Frame","position":[0,0],"scale":0}
+@lb = se_drawing {"action":"blocks"}
+?= lb.blocks[?name="Frame"].occurrences 3
+se_documents {"action":"save_as","path":"{{work}}\\a07_blocks.dft","overwrite":true}
+@bd2 = se_documents {"action":"new","kind":"draft"}
+@ib = se_drawing {"action":"import_block","path":"{{work}}\\a07_blocks.dft","document":"{{bd2.handle}}"}
+?= ib.block.name a07_blocks
+?= ib.added true
+@pb2 = se_drawing {"action":"place_block","name":"Frame","position":[100,100],"document":"{{bd2.handle}}"}
+?= pb2.range.max[0] 140 0.01
+@db = se_drawing {"action":"delete_block","name":"Frame","document":"{{bd2.handle}}"}
+?~ db.deleted Frame
+! [not_found] se_drawing {"action":"place_block","name":"Frame","position":[100,100],"document":"{{bd2.handle}}"}
+se_documents {"action":"close","document":"{{bd2.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{bd.handle}}","saveChanges":false}
 se_documents {"action":"list"}

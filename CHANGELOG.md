@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_drawing` blocks: create a block from 2D elements of a sheet, place it scaled and turned,
+  import a saved drawing as a block, list and delete blocks.
 - `se_assembly_config explode` and `exploded`: automatic exploded views (spread distance, by part
   or subassembly) and the exploded placement of each component next to its assembly placement.
 - `se_curve`: construction curves through 3D points, where faces, surfaces and the body meet,
