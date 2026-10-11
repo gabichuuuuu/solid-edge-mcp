@@ -151,8 +151,8 @@ public static partial class FeatureService
         return Verify(context, model, feature, before, 1, switched);
     }
     /// <summary>
-    /// Scales the whole body about the part origin: one factor (uniform) or one per axis. Verified: the volume is multiplied by
-    /// the product of the factors and the centre of volume by each factor.
+    /// Scales the body about the part origin (with several design bodies, the first one): one factor (uniform) or one per
+    /// axis. Verified: the volume is multiplied by the product of the factors and the centre of volume by each factor.
     /// </summary>
     private static object ScaleBody(SeContext context, string? documentHandle, PartFeatureSpec spec)
     {
@@ -177,10 +177,13 @@ public static partial class FeatureService
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
         double before = model.Volume();
-        Array bodies = new object[] { target.Body };
+        object body = target.Body;
+        // Only this body is scaled: with several design bodies (a split part) the others keep their volume.
+        double bodyBefore = ((SolidEdgeGeometry.Body)body).Volume;
+        Array bodies = new object[] { body };
         object feature = Create("scale", () => target.ScaleBodyFeatures.Add(1, ref bodies, factors[0], factors[1], factors[2]));
         object result = Verify(context, model, feature, before, Math.Sign(product - 1), switched);
-        double expected = before * product;
+        double expected = before + ((product - 1) * bodyBefore);
         double after = model.Volume();
         if (Math.Abs(after - expected) > Math.Max(VolumeTolerance, expected * 1e-6))
         {

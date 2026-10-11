@@ -58,6 +58,11 @@ public enum AssemblyFeatureAction
     Revolve,
     Hole,
     Mirror,
+    Pattern,
+    Protrusion,
+    RevolvedProtrusion,
+    FilletWeld,
+    LabelWeld,
     Delete,
 }
 
@@ -224,28 +229,35 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
 
     [McpServerTool(Name = "se_assembly_feature", Title = "Assembly features", Destructive = true, OpenWorld = false)]
     [Description("""
-        Assembly features: cutouts and holes made in the assembly through some of its parts (the part files do not change), from a closed sketch
-        drawn in the assembly (se_sketch create with plane '1'-'3' of the assembly, draw, close) or, for holes, from centers on an assembly plane.
-        list (features with their status and the faces they leave on each part) | cut (extruded: sketch; occurrences = the parts to cut; depth mm,
-        default through all; side auto (along the plane normal, then against it) | normal | reverse | symmetric) | revolve (sketch and its 'axis'
-        from se_sketch 'axis' before 'close'; angle degrees, default 360; side) | hole (plane '1'-'3' or an assembly plane; centers [x,y,z,...] mm in
-        the assembly; diameter; type simple | countersink (countersinkDiameter, countersinkAngle); extent through_all | finite with depth; direction
-        auto | normal | reverse; counterbore and tapped holes are made in the part with se_hole) | mirror (features = names of cutouts;
-        plane '1'-'3' or an assembly plane; it cuts the same parts; holes are not mirrored; faces and area are those in the first part) | delete (name). 'name' optionally names the new feature.
-        Each feature is checked by the faces it leaves on every part, and removed if it misses one.
-        Example: {"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2","occurrence:3"]};
-        {"action":"hole","plane":"1","centers":[50,10,0],"diameter":8,"occurrences":["occurrence:2"]}; {"action":"mirror","features":["Cutout 1"],"plane":"3"}.
+        Assembly features: made in the assembly (the part files do not change), from a sketch drawn in the assembly (se_sketch create with plane '1'-'3' of the assembly, draw, close).
+        list (status, the faces left on each part, volumes) | cut (extruded cutout: sketch; occurrences = the parts to cut; depth mm, default through all; side auto (along the plane normal, then against it) | normal | reverse | symmetric) |
+        revolve (revolved cutout: sketch and its 'axis' from se_sketch 'axis' before 'close'; angle degrees, default 360; side) |
+        hole (plane '1'-'3' or an assembly plane; centers [x,y,z,...] mm; diameter; type simple | countersink; extent through_all | finite with depth; direction auto | normal | reverse; counterbore and tapped: se_hole in the part) |
+        mirror (features = names of cutouts; plane) | pattern (features = names of cutouts or holes; plane whose sketch axes the copies follow; count [columns, rows]; spacing [mm, mm]; angle turns the rows, degrees) |
+        protrusion (sketch; depth mm; side normal | reverse | symmetric: a new assembly body) | revolved_protrusion (sketch, axis, angle, side) |
+        fillet_weld (weldment only, se_documents new kind 'weldment': faces = base faces, targetFaces, read with se_geometry 'faces' and source = the occurrence; leg mm on the base faces, leg2 on the target faces, default leg) |
+        label_weld (weldment only: edges from se_geometry 'edges') | delete (name).
+        'name' names the new feature. Each feature is checked (faces left on every part, body volume, weld bead) and removed if it fails.
+        Example: {"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2"]}; {"action":"pattern","features":["Cutout 1"],"plane":"1","count":[3],"spacing":[30]};
+        {"action":"fillet_weld","faces":["face:19"],"targetFaces":["face:20"],"leg":5}.
         """)]
     public Task<CallToolResult> AssemblyFeature(
         AssemblyFeatureAction action,
-        [Description("cut, revolve: closed sketch handle made in the assembly.")] string? sketch = null,
+        [Description("cut, revolve, protrusion, revolved_protrusion: closed sketch handle made in the assembly.")] string? sketch = null,
         [Description("cut, revolve, hole: occurrence handles of the parts to cut.")] string[]? occurrences = null,
-        [Description("cut, hole: depth in mm from the sketch plane (cut: default through all; hole: with extent finite).")] double? depth = null,
+        [Description("cut, hole, protrusion: depth in mm from the sketch plane (cut: default through all; hole: with extent finite).")] double? depth = null,
         PartFeatureSide side = PartFeatureSide.Auto,
-        [Description("revolve: axis handle from se_sketch 'axis'.")] string? axis = null,
-        [Description("revolve: angle in degrees (default 360).")] double? angle = null,
-        [Description("hole, mirror: assembly plane '1'-'3' or an assembly reference plane handle.")] string? plane = null,
-        [Description("mirror: names of the extruded or revolved cutouts to mirror (action 'list').")] string[]? features = null,
+        [Description("revolve, revolved_protrusion: axis handle from se_sketch 'axis'.")] string? axis = null,
+        [Description("revolve, revolved_protrusion: angle in degrees (default 360); pattern: rotation of the rows in degrees (default 0).")] double? angle = null,
+        [Description("hole, mirror, pattern: assembly plane '1'-'3' or an assembly reference plane handle.")] string? plane = null,
+        [Description("mirror: names of the cutouts to mirror; pattern: names of the cutouts or holes to repeat (action 'list').")] string[]? features = null,
+        [Description("pattern: [columns] or [columns, rows], the original included.")] int[]? count = null,
+        [Description("pattern: [between columns, between rows] in mm along the sketch axes of the plane.")] double[]? spacing = null,
+        [Description("fillet_weld: base face handles (se_geometry 'faces' with source = the occurrence).")] string[]? faces = null,
+        [Description("fillet_weld: target face handles, meeting the base faces along an edge.")] string[]? targetFaces = null,
+        [Description("fillet_weld: leg in mm on the base faces.")] double? leg = null,
+        [Description("fillet_weld: leg in mm on the target faces (default leg).")] double? leg2 = null,
+        [Description("label_weld: edge handles (se_geometry 'edges' of an occurrence face).")] string[]? edges = null,
         [Description("hole: centers [x1,y1,z1,...] in mm in the assembly, projected onto the plane.")] double[]? centers = null,
         [Description("hole: diameter in mm.")] double? diameter = null,
         HoleType type = HoleType.Simple,
@@ -253,7 +265,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         [Description("hole countersink: angle in degrees (default 90).")] double countersinkAngle = 90,
         ExtrudeExtent extent = ExtrudeExtent.ThroughAll,
         HoleDirection direction = HoleDirection.Auto,
-        [Description("cut, revolve, hole, mirror: name of the new feature; delete: the feature name.")] string? name = null,
+        [Description("Name of the new feature; delete: the feature name.")] string? name = null,
         [Description("Assembly document handle; default: the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -268,6 +280,11 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
                 new HoleSpec(plane ?? "", centers, diameter, Snake(type), null, null, countersinkDiameter, countersinkAngle,
                     null, Snake(extent), depth, Snake(direction)), name), cancellationToken),
             AssemblyFeatureAction.Mirror => runner.RunAsync(tool, act, c => AssemblyFeatureService.Mirror(c, document, features, plane, name), cancellationToken),
+            AssemblyFeatureAction.Pattern => runner.RunAsync(tool, act, c => AssemblyFeatureService.Pattern(c, document, features, plane, count, spacing, angle, name), cancellationToken),
+            AssemblyFeatureAction.Protrusion => runner.RunAsync(tool, act, c => AssemblyFeatureService.Protrusion(c, document, sketch, depth, Snake(side), name), cancellationToken),
+            AssemblyFeatureAction.RevolvedProtrusion => runner.RunAsync(tool, act, c => AssemblyFeatureService.RevolvedProtrusion(c, document, sketch, axis, angle, Snake(side), name), cancellationToken),
+            AssemblyFeatureAction.FilletWeld => runner.RunAsync(tool, act, c => AssemblyFeatureService.FilletWeld(c, document, faces, targetFaces, leg, leg2, name), cancellationToken),
+            AssemblyFeatureAction.LabelWeld => runner.RunAsync(tool, act, c => AssemblyFeatureService.LabelWeld(c, document, edges, name), cancellationToken),
             AssemblyFeatureAction.Delete => runner.RunAsync(tool, act, c => AssemblyFeatureService.Delete(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

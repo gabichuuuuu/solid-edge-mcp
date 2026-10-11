@@ -8,6 +8,18 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_frame`: structural frames and pipes in an assembly, along a polyline or assembly sketch lines. Sections, pipes and
+  fittings come from the libraries installed with Solid Edge (`library` lists them; they are copied into the work folder
+  and used from there) or from your own parts; frames are mitred or butted at the corners. Each frame reports its cut
+  length and its members with their extent; each pipe its segments with their cut lengths and its fittings. Solid Edge
+  stops giving the assembly features of an assembly that gets a frame before any assembly feature (and welds on the
+  members fail): `se_frame` prevents it by making and deleting a 1 mm³ assembly protrusion first, and leaves the Frame
+  environment the frame opens. A frame or pipe that fails also removes the line segments made for its path.
+- `se_assembly_feature` `pattern` (rectangular patterns of assembly cutouts and holes along the sketch axes of a plane),
+  `protrusion` and `revolved_protrusion` (assembly bodies, checked by their volume), `fillet_weld` (equal or unequal
+  legs, checked by the bead) and `label_weld` in weldment documents. A weld that Solid Edge rejects leaves nothing behind.
+- `se_part_feature` `split` (a reference plane cuts the body into design bodies) and `unite` (joins them again), checked
+  by the number and volume of the bodies.
 - Solid Edge dialogs: a call that a dialog waiting for an answer blocks (e.g. a first-use tip shown when a drawing opens)
   fails after 10 s with `dialog_open`, naming the dialog, its message and its buttons, instead of waiting for the time limit;
   timeouts and `solid_edge_busy` name the open dialog too, and `se_session status` lists it. The server never presses a
@@ -23,10 +35,8 @@ Relevant changes to this project are recorded here. The format follows
 - Checked through the COM layer: live sections, suppressed relationships and live rules of family members, editing the
   graphics of drawing blocks. Simulation set-up works but does not solve with the Community Edition licence, and material
   libraries can only be edited in the installation folder (documented in `docs/COVERAGE.md`).
-- Checked through the COM layer: splitting a body by a plane and uniting the bodies again, sweeps along two paths,
-  assembly protrusions (extruded and revolved), patterns of assembly features, fillet and label welds in weldment
-  documents, structural frames, pipes and harnesses. Every function listed in `docs/COVERAGE.md` is now reviewed:
-  each one works through a tool or the COM layer, or its row says why it does not.
+- Checked through the COM layer: sweeps along two paths and harnesses. Every function listed in `docs/COVERAGE.md` is now
+  reviewed: each one works through a tool or the COM layer, or its row says why it does not.
 - Checked through the COM layer: 3D sketch lines, PMI model views, family of parts options, the list of material libraries,
   drawing block views and labels, and converting the body to a mesh (A07, A08, A19).
 - Coverage progress: `scripts/update-progress.ps1` writes a per-area summary at the top of
@@ -113,6 +123,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Changed
 
+- `se_geometry` with an occurrence as `source` reads the body the assembly shows (`Occurrence.Body`): the faces left by
+  assembly features and the real, cut-to-length frame members, which welds and relations can use. Before, it read the
+  part file's body.
+- Parts with several design bodies (after a split): `se_geometry summary`, `faces` and `edges` cover every body (with the
+  volume and box of each one), and `se_physical` gives the mass properties of the whole part and the volume and mass of
+  each body. Before, only the first body was measured.
 - Tool descriptions stay within the 2,048 characters that Claude Code keeps (the descriptions of `se_drawing`,
   `se_sheetmetal`, `se_part_feature` and `se_sketch` were cut off): the details of each argument moved to the argument
   descriptions, and a test checks the limit for every tool and the server instructions.
@@ -126,6 +142,9 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- `se_geometry summary` on a body converted to a mesh fails with `no_brep_body` (it said only E_FAIL).
+- `se_part_feature scale_body` on a part with several design bodies checks the volume of the scaled (first) body instead of
+  failing, and `unite` always keeps the first model's body as the target, so the part stays measurable.
 - `se_options set`: when Solid Edge rejects an application option while no document is open (display colors such as
   `ColorBackground` need a document window), the error says to open or create a document first.
 - `se_assembly_feature`: deleting a feature, or removing one that failed, no longer deletes a base plane of the assembly

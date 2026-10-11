@@ -65,6 +65,8 @@ public enum PartFeatureAction
     DeleteRounds,
     OffsetFaces,
     ReplaceFaces,
+    Split,
+    Unite,
     Slot,
     WebNetwork,
     Lip,
@@ -227,17 +229,18 @@ public sealed class PartTools(ToolRunner runner)
         runner.RunAsync("se_loft_sweep", Snake(action), c => FeatureService.LoftSweep(c, document,
             new SweepSpec(Snake(action), Snake(operation), sketches, path, origins, axis, pitch, turns, height, Snake(hand))), cancellationToken);
 
-    [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / slot / web network / lip / scale / copy part", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Other part features (ordered modelling). Lengths in mm.
-        rib: sketch = an open chain (se_sketch close with open: true) on a plane across the part, e.g. a diagonal line in a corner; it grows in the sketch plane until it meets the part; thickness; side; depth = finite depth instead of up to the part |
+        rib: sketch = an open chain (se_sketch close with open: true) on a plane across the part; it grows in the sketch plane until it meets the part; thickness; side; depth = finite depth |
         thicken: faces, thickness; side |
         mirror_body: mirrored copy of the whole body about 'plane', keeping the original.
-        Direct edits (also for imported parts): delete_faces (faces; the solid heals: a hole face fills the hole, the side and top faces of a boss remove it) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds or fillets) | offset_faces (faces, distance along their normal: positive adds material) | replace_faces (faces move onto replaceWith: a plane or a se_surface surface or face).
+        split: a reference plane ('plane') cuts the body (or 'bodies') into separate design bodies | unite: joins 'bodies' into one (default: all). se_geometry and se_physical measure every body.
+        Direct edits (also for imported parts): delete_faces (the solid heals: a hole face fills the hole) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | offset_faces (distance along the normal: positive adds material) | replace_faces (faces move onto replaceWith: a plane, a se_surface surface or face).
         slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends (the path is extended by half the width) or squareEnds; through the part, or depth; optional counterbore |
-        web_network: sketch = open lines on a plane across a shelled part (e.g. at the height of its open face); thickness; each line becomes a wall that grows to the next face, or depth |
+        web_network: sketch = open lines on a plane across a shelled part; thickness; each line becomes a wall that grows to the next face, or depth |
         lip: edges = one chain of edges of a rim (e.g. the outer edges of the open face of a shelled part), width and height: a strip standing on the rim, flush with the side face of the edges |
-        scale_body: scale = one factor (uniform) or three (x, y, z) about the part origin; the volume is checked against the factors.
+        scale_body: scale = one factor (uniform) or three (x, y, z) about the part origin (the first body of a split part); the volume is checked.
         copy_part: path = a saved .par/.psm file copied into this part (the base body of an empty part, or united with the body); optional scale and mirror plane.
         Threads: se_hole type tapped (cosmetic) or a helix cut with se_loft_sweep (physical).
         {{VerifiedNote}}
@@ -249,7 +252,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("rib, slot, web_network: open sketch handle.")] string? sketch = null,
         [Description("rib, thicken, web_network: thickness in mm.")] double? thickness = null,
         [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse.")] PartFeatureSide side = PartFeatureSide.Auto,
-        [Description("mirror_body: mirror plane ('1'-'3', refplane or planar face handle); copy_part: optional mirror reference plane.")] string? plane = null,
+        [Description("mirror_body: mirror plane ('1'-'3', refplane or planar face handle); split: the cutting reference plane; copy_part: optional mirror reference plane.")] string? plane = null,
         [Description("rib, web_network: finite depth in mm (default: up to the part or the next face); slot: depth in mm (default: through the part).")] double? depth = null,
         [Description("offset_faces: distance in mm along the face normals (positive outwards adds material, negative inwards).")] double? distance = null,
         [Description("delete_holes: largest hole diameter to delete, mm.")] double? diameter = null,
@@ -261,10 +264,11 @@ public sealed class PartTools(ToolRunner runner)
         [Description("scale_body, copy_part: one factor or three (x, y, z), e.g. [2] or [1, 1, 0.5].")] double[]? scale = null,
         [Description("copy_part: absolute path of the saved part file to copy (allowed folders).")] string? path = null,
         [Description("replace_faces: what the faces become: a reference plane ('1'-'3' or refplane handle), a construction surface (se_surface handle) or a face of one.")] string? replaceWith = null,
+        [Description("split: bodies to cut (default: the first); unite: bodies to join into one (default: all). Body handles from se_geometry summary.")] string[]? bodies = null,
         [Description("Document handle; default: the document of the faces, sketch or plane.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
-            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith)), cancellationToken);
+            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies)), cancellationToken);
 
     [McpServerTool(Name = "se_primitive", Title = "Box / cylinder / sphere", Destructive = false, OpenWorld = false)]
     [Description($$"""

@@ -92,13 +92,63 @@ public sealed class ModelDocument
         }
     }
 
-    /// <summary>Volume of the body in m³, or 0 if there is no solid.</summary>
-    public double Volume() => TryModel()?.Body is SolidEdgeGeometry.Body body ? body.Volume : 0;
+    /// <summary>Volume of all the design bodies in m³, or 0 if there is no solid.</summary>
+    public double Volume() => Bodies().Sum(b => b.Body.Volume);
 
-    /// <summary>Outer area of the body in m² (sum of its faces), or 0 if there is no solid.</summary>
-    public double SurfaceArea() => TryModel()?.Body is SolidEdgeGeometry.Body body
-        ? Late.Items(body.Faces[SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryAll]).Sum(f => ((SolidEdgeGeometry.Face)f).Area)
-        : 0;
+    /// <summary>Outer area of all the design bodies in m² (sum of their faces), or 0 if there is no solid.</summary>
+    public double SurfaceArea() => Bodies().Sum(b =>
+        Late.Items(b.Body.Faces[SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryAll]).Sum(f => ((SolidEdgeGeometry.Face)f).Area));
+
+    /// <summary>
+    /// Design bodies of the document with their model, in order. A split makes one model per body; a body united into
+    /// another keeps its model, whose Body then fails with E_FAIL (verified): it is skipped. On the first model the error
+    /// is passed on (a body converted to a mesh fails the same way and the callers report it).
+    /// </summary>
+    public IReadOnlyList<(Model Model, SolidEdgeGeometry.Body Body)> Bodies() =>
+        MeasuredModels().Select(m => (m, m.Body as SolidEdgeGeometry.Body)).Where(b => b.Item2 is not null)
+            .Select(b => (b.m, b.Item2!)).ToList();
+
+    /// <summary>Design bodies, or null when the first one cannot be read (a body converted to a mesh).</summary>
+    public IReadOnlyList<(Model Model, SolidEdgeGeometry.Body Body)>? TryBodies()
+    {
+        try
+        {
+            return Bodies();
+        }
+        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Models that hold a body: the first one always (also when its body is a mesh, which only physical properties can
+    /// measure) and the others while their body can be read (one united into another fails with E_FAIL, verified).
+    /// </summary>
+    public IReadOnlyList<Model> MeasuredModels()
+    {
+        var models = new List<Model>();
+        int count = Models.Count;
+        for (int i = 1; i <= count; i++)
+        {
+            Model model = Models.Item(i);
+            if (i > 1)
+            {
+                try
+                {
+                    _ = model.Body;
+                }
+                catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+                {
+                    continue;
+                }
+            }
+
+            models.Add(model);
+        }
+
+        return models;
+    }
 
     public string ModelingMode
     {

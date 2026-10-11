@@ -12,14 +12,14 @@ using TopologyQuery = SolidEdgeGeometry.FeatureTopologyQueryTypeConstants;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Assembly features: extruded and revolved cutouts, holes and mirrors of cutouts made in the assembly through some of its parts, from a sketch on
-/// an assembly reference plane (se_sketch create in the assembly) or, for holes, from centers on a plane. The part files do not
+/// Assembly features: extruded and revolved cutouts, holes and mirrors of cutouts made in the assembly through some of its parts (protrusions,
+/// patterns and welds: AssemblyFeatureService.Bodies.cs), from a sketch on an assembly reference plane (se_sketch create in the assembly) or, for holes, from centers on a plane. The part files do not
 /// change. Each feature is checked by the faces it leaves on every part it goes through; verified: a hole of radius 5 through
 /// a 10 mm plate leaves one cylindrical face of 2π·5·10 mm². With the profile on the base plane under the plate, igRight
 /// (along the plane normal) cuts and igLeft fails. A revolved cutout fails when its profile only removes material that is
 /// already gone (e.g. inside an existing hole). Assembly holes have no IDispatch: they are handled through their typed interface.
 /// </summary>
-public static class AssemblyFeatureService
+public static partial class AssemblyFeatureService
 {
     public static object List(SeContext context, string? documentHandle)
     {
@@ -42,7 +42,7 @@ public static class AssemblyFeatureService
         AssemblyDocument assembly = scope[0].TopLevelDocument;
         CheckName(assembly, name);
         CheckUnused(assembly, profile);
-        AssemblyFeaturesExtrudedCutouts cutouts = assembly.AssemblyFeatures.AssemblyFeaturesExtrudedCutouts;
+        AssemblyFeaturesExtrudedCutouts cutouts = FeaturesOf(assembly).AssemblyFeaturesExtrudedCutouts;
         object result = Make(context, assembly, scope, sides, name, "extruded_cutout", extent =>
         {
             Array parts = scope.Cast<object>().ToArray();
@@ -79,7 +79,7 @@ public static class AssemblyFeatureService
         AssemblyDocument assembly = scope[0].TopLevelDocument;
         CheckName(assembly, name);
         CheckUnused(assembly, profile);
-        AssemblyFeaturesRevolvedCutouts revolved = assembly.AssemblyFeatures.AssemblyFeaturesRevolvedCutouts;
+        AssemblyFeaturesRevolvedCutouts revolved = FeaturesOf(assembly).AssemblyFeaturesRevolvedCutouts;
         object result = Make(context, assembly, scope, sides, name, "revolved_cutout", extent =>
         {
             Array parts = scope.Cast<object>().ToArray();
@@ -142,7 +142,7 @@ public static class AssemblyFeatureService
             profiles.Add(profile);
         }
 
-        AssemblyFeaturesHoles holes = assembly.AssemblyFeatures.AssemblyFeaturesHoles;
+        AssemblyFeaturesHoles holes = FeaturesOf(assembly).AssemblyFeaturesHoles;
         try
         {
             object result = Make(context, assembly, scope, sides, name, "hole", extent =>
@@ -194,7 +194,7 @@ public static class AssemblyFeatureService
         CheckName(assembly, name);
         object mirrorPlane = SketchService.AssemblyPlane(context, assembly, plane);
         Array features = parents;
-        AssemblyFeaturesMirror mirror = assembly.AssemblyFeatures.AssemblyFeaturesMirrors.Add(parents.Length, ref features, mirrorPlane,
+        AssemblyFeaturesMirror mirror = FeaturesOf(assembly).AssemblyFeaturesMirrors.Add(parents.Length, ref features, mirrorPlane,
             (FeaturePropertyConstants)1);
         string? status = StatusOf(mirror);
         if (status is not ("ok" or "warning") || FacesOf(mirror).Length == 0)
@@ -348,9 +348,46 @@ public static class AssemblyFeatureService
         double? depth = null;
         double? angle = null;
         string[]? mirrorOf = null;
+        string[]? patternOf = null;
         SolidEdgeGeometry.Face[]? mirrorFaces = null;
+        double? volume = null;
+        double[]? range = null;
+        double[]? legs = null;
+        object? box = null;
         switch (feature)
         {
+            case AssemblyFeaturesPattern pattern:
+                // Like a mirror: the parts of the features it repeats, and its faces as a whole (FacesForScopePart fails on it, verified).
+                object[] repeated = ParentFeatures(pattern);
+                parts = repeated.SelectMany(p => ScopeParts(p).OfType<Occurrence>()).GroupBy(o => o.Name, StringComparer.Ordinal)
+                    .Select(g => g.First()).ToArray();
+                patternOf = repeated.Select(NameOf).OfType<string>().ToArray();
+                mirrorFaces = FeatureFaces(pattern);
+                (double[] lo, double[] hi, int count) = FeatureBox(pattern);
+                box = count > 0 ? Box(lo, hi) : null;
+                break;
+            case AssemblyFeaturesExtrudedProtrusion protrusion:
+                extent = protrusion.GetExtentType();
+                side = protrusion.GetExtentSide();
+                depth = Geo.Mm(protrusion.GetDepth());
+                volume = BodyVolume(protrusion);
+                range = FeatureRange(protrusion);
+                break;
+            case AssemblyFeaturesRevolvedProtrusion revolvedProtrusion:
+                extent = revolvedProtrusion.GetExtentType();
+                side = revolvedProtrusion.GetExtentSide();
+                double turn = Math.Round(Units.RadToDeg(revolvedProtrusion.GetAngle()), 6);
+                angle = turn < 1e-9 ? 360 : turn;
+                volume = BodyVolume(revolvedProtrusion);
+                range = FeatureRange(revolvedProtrusion);
+                break;
+            case AssemblyFilletWeld weld:
+                legs = [Geo.Mm(weld.BaseThickness), Geo.Mm(weld.TargetThickness)];
+                volume = BodyVolume(weld);
+                range = FeatureRange(weld);
+                break;
+            case AssemblyLabelWeld:
+                break;
             case AssemblyFeaturesMirror mirror:
                 // A mirror has no scope parts of its own and FacesForScopePart fails on it (verified): it lists the parts of the
                 // features it copies, and its faces as a whole.
@@ -409,9 +446,13 @@ public static class AssemblyFeatureService
                 var other => other.ToString(),
             },
             mirrorOf,
+            patternOf,
+            legs,
+            volume = volume is { } v ? Geo.Mm3(v) : (double?)null,
+            boundingBox = range is null ? box : Box(range[..3], range[3..]),
             faces = mirrorFaces?.Length,
             area = mirrorFaces is null ? (double?)null : Geo.Mm2(mirrorFaces.Sum(f => f.Area)),
-            note = mirrorFaces is null ? null : "Faces and area of the mirror in its first part: Solid Edge gives a feature's faces in its first part only.",
+            note = mirrorFaces is null ? null : $"Faces and area of the {(patternOf is null ? "mirror" : "copies")} in its first part: Solid Edge gives a feature's faces in its first part only.",
             parts = parts.OfType<Occurrence>().Select(o =>
             {
                 SolidEdgeGeometry.Face[]? faces = mirrorFaces is null ? FacesOn(feature, o) : null;
@@ -452,11 +493,29 @@ public static class AssemblyFeatureService
 
     private static IEnumerable<(object Feature, string Type)> Features(AssemblyDocument assembly)
     {
-        AssemblyFeatures features = assembly.AssemblyFeatures;
+        AssemblyFeatures features = FeaturesOf(assembly);
         return Items<AssemblyFeaturesExtrudedCutout>(features.AssemblyFeaturesExtrudedCutouts).Select(f => ((object)f, "extruded_cutout"))
             .Concat(Items<AssemblyFeaturesRevolvedCutout>(features.AssemblyFeaturesRevolvedCutouts).Select(f => ((object)f, "revolved_cutout")))
             .Concat(Items<AssemblyFeaturesHole>(features.AssemblyFeaturesHoles).Select(f => ((object)f, "hole")))
-            .Concat(Items<AssemblyFeaturesMirror>(features.AssemblyFeaturesMirrors).Select(f => ((object)f, "mirror")));
+            .Concat(Items<AssemblyFeaturesMirror>(features.AssemblyFeaturesMirrors).Select(f => ((object)f, "mirror")))
+            .Concat(Items<AssemblyFeaturesPattern>(features.AssemblyFeaturesPatterns).Select(f => ((object)f, "pattern")))
+            .Concat(Items<AssemblyFeaturesExtrudedProtrusion>(features.ExtrudedProtrusions).Select(f => ((object)f, "protrusion")))
+            .Concat(Items<AssemblyFeaturesRevolvedProtrusion>(features.RevolvedProtrusions).Select(f => ((object)f, "revolved_protrusion")))
+            .Concat(Welds<AssemblyFilletWeld>(() => features.FilletWelds).Select(f => ((object)f, "fillet_weld")))
+            .Concat(Welds<AssemblyLabelWeld>(() => features.LabelWelds).Select(f => ((object)f, "label_weld")));
+    }
+
+    /// <summary>Welds of the assembly; none if the collection cannot be read.</summary>
+    private static IEnumerable<T> Welds<T>(Func<object> collection)
+    {
+        try
+        {
+            return [.. Items<T>(collection())];
+        }
+        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        {
+            return [];
+        }
     }
 
     private static Array ScopeParts(object feature)
@@ -557,6 +616,9 @@ public static class AssemblyFeatureService
                 AssemblyFeaturesExtrudedCutout => OutArray(feature, typeof(AssemblyFeaturesExtrudedCutout), nameof(AssemblyFeaturesExtrudedCutout.GetProfiles)),
                 AssemblyFeaturesRevolvedCutout => OutArray(feature, typeof(AssemblyFeaturesRevolvedCutout), nameof(AssemblyFeaturesRevolvedCutout.GetProfiles)),
                 AssemblyFeaturesHole => OutArray(feature, typeof(AssemblyFeaturesHole), nameof(AssemblyFeaturesHole.GetProfiles)),
+                AssemblyFeaturesExtrudedProtrusion => OutArray(feature, typeof(AssemblyFeaturesExtrudedProtrusion), nameof(AssemblyFeaturesExtrudedProtrusion.GetProfiles)),
+                AssemblyFeaturesRevolvedProtrusion => OutArray(feature, typeof(AssemblyFeaturesRevolvedProtrusion), nameof(AssemblyFeaturesRevolvedProtrusion.GetProfiles)),
+                AssemblyFeaturesPattern pattern => pattern.GetProfile() is { } profile ? [profile] : [],
                 _ => [],
             };
         }

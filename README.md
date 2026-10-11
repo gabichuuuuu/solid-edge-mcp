@@ -9,7 +9,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Solid Edge 2026](https://img.shields.io/badge/Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![53 tools](https://img.shields.io/badge/tools-53-2F6FEB)
+![54 tools](https://img.shields.io/badge/tools-54-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 [![Functions reviewed: 100 %](https://img.shields.io/badge/functions%20reviewed-100%25-brightgreen)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
@@ -29,7 +29,7 @@ machine or a specific workflow.
 
 **🧩 Broad coverage**
 
-Parts, sheet metal, assemblies, drawings and export with 53 tools, plus the whole API through a
+Parts, sheet metal, assemblies, drawings and export with 54 tools, plus the whole API through a
 generic COM layer.
 
 </td>
@@ -55,7 +55,7 @@ for approval.
 
 **🧪 Tested for real**
 
-1909 calls and 829 checks against real Solid Edge 2026, with values calculated by hand.
+2077 calls and 947 checks against real Solid Edge 2026, with values calculated by hand.
 
 </td>
 </tr>
@@ -76,6 +76,7 @@ was measured afterwards, separately, by reopening the generated files.
 | Sheet metal part with a 100 × 60 tab and two 20 flanges; flat pattern to DXF and an A3 drawing with the flat pattern and an isometric view to PDF | Claude Code | 9,871.239 mm³ = 6000 + 2·(75π + 1700); box 100 × 60 × 21; DXF with the contour and 2 bend lines; one-page A3 PDF |
 | Assembly with a 120 × 80 × 10 base and two 20 × 20 × 30 blocks: mates, interference check, bill of materials, and an A3 drawing with a parts list to PDF | Claude Code | 50 calls, 0 errors; 6 mates solved and both blocks fully defined; no interference; BOM 1 + 2; one-page A3 PDF |
 | Plate with 4 holes and 4 R5 fillets, 6061-T6 aluminum, exported to STEP | Codex | 20 calls, 0 errors; 58,416.92 mm³ = 58,631.52 − 4·(25 − 25π/4)·10; 0.15843 kg |
+| Weldment: a 200 × 100 × 10 base plate, a mitred frame of a 20 × 20 section of its own on a closed rectangle, a 4 mm fillet weld between the plate and one bar, and an assembly hole repeated in 3 columns | Claude Code | 30 turns, 0 errors; cut length 520 mm = 180 + 80 + 180 + 80, bars of 64,000 mm³; bead 1,440 mm³ = 4·4/2·180; 1 + 2 hole faces |
 
 ## Quick start
 
@@ -182,7 +183,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-53 tools, grouped by area.
+54 tools, grouped by area.
 
 | Area | Tools |
 |---|---|
@@ -193,7 +194,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Sketches** | `se_sketch` `se_sketch_constraint` `se_ref_plane` |
 | **Part** | `se_extrude` `se_revolve` `se_hole` `se_round` `se_chamfer` `se_pattern` `se_shell` `se_draft` `se_loft_sweep` `se_part_feature` `se_primitive` `se_surface` `se_curve` `se_feature_edit` |
 | **Sheet metal** | `se_sheetmetal` `se_sheetmetal_form` |
-| **Assemblies** | `se_assembly` `se_relations` `se_assembly_pattern` `se_assembly_config` `se_assembly_feature` `se_interference` `se_bom` |
+| **Assemblies** | `se_assembly` `se_relations` `se_assembly_pattern` `se_assembly_config` `se_assembly_feature` `se_frame` `se_interference` `se_bom` |
 | **Drawings** | `se_drawing` `se_annotation` |
 | **Export** | `se_export` |
 | **Full API access** | `se_com_describe` `se_com_get` `se_com_set` `se_com_invoke` `se_com_items` `se_com_constants` `se_command` |
@@ -232,7 +233,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_shell` | Shell with a common wall thickness and optional open faces. |
 | | `se_draft` | Face draft relative to a neutral plane. |
 | | `se_loft_sweep` | Loft, sweep (along a sketch or a 3D curve) and helix, as a boss or a cut. |
-| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, offset faces and replace faces with a plane or a surface; slots along an open path, web networks and lips in shelled parts, scaling of the body, and copies of saved parts (scaled or mirrored). |
+| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, offset faces and replace faces with a plane or a surface; slots along an open path, web networks and lips in shelled parts, scaling of the body, copies of saved parts (scaled or mirrored), and splitting a body by a plane into design bodies and uniting them again (`se_geometry` and `se_physical` measure every body). |
 | | `se_primitive` | Box (optionally turned about the plane normal), cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
 | | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps), offset from a face, lofted through sections, swept along a sketch or a 3D curve, stitched, and filling a closed chain of edges; list and delete. |
 | | `se_curve` | Construction curves: through 3D points, intersections of faces, surfaces and the body, sketches projected onto faces, crossings of two sketches, chains of edges, contours drawn on a face through points on it and sketches wrapped onto cylindrical or conical faces; list and delete. |
@@ -243,7 +244,8 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_relations` | Planar (mate and flush), axial, insert, parallel, tangent, angle and rigid set relations, checked geometrically; list and delete. |
 | | `se_assembly_pattern` | Component patterns that follow a part pattern (e.g. a pin repeated on every hole of a hole pattern): list, create, delete and dissolve. |
 | | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them; automatic exploded views with the exploded placement of each component. |
-| | `se_assembly_feature` | Extruded and revolved cutouts and holes (simple or countersink) made in the assembly through chosen parts, from a sketch drawn in the assembly or centers on an assembly plane; mirrors of cutouts about an assembly plane; list and delete. |
+| | `se_assembly_feature` | Extruded and revolved cutouts and holes (simple or countersink) made in the assembly through chosen parts, from a sketch drawn in the assembly or centers on an assembly plane; mirrors of cutouts about an assembly plane; rectangular patterns of cutouts and holes; extruded and revolved protrusions (assembly bodies); fillet welds (bead) and label welds in a weldment; list and delete. |
+| | `se_frame` | Structural frames (sections from the installed library or your own part, mitred or butted) and pipes with elbows and fittings, along a polyline or assembly sketch lines; members and segments with their extent and cut lengths; list the library, list and delete. |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
 | **Drawings** | `se_drawing` | Sheets; base, projected, auxiliary, section and detail views; dimensions and dimensions retrieved from the model; parts list; bend table; blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete); update. |
@@ -270,7 +272,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 53 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 54 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -285,7 +287,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 53 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 54 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -339,11 +341,11 @@ Logs go to `%LocalAppData%\SolidEdgeMcp\logs` (one UTF-8 file per day; each oper
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 129/129.
-- Acceptance suite against real Solid Edge 2026: **1909 calls and 829 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 153/153.
+- Acceptance suite against real Solid Edge 2026: **2077 calls and 947 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
-- Coverage by value: the 53 tools have correct calls, and `A10` runs every value of the action,
+- Coverage by value: the 54 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -355,7 +357,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 |---|---|
 | `A01` | Session and errors |
 | `A02` | Full part: data, view and named views, selection, editing, exports and undo |
-| `A03` | Part features, ribs, thicken, mirrored body, reference planes and coordinate systems, direct face edits, slots, web networks, lips, body scale and copied parts |
+| `A03` | Part features, ribs, thicken, mirrored body, reference planes and coordinate systems, direct face edits, slots, web networks, lips, body scale, copied parts, and split and united bodies |
 | `A04` | Sketches, corner chamfers and dimensions, also on a drawing sheet |
 | `A05` | Sheet metal, bend angle and radius changes, bend table on a drawing |
 | `A06` | Assemblies |
@@ -366,12 +368,13 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A11` | Options and document units |
 | `A12` | Windows, environments and ribbon |
 | `A13` | Colours of a body, faces, features and assembly components |
-| `A14` | Component patterns that follow a part pattern; display configurations; cutouts and holes made in the assembly |
+| `A14` | Component patterns that follow a part pattern; display configurations; cutouts, holes, patterns, protrusions and welds made in the assembly |
 | `A15` | Primitives: box (also turned), cylinder and sphere added and cut, on base planes and faces |
 | `A16` | Layers of a part (sketch geometry), a drawing (per sheet: a view and annotations) and an assembly |
 | `A17` | Construction surfaces: extruded, revolved, offset, lofted, swept, stitched and bounded |
 | `A18` | Construction curves (also contours on a face and wrapped sketches) and sweeps or cuts along them |
 | `A19` | Family of parts: members, apply, member file; part display configurations through the COM layer |
+| `A20` | Structural frames and pipes from the installed libraries |
 
 </details>
 
@@ -412,7 +415,7 @@ one in `C:\Program Files\dotnet`.
 ```text
 solid_edge_mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (53 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (54 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
@@ -463,9 +466,8 @@ Commits follow Conventional Commits, in English.
 
 - **Alpha (0.1.0).** Working, registered in Claude Code and Codex, and validated end to end. Change
   history in [CHANGELOG.md](CHANGELOG.md).
-- **Next:** more high-level tools for the functions that today go through COM (booleans between
-  bodies and the rows still to be tested in [docs/COVERAGE.md](docs/COVERAGE.md)), MCP prompts for
-  common workflows and an easier installation.
+- **Next:** more high-level tools for the functions that today go through COM (see
+  [docs/COVERAGE.md](docs/COVERAGE.md)), MCP prompts for common workflows and an easier installation.
 - **Pending:** continuous integration (CI).
 
 ## License

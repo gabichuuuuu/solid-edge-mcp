@@ -30,28 +30,72 @@ public static class InspectService
 
         ModelDocument model = ModelDocument.From(target);
         string document = context.DocumentHandle(model.Document);
-        if (model.TryModel()?.Body is not Body body)
+        if (model.TryModel() is null)
         {
             return new { document, solid = false, volume = 0.0 };
         }
 
-        Array min = new double[3];
-        Array max = new double[3];
-        body.GetRange(ref min, ref max);
-        double[] lo = Geo.Mm(min);
-        double[] hi = Geo.Mm(max);
+        // A body converted to a mesh cannot be read: no_brep_body says so.
+        model.RequireBody();
+        IReadOnlyList<(Model Model, Body Body)> bodies = model.Bodies();
+        if (bodies.Count == 0)
+        {
+            return new { document, solid = false, volume = 0.0 };
+        }
+
+        (double[] lo, double[] hi) = Range(bodies.Select(b => b.Body));
         return new
         {
             document,
-            body = context.Register(body, "body", model.Document),
-            solid = body.IsSolid,
+            body = context.Register(bodies[0].Body, "body", model.Document),
+            solid = bodies.All(b => b.Body.IsSolid),
+            volume = Geo.Mm3(bodies.Sum(b => b.Body.Volume)),
+            boundingBox = new { min = lo, max = hi, size = hi.Zip(lo, (a, b) => Geo.R(a - b)).ToArray() },
+            faces = bodies.Sum(b => Late.Count(b.Body.Faces[FeatureTopologyQueryTypeConstants.igQueryAll])),
+            edges = bodies.Sum(b => Late.Count(b.Body.Edges[FeatureTopologyQueryTypeConstants.igQueryAll])),
+            vertices = bodies.Sum(b => Late.Count(b.Body.Vertices)),
+            modelingMode = model.ModelingMode,
+            bodies = bodies.Count == 1 ? null : bodies.Select(b => DescribeBody(context, model.Document, b.Model, b.Body)).ToArray(),
+        };
+    }
+
+    /// <summary>The design bodies of a part: handle, name, volume and box of each.</summary>
+    internal static object[] DescribeBodies(SeContext context, ModelDocument model) =>
+        model.Bodies().Select(b => DescribeBody(context, model.Document, b.Model, b.Body)).ToArray();
+
+    /// <summary>One design body of a part with several (after a split): handle, name, volume and box.</summary>
+    private static object DescribeBody(SeContext context, SolidEdgeDocument owner, Model model, Body body)
+    {
+        (double[] lo, double[] hi) = Range([body]);
+        return new
+        {
+            handle = context.Register(body, "body", owner),
+            name = Late.TryGet(model, "BodyName") as string,
             volume = Geo.Mm3(body.Volume),
             boundingBox = new { min = lo, max = hi, size = hi.Zip(lo, (a, b) => Geo.R(a - b)).ToArray() },
-            faces = Late.Count(body.Faces[FeatureTopologyQueryTypeConstants.igQueryAll]),
-            edges = Late.Count(body.Edges[FeatureTopologyQueryTypeConstants.igQueryAll]),
-            vertices = Late.Count(body.Vertices),
-            modelingMode = model.ModelingMode,
         };
+    }
+
+    /// <summary>Box around one or more bodies, in mm.</summary>
+    private static (double[] Min, double[] Max) Range(IEnumerable<Body> bodies)
+    {
+        double[] lo = [double.MaxValue, double.MaxValue, double.MaxValue];
+        double[] hi = [double.MinValue, double.MinValue, double.MinValue];
+        foreach (Body body in bodies)
+        {
+            Array min = new double[3];
+            Array max = new double[3];
+            body.GetRange(ref min, ref max);
+            double[] a = Geo.Mm(min);
+            double[] b = Geo.Mm(max);
+            for (int i = 0; i < 3; i++)
+            {
+                lo[i] = Math.Min(lo[i], a[i]);
+                hi[i] = Math.Max(hi[i], b[i]);
+            }
+        }
+
+        return (lo, hi);
     }
 
     /// <summary>
@@ -66,8 +110,10 @@ public static class InspectService
                 "Omit 'source' for the summary of a part or sheet metal document.");
         }
 
-        ModelDocument part = AssemblyService.PartOf(occurrence);
-        if (part.TryModel()?.Body is not Body body)
+        IReadOnlyList<(Model? Model, Body Body)> bodies = OverrideBody(occurrence) is { } own
+            ? [(null, own)]
+            : [.. AssemblyService.PartOf(occurrence).Bodies().Select(b => ((Model?)b.Model, b.Body))];
+        if (bodies.Count == 0)
         {
             return new { occurrence = source, name = occurrence.Name, solid = false, volume = 0.0 };
         }
@@ -79,12 +125,13 @@ public static class InspectService
         {
             occurrence = source,
             name = occurrence.Name,
-            solid = body.IsSolid,
-            volume = Geo.Mm3(body.Volume),
+            solid = bodies.All(b => b.Body.IsSolid),
+            volume = Geo.Mm3(bodies.Sum(b => b.Body.Volume)),
             boundingBox = new { min = lo, max = hi, size = hi.Zip(lo, (a, b) => Geo.R(a - b)).ToArray() },
-            faces = Late.Count(body.Faces[FeatureTopologyQueryTypeConstants.igQueryAll]),
-            edges = Late.Count(body.Edges[FeatureTopologyQueryTypeConstants.igQueryAll]),
-            vertices = Late.Count(body.Vertices),
+            faces = bodies.Sum(b => Late.Count(b.Body.Faces[FeatureTopologyQueryTypeConstants.igQueryAll])),
+            edges = bodies.Sum(b => Late.Count(b.Body.Edges[FeatureTopologyQueryTypeConstants.igQueryAll])),
+            vertices = bodies.Sum(b => Late.Count(b.Body.Vertices)),
+            bodies = bodies.Count == 1 ? (int?)null : bodies.Count,
             coordinates = "assembly",
         };
     }
@@ -194,43 +241,94 @@ public static class InspectService
         bool hasDensity = useDensity > 0;
         double accuracy = documentAccuracy is > 0 and < 1 ? documentAccuracy : 0.99;
 
+        // A split leaves one model per body. Model.ComputePhysicalProperties... then measures only one of them, whichever
+        // model it is called on (also after ActivateBody), while Body.ComputePhysicalProperties on any body measures all of
+        // them together and returns status 1 (verified: 84000 + 36000 mm³ gave 120000, centre and inertia of the whole box).
+        // So with several bodies the totals come from the first body, checked against the sum of the body volumes. A body
+        // converted to a mesh also adds a model, while the first one's body can no longer be read (verified): the model measures it.
+        double use = hasDensity ? useDensity : 1.0;
+        IReadOnlyList<(Model Model, Body Body)> bodies = model.Models.Count > 1 && model.TryBodies() is { } readable ? readable : [];
+        bool several = bodies.Count > 1;
+        PhysicalResult r = several ? Compute(bodies[0].Body, use, accuracy, 1) : Compute(target, use, accuracy, 0);
+        if (several)
+        {
+            double sum = bodies.Sum(b => b.Body.Volume);
+            if (Math.Abs(r.Volume - sum) > 1e-6 * Math.Max(sum, 1e-9))
+            {
+                throw new ToolException("physical_properties_failed",
+                    $"Solid Edge measured {Geo.Mm3(r.Volume)} mm3 for a part whose {bodies.Count} bodies add up to {Geo.Mm3(sum)} mm3.",
+                    "Unite the bodies (se_part_feature unite) to measure them as one, or use se_geometry summary for the volume of each.");
+            }
+        }
+
+        double[] g = r.Global.Select(v => Math.Round(Units.KgM2ToKgMm2(v), 6)).ToArray();
+        return new
+        {
+            document = context.DocumentHandle(model.Document),
+            volume = Geo.Mm3(r.Volume),
+            area = Geo.Mm2(r.Area),
+            centerOfVolume = r.CenterOfVolume.Select(Geo.Mm).ToArray(),
+            density = hasDensity ? useDensity : (double?)null,
+            densitySource = density is not null ? "argument" : hasDensity ? "document" : null,
+            mass = hasDensity ? Math.Round(r.Mass, 9) : (double?)null,
+            centerOfGravity = hasDensity ? r.CenterOfGravity.Select(Geo.Mm).ToArray() : null,
+            inertiaAboutOrigin = hasDensity
+                ? new { ixx = g[0], iyy = g[1], izz = g[2], ixy = g[3], ixz = g[4], iyz = g[5] }
+                : null,
+            principalMomentsAboutCog = hasDensity ? r.Principal.Select(v => Math.Round(Units.KgM2ToKgMm2(v), 6)).ToArray() : null,
+            principalAxes = hasDensity ? r.Axes.Select(Geo.R).ToArray() : null,
+            radiiOfGyration = hasDensity ? r.Radii.Select(Geo.Mm).ToArray() : null,
+            bodies = several
+                ? bodies.Select(b => new
+                {
+                    name = Late.TryGet(b.Model, "BodyName") as string,
+                    volume = Geo.Mm3(b.Body.Volume),
+                    mass = hasDensity ? Math.Round(b.Body.Volume * useDensity, 9) : (double?)null,
+                }).ToArray()
+                : null,
+            units = new { length = "mm", area = "mm2", volume = "mm3", density = "kg/m3", mass = "kg", inertia = "kg*mm2" },
+            accuracy,
+            relativeAccuracyAchieved = Geo.R(r.Achieved),
+            note = !hasDensity ? "No density: pass 'density' (kg/m3) or assign a material to get mass and inertia."
+                : several ? $"{bodies.Count} bodies: the properties are those of all of them together ('bodies' gives the volume of each)." : null,
+        };
+    }
+    private sealed record PhysicalResult(double Volume, double Area, double Mass, double[] CenterOfGravity, double[] CenterOfVolume,
+        double[] Global, double[] Principal, double[] Axes, double[] Radii, double Achieved);
+
+    /// <summary>
+    /// Physical properties of a model or of a body (both have ComputePhysicalProperties with the same arguments);
+    /// <paramref name="acceptedStatus"/> is the status that still means a result (1 for a body of a multi-body part).
+    /// </summary>
+    private static PhysicalResult Compute(object target, double density, double accuracy, int acceptedStatus)
+    {
         Array cog = new double[3];
         Array cov = new double[3];
         Array global = new double[6];
         Array principal = new double[3];
         Array axes = new double[9];
         Array radii = new double[3];
-        target.ComputePhysicalPropertiesWithSpecifiedDensity(hasDensity ? useDensity : 1.0, accuracy,
-            out double volume, out double area, out double mass, ref cog, ref cov, ref global, ref principal, ref axes, ref radii,
-            out double achieved, out int status);
-        if (status != 0)
+        double volume, area, mass, achieved;
+        int status;
+        if (target is Body body)
+        {
+            body.ComputePhysicalProperties(density, accuracy, out volume, out area, out mass, ref cog, ref cov, ref global, ref principal,
+                ref axes, ref radii, out achieved, out status);
+        }
+        else
+        {
+            ((Model)target).ComputePhysicalPropertiesWithSpecifiedDensity(density, accuracy, out volume, out area, out mass, ref cog, ref cov,
+                ref global, ref principal, ref axes, ref radii, out achieved, out status);
+        }
+
+        if (status != 0 && status != acceptedStatus)
         {
             throw new ToolException("physical_properties_failed", $"Solid Edge could not compute the physical properties (status {status}).",
                 "Check the model for failed features (se_feature_tree) and try again.");
         }
 
-        double[] g = Geo.Doubles(global).Select(v => Math.Round(Units.KgM2ToKgMm2(v), 6)).ToArray();
-        return new
-        {
-            document = context.DocumentHandle(model.Document),
-            volume = Geo.Mm3(volume),
-            area = Geo.Mm2(area),
-            centerOfVolume = Geo.Mm(cov),
-            density = hasDensity ? useDensity : (double?)null,
-            densitySource = density is not null ? "argument" : hasDensity ? "document" : null,
-            mass = hasDensity ? Math.Round(mass, 9) : (double?)null,
-            centerOfGravity = hasDensity ? Geo.Mm(cog) : null,
-            inertiaAboutOrigin = hasDensity
-                ? new { ixx = g[0], iyy = g[1], izz = g[2], ixy = g[3], ixz = g[4], iyz = g[5] }
-                : null,
-            principalMomentsAboutCog = hasDensity ? Geo.Doubles(principal).Select(v => Math.Round(Units.KgM2ToKgMm2(v), 6)).ToArray() : null,
-            principalAxes = hasDensity ? Geo.Plain(axes) : null,
-            radiiOfGyration = hasDensity ? Geo.Mm(radii) : null,
-            units = new { length = "mm", area = "mm2", volume = "mm3", density = "kg/m3", mass = "kg", inertia = "kg*mm2" },
-            accuracy,
-            relativeAccuracyAchieved = Geo.R(achieved),
-            note = hasDensity ? null : "No density: pass 'density' (kg/m3) or assign a material to get mass and inertia.",
-        };
+        return new PhysicalResult(volume, area, mass, [.. Geo.Doubles(cog)], [.. Geo.Doubles(cov)], [.. Geo.Doubles(global)],
+            [.. Geo.Doubles(principal)], [.. Geo.Doubles(axes)], [.. Geo.Doubles(radii)], achieved);
     }
 
     /// <summary>Minimum distance between two elements (faces, edges, vertices, bodies, planes).</summary>
@@ -310,13 +408,15 @@ public static class InspectService
         object value = context.Handles.Resolve(source, "source");
         if (value is Occurrence occurrence)
         {
-            ModelDocument part = AssemblyService.PartOf(occurrence);
-            return new TopologySource(context.DocumentOf(source), BodyCollection(part, member, query), Placement.Of(occurrence), occurrence);
+            object collection = OverrideBody(occurrence) is { } own
+                ? Late.Get(own, member, query) ?? throw ToolException.InvalidArgument($"'{source}' returned no {member.ToLowerInvariant()}.")
+                : BodyCollection(AssemblyService.PartOf(occurrence), member, query);
+            return new TopologySource(context.DocumentOf(source), collection, GeometryPlacement(occurrence), occurrence);
         }
 
         if (value is OccurrenceElement { Element: Face occurrenceFace } element && member == "Edges")
         {
-            return new TopologySource(context.DocumentOf(source), occurrenceFace.Edges, Placement.Of(element.Occurrence), element.Occurrence);
+            return new TopologySource(context.DocumentOf(source), occurrenceFace.Edges, GeometryPlacement(element.Occurrence), element.Occurrence);
         }
 
         ModelDocument owner = ModelDocument.For(context, documentHandle, source);
@@ -338,6 +438,45 @@ public static class InspectService
     }
 
     /// <summary>
+    /// Body an occurrence shows when it is not its part's: a structural frame member is an occurrence of the section part
+    /// with a body of its own, cut to length and mitred (Occurrence.HasBodyOverride and Occurrence.Body; verified: 6670 mm³
+    /// for a 60 mm tube, while the section part is a short piece). Null for ordinary occurrences.
+    /// </summary>
+    internal static Body? OverrideBody(Occurrence occurrence)
+    {
+        try
+        {
+            return occurrence.HasBodyOverride ? occurrence.Body as Body : null;
+        }
+        catch (System.Runtime.InteropServices.COMException ex) when (!ComErrors.IsDisconnected(ex))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Placement that takes an occurrence's geometry to the assembly: none when its own body (frame members) is already in
+    /// assembly coordinates, which is told by comparing the body's range with the occurrence's.
+    /// </summary>
+    internal static Placement? GeometryPlacement(Occurrence occurrence)
+    {
+        if (OverrideBody(occurrence) is not { } body)
+        {
+            return Placement.Of(occurrence);
+        }
+
+        occurrence.Range(out double x0, out double y0, out double z0, out double x1, out double y1, out double z1);
+        Array min = new double[3];
+        Array max = new double[3];
+        body.GetRange(ref min, ref max);
+        double[] lo = [.. Geo.Doubles(min)];
+        double[] hi = [.. Geo.Doubles(max)];
+        double[] expected = [x0, y0, z0, x1, y1, z1];
+        bool assembly = lo.Concat(hi).Zip(expected, (a, b) => Math.Abs(a - b)).All(d => d < 1e-6);
+        return assembly ? null : Placement.Of(occurrence);
+    }
+
+    /// <summary>
     /// Collection of faces or edges and where their handles are registered: the part document or, from an occurrence,
     /// the assembly (with the occurrence's position and handles specific to each occurrence).
     /// </summary>
@@ -346,11 +485,18 @@ public static class InspectService
         public object Wrap(object element) => Occurrence is null ? element : new OccurrenceElement(Occurrence, element);
     }
 
+    /// <summary>Faces or edges of the body; with several bodies (after a split), those of all of them in body order.</summary>
     private static object BodyCollection(ModelDocument model, string member, FeatureTopologyQueryTypeConstants query)
     {
         Body body = model.RequireBody() as Body
             ?? throw new ToolException("no_model", $"'{model.Document.Name}' has no body yet.", "Create a base feature first.");
-        return member == "Faces" ? body.Faces[query] : body.Edges[query];
+        IReadOnlyList<(Model Model, Body Body)> bodies = model.Models.Count > 1 ? model.Bodies() : [];
+        if (bodies.Count <= 1)
+        {
+            return member == "Faces" ? body.Faces[query] : body.Edges[query];
+        }
+
+        return bodies.SelectMany(b => Late.Items(member == "Faces" ? b.Body.Faces[query] : b.Body.Edges[query])).ToList();
     }
 
     private static double[] Rotated(Placement? placement, double[] vector) => placement?.Vector(vector) ?? vector;
@@ -366,7 +512,10 @@ public static class InspectService
     /// <summary>Page of a collection; with a filter, the count and the offset refer to the elements that match it.</summary>
     private static object Page(SeContext context, object collection, int offset, int limit, Func<object, bool>? filter, Func<object, object> describe)
     {
-        int total = Late.Count(collection);
+        // A list gathers the elements of several bodies; anything else is a Solid Edge collection.
+        var list = collection as IReadOnlyList<object>;
+        int total = list?.Count ?? Late.Count(collection);
+        object? ItemAt(int i) => list is null ? Late.Call(collection, "Item", i) : list[i - 1];
         int start = Math.Max(offset, 0);
         int take = Math.Clamp(limit, 1, context.MaxListItems);
         var items = new List<object>();
@@ -375,7 +524,7 @@ public static class InspectService
         {
             for (int i = start + 1; i <= total && items.Count < take; i++)
             {
-                if (Late.Call(collection, "Item", i) is { } item)
+                if (ItemAt(i) is { } item)
                 {
                     items.Add(describe(item));
                 }
@@ -387,7 +536,7 @@ public static class InspectService
             matched = 0;
             for (int i = 1; i <= total; i++)
             {
-                if (Late.Call(collection, "Item", i) is { } item && filter(item) && matched++ >= start && items.Count < take)
+                if (ItemAt(i) is { } item && filter(item) && matched++ >= start && items.Count < take)
                 {
                     items.Add(describe(item));
                 }
@@ -496,7 +645,7 @@ public static class InspectService
         Placement? placement = null;
         if (value is OccurrenceElement element)
         {
-            placement = Placement.Of(element.Occurrence);
+            placement = GeometryPlacement(element.Occurrence);
             value = element.Element;
         }
 

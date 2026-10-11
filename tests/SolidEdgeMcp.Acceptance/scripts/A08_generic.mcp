@@ -134,5 +134,6 @@ se_sketch {"action":"close","sketch":"{{gk.sketch}}"}
 ?~ mft.features[?type="ConvertToMesh"].name Mesh
 ?~ mft.note converted to a mesh
 ! [no_brep_body] se_geometry {"action":"faces","document":"{{gx.handle}}"}
+! [no_brep_body] se_geometry {"action":"summary","document":"{{gx.handle}}"}
 se_documents {"action":"close","document":"{{gx.handle}}","saveChanges":false}
 se_documents {"action":"list"}
