@@ -1,4 +1,6 @@
-# solid_edge_mcp
+<div align="center">
+
+<img src="docs/assets/banner.svg" alt="solid_edge_mcp: model, assemble and draft in Solid Edge from any MCP client" width="100%">
 
 **Unofficial local [MCP](https://modelcontextprotocol.io) server to operate Solid Edge from Claude Code,
 Claude Desktop, Codex or any other MCP client.**
@@ -12,36 +14,55 @@ Claude Desktop, Codex or any other MCP client.**
 [![Functions reviewed: 87 %](https://img.shields.io/badge/functions%20reviewed-87%25-yellowgreen)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
+[Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md)
+
+</div>
+
 It lets an AI assistant work in Solid Edge through COM with the breadth of a person: querying
 models, drawing sketches, creating part and sheet metal features, building assemblies, making
 drawings and exporting. It is general purpose: it does not depend on specific files, a specific
-machine or a specific workflow. Each modeling operation is checked by measuring the model and, if
-it fails or has no effect, it is undone and the reason and the next step are explained.
+machine or a specific workflow.
 
-Tested with Solid Edge **Community Edition 2026** on Windows 11 x64.
+<table>
+<tr>
+<td width="25%" valign="top">
+
+**🧩 Broad coverage**
+
+Parts, sheet metal, assemblies, drawings and export with 53 tools, plus the whole API through a
+generic COM layer.
+
+</td>
+<td width="25%" valign="top">
+
+**📏 Verified changes**
+
+Each modeling operation is measured. If it fails or has no effect, it is undone and the error
+explains why and what to do next.
+
+</td>
+<td width="25%" valign="top">
+
+**🔒 Safe by default**
+
+Files only inside allowed folders. Tools that can change anything are flagged so the client asks
+for approval.
+
+</td>
+<td width="25%" valign="top">
+
+**🧪 Tested for real**
+
+1816 calls and 789 checks against real Solid Edge 2026, with values calculated by hand.
+
+</td>
+</tr>
+</table>
 
 > [!NOTE]
-> **Alpha** version (0.1.0). It works and has been validated end to end with Claude Code and
-> Codex, but the tools and their parameters may still change.
-
-## Contents
-
-- [What you can ask for](#what-you-can-ask-for)
-- [How it works](#how-it-works)
-- [Tools](#tools)
-- [Architecture](#architecture)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Registering with clients](#registering-with-clients)
-- [Security](#security)
-- [Validation](#validation)
-- [Known limitations](#known-limitations)
-- [Repository structure](#repository-structure)
-- [Development](#development)
-- [Project status](#project-status)
-- [License](#license)
-- [Trademarks and disclaimer](#trademarks-and-disclaimer)
+> **Alpha** version (0.1.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
+> works and has been validated end to end with Claude Code and Codex, but the tools and their
+> parameters may still change.
 
 ## What you can ask for
 
@@ -53,6 +74,82 @@ was measured afterwards, separately, by reopening the generated files.
 | Sheet metal part with a 100 × 60 tab and two 20 flanges; flat pattern to DXF and an A3 drawing with the flat pattern and an isometric view to PDF | Claude Code | 9,871.239 mm³ = 6000 + 2·(75π + 1700); box 100 × 60 × 21; DXF with the contour and 2 bend lines; one-page A3 PDF |
 | Assembly with a 120 × 80 × 10 base and two 20 × 20 × 30 blocks: mates, interference check, bill of materials, and an A3 drawing with a parts list to PDF | Claude Code | 50 calls, 0 errors; 6 mates solved and both blocks fully defined; no interference; BOM 1 + 2; one-page A3 PDF |
 | Plate with 4 holes and 4 R5 fillets, 6061-T6 aluminum, exported to STEP | Codex | 20 calls, 0 errors; 58,416.92 mm³ = 58,631.52 − 4·(25 − 25π/4)·10; 0.15843 kg |
+
+## Quick start
+
+### Requirements
+
+- Windows x64 with Solid Edge installed and licensed (the Community Edition works).
+- .NET 10 SDK to build (version pinned in `global.json`).
+- Windows PowerShell 5.1 to generate the interop (the script relaunches itself with it if it is run
+  from PowerShell 7).
+
+With the Community Edition, the license is provided through the machine variable
+`SE_LICENSE_SERVER`. Processes opened before Solid Edge was installed do not have it; the server
+copies it when it starts `Edge.exe`.
+
+### Install
+
+```powershell
+git clone https://github.com/gabichuuuuu/solid_edge_mcp.git
+cd solid_edge_mcp
+
+# 1. Interop from the type libraries of your Solid Edge (not distributed; goes to lib\interop)
+.\scripts\generate-interop.ps1
+
+# 2. Build and publish (self-contained for win-x64)
+dotnet publish src\SolidEdgeMcp.Server -c Release -r win-x64 --self-contained -o publish
+
+# 3. Policy: copy the example and adjust the allowed folders
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\SolidEdgeMcp" | Out-Null
+Copy-Item config\policy.example.json "$env:LOCALAPPDATA\SolidEdgeMcp\policy.json"
+```
+
+Optional: `.\scripts\dump-api.ps1` dumps the API to `reference\api\*.txt` so you can look up
+signatures and constants. It is not versioned either.
+
+### Register with your client
+
+Replace `<path>` with the folder of your publish output and of your `policy.json`.
+
+**Claude Code**
+
+```powershell
+# -s user: in all your projects; -s local: only in the current project
+claude mcp add -s user solid-edge -- "<path>\publish\SolidEdgeMcp.Server.exe" --policy "<path>\policy.json"
+```
+
+If long operations exceed the client's limit, adjust the `MCP_TOOL_TIMEOUT` variable.
+
+<details>
+<summary><b>Claude Desktop</b> (<code>claude_desktop_config.json</code>)</summary>
+
+```json
+{
+  "mcpServers": {
+    "solid-edge": {
+      "command": "<path>\\publish\\SolidEdgeMcp.Server.exe",
+      "args": ["--policy", "<path>\\policy.json"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>Codex</b> (<code>~/.codex/config.toml</code>, or <code>.codex/config.toml</code> in a project that Codex trusts)</summary>
+
+```toml
+[mcp_servers.solid_edge]
+command = "<path>\\publish\\SolidEdgeMcp.Server.exe"
+args = ["--policy", "<path>\\policy.json"]
+env_vars = ["USERPROFILE", "LOCALAPPDATA", "APPDATA"]  # the policy expands %USERPROFILE%
+startup_timeout_sec = 30
+tool_timeout_sec = 300
+```
+
+</details>
 
 ## How it works
 
@@ -84,6 +181,23 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 ## Tools
 
 53 tools, grouped by area.
+
+| Area | Tools |
+|---|---|
+| **Server and session** | `se_server_info` `se_session` |
+| **Documents and data** | `se_documents` `se_properties` `se_variables` `se_part_family` `se_material` `se_appearance` `se_layer` |
+| **Query** | `se_feature_tree` `se_geometry` `se_measure` `se_physical` `se_selection` |
+| **View and application** | `se_view` `se_options` `se_ui` |
+| **Sketches** | `se_sketch` `se_sketch_constraint` `se_ref_plane` |
+| **Part** | `se_extrude` `se_revolve` `se_hole` `se_round` `se_chamfer` `se_pattern` `se_shell` `se_draft` `se_loft_sweep` `se_part_feature` `se_primitive` `se_surface` `se_curve` `se_feature_edit` |
+| **Sheet metal** | `se_sheetmetal` `se_sheetmetal_form` |
+| **Assemblies** | `se_assembly` `se_relations` `se_assembly_pattern` `se_assembly_config` `se_assembly_feature` `se_interference` `se_bom` |
+| **Drawings** | `se_drawing` `se_annotation` |
+| **Export** | `se_export` |
+| **Full API access** | `se_com_describe` `se_com_get` `se_com_set` `se_com_invoke` `se_com_items` `se_com_constants` `se_command` |
+
+<details>
+<summary><b>What each tool does</b></summary>
 
 | Area | Tool | What it does |
 |---|---|---|
@@ -141,10 +255,11 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_com_constants` | Searches the API enumerations for constants. Does not need Solid Edge. |
 | | `se_command` | Searches for and runs interface commands, as if the person clicked them. |
 
+</details>
+
 Each tool declares its MCP annotations (read-only, destructive…) so the client can decide when to
-ask for approval. What has no specific tool (booleans between bodies, swept or lofted surfaces, 3D
-sketches…) is done with `se_com_*` or `se_command`; details are in
-[docs/COVERAGE.md](docs/COVERAGE.md).
+ask for approval. What has no specific tool (booleans between bodies, 3D sketches…) is done with
+`se_com_*` or `se_command`; details are in [docs/COVERAGE.md](docs/COVERAGE.md).
 
 ## Architecture
 
@@ -153,7 +268,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 49 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 53 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -179,37 +294,6 @@ flowchart LR
 - The Solid Edge interop is generated on each machine from the local installation
   (`scripts/generate-interop.ps1`); it is not versioned or distributed.
 
-## Requirements
-
-- Windows x64 with Solid Edge installed and licensed (the Community Edition works).
-- .NET 10 SDK to build (version pinned in `global.json`).
-- Windows PowerShell 5.1 to generate the interop (the script relaunches itself with it if it is run
-  from PowerShell 7).
-
-With the Community Edition, the license is provided through the machine variable
-`SE_LICENSE_SERVER`. Processes opened before Solid Edge was installed do not have it; the server
-copies it when it starts `Edge.exe`.
-
-## Installation
-
-```powershell
-git clone https://github.com/gabichuuuuu/solid_edge_mcp.git
-cd solid_edge_mcp
-
-# 1. Interop from the type libraries of your Solid Edge (not distributed; goes to lib\interop)
-.\scripts\generate-interop.ps1
-
-# 2. Build and publish (self-contained for win-x64)
-dotnet publish src\SolidEdgeMcp.Server -c Release -r win-x64 --self-contained -o publish
-
-# 3. Policy: copy the example and adjust the allowed folders
-New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\SolidEdgeMcp" | Out-Null
-Copy-Item config\policy.example.json "$env:LOCALAPPDATA\SolidEdgeMcp\policy.json"
-```
-
-Optional: `.\scripts\dump-api.ps1` dumps the API to `reference\api\*.txt` so you can look up
-signatures and constants. It is not versioned either.
-
 ## Configuration
 
 `policy.json` accepts comments and trailing commas; an unknown property is an error. It is looked up,
@@ -229,43 +313,6 @@ effective folders and the configuration warnings.
 
 Logs go to `%LocalAppData%\SolidEdgeMcp\logs` (one UTF-8 file per day; each operation with its
 `op#`). Standard output is reserved for the MCP protocol.
-
-## Registering with clients
-
-Replace `<path>` with the folder of your publish output and of your `policy.json`.
-
-**Claude Code**
-
-```powershell
-# -s user: in all your projects; -s local: only in the current project
-claude mcp add -s user solid-edge -- "<path>\publish\SolidEdgeMcp.Server.exe" --policy "<path>\policy.json"
-```
-
-If long operations exceed the client's limit, adjust the `MCP_TOOL_TIMEOUT` variable.
-
-**Claude Desktop** (`claude_desktop_config.json`)
-
-```json
-{
-  "mcpServers": {
-    "solid-edge": {
-      "command": "<path>\\publish\\SolidEdgeMcp.Server.exe",
-      "args": ["--policy", "<path>\\policy.json"]
-    }
-  }
-}
-```
-
-**Codex** (`~/.codex/config.toml`, or `.codex/config.toml` in a project that Codex trusts)
-
-```toml
-[mcp_servers.solid_edge]
-command = "<path>\\publish\\SolidEdgeMcp.Server.exe"
-args = ["--policy", "<path>\\policy.json"]
-env_vars = ["USERPROFILE", "LOCALAPPDATA", "APPDATA"]  # the policy expands %USERPROFILE%
-startup_timeout_sec = 30
-tool_timeout_sec = 300
-```
 
 ## Security
 
@@ -299,6 +346,9 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
 
+<details>
+<summary><b>Acceptance scripts</b></summary>
+
 | Script | Covers |
 |---|---|
 | `A01` | Session and errors |
@@ -321,6 +371,8 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A18` | Construction curves (also contours on a face and wrapped sketches) and sweeps or cuts along them |
 | `A19` | Family of parts: members, apply, member file; part display configurations through the COM layer |
 
+</details>
+
 ## Known limitations
 
 - Some Solid Edge 2026 API functions fail or damage the document (corner closing, gussets,
@@ -337,26 +389,6 @@ Results (unit tests and acceptance suite run on 2026-10-11):
   come from the file, such as the date; the server warns about it.
 - Windows x64 only; tested only with Solid Edge Community Edition 2026.
 
-## Repository structure
-
-```text
-solid_edge_mcp/
-├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (53 tools), Infrastructure/
-│   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
-│   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
-├── tests/
-│   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
-│   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A16 against real Solid Edge
-├── scripts/                       generate-interop.ps1, dump-api.ps1
-├── config/                        policy.example.json
-├── docs/                          COVERAGE.md (coverage by function and route)
-├── lib/interop/  reference/       generated on each machine, not versioned
-├── AGENTS.md  STATUS.md  PLAN.md  project rules, status and plan
-└── CHANGELOG.md  LICENSE
-```
-
 ## Development
 
 From the repository root (required by `global.json`):
@@ -370,13 +402,30 @@ dotnet test --project tests\SolidEdgeMcp.Server.Tests\SolidEdgeMcp.Server.Tests.
 The tests do not need Solid Edge and do not exercise COM. If `dotnet` is not on the `PATH`, use the
 one in `C:\Program Files\dotnet`.
 
+### Repository structure
+
+```text
+solid_edge_mcp/
+├── src/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (53 tools), Infrastructure/
+│   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
+│   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
+├── tests/
+│   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
+│   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A19 against real Solid Edge
+├── scripts/                       generate-interop.ps1, dump-api.ps1, update-progress.ps1
+├── config/                        policy.example.json
+├── docs/                          COVERAGE.md (coverage by function and route), assets/
+├── lib/interop/  reference/       generated on each machine, not versioned
+└── CHANGELOG.md  LICENSE
+```
+
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`scripts/A01`–`A09`, from session to assemblies, drawings and the COM layer; `A10`, the
-orientation, direction and type values that the others do not use; `A11`–`A12`, options and user
-interface; `A13`, colours; `A14`, component patterns), with volumes, measurements and
-expected errors calculated by hand. Each script creates and closes its documents without saving:
+calls (`A01`–`A19`, listed under [Validation](#validation)) with volumes, measurements and expected
+errors calculated by hand. Each script creates and closes its documents without saving:
 
 ```powershell
 dotnet build SolidEdgeMcp.slnx
@@ -400,7 +449,8 @@ DLL, but not overwriting it. This is safe if the changed files are already loade
 2. Register it in `Program.ToolTypes` and add argument cases to `ToolRegistrationTests`.
 3. Validate it against real Solid Edge with temporary documents in an allowed folder, closing them
    without saving, and check the measurable result (volume, bounding box, face count, exported file).
-4. Update this README, [docs/COVERAGE.md](docs/COVERAGE.md) and [CHANGELOG.md](CHANGELOG.md).
+4. Update this README, [docs/COVERAGE.md](docs/COVERAGE.md) (then run `scripts\update-progress.ps1`)
+   and [CHANGELOG.md](CHANGELOG.md).
 
 Commits follow Conventional Commits, in English.
 
@@ -408,9 +458,9 @@ Commits follow Conventional Commits, in English.
 
 - **Alpha (0.1.0).** Working, registered in Claude Code and Codex, and validated end to end. Change
   history in [CHANGELOG.md](CHANGELOG.md).
-- **Next:** more high-level tools for families that today go through COM (rib networks, lips,
-  grilles, booleans between bodies, assembly patterns, drawing symbols) and MCP
-  prompts for common workflows.
+- **Next:** more high-level tools for the functions that today go through COM (booleans between
+  bodies and the rows still to be tested in [docs/COVERAGE.md](docs/COVERAGE.md)), MCP prompts for
+  common workflows and an easier installation.
 - **Pending:** continuous integration (CI).
 
 ## License

@@ -92,6 +92,9 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Changed
 
+- README redesigned: banner, highlights, a compact tool overview and collapsible sections for the
+  full tool table, the clients other than Claude Code and the acceptance scripts.
+- The internal development notes and AI assistant instructions are no longer published.
 - Code comments, scripts and documentation are in English, including the project notes
   (`AGENTS.md`, `STATUS.md`, `PLAN.md`). `ESTADO.md` and `docs/COBERTURA.md` were renamed to
   `STATUS.md` and `docs/COVERAGE.md`. Test data are in English too, and the project notes no longer

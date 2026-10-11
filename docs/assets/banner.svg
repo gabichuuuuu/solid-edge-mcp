@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title desc">
+  <title id="title">solid_edge_mcp</title>
+  <desc id="desc">Isometric drawing of a dimensioned block with a hole, next to the project name and tagline.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#1B2748"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#94A3B8" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+    <clipPath id="card">
+      <rect width="1280" height="320" rx="20"/>
+    </clipPath>
+    <clipPath id="hole">
+      <ellipse cx="267.3" cy="150" rx="24.5" ry="14.1"/>
+    </clipPath>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#94A3B8"/>
+    </marker>
+  </defs>
+
+  <g clip-path="url(#card)">
+    <rect width="1280" height="320" fill="url(#bg)"/>
+    <rect width="1280" height="320" fill="url(#grid)"/>
+    <rect y="316" width="1280" height="4" fill="url(#accent)"/>
+  </g>
+
+  <!-- Coordinate triad -->
+  <g stroke-width="2.5" stroke-linecap="round">
+    <line x1="80" y1="262" x2="80" y2="230" stroke="#60A5FA"/>
+    <line x1="80" y1="262" x2="107.7" y2="278" stroke="#F87171"/>
+    <line x1="80" y1="262" x2="52.3" y2="278" stroke="#4ADE80"/>
+  </g>
+  <g font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="600">
+    <text x="76" y="224" fill="#60A5FA">Z</text>
+    <text x="111" y="289" fill="#F87171">X</text>
+    <text x="40" y="289" fill="#4ADE80">Y</text>
+  </g>
+
+  <!-- Isometric block 130 x 90 x 55 with a through hole -->
+  <g stroke="#94A3B8" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="5 5" fill="none">
+    <line x1="250" y1="150" x2="250" y2="95"/>
+    <line x1="250" y1="150" x2="362.6" y2="215"/>
+    <line x1="250" y1="150" x2="172.1" y2="195"/>
+  </g>
+  <g stroke="#7DD3FC" stroke-width="2" stroke-linejoin="round">
+    <path d="M250 95L362.6 160L284.6 205L172.1 140Z" fill="#38BDF8" fill-opacity="0.20"/>
+    <path d="M362.6 160L362.6 215L284.6 260L284.6 205Z" fill="#38BDF8" fill-opacity="0.10"/>
+    <path d="M172.1 140L284.6 205L284.6 260L172.1 195Z" fill="#A78BFA" fill-opacity="0.14"/>
+  </g>
+  <ellipse cx="267.3" cy="150" rx="24.5" ry="14.1" fill="#0B1220" fill-opacity="0.85"/>
+  <ellipse cx="267.3" cy="172" rx="24.5" ry="14.1" fill="none" stroke="#7DD3FC" stroke-opacity="0.6" stroke-width="1.5" clip-path="url(#hole)"/>
+  <ellipse cx="267.3" cy="150" rx="24.5" ry="14.1" fill="none" stroke="#7DD3FC" stroke-width="2"/>
+
+  <!-- Dimension of the 130 mm edge -->
+  <g stroke="#94A3B8" stroke-width="1.2" fill="none">
+    <line x1="170.4" y1="196" x2="150.4" y2="207.5"/>
+    <line x1="282.9" y1="261" x2="262.9" y2="272.5"/>
+    <line x1="155.6" y1="204.5" x2="268.1" y2="269.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  </g>
+  <text x="0" y="0" transform="translate(203 248) rotate(30)" fill="#CBD5E1" font-family="'Cascadia Code', Consolas, Menlo, monospace" font-size="15" text-anchor="middle">130</text>
+
+  <!-- Dimension of the 55 mm height -->
+  <g stroke="#94A3B8" stroke-width="1.2" fill="none">
+    <line x1="365" y1="161.4" x2="385" y2="172.9"/>
+    <line x1="365" y1="216.4" x2="385" y2="227.9"/>
+    <line x1="380" y1="170" x2="380" y2="225" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  </g>
+  <text x="0" y="0" transform="translate(398 198) rotate(-90)" fill="#CBD5E1" font-family="'Cascadia Code', Consolas, Menlo, monospace" font-size="15" text-anchor="middle">55</text>
+
+  <!-- Name and tagline -->
+  <text x="470" y="112" fill="#7DD3FC" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="3">MCP SERVER FOR SOLID EDGE</text>
+  <text x="466" y="176" fill="#F8FAFC" font-family="'Cascadia Code', Consolas, Menlo, monospace" font-size="58" font-weight="700">solid_edge_mcp</text>
+  <text x="470" y="216" fill="#CBD5E1" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="22">Model, assemble and draft in Solid Edge from any MCP client.</text>
+
+  <!-- Chips -->
+  <g font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15" font-weight="600" text-anchor="middle">
+    <rect x="470" y="240" width="76" height="30" rx="15" fill="#38BDF8" fill-opacity="0.14" stroke="#38BDF8" stroke-opacity="0.5"/>
+    <text x="508" y="260" fill="#BAE6FD">Parts</text>
+    <rect x="558" y="240" width="118" height="30" rx="15" fill="#38BDF8" fill-opacity="0.14" stroke="#38BDF8" stroke-opacity="0.5"/>
+    <text x="617" y="260" fill="#BAE6FD">Sheet metal</text>
+    <rect x="688" y="240" width="118" height="30" rx="15" fill="#818CF8" fill-opacity="0.14" stroke="#818CF8" stroke-opacity="0.5"/>
+    <text x="747" y="260" fill="#C7D2FE">Assemblies</text>
+    <rect x="818" y="240" width="102" height="30" rx="15" fill="#A78BFA" fill-opacity="0.14" stroke="#A78BFA" stroke-opacity="0.5"/>
+    <text x="869" y="260" fill="#DDD6FE">Drawings</text>
+    <rect x="932" y="240" width="90" height="30" rx="15" fill="#A78BFA" fill-opacity="0.14" stroke="#A78BFA" stroke-opacity="0.5"/>
+    <text x="977" y="260" fill="#DDD6FE">Export</text>
+  </g>
+</svg>

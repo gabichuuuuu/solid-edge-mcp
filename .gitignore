@@ -34,7 +34,10 @@ secrets.json
 /*.dft
 /*.cfg
 
-# AI assistant settings and memory: local only (AGENTS.md is published)
+# AI assistant settings, memory and development notes: local only
+/AGENTS.md
+/STATUS.md
+/PLAN.md
 CLAUDE.md
 CLAUDE.local.md
 GEMINI.md
