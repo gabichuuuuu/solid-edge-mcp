@@ -8,6 +8,7 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_com_invoke`: `{"handle":null}` passes Nothing (a null object) to a VARIANT parameter.
 - `se_annotation`: surface finish symbols, datum frames and feature control frames, attached to
   an edge of a view (directly or on a leader) or free on the sheet.
 - `se_ref_plane`: planes through three points, midway, normal to an edge and tangent to a cylinder,

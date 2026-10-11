@@ -172,6 +172,12 @@ public static partial class ComValues
     {
         if (json.TryGetProperty("handle", out JsonElement handle))
         {
+            if (handle.ValueKind == JsonValueKind.Null)
+            {
+                // Nothing: in a VARIANT parameter, a null object (VT_DISPATCH), not an empty value.
+                return type == typeof(object) ? new DispatchWrapper(null) : null;
+            }
+
             string? id = handle.GetString();
             object resolved = id is GenericCom.ApplicationTarget or GenericCom.ActiveDocumentTarget
                 ? GenericCom.ResolveTarget(context, id)
