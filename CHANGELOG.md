@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_assembly_feature` `revolve` (revolved cutouts about a sketch axis, by an angle) and `hole`
+  (simple or countersink holes at centers on an assembly plane, through all or to a depth).
 - `se_curve` `contour` (a curve on one face through points on it, open or closed) and `wrap` (a
   sketch wrapped onto cylindrical or conical faces, checked by its length).
 - `se_surface` `loft`, `sweep` (along a sketch or a curve), `stitch` and `bounded` (fills a closed

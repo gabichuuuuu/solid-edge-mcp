@@ -126,7 +126,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_relations` | Planar (mate and flush), axial, insert, parallel, tangent, angle and rigid set relations, checked geometrically; list and delete. |
 | | `se_assembly_pattern` | Component patterns that follow a part pattern (e.g. a pin repeated on every hole of a hole pattern): list, create, delete and dissolve. |
 | | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them; automatic exploded views with the exploded placement of each component. |
-| | `se_assembly_feature` | Extruded cutouts made in the assembly through chosen parts (through all or to a depth), from a sketch drawn in the assembly; list and delete. |
+| | `se_assembly_feature` | Extruded and revolved cutouts and holes (simple or countersink) made in the assembly through chosen parts, from a sketch drawn in the assembly or centers on an assembly plane; list and delete. |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
 | **Drawings** | `se_drawing` | Sheets; base, projected, auxiliary, section and detail views; dimensions and dimensions retrieved from the model; parts list; bend table; blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete); update. |
@@ -289,8 +289,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 126/126.
-- Acceptance suite against real Solid Edge 2026: **1774 calls and 756 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 129/129.
+- Acceptance suite against real Solid Edge 2026: **1798 calls and 774 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 53 tools have correct calls, and `A10` runs every value of the action,
@@ -313,7 +313,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A11` | Options and document units |
 | `A12` | Windows, environments and ribbon |
 | `A13` | Colours of a body, faces, features and assembly components |
-| `A14` | Component patterns that follow a part pattern; display configurations |
+| `A14` | Component patterns that follow a part pattern; display configurations; cutouts and holes made in the assembly |
 | `A15` | Primitives: box (also turned), cylinder and sphere added and cut, on base planes and faces |
 | `A16` | Layers of a part (sketch geometry), a drawing (per sheet: a view and annotations) and an assembly |
 | `A17` | Construction surfaces: extruded, revolved, offset, lofted, swept, stitched and bounded |

@@ -40,12 +40,9 @@ public static partial class SketchService
         };
     }
 
-    /// <summary>
-    /// Sketch of an assembly, on one of its reference planes ('1'-'3' or a handle), for assembly features (se_assembly_feature).
-    /// </summary>
-    private static object CreateInAssembly(SeContext context, SolidEdgeAssembly.AssemblyDocument assembly, string plane)
-    {
-        object refPlane = int.TryParse(plane, out int index)
+    /// <summary>Base plane '1'-'3' of an assembly or an assembly reference plane handle.</summary>
+    internal static object AssemblyPlane(SeContext context, SolidEdgeAssembly.AssemblyDocument assembly, string plane) =>
+        int.TryParse(plane, out int index)
             ? index is >= 1 and <= 3
                 ? assembly.AsmRefPlanes.Item(index)
                 : throw ToolException.InvalidArgument($"The assembly has base planes '1'-'3', not '{plane}'.")
@@ -53,6 +50,13 @@ public static partial class SketchService
                 ? given
                 : throw new ToolException("handle_wrong_type", $"'{plane}' is not an assembly reference plane.",
                     "In an assembly, sketch on '1'-'3' or on an assembly reference plane.");
+
+    /// <summary>
+    /// Sketch of an assembly, on one of its reference planes ('1'-'3' or a handle), for assembly features (se_assembly_feature).
+    /// </summary>
+    private static object CreateInAssembly(SeContext context, SolidEdgeAssembly.AssemblyDocument assembly, string plane)
+    {
+        object refPlane = AssemblyPlane(context, assembly, plane);
         var document = (SolidEdgeFramework.SolidEdgeDocument)assembly;
         Profile profile = assembly.ProfileSets.Add().Profiles.Add(refPlane);
         return new

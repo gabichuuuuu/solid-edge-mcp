@@ -152,8 +152,9 @@ damages the document in Solid Edge 2026 (do not use).
 | Duplicate pattern (occurrences copied onto others at the same relative position) | `se_assembly_pattern duplicate` | ✔ |
 | Component pattern along a curve | COM (`AssemblyPatterns.CreateAlongCurveEx3`: E_NOINTERFACE with part edges, their references and assembly layout lines) | ✘ |
 | Component mirror | — | ✘ `AssemblyMirrors` has no Add (only lists existing mirrors) |
-| Extruded cutouts made in the assembly through chosen parts (through all or to a depth; side); list and delete | `se_assembly_feature` | ✔ |
-| Other assembly features (holes, revolved cutouts, protrusions, welds), parts driven by the assembly | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
+| Extruded cutouts made in the assembly through chosen parts (through all or to a depth; side), revolved cutouts (angle, side) and holes (simple or countersink, through all or to a depth, one or more centers); list and delete | `se_assembly_feature` | ✔ |
+| Counterbore holes made in the assembly | — | ✘ `AssemblyFeaturesHoles.Add` with counterbore `HoleData` drills a through hole of the counterbore diameter; with several hole points in one profile only the first is drilled (one profile per center works) |
+| Other assembly features (protrusions, swept protrusions, mirrors, patterns, threads, welds), parts driven by the assembly | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
 | Display configurations (shown and hidden components): list, save, apply, delete; the assembly must be saved (.cfg file) | `se_assembly_config` | ✔ |
 | Automatic exploded view (spread distance, by part or subassembly) and the exploded placement of each component | `se_assembly_config explode`, `exploded` | ✔ |
 | Manual explode steps, collapse, explode configurations, groups | Explode environment commands (`ExplodeExplodedViewCollapse`… do nothing when run by COM from the assembly environment) | ✘ |

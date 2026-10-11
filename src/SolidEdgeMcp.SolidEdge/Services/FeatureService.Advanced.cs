@@ -50,16 +50,7 @@ public static partial class FeatureService
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, spec.Plane);
         List<(double X, double Y, double Z)> centers = Geo.Points3(spec.Centers, "centers", 1);
-        FeaturePropertyConstants holeType = spec.Type switch
-        {
-            "simple" => FeaturePropertyConstants.igRegularHole,
-            "counterbore" => FeaturePropertyConstants.igCounterboreHole,
-            "countersink" => FeaturePropertyConstants.igCountersinkHole,
-            // igTappedHole creates in Solid Edge 2026 a hole with a stepped counterbore (counterdrill) with dimensions
-            // by default: the thread is a simple drilled hole with the thread data (cosmetic thread).
-            "tapped" => FeaturePropertyConstants.igRegularHole,
-            _ => throw ToolException.InvalidArgument($"Unknown hole type '{spec.Type}'.", $"Use one of: {string.Join(", ", HoleTypes)}."),
-        };
+        FeaturePropertyConstants holeType = HoleTypeOf(spec);
         bool finite = spec.Extent switch
         {
             "finite" => true,
@@ -93,7 +84,7 @@ public static partial class FeatureService
             }
         }
 
-        HoleData data = CreateHoleData(model, spec, holeType, depth);
+        HoleData data = CreateHoleData(model.HoleData, spec, holeType, depth);
         double before = model.Volume();
         double current = before;
         bool warning = false;
@@ -312,9 +303,19 @@ public static partial class FeatureService
         return dot > 0 ? FeaturePropertyConstants.igLeft : FeaturePropertyConstants.igRight;
     }
 
-    private static HoleData CreateHoleData(ModelDocument model, HoleSpec spec, FeaturePropertyConstants type, double depth)
+    internal static FeaturePropertyConstants HoleTypeOf(HoleSpec spec) => spec.Type switch
     {
-        HoleDataCollection collection = model.HoleData;
+        "simple" => FeaturePropertyConstants.igRegularHole,
+        "counterbore" => FeaturePropertyConstants.igCounterboreHole,
+        "countersink" => FeaturePropertyConstants.igCountersinkHole,
+        // igTappedHole creates in Solid Edge 2026 a hole with a stepped counterbore (counterdrill) with dimensions
+        // by default: the thread is a simple drilled hole with the thread data (cosmetic thread).
+        "tapped" => FeaturePropertyConstants.igRegularHole,
+        _ => throw ToolException.InvalidArgument($"Unknown hole type '{spec.Type}'.", $"Use one of: {string.Join(", ", HoleTypes)}."),
+    };
+
+    internal static HoleData CreateHoleData(HoleDataCollection collection, HoleSpec spec, FeaturePropertyConstants type, double depth)
+    {
         if (spec.Type == "tapped")
         {
             (double nominal, double pitch, string description) = ParseMetricThread(spec.Thread);

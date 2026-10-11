@@ -89,6 +89,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_assembly_config", """{"action":"collapse"}""", "'action' must be one of:")]
     [InlineData("se_assembly_config", """{"action":"explode","by":"level"}""", "'by' must be one of:")]
     [InlineData("se_assembly_feature", """{"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2"],"side":"both"}""", "'side' must be one of:")]
+    [InlineData("se_assembly_feature", """{"action":"hole","plane":"1","centers":[0,0,0],"diameter":8,"extent":"to_next","occurrences":["occurrence:2"]}""", "'extent' must be one of:")]
     [InlineData("se_part_family", """{"action":"create_member","name":"Short"}""", "'action' must be one of:")]
     [InlineData("se_part_family", """{"action":"add_member","name":"Short","values":"60"}""", "'values'")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
@@ -134,6 +135,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_assembly_config", """{"action":"apply","name":"Without covers","document":"doc:3"}""")]
     [InlineData("se_assembly_config", """{"action":"explode","spread":50,"by":"subassembly"}""")]
     [InlineData("se_assembly_feature", """{"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2","occurrence:3"],"depth":4,"side":"symmetric","name":"Bore"}""")]
+    [InlineData("se_assembly_feature", """{"action":"revolve","sketch":"sketch:4","axis":"refaxis:11","occurrences":["occurrence:2"],"angle":180,"side":"normal"}""")]
+    [InlineData("se_assembly_feature", """{"action":"hole","plane":"1","centers":[35,20,0,65,-20,0],"diameter":8,"type":"countersink","countersinkDiameter":12,"extent":"finite","depth":4,"direction":"reverse","occurrences":["occurrence:2"]}""")]
     [InlineData("se_appearance", """{"action":"apply","targets":["face:1","occurrence:2"],"color":"#FF8000","opacity":0.5}""")]
     [InlineData("se_appearance", """{"action":"create","name":"Orange","color":"#FF8000"}""")]
     [InlineData("se_assembly_pattern", """{"action":"create","occurrences":["occurrence:5"],"source":"occurrence:3","pattern":"Pattern_1","reference":"Hole_1"}""")]

@@ -55,6 +55,8 @@ public enum AssemblyFeatureAction
 {
     List,
     Cut,
+    Revolve,
+    Hole,
     Delete,
 }
 
@@ -221,20 +223,34 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
 
     [McpServerTool(Name = "se_assembly_feature", Title = "Assembly features", Destructive = true, OpenWorld = false)]
     [Description("""
-        Assembly features: extruded cutouts made in the assembly through some of its parts (the part files do not change), from a closed sketch
-        drawn in the assembly (se_sketch create with plane '1'-'3' of the assembly, draw, close).
-        list (cuts with their status and the faces they leave on each part) | cut (sketch; occurrences = the parts to cut; depth mm, default through all;
-        side auto (along the plane normal, then against it) | normal | reverse | symmetric; name optional) | delete (name).
-        Each cut is checked by the faces it leaves on every part, and removed if it misses one.
-        Example: {"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2","occurrence:3"]}.
+        Assembly features: cutouts and holes made in the assembly through some of its parts (the part files do not change), from a closed sketch
+        drawn in the assembly (se_sketch create with plane '1'-'3' of the assembly, draw, close) or, for holes, from centers on an assembly plane.
+        list (features with their status and the faces they leave on each part) | cut (extruded: sketch; occurrences = the parts to cut; depth mm,
+        default through all; side auto (along the plane normal, then against it) | normal | reverse | symmetric) | revolve (sketch and its 'axis'
+        from se_sketch 'axis' before 'close'; angle degrees, default 360; side) | hole (plane '1'-'3' or an assembly plane; centers [x,y,z,...] mm in
+        the assembly; diameter; type simple | countersink (countersinkDiameter, countersinkAngle); extent through_all | finite with depth; direction
+        auto | normal | reverse; counterbore and tapped holes are made in the part with se_hole) | delete (name). 'name' optionally names the new feature.
+        Each feature is checked by the faces it leaves on every part, and removed if it misses one.
+        Example: {"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2","occurrence:3"]};
+        {"action":"hole","plane":"1","centers":[50,10,0],"diameter":8,"occurrences":["occurrence:2"]}.
         """)]
     public Task<CallToolResult> AssemblyFeature(
         AssemblyFeatureAction action,
-        [Description("cut: closed sketch handle made in the assembly.")] string? sketch = null,
-        [Description("cut: occurrence handles of the parts to cut.")] string[]? occurrences = null,
-        [Description("cut: depth in mm from the sketch plane (default: through all).")] double? depth = null,
+        [Description("cut, revolve: closed sketch handle made in the assembly.")] string? sketch = null,
+        [Description("cut, revolve, hole: occurrence handles of the parts to cut.")] string[]? occurrences = null,
+        [Description("cut, hole: depth in mm from the sketch plane (cut: default through all; hole: with extent finite).")] double? depth = null,
         PartFeatureSide side = PartFeatureSide.Auto,
-        [Description("cut: name of the new feature; delete: the feature name.")] string? name = null,
+        [Description("revolve: axis handle from se_sketch 'axis'.")] string? axis = null,
+        [Description("revolve: angle in degrees (default 360).")] double? angle = null,
+        [Description("hole: assembly plane '1'-'3' or an assembly reference plane handle.")] string? plane = null,
+        [Description("hole: centers [x1,y1,z1,...] in mm in the assembly, projected onto the plane.")] double[]? centers = null,
+        [Description("hole: diameter in mm.")] double? diameter = null,
+        HoleType type = HoleType.Simple,
+        [Description("hole countersink: diameter in mm.")] double? countersinkDiameter = null,
+        [Description("hole countersink: angle in degrees (default 90).")] double countersinkAngle = 90,
+        ExtrudeExtent extent = ExtrudeExtent.ThroughAll,
+        HoleDirection direction = HoleDirection.Auto,
+        [Description("cut, revolve, hole: name of the new feature; delete: the feature name.")] string? name = null,
         [Description("Assembly document handle; default: the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -244,6 +260,10 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         {
             AssemblyFeatureAction.List => runner.RunAsync(tool, act, c => AssemblyFeatureService.List(c, document), cancellationToken),
             AssemblyFeatureAction.Cut => runner.RunAsync(tool, act, c => AssemblyFeatureService.Cut(c, sketch, occurrences, depth, Snake(side), name), cancellationToken),
+            AssemblyFeatureAction.Revolve => runner.RunAsync(tool, act, c => AssemblyFeatureService.Revolve(c, sketch, axis, occurrences, angle, Snake(side), name), cancellationToken),
+            AssemblyFeatureAction.Hole => runner.RunAsync(tool, act, c => AssemblyFeatureService.Hole(c, document, occurrences,
+                new HoleSpec(plane ?? "", centers, diameter, Snake(type), null, null, countersinkDiameter, countersinkAngle,
+                    null, Snake(extent), depth, Snake(direction)), name), cancellationToken),
             AssemblyFeatureAction.Delete => runner.RunAsync(tool, act, c => AssemblyFeatureService.Delete(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

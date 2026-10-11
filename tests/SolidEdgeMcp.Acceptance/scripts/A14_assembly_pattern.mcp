@@ -153,3 +153,50 @@ se_sketch {"action":"close","sketch":"{{fs3.sketch}}"}
 se_view {"action":"fit"}
 se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a14_cut.png"}
 se_documents {"action":"close","document":"{{f.handle}}","saveChanges":false}
+# Revolved cutouts and holes in the assembly. Plates at z 0-10 and 20-30, moved 30 mm toward -y (their holes at y = 0, x = 20, 50, 80).
+#   A rectangle (35,-5)-(40,15) on plane 3 turned 360° about its side x = 35: a hole r5, one face 2pi*5*10 = 314.159. A rectangle
+#   (65,5)-(70,15) turned 180° about x = 65: a half pocket r5, 5 deep: pi*5*5 + 12.5pi + 10*5 = 167.810 in 3 faces. Holes Ø8 through all at
+#   (35,20) and (65,-20) in both plates: 2*pi*8*10 = 502.655 in 2 faces on each. Ø6 4 deep: pi*6*4 + 9pi = 103.673 (flat bottom).
+#   Ø6 countersunk Ø12 90°: pi*9*3*sqrt(2) + pi*6*7 = 251.905. Counterbore and tapped holes are refused (made in the part).
+@g = se_documents {"action":"new","kind":"assembly"}
+@g1 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,-30,0],"document":"{{g.handle}}"}
+@g2 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,-30,20],"document":"{{g.handle}}"}
+@rs = se_sketch {"action":"create","plane":"3","document":"{{g.handle}}"}
+@rr = se_sketch {"action":"rectangle","sketch":"{{rs.sketch}}","points":[35,-5,40,15]}
+@ra = se_sketch {"action":"axis","sketch":"{{rs.sketch}}","element":"{{rr.elements[3]}}"}
+se_sketch {"action":"close","sketch":"{{rs.sketch}}"}
+! [invalid_argument] se_assembly_feature {"action":"revolve","sketch":"{{rs.sketch}}","occurrences":["{{g1.handle}}"]}
+@r1 = se_assembly_feature {"action":"revolve","sketch":"{{rs.sketch}}","axis":"{{ra.axis}}","occurrences":["{{g1.handle}}"],"name":"Giro"}
+?~ r1.type revolved_cutout
+?= r1.angle 360
+?= r1.parts[0].faces 1
+?= r1.parts[0].area 314.159265 0.001
+@rs2 = se_sketch {"action":"create","plane":"3","document":"{{g.handle}}"}
+@rr2 = se_sketch {"action":"rectangle","sketch":"{{rs2.sketch}}","points":[65,5,70,15]}
+@ra2 = se_sketch {"action":"axis","sketch":"{{rs2.sketch}}","element":"{{rr2.elements[3]}}"}
+se_sketch {"action":"close","sketch":"{{rs2.sketch}}"}
+@r2 = se_assembly_feature {"action":"revolve","sketch":"{{rs2.sketch}}","axis":"{{ra2.axis}}","occurrences":["{{g1.handle}}"],"angle":180,"side":"normal"}
+?= r2.angle 180
+?= r2.parts[0].faces 3
+?= r2.parts[0].area 167.809725 0.001
+! [invalid_argument] se_assembly_feature {"action":"hole","centers":[35,20,0],"diameter":8,"occurrences":["{{g1.handle}}"]}
+! [invalid_argument] se_assembly_feature {"action":"hole","plane":"1","centers":[35,20,0],"diameter":8,"type":"counterbore","occurrences":["{{g1.handle}}"]}
+@h1 = se_assembly_feature {"action":"hole","plane":"1","centers":[35,20,0,65,-20,0],"diameter":8,"occurrences":["{{g1.handle}}","{{g2.handle}}"]}
+?~ h1.type hole
+?~ h1.extent through_all
+?= h1.parts[0].faces 2
+?= h1.parts[0].area 502.654825 0.001
+?= h1.parts[1].area 502.654825 0.001
+@h2 = se_assembly_feature {"action":"hole","plane":"1","centers":[10,20,0],"diameter":6,"extent":"finite","depth":4,"occurrences":["{{g1.handle}}"]}
+?= h2.depth 4
+?= h2.parts[0].area 103.672558 0.001
+@h3 = se_assembly_feature {"action":"hole","plane":"1","centers":[10,-20,0],"diameter":6,"type":"countersink","countersinkDiameter":12,"occurrences":["{{g1.handle}}"]}
+?= h3.parts[0].area 251.904731 0.001
+! [feature_failed] se_assembly_feature {"action":"hole","plane":"1","centers":[90,20,0],"diameter":6,"extent":"finite","depth":4,"occurrences":["{{g2.handle}}"]}
+@gl = se_assembly_feature {"action":"list","document":"{{g.handle}}"}
+?= gl.count 5
+@gd = se_assembly_feature {"action":"delete","name":"Giro","document":"{{g.handle}}"}
+?= gd.count 4
+@gf = se_geometry {"action":"faces","source":"{{g1.handle}}"}
+?= gf.count 9
+se_documents {"action":"close","document":"{{g.handle}}","saveChanges":false}

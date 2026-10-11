@@ -253,22 +253,18 @@ public static partial class FeatureService
     public static string? StatusOf(object feature)
     {
         object? value = Late.TryGet(feature, "Status");
-        if (value is null)
-        {
-            return null;
-        }
-
-        int code = Convert.ToInt32(value, CultureInfo.InvariantCulture);
-        return code switch
-        {
-            (int)FeatureStatusConstants.igFeatureOK => "ok",
-            (int)FeatureStatusConstants.igFeatureFailed => "failed",
-            (int)FeatureStatusConstants.igFeatureWarned => "warning",
-            (int)FeatureStatusConstants.igFeatureSuppressed => "suppressed",
-            (int)FeatureStatusConstants.igFeatureRolledBack => "rolled_back",
-            _ => code.ToString(CultureInfo.InvariantCulture),
-        };
+        return value is null ? null : StatusName(Convert.ToInt32(value, CultureInfo.InvariantCulture));
     }
+
+    internal static string StatusName(int code) => code switch
+    {
+        (int)FeatureStatusConstants.igFeatureOK => "ok",
+        (int)FeatureStatusConstants.igFeatureFailed => "failed",
+        (int)FeatureStatusConstants.igFeatureWarned => "warning",
+        (int)FeatureStatusConstants.igFeatureSuppressed => "suppressed",
+        (int)FeatureStatusConstants.igFeatureRolledBack => "rolled_back",
+        _ => code.ToString(CultureInfo.InvariantCulture),
+    };
 
     private static bool IsCut(string operation) => operation switch
     {
