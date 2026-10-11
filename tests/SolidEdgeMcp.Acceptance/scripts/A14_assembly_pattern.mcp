@@ -53,4 +53,31 @@ se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a14_patte
 @ls = se_assembly {"action":"list"}
 ?= ls.count 4
 ! [invalid_argument] se_assembly_pattern {"action":"delete","name":"Pins"}
+# Display configurations (se_assembly_config): refused while the assembly was never saved. "Sin pasadores" keeps the 3 pins
+#   hidden; after showing them, applying it hides them again and leaves the plate shown.
+! [not_supported] se_assembly_config {"action":"save","name":"Todo"}
+se_documents {"action":"save_as","path":"{{work}}\\a14_config.asm","overwrite":true}
+@cl0 = se_assembly_config {"action":"list"}
+se_assembly {"action":"hide","occurrence":"{{ls.occurrences[1].handle}}"}
+se_assembly {"action":"hide","occurrence":"{{ls.occurrences[2].handle}}"}
+se_assembly {"action":"hide","occurrence":"{{ls.occurrences[3].handle}}"}
+@cs = se_assembly_config {"action":"save","name":"Sin pasadores"}
+?= cs.saved.type display
+?~ cs.hidden a14_pin
+se_assembly {"action":"show","occurrence":"{{ls.occurrences[1].handle}}"}
+se_assembly {"action":"show","occurrence":"{{ls.occurrences[2].handle}}"}
+se_assembly {"action":"show","occurrence":"{{ls.occurrences[3].handle}}"}
+@cl1 = se_assembly_config {"action":"list"}
+?~ cl1.hidden []
+@ca = se_assembly_config {"action":"apply","name":"sin pasadores"}
+?~ ca.applied Sin pasadores
+?~ ca.hidden a14_pin
+@ls3 = se_assembly {"action":"list"}
+?= ls3.occurrences[0].visible true
+?= ls3.occurrences[1].visible false
+?= ls3.occurrences[3].visible false
+! [invalid_argument] se_assembly_config {"action":"save","name":"Sin pasadores"}
+! [not_found] se_assembly_config {"action":"apply","name":"Nope"}
+@cd = se_assembly_config {"action":"delete","name":"Sin pasadores"}
+?= cd.count {{cl0.count}}
 se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}

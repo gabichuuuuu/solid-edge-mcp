@@ -8,6 +8,7 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_assembly_config`: display configurations of assemblies (list, save, apply and delete).
 - `se_part_feature`: direct edits for imported or finished parts: delete faces (the solid
   heals), delete holes up to a diameter, delete rounds and offset faces along their normal.
 - `se_sketch` and `se_sketch_constraint` draw and constrain 2D geometry on drawing sheets: pass

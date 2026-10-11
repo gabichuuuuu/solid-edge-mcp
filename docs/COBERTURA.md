@@ -137,7 +137,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Component pattern along a curve, duplicate pattern | COM (`AssemblyPatterns.CreateAlongCurveEx3`, `CreateDuplicateEx`) | · |
 | Component mirror | — | ✘ `AssemblyMirrors` has no Add (only lists existing mirrors) |
 | Assembly features, parts driven by the assembly | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
-| Configurations, exploded views, groups | COM (`Configurations`) / Command | · |
+| Display configurations (shown and hidden components): list, save, apply, delete; the assembly must be saved (.cfg file) | `se_assembly_config` | ✔ |
+| Exploded views, groups | COM (`AssemblyDocument.AutoExplode` answers "Operation successful" but the explode is not measurable outside the explode environment) / Command | · |
 | Structural frames, pipes, harnesses, fasteners, weldment | COM (`StructuralFrames`, `Pipes`, `Harnesses`, `FastenerSystems`, `WeldmentAssembly`) / Command | · |
 
 ## Drawings

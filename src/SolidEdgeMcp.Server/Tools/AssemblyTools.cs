@@ -50,6 +50,14 @@ public enum AssemblyPatternAction
     Dissolve,
 }
 
+public enum AssemblyConfigAction
+{
+    List,
+    Save,
+    Apply,
+    Delete,
+}
+
 public enum BomStructure
 {
     Top,
@@ -188,6 +196,31 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyPatternAction.Create => runner.RunAsync(tool, act, c => AssemblyPatternService.Create(c, occurrences, source, pattern, reference, name), cancellationToken),
             AssemblyPatternAction.Delete => runner.RunAsync(tool, act, c => AssemblyPatternService.Delete(c, document, name), cancellationToken),
             AssemblyPatternAction.Dissolve => runner.RunAsync(tool, act, c => AssemblyPatternService.Dissolve(c, document, name), cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
+
+    [McpServerTool(Name = "se_assembly_config", Title = "Assembly display configurations", Destructive = true, OpenWorld = false)]
+    [Description("""
+        Display configurations of an assembly: named states of which components are shown (hide them with se_assembly hide first).
+        list (configurations, the active one and the hidden components) | save (name: the current display) | apply (name: shows and hides the components as saved) | delete (name).
+        The assembly must have been saved (se_documents save_as): Solid Edge keeps the configurations in a .cfg file next to it.
+        Example: {"action":"save","name":"Without covers"}.
+        """)]
+    public Task<CallToolResult> AssemblyConfig(
+        AssemblyConfigAction action,
+        [Description("save/apply/delete: configuration name.")] string? name = null,
+        [Description("Assembly document handle; default: the active document.")] string? document = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string tool = "se_assembly_config";
+        string act = Snake(action);
+        return action switch
+        {
+            AssemblyConfigAction.List => runner.RunAsync(tool, act, c => AssemblyConfigService.List(c, document), cancellationToken),
+            AssemblyConfigAction.Save => runner.RunAsync(tool, act, c => AssemblyConfigService.Save(c, document, name), cancellationToken),
+            AssemblyConfigAction.Apply => runner.RunAsync(tool, act, c => AssemblyConfigService.Apply(c, document, name), cancellationToken),
+            AssemblyConfigAction.Delete => runner.RunAsync(tool, act, c => AssemblyConfigService.Delete(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }
