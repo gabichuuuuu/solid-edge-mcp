@@ -96,7 +96,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Function | Route | Status |
 |---|---|---|
 | Switch between synchronous and ordered modeling | COM (`ModelingMode` 1 synchronous, 2 ordered) | ✔ |
-| Move, rotate, offset, delete and replace faces | COM (`FaceMoves`, `FaceRotates`, `FaceOffsets`, `DeleteFaces`, `ReplaceFaces`) | · |
+| Delete faces (the solid heals), delete holes up to a diameter, delete rounds; offset faces along their normal (ordered) | `se_part_feature delete_faces`, `delete_holes`, `delete_rounds`, `offset_faces` | ✔ |
+| Move and rotate faces, replace faces | COM (`FaceMoves`, `FaceRotates`, `ReplaceFaces`; in ordered, `FaceMoves.Add` along a face normal leaves the feature failed) | · |
 | Surfaces by extrusion, revolve, sweep, loft, boundaries, offset, stitched | COM (`Constructions.ExtrudedSurfaces`, `SweptSurfaces`, `SurfaceByBoundaries`, `StitchSurfaces`…) | · |
 | Curves (intersection, projected, helical, from a table) | COM (`Constructions.IntersectionCurves`, `ProjectCurves`, `HelicalCurves`…) | · |
 

@@ -109,6 +109,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_loft_sweep", """{"action":"helix","sketches":["sketch:1"],"axis":"refaxis:2","pitch":8,"turns":5,"hand":"left"}""")]
     [InlineData("se_part_feature", """{"action":"rib","sketch":"sketch:1","thickness":6,"side":"symmetric","depth":10}""")]
     [InlineData("se_part_feature", """{"action":"mirror_body","plane":"2"}""")]
+    [InlineData("se_part_feature", """{"action":"offset_faces","faces":["face:9","face:10"],"distance":-2.5}""")]
+    [InlineData("se_part_feature", """{"action":"delete_holes","diameter":7}""")]
     [InlineData("se_appearance", """{"action":"apply","targets":["face:1","occurrence:2"],"color":"#FF8000","opacity":0.5}""")]
     [InlineData("se_appearance", """{"action":"create","name":"Orange","color":"#FF8000"}""")]
     [InlineData("se_assembly_pattern", """{"action":"create","occurrences":["occurrence:5"],"source":"occurrence:3","pattern":"Pattern_1","reference":"Hole_1"}""")]

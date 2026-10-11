@@ -248,4 +248,50 @@ se_extrude {"sketch":"{{kG.sketch}}","distance":20}
 @csl = se_ref_plane {"action":"coordinate_systems"}
 ?= csl.count 2
 se_documents {"action":"close","document":"{{dG.handle}}","saveChanges":false}
+# H: direct edits (se_part_feature). Plate 100x60x10 = 60000 with 2 holes D6.6 (-342.119 each), a R3 round on the top
+#   front edge (-(1-pi/4)*9*100 = -193.142) and a D20 boss up to z=25 (+pi*100*15 = 4712.389) -> 63835.007. Deleting a hole
+#   face fills it (+342.119), delete_holes up to D7 fills the other one, deleting the round face restores the edge (+193.142)
+#   and deleting the boss side and top faces removes it (-4712.389) -> 60000. Offsetting the top face 5 out -> 90000 and the
+#   x=100 face 20 in -> 80x60x15 = 72000
+@dH = se_documents {"action":"new","kind":"part"}
+@kH = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kH.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kH.sketch}}"}
+se_extrude {"sketch":"{{kH.sketch}}","distance":10}
+@tH = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{tH.items[0].handle}}","centers":[10,10,10,90,10,10],"diameter":6.6}
+@eH = se_geometry {"action":"edges","type":"line"}
+se_round {"edges":["{{eH.items[?start=[0,0,10]].handle}}"],"radius":3}
+@kH2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kH2.sketch}}","center":[50,30],"radius":10}
+se_sketch {"action":"close","sketch":"{{kH2.sketch}}"}
+@bH = se_extrude {"sketch":"{{kH2.sketch}}","distance":25}
+?= bH.volume 63835.007 0.05
+@cH = se_geometry {"action":"faces","type":"cylinder"}
+@df1 = se_part_feature {"action":"delete_faces","faces":["{{cH.items[?radius=3.3].handle}}"]}
+?= df1.volumeChange 342.119 0.05
+@dh = se_part_feature {"action":"delete_holes","diameter":7}
+?= dh.volumeChange 342.119 0.05
+! [feature_failed] se_part_feature {"action":"delete_holes","diameter":7}
+@cH2 = se_geometry {"action":"faces","type":"cylinder"}
+@dr = se_part_feature {"action":"delete_rounds","faces":["{{cH2.items[?radius=3].handle}}"]}
+?= dr.volumeChange 193.142 0.05
+@cH3 = se_geometry {"action":"faces","type":"cylinder"}
+@tH3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@df2 = se_part_feature {"action":"delete_faces","faces":["{{cH3.items[?radius=10].handle}}","{{tH3.items[?area=314.159265].handle}}"]}
+?= df2.volume 60000 0.05
+@tH4 = se_geometry {"action":"faces","direction":[0,0,1]}
+@of1 = se_part_feature {"action":"offset_faces","faces":["{{tH4.items[0].handle}}"],"distance":5}
+?= of1.volume 90000 0.05
+?= of1.direction outwards
+@sH = se_geometry {"action":"faces","direction":[1,0,0]}
+@of2 = se_part_feature {"action":"offset_faces","faces":["{{sH.items[0].handle}}"],"distance":-20}
+?= of2.volume 72000 0.05
+@gH = se_geometry {"action":"summary"}
+?= gH.boundingBox.size[0] 80
+?= gH.boundingBox.size[2] 15
+! [invalid_argument] se_part_feature {"action":"delete_holes"}
+! [invalid_argument] se_part_feature {"action":"offset_faces","faces":["{{sH.items[0].handle}}"],"distance":0}
+! [invalid_argument] se_part_feature {"action":"delete_faces"}
+se_documents {"action":"close","document":"{{dH.handle}}","saveChanges":false}
 se_documents {"action":"list"}

@@ -1,0 +1,102 @@
+using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Com;
+using SolidEdgeMcp.SolidEdge.Session;
+using SolidEdgePart;
+using Face = SolidEdgeGeometry.Face;
+
+namespace SolidEdgeMcp.SolidEdge.Services;
+
+/// <summary>
+/// Direct edits of the solid in ordered modelling, as done on imported parts: delete faces (the gap heals), holes up to a
+/// diameter and rounds, and offset faces along their normal.
+/// </summary>
+public static partial class FeatureService
+{
+    // Verified: DeleteFaces, DeleteBlends and FaceOffsets reject an array of faces (E_NOINTERFACE); they take one face or a
+    // face collection made with Body.CreateCollection(seFaceCollection) and filled with Add.
+    private const int FaceCollection = 1;
+
+    /// <summary>Deletes faces and heals the solid: a hole face fills the hole, the side and top faces of a boss remove it.</summary>
+    private static object DeleteFaces(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "delete_faces", "the faces to delete");
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        object set = FaceSet(target, faces);
+        object feature = Create("delete faces", () => target.DeleteFaces.Add(set));
+        return Verify(context, model, feature, before, 0, switched);
+    }
+
+    /// <summary>Deletes every hole (hole features and cylindrical or conical cuts) up to a diameter.</summary>
+    private static object DeleteHoles(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        double diameter = Units.MmToM(Units.RequirePositive(spec.Diameter ?? throw ToolException.InvalidArgument(
+            "delete_holes requires 'diameter': the largest hole diameter to delete (mm)."), "diameter"));
+        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        bool switched = model.EnsureOrdered();
+        Model target = model.RequireModel();
+        double before = model.Volume();
+        object feature = Create("delete holes", () => target.DeleteHoles.Add(HoleTypeToDeleteConstants.seHoleTypeToDeleteAll, diameter));
+        return Verify(context, model, feature, before, 1, switched);
+    }
+
+    /// <summary>Deletes rounds and fillets given by their faces; a round on an outer edge restores the sharp edge.</summary>
+    private static object DeleteRounds(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "delete_rounds", "the faces of the rounds");
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        object set = FaceSet(target, faces);
+        object feature = Create("delete rounds", () => target.DeleteBlends.Add(set));
+        return Verify(context, model, feature, before, 0, switched);
+    }
+
+    /// <summary>
+    /// Offsets faces along their normal by a distance: positive grows the solid (outwards), negative shrinks it. Verified: only
+    /// the side igNormal works (igLeft, igRight and the normal-side constants leave the feature failed).
+    /// </summary>
+    private static object OffsetFaces(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        double distance = spec.Distance ?? throw ToolException.InvalidArgument(
+            "offset_faces requires 'distance' (mm): positive moves the faces outwards (adds material), negative inwards.");
+        if (Math.Abs(distance) < 1e-9 || !double.IsFinite(distance))
+        {
+            throw ToolException.InvalidArgument("'distance' must be a non-zero number of mm.");
+        }
+
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "offset_faces", "the faces to offset");
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        object set = FaceSet(target, faces);
+        object feature = Create("offset faces", () => target.FaceOffsets.Add(set, FeaturePropertyConstants.igNone,
+            FeaturePropertyConstants.igNormal, Units.MmToM(distance), null, null, 0, FeaturePropertyConstants.igNone));
+        return Verify(context, model, feature, before, Math.Sign(distance), switched, direction: distance > 0 ? "outwards" : "inwards");
+    }
+
+    private static (ModelDocument Model, Model Target, object[] Faces) FaceEdit(SeContext context, string? documentHandle, PartFeatureSpec spec,
+        string action, string what)
+    {
+        if (spec.Faces is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument($"{action} requires 'faces': {what}.", "Get them with se_geometry action 'faces'.");
+        }
+
+        ModelDocument model = ModelDocument.For(context, documentHandle, spec.Faces[0]);
+        object[] faces = spec.Faces.Select(h => (object)context.Handles.Resolve<Face>(h, "faces")).ToArray();
+        return (model, model.RequireModel(), faces);
+    }
+
+    /// <summary>Face collection of the body with the given faces.</summary>
+    private static object FaceSet(Model target, object[] faces)
+    {
+        object body = target.Body;
+        object set = Late.Call(body, "CreateCollection", FaceCollection)
+            ?? throw new ToolException("feature_failed", "Solid Edge did not create the face collection.");
+        foreach (object face in faces)
+        {
+            Late.Call(set, "Add", face);
+        }
+
+        return set;
+    }
+}

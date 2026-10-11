@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_part_feature`: direct edits for imported or finished parts: delete faces (the solid
+  heals), delete holes up to a diameter, delete rounds and offset faces along their normal.
 - `se_sketch` and `se_sketch_constraint` draw and constrain 2D geometry on drawing sheets: pass
   a sheet handle or a drawing handle (its active sheet) as `sketch`.
 - `se_layer`: layers of parts, sheet metal, assemblies and drawing sheets (list, create,

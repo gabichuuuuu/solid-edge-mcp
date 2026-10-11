@@ -114,7 +114,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_shell` | Shell with a common wall thickness and optional open faces. |
 | | `se_draft` | Face draft relative to a neutral plane. |
 | | `se_loft_sweep` | Loft, sweep and helix, as a boss or a cut. |
-| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body. |
+| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, and offset faces. |
 | | `se_primitive` | Box, cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature. |
 | **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), tab, contour flange, flange, hem, corner break and flat pattern with cut size. |
@@ -284,8 +284,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 76/76.
-- Acceptance suite against real Solid Edge 2026: **1238 calls and 482 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 78/78.
+- Acceptance suite against real Solid Edge 2026: **1269 calls and 492 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 48 tools have correct calls, and `A10` runs every value of the action,
@@ -297,7 +297,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 |---|---|
 | `A01` | Session and errors |
 | `A02` | Full part: data, view and named views, selection, editing, exports and undo |
-| `A03` | Part features, ribs, thicken, mirrored body, reference planes and coordinate systems |
+| `A03` | Part features, ribs, thicken, mirrored body, reference planes and coordinate systems, direct face edits |
 | `A04` | Sketches and dimensions, also on a drawing sheet |
 | `A05` | Sheet metal |
 | `A06` | Assemblies |
