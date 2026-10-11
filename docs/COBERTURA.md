@@ -151,7 +151,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Extruded cutouts made in the assembly through chosen parts (through all or to a depth; side); list and delete | `se_assembly_feature` | ✔ |
 | Other assembly features (holes, revolved cutouts, protrusions, welds), parts driven by the assembly | COM (`AssemblyFeatures`, `AssemblyDrivenPartFeatures`) | · |
 | Display configurations (shown and hidden components): list, save, apply, delete; the assembly must be saved (.cfg file) | `se_assembly_config` | ✔ |
-| Exploded views, groups | COM (`AssemblyDocument.AutoExplode` answers "Operation successful" but the explode is not measurable outside the explode environment) / Command | · |
+| Automatic exploded view (spread distance, by part or subassembly) and the exploded placement of each component | `se_assembly_config explode`, `exploded` | ✔ |
+| Manual explode steps, collapse, explode configurations, groups | Explode environment commands (`ExplodeExplodedViewCollapse`… do nothing when run by COM from the assembly environment) | ✘ |
 | Structural frames, pipes, harnesses, fasteners, weldment | COM (`StructuralFrames`, `Pipes`, `Harnesses`, `FastenerSystems`, `WeldmentAssembly`) / Command | · |
 
 ## Drawings

@@ -124,7 +124,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences. |
 | | `se_relations` | Planar (mate and flush), axial, insert, parallel, tangent, angle and rigid set relations, checked geometrically; list and delete. |
 | | `se_assembly_pattern` | Component patterns that follow a part pattern (e.g. a pin repeated on every hole of a hole pattern): list, create, delete and dissolve. |
-| | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them. |
+| | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them; automatic exploded views with the exploded placement of each component. |
 | | `se_assembly_feature` | Extruded cutouts made in the assembly through chosen parts (through all or to a depth), from a sketch drawn in the assembly; list and delete. |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
@@ -140,8 +140,8 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_command` | Searches for and runs interface commands, as if the person clicked them. |
 
 Each tool declares its MCP annotations (read-only, destructive…) so the client can decide when to
-ask for approval. What has no specific tool (booleans between bodies, swept or lofted surfaces, exploded
-views…) is done with `se_com_*` or `se_command`; details are in
+ask for approval. What has no specific tool (booleans between bodies, swept or lofted surfaces, 3D
+sketches…) is done with `se_com_*` or `se_command`; details are in
 [docs/COBERTURA.md](docs/COBERTURA.md).
 
 ## Architecture
@@ -288,8 +288,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 109/109.
-- Acceptance suite against real Solid Edge 2026: **1620 calls and 673 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 111/111.
+- Acceptance suite against real Solid Edge 2026: **1636 calls and 683 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 52 tools have correct calls, and `A10` runs every value of the action,

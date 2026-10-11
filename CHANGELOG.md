@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_assembly_config explode` and `exploded`: automatic exploded views (spread distance, by part
+  or subassembly) and the exploded placement of each component next to its assembly placement.
 - `se_curve`: construction curves through 3D points, where faces, surfaces and the body meet,
   sketches projected onto faces, crossings of two sketches and chains of edges; list and delete.
 - `se_loft_sweep sweep` takes a curve from `se_curve` as `path` (sweeps along 3D paths).

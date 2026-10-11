@@ -64,6 +64,14 @@ public enum AssemblyConfigAction
     Save,
     Apply,
     Delete,
+    Explode,
+    Exploded,
+}
+
+public enum ExplodeLevel
+{
+    Part,
+    Subassembly,
 }
 
 public enum BomStructure
@@ -241,16 +249,21 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         };
     }
 
-    [McpServerTool(Name = "se_assembly_config", Title = "Assembly display configurations", Destructive = true, OpenWorld = false)]
+    [McpServerTool(Name = "se_assembly_config", Title = "Assembly display configurations and exploded views", Destructive = true, OpenWorld = false)]
     [Description("""
         Display configurations of an assembly: named states of which components are shown (hide them with se_assembly hide first).
         list (configurations, the active one and the hidden components) | save (name: the current display) | apply (name: shows and hides the components as saved) | delete (name).
         The assembly must have been saved (se_documents save_as): Solid Edge keeps the configurations in a .cfg file next to it.
-        Example: {"action":"save","name":"Without covers"}.
+        Exploded views: explode (automatic explode along the relations; spread = distance in mm between components, default Solid Edge's minimum clearance; by part | subassembly)
+        | exploded (exploded placement of each component next to its assembly placement). The assembly placements do not change; there is no call to collapse
+        the explode: close the assembly without saving, or use the Explode environment.
+        Example: {"action":"save","name":"Without covers"}; {"action":"explode","spread":50}.
         """)]
     public Task<CallToolResult> AssemblyConfig(
         AssemblyConfigAction action,
         [Description("save/apply/delete: configuration name.")] string? name = null,
+        [Description("explode: distance between components in mm (default: Solid Edge's minimum clearance).")] double? spread = null,
+        ExplodeLevel by = ExplodeLevel.Part,
         [Description("Assembly document handle; default: the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -262,6 +275,8 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyConfigAction.Save => runner.RunAsync(tool, act, c => AssemblyConfigService.Save(c, document, name), cancellationToken),
             AssemblyConfigAction.Apply => runner.RunAsync(tool, act, c => AssemblyConfigService.Apply(c, document, name), cancellationToken),
             AssemblyConfigAction.Delete => runner.RunAsync(tool, act, c => AssemblyConfigService.Delete(c, document, name), cancellationToken),
+            AssemblyConfigAction.Explode => runner.RunAsync(tool, act, c => AssemblyExplodeService.Explode(c, document, spread, Snake(by)), cancellationToken),
+            AssemblyConfigAction.Exploded => runner.RunAsync(tool, act, c => AssemblyExplodeService.Exploded(c, document), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

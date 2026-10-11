@@ -173,4 +173,32 @@ se_documents {"action":"close","document":"{{a2.handle}}","saveChanges":false}
 @rl3 = se_relations {"action":"list"}
 ?= rl3.count 5
 se_documents {"action":"close","document":"{{a3.handle}}","saveChanges":false}
+# Exploded view: pin inserted on the block's top face (origin z=20). Auto explode with spread 50 moves it along its axis to z=70,
+# a new explode with spread 100 to z=120; the block (grounded) and the assembly placements stay. Before exploding, nothing is exploded.
+@a4 = se_documents {"action":"new","kind":"assembly"}
+@eb = se_assembly {"action":"insert","path":"{{work}}\\blk.par","document":"{{a4.handle}}"}
+! [invalid_argument] se_assembly_config {"action":"explode","document":"{{a4.handle}}"}
+@ep = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[300,0,0],"document":"{{a4.handle}}"}
+@et = se_geometry {"action":"faces","source":"{{eb.handle}}","direction":[0,0,1]}
+@eh = se_geometry {"action":"faces","source":"{{eb.handle}}","type":"cylinder"}
+@ec = se_geometry {"action":"faces","source":"{{ep.handle}}","type":"cylinder"}
+@ef = se_geometry {"action":"faces","source":"{{ep.handle}}","direction":[0,0,-1]}
+@er = se_relations {"action":"add","type":"insert","occurrence1":"{{ep.handle}}","element1":"{{ef.items[0].handle}}","occurrence2":"{{eb.handle}}","element2":"{{et.items[0].handle}}","axis1":"{{ec.items[0].handle}}","axis2":"{{eh.items[0].handle}}"}
+?= er.occurrence.origin[2] 20
+@e0 = se_assembly_config {"action":"exploded"}
+?= e0.moved 0
+! [invalid_argument] se_assembly_config {"action":"explode","spread":-5}
+@e1 = se_assembly_config {"action":"explode","spread":50}
+?= e1.moved 1
+?= e1.components[?name="pin.par:1"].explodedOrigin[2] 70 0.0001
+?= e1.components[?name="pin.par:1"].distance 50 0.0001
+?= e1.components[?name="pin.par:1"].origin[2] 20 0.0001
+?= e1.components[?name="blk.par:1"].distance 0
+@e2 = se_assembly_config {"action":"explode","spread":100}
+?= e2.components[?name="pin.par:1"].explodedOrigin[2] 120 0.0001
+@e3 = se_assembly_config {"action":"exploded"}
+?= e3.moved 1
+@el = se_assembly {"action":"list"}
+?= el.occurrences[?name="pin.par:1"].origin[2] 20 0.0001
+se_documents {"action":"close","document":"{{a4.handle}}","saveChanges":false}
 se_documents {"action":"list"}
