@@ -85,6 +85,17 @@ public enum PrimitiveShape
     Sphere,
 }
 
+public enum CurveAction
+{
+    List,
+    Points,
+    Intersection,
+    Project,
+    Cross,
+    Derived,
+    Delete,
+}
+
 public enum SurfaceAction
 {
     List,
@@ -182,7 +193,7 @@ public sealed class PartTools(ToolRunner runner)
     [Description($$"""
         Solid through sections drawn with se_sketch (each closed with 'close'): operation add (protrusion; also the first feature of a part) or cut (cutout).
         loft: blends 'sketches' (>= 2 sections on different planes, in order); 'origins' [x1,y1,x2,y2,...] (mm, each sketch's own x/y) picks the matching start point of each section to control twist (default: first vertex of each section; a circle starts at +x).
-        sweep: moves 'sketches' (>= 1 sections) along 'path' (a sketch with a chain of lines/arcs closed with 'close', open: true for an open chain; the section usually lies on a plane across the path start).
+        sweep: moves 'sketches' (>= 1 sections) along 'path' (a sketch with a chain of lines/arcs closed with 'close', open: true for an open chain, or a 3D curve from se_curve; the section usually lies on a plane across the path start).
         helix: coils one section around 'axis' (se_sketch 'axis' on a line of the same sketch, before 'close'); give two of pitch (mm), turns and height (mm); it starts at the section and rises towards the end point of the axis line; hand right (default) | left.
         {{VerifiedNote}} The sketches are kept if it fails.
         Example: {"action":"loft","sketches":["sketch:3","sketch:7"]}; {"action":"helix","sketches":["sketch:2"],"axis":"axis:4","pitch":8,"turns":5}.
@@ -191,7 +202,7 @@ public sealed class PartTools(ToolRunner runner)
         SweepAction action,
         [Description("Closed section sketch handles, in order.")] string[] sketches,
         FeatureOperation operation = FeatureOperation.Add,
-        [Description("Sweep: path sketch handle.")] string? path = null,
+        [Description("Sweep: path sketch handle, or a curve handle from se_curve (3D path).")] string? path = null,
         [Description("Loft/sweep: start point of each section [x1,y1,x2,y2,...] in mm, sketch coordinates.")] double[]? origins = null,
         [Description("Helix: axis handle from se_sketch 'axis'.")] string? axis = null,
         [Description("Helix: pitch in mm (rise per turn).")] double? pitch = null,
@@ -273,6 +284,46 @@ public sealed class PartTools(ToolRunner runner)
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_primitive", Snake(shape), c => FeatureService.Primitive(c, document,
             new PrimitiveSpec(Snake(shape), Snake(operation), plane, center, size, radius, depth, Snake(side), angle, corners)), cancellationToken);
+
+    [McpServerTool(Name = "se_curve", Title = "Construction curves", Destructive = false, OpenWorld = false)]
+    [Description("""
+        Construction curves of a part (they do not change the solid), e.g. as 3D paths: list (name, type, status, edges, length mm, ends, bounding box) |
+        points (smooth curve through 'points' [x1,y1,z1,...] mm, >= 2 points; closed: true returns smoothly to the first point) |
+        intersection (where 'first' and 'second' meet; each a face handle, a surface (se_surface) or feature handle = its faces, or 'body') |
+        project (a 'sketch' projected onto 'onto' = a face, surface or feature handle, or 'body', along the sketch normal (direction normal) or against it (reverse)) |
+        cross (two 'sketches' on planes that are not parallel: where their extrusions meet) | derived (one curve from a chain of 'edges') | delete ('name').
+        Each curve is checked by its status and edges (points: it ends at the first and last points; derived: its length equals the edges') and deleted if it fails.
+        Example: {"action":"points","points":[0,0,30,50,30,50,100,60,30]}; {"action":"intersection","first":"surface:5","second":"body"}.
+        """)]
+    public Task<CallToolResult> Curve(
+        CurveAction action,
+        [Description("points: model points [x1,y1,z1,...] in mm.")] double[]? points = null,
+        [Description("points: return smoothly to the first point.")] bool closed = false,
+        [Description("intersection: first set: face, surface or feature handle, or 'body'.")] string? first = null,
+        [Description("intersection: second set: face, surface or feature handle, or 'body'.")] string? second = null,
+        [Description("project: sketch handle.")] string? sketch = null,
+        [Description("project: face, surface or feature handle, or 'body', to project onto.")] string? onto = null,
+        FeatureDirection direction = FeatureDirection.Normal,
+        [Description("cross: two sketch handles on planes that are not parallel.")] string[]? sketches = null,
+        [Description("derived: edge handles forming a chain (se_geometry edges).")] string[]? edges = null,
+        [Description("delete: curve name (action 'list').")] string? name = null,
+        [Description("Document handle; default: the document of the handles given, or the active document.")] string? document = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string tool = "se_curve";
+        string act = Snake(action);
+        return action switch
+        {
+            CurveAction.List => runner.RunAsync(tool, act, c => FeatureService.Curves(c, document), cancellationToken),
+            CurveAction.Points => runner.RunAsync(tool, act, c => FeatureService.CurveThroughPoints(c, document, points, closed), cancellationToken),
+            CurveAction.Intersection => runner.RunAsync(tool, act, c => FeatureService.IntersectionCurve(c, document, first, second), cancellationToken),
+            CurveAction.Project => runner.RunAsync(tool, act, c => FeatureService.ProjectedCurve(c, document, sketch, onto, Snake(direction)), cancellationToken),
+            CurveAction.Cross => runner.RunAsync(tool, act, c => FeatureService.CrossCurve(c, document, sketches), cancellationToken),
+            CurveAction.Derived => runner.RunAsync(tool, act, c => FeatureService.DerivedCurve(c, document, edges), cancellationToken),
+            CurveAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteCurve(c, document, name), cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
 
     [McpServerTool(Name = "se_surface", Title = "Construction surfaces", Destructive = false, OpenWorld = false)]
     [Description("""

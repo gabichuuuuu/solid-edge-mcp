@@ -1,0 +1,100 @@
+# A18: construction curves (se_curve) and sweeps along them. The curves do not change the solid: the box 100x60x20 keeps 120000.
+#   through (0,0,30) and (100,60,30): straight, sqrt(100^2+60^2) = 116.619; three points: ends at the first and last
+#   four points closed at z=40: no ends
+#   surface z=10 (a line on XZ extruded 80 towards +y) with the body: the loop around the box, 2*(100+60) = 320, closed
+#   circle r10 on XY projected along +z onto the top face: 2*pi*10 = 62.832 at z=20; against the normal it hits nothing
+#   line z=x/2 on XZ crossed with z=5y/6 on YZ: from the origin to (100,60,50), sqrt(100^2+60^2+50^2) = 126.886
+#   the four edges of the top face as one curve: 320, closed
+#   circle r5 swept along a curve from (0,0,0) to (0,0,50): pi*25*50 = 3926.991; circle r3 along (30,0,0)-(30,0,40): pi*9*40 = 1130.973;
+#   a curve as the path of a cut, below
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+?= b.volume 120000 0.001
+@c1 = se_curve {"action":"points","points":[0,0,30,100,60,30]}
+?~ c1.curve.type points
+?~ c1.curve.status ok
+?= c1.curve.length 116.619038 0.0001
+?= c1.curve.boundingBox.max[0] 100 0.0001
+@c2 = se_curve {"action":"points","points":[0,0,30,50,30,50,100,60,30]}
+?= c2.curve.boundingBox.max[2] 60 0.5
+@c3 = se_curve {"action":"points","points":[0,0,40,100,0,40,100,60,40,0,60,40],"closed":true}
+?~ c3.curve.closed true
+?= c3.curve.boundingBox.min[2] 40 0.0001
+@k = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[-10,10,110,10]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}","open":true}
+@sf = se_surface {"action":"extrude","sketch":"{{k.sketch}}","depth":80,"direction":"reverse"}
+@i1 = se_curve {"action":"intersection","first":"{{sf.surface.handle}}","second":"body"}
+?~ i1.curve.type intersection
+?= i1.curve.edges 4 0
+?= i1.curve.length 320 0.0001
+?~ i1.curve.closed true
+?= i1.curve.boundingBox.min[2] 10 0.0001
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{k2.sketch}}","center":[50,30],"radius":10}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@t2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@p1 = se_curve {"action":"project","sketch":"{{k2.sketch}}","onto":"{{t2.items[0].handle}}"}
+?~ p1.curve.type projected
+?= p1.curve.length 62.831853 0.001
+?= p1.curve.boundingBox.min[2] 20 0.0001
+@t3 = se_geometry {"action":"faces","direction":[0,0,1]}
+! [feature_failed] se_curve {"action":"project","sketch":"{{k2.sketch}}","onto":"{{t3.items[0].handle}}","direction":"reverse"}
+@k3 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"line","sketch":"{{k3.sketch}}","points":[0,0,100,50]}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}","open":true}
+@k4 = se_sketch {"action":"create","plane":"2"}
+se_sketch {"action":"line","sketch":"{{k4.sketch}}","points":[0,0,60,50]}
+se_sketch {"action":"close","sketch":"{{k4.sketch}}","open":true}
+@x1 = se_curve {"action":"cross","sketches":["{{k3.sketch}}","{{k4.sketch}}"]}
+?~ x1.curve.type cross
+?= x1.curve.length 126.885775 0.0001
+?= x1.curve.boundingBox.max[2] 50 0.0001
+@t4 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te = se_geometry {"action":"edges","source":"{{t4.items[0].handle}}"}
+@d1 = se_curve {"action":"derived","edges":["{{te.items[0].handle}}","{{te.items[1].handle}}","{{te.items[2].handle}}","{{te.items[3].handle}}"]}
+?~ d1.curve.type derived
+?= d1.curve.length 320 0.0001
+?~ d1.curve.closed true
+@l = se_curve {"action":"list"}
+?= l.count 7 0
+@dl = se_curve {"action":"delete","name":"{{c2.curve.name}}"}
+?= dl.count 6 0
+@ph = se_physical {}
+?= ph.volume 120000 0.001
+! [invalid_argument] se_curve {"action":"delete","name":"{{c2.curve.name}}"}
+! [invalid_argument] se_curve {"action":"points","points":[0,0,0,10,10]}
+! [invalid_argument] se_curve {"action":"points","points":[0,0,0,0,0,0]}
+! [invalid_argument] se_curve {"action":"points","points":[0,0,0,10,0,0],"closed":true}
+! [invalid_argument] se_curve {"action":"intersection","first":"body","second":"body"}
+! [invalid_argument] se_curve {"action":"cross","sketches":["{{k3.sketch}}"]}
+! [invalid_argument] se_curve {"action":"derived"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@q = se_documents {"action":"new","kind":"part"}
+@pc = se_curve {"action":"points","points":[0,0,0,0,0,50],"document":"{{q.handle}}"}
+@ks = se_sketch {"action":"create","plane":"1","document":"{{q.handle}}"}
+se_sketch {"action":"circle","sketch":"{{ks.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{ks.sketch}}"}
+@sw = se_loft_sweep {"action":"sweep","sketches":["{{ks.sketch}}"],"path":"{{pc.curve.handle}}"}
+?= sw.volume 3926.990817 0.001
+@ks2 = se_sketch {"action":"create","plane":"1","document":"{{q.handle}}"}
+se_sketch {"action":"circle","sketch":"{{ks2.sketch}}","center":[30,0],"radius":3}
+se_sketch {"action":"close","sketch":"{{ks2.sketch}}"}
+@pc3 = se_curve {"action":"points","points":[30,0,0,30,0,40],"document":"{{q.handle}}"}
+@sw3 = se_loft_sweep {"action":"sweep","sketches":["{{ks2.sketch}}"],"path":"{{pc3.curve.handle}}"}
+?= sw3.volumeChange 1130.973355 0.001
+@ks3 = se_sketch {"action":"create","plane":"1","document":"{{q.handle}}"}
+se_sketch {"action":"circle","sketch":"{{ks3.sketch}}","center":[60,0],"radius":3}
+se_sketch {"action":"close","sketch":"{{ks3.sketch}}"}
+! [handle_wrong_type] se_loft_sweep {"action":"sweep","sketches":["{{ks3.sketch}}"],"path":"{{q.handle}}"}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+#   cut: circle r3 on the YZ plane at (y=30, z=10) swept along a curve from (0,30,10) to (100,30,10) through the box: pi*9*100 = 2827.433
+@r = se_documents {"action":"new","kind":"part"}
+@rb = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20,"document":"{{r.handle}}"}
+@rc = se_curve {"action":"points","points":[0,30,10,100,30,10],"document":"{{r.handle}}"}
+@rk = se_sketch {"action":"create","plane":"2","document":"{{r.handle}}"}
+se_sketch {"action":"circle","sketch":"{{rk.sketch}}","center":[30,10],"radius":3}
+se_sketch {"action":"close","sketch":"{{rk.sketch}}"}
+@rs = se_loft_sweep {"action":"sweep","operation":"cut","sketches":["{{rk.sketch}}"],"path":"{{rc.curve.handle}}"}
+?= rs.volumeChange -2827.433388 0.001
+se_documents {"action":"close","document":"{{r.handle}}","saveChanges":false}

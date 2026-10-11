@@ -8,6 +8,9 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_curve`: construction curves through 3D points, where faces, surfaces and the body meet,
+  sketches projected onto faces, crossings of two sketches and chains of edges; list and delete.
+- `se_loft_sweep sweep` takes a curve from `se_curve` as `path` (sweeps along 3D paths).
 - `se_surface`: construction surfaces extruded or revolved from a sketch (open or closed, with end
   caps) and offset from a face, checked by their faces; list and delete.
 - `se_assembly_feature`: extruded cutouts made in the assembly through chosen parts, from a sketch

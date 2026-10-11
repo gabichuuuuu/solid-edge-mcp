@@ -62,7 +62,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Project model edges onto the sketch | `se_sketch project` | ✔ |
 | 2D relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions (length, true distance, interior angle, radius, diameter) | `se_sketch_constraint` | ✔ |
 | Sketch text | — | ✘ `Profile.TextProfiles` has no `Add`: text profiles are created only with the Text command in Solid Edge |
-| 3D sketches | COM (`Sketches3D`) | · |
+| 3D sketches (3D paths are covered by `se_curve points`, usable as sweep paths) | COM (`Sketches3D`) | · |
 | Offset and angled planes | `se_ref_plane` | ✔ |
 | Planes through 3 points (vertices or edge midpoints), midway, normal to an edge (at an end, a distance or a fraction of its length), tangent to a cylinder or cone (parallel to a plane or at an angle about the axis); coordinate systems by origin and angles or along two edges | `se_ref_plane` | ✔ |
 | Planes tangent to a curved surface (cylinder, sphere…) at an edge end | `se_ref_plane tangent points` | ✔ |
@@ -79,7 +79,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Rectangular and circular pattern; mirror | `Patterns`, `MirrorCopies` | `se_pattern` | ✔ |
 | Shell (thin wall) | `Thinwalls` | `se_shell` | ✔ |
 | Draft | `Drafts` | `se_draft` | ✔ |
-| Loft, sweep, helix (boss and cut) | `LoftedProtrusions`, `SweptProtrusions`, `HelixProtrusions`… | `se_loft_sweep` | ✔ |
+| Loft, sweep (along a sketch or a 3D curve), helix (boss and cut) | `LoftedProtrusions`, `SweptProtrusions` (curve path: its edges as `igEdgeBasedCrossSection`), `HelixProtrusions`… | `se_loft_sweep` | ✔ |
 | Loft with guide curves or tangencies, sweep along several paths, conical or variable-pitch helix, thin wall | `LoftedProtrusions.Add`, `AddWithThinWall`, `HelixProtrusions.AddFinite` (optional) | COM | · |
 | Rib from an open sketch (up to the part or to a finite depth; symmetric or to one side) | `Ribs` | `se_part_feature rib` | ✔ |
 | Thread on a cylinder | `Threads` | — | ✘ `Threads.Add` returns E_INVALIDARG for every combination tried (faces or edges as ends, `HoleData` from `Add` or `AddEx` with the ISO Metric table); use `se_hole` tapped (cosmetic) or a helix cut with `se_loft_sweep` (physical) |
@@ -108,7 +108,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Move and rotate faces, replace faces | COM (`FaceMoves`, `FaceRotates`, `ReplaceFaces`; in ordered, `FaceMoves.Add` along a face normal leaves the feature failed) | · |
 | Surfaces by extrusion and revolve (open or closed sketch, end caps) and offset from a face; list and delete | `se_surface` | ✔ |
 | Surfaces by sweep, loft, boundaries; stitched surfaces | COM (`Constructions.SweptSurfaces`, `LoftedSurfaces`, `SurfaceByBoundaries`, `StitchSurfaces`…) | · |
-| Curves (intersection, projected, helical, from a table) | COM (`Constructions.IntersectionCurves`, `ProjectCurves`, `HelicalCurves`…) | · |
+| Curves through 3D points (open or closed), intersection of faces, surfaces and the body, sketches projected onto faces, crossing of two sketches, composite of edges; list and delete | `se_curve` | ✔ |
+| Helical curves, curves from a table, contour curves, wrapped sketches | COM (`Constructions.HelicalCurves`, `CurvesByTables`, `ContourCurves`; `ProjectCurves` with `igProjectOptionWrap`) | · |
 
 ## Sheet metal
 

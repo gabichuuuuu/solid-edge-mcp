@@ -25,6 +25,9 @@ public static partial class FeatureService
     /// <summary>Section type: sketch profile (igProfileBasedCrossSection).</summary>
     private const int ProfileSection = (int)FeaturePropertyConstants.igProfileBasedCrossSection;
 
+    /// <summary>Path type: a construction curve (igEdgeBasedCrossSection), e.g. a 3D curve from se_curve.</summary>
+    private const int EdgeSection = (int)FeaturePropertyConstants.igEdgeBasedCrossSection;
+
     /// <summary>
     /// Loft between sections, sweep of sections along a path, or helix of a section
     /// around an axis. As with extrusion and revolve, each sketch is used through a linked copy of its
@@ -57,6 +60,7 @@ public static partial class FeatureService
         }
 
         Profile? pathProfile = null;
+        object? pathCurve = null;
         RefAxis? axis = null;
         (double Height, double Pitch, double Turns) helix = default;
         FeaturePropertyConstants hand = FeaturePropertyConstants.igRight;
@@ -65,8 +69,23 @@ public static partial class FeatureService
             case "loft":
                 break;
             case "sweep":
-                pathProfile = SketchService.Resolve(context, spec.Path ?? throw ToolException.InvalidArgument("A sweep requires 'path'.",
-                    "Draw the path as an open or closed chain with se_sketch and close it with 'close' (open: true for an open chain)."));
+                string pathHandle = spec.Path ?? throw ToolException.InvalidArgument("A sweep requires 'path'.",
+                    "Draw the path as an open or closed chain with se_sketch and close it with 'close' (open: true for an open chain), or make a 3D curve with se_curve.");
+                object resolvedPath = context.Handles.Resolve(pathHandle, "path");
+                if (resolvedPath is Profile or Sketch)
+                {
+                    pathProfile = SketchService.Resolve(context, pathHandle);
+                }
+                else if (CurveEdges(resolvedPath).Length > 0)
+                {
+                    pathCurve = resolvedPath;
+                }
+                else
+                {
+                    throw new ToolException("handle_wrong_type", $"'{pathHandle}' in 'path' is neither a sketch nor a curve.",
+                        "Pass a sketch closed with se_sketch 'close' (open: true for an open chain) or a curve from se_curve.");
+                }
+
                 break;
             case "helix":
                 axis = context.Handles.Resolve<RefAxis>(spec.Axis ?? throw ToolException.InvalidArgument("A helix requires 'axis'.",
@@ -113,7 +132,8 @@ public static partial class FeatureService
             object feature = Create(what, null, () => spec.Action switch
             {
                 "loft" => Loft(model, existing, cut, sections, types, starts),
-                "sweep" => Sweep(model, existing, cut, path!.Profile, sections, types, starts),
+                "sweep" => Sweep(model, existing, cut,
+                    path is null ? [.. CurveEdges(pathCurve!)] : [path.Profile], path is null ? EdgeSection : ProfileSection, sections, types, starts),
                 _ => Helix(model, existing, cut, axis!, sections, helix, hand),
             });
 
@@ -168,25 +188,24 @@ public static partial class FeatureService
         return existing.LoftedProtrusions.AddSimple(sections.Length, sections, types, origins, side, none, none);
     }
 
-    private static object Sweep(ModelDocument model, Model? existing, bool cut, Profile path, object[] sections, int[] types, object[] origins)
+    private static object Sweep(ModelDocument model, Model? existing, bool cut, object[] paths, int pathType, object[] sections, int[] types, object[] origins)
     {
         const FeaturePropertyConstants none = FeaturePropertyConstants.igNone;
         const FeaturePropertyConstants side = FeaturePropertyConstants.igRight;
-        object[] paths = [path];
-        int[] pathTypes = [ProfileSection];
+        int[] pathTypes = Enumerable.Repeat(pathType, paths.Length).ToArray();
         if (cut)
         {
-            return existing!.SweptCutouts.Add(1, paths, pathTypes, sections.Length, sections, types, origins, null, side, none, 0, null, none, 0, null);
+            return existing!.SweptCutouts.Add(paths.Length, paths, pathTypes, sections.Length, sections, types, origins, null, side, none, 0, null, none, 0, null);
         }
 
         if (existing is null)
         {
-            Model created = model.Models.AddSweptProtrusion(1, paths, pathTypes, sections.Length, sections, types, origins, null, side,
+            Model created = model.Models.AddSweptProtrusion(paths.Length, paths, pathTypes, sections.Length, sections, types, origins, null, side,
                 none, 0, null, none, 0, null);
             return created.SweptProtrusions.Item(created.SweptProtrusions.Count);
         }
 
-        return existing.SweptProtrusions.Add(1, paths, pathTypes, sections.Length, sections, types, origins, null, side, none, 0, null, none, 0, null);
+        return existing.SweptProtrusions.Add(paths.Length, paths, pathTypes, sections.Length, sections, types, origins, null, side, none, 0, null, none, 0, null);
     }
 
     /// <summary>Helix from the start of the axis line (igStart) toward its end; the profile sets the radius.</summary>

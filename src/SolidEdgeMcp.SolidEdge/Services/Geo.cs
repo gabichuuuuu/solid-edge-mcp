@@ -80,4 +80,6 @@ internal static class Geo
         [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
     public static double Length(double[] v) => Math.Sqrt(v.Sum(c => c * c));
+
+    public static double Distance(double[] a, double[] b) => Math.Sqrt(a.Zip(b, (x, y) => (x - y) * (x - y)).Sum());
 }
