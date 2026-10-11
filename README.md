@@ -207,7 +207,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 |---|---|---|
 | **Server and session** | `se_server_info` | Version, allowed folders, work folder, limits and configuration warnings. Does not need Solid Edge. |
 | | `se_session` | Status, connect (attaches to the open Solid Edge or starts it visibly), disconnect, quit and restart (refused while a document has unsaved changes). |
-| **Documents** | `se_documents` | Create a part, sheet metal, assembly, drawing or weldment; open, activate, save, save as or copy, close; undo and redo what Solid Edge records; recalculate. |
+| **Documents** | `se_documents` | Create a part, sheet metal, assembly, drawing or weldment; open, activate, save, save as or copy, close; undo and redo what Solid Edge records; recalculate; list this installation's templates. |
 | **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set and delete. |
 | | `se_variables` | Variables and dimensions: list, read, set a value or formula (returns the volume change), create, delete, rename, comment, expose and limit. |
 | | `se_part_family` | Family of parts: family variables, members with their values and suppressed features, apply a member to the master (checked), write member files, copy, rename and delete members. |
@@ -221,7 +221,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_selection` | Read, replace, extend or clear the active selection. |
 | **View and application** | `se_view` | Capture the view as an image, framing (on drawings, the whole sheet with the title block), orientation, display mode and named views (list, save the current one, apply, delete). Does not change the model. |
 | | `se_options` | Solid Edge options and document units: list, read and change them; returns the previous value so it can be restored. |
-| | `se_ui` | Windows, environments and ribbon: list, activate and arrange windows; list environments and the tabs, groups and commands of the ribbon. |
+| | `se_ui` | Windows, environments and ribbon: list, activate and arrange windows; list environments and the tabs, groups and commands of the ribbon; find a button by the text it shows (any language or theme). |
 | **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, points, corner fillet and chamfer, edge projection, revolve axis and validated close; list the elements and relations of a sketch. The same 2D geometry is drawn on drawing sheets (2D drafting). |
 | | `se_sketch_constraint` | Geometric relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions that move the geometry, in sketches and on drawing sheets. |
 | | `se_ref_plane` | Reference planes: list; offset, angled, through three points, midway between two planes, normal to an edge (at an end, a distance or a fraction of its length) and tangent to a cylinder, each checked against its geometry; coordinate systems by origin and angles or along two edges, with their origin and axes. |

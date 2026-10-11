@@ -168,6 +168,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_frame", """{"action":"delete","name":"Rail"}""")]
     [InlineData("se_frame", """{"action":"repair","document":"doc:4"}""")]
     [InlineData("se_session", """{"action":"quit"}""")]
+    [InlineData("se_documents", """{"action":"templates","kind":"weldment"}""")]
+    [InlineData("se_ui", """{"action":"find","query":"Hole","environment":"Part","limit":10}""")]
     [InlineData("se_session", """{"action":"restart"}""")]
     [InlineData("se_assembly_feature", """{"action":"cut","sketch":"sketch:8","occurrences":["occurrence:2","occurrence:3"],"depth":4,"side":"symmetric","name":"Bore"}""")]
     [InlineData("se_assembly_feature", """{"action":"revolve","sketch":"sketch:4","axis":"refaxis:11","occurrences":["occurrence:2"],"angle":180,"side":"normal"}""")]

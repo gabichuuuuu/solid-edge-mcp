@@ -42,3 +42,8 @@ se_ui {"action":"state","window":"{{d1.handle}}","state":"maximized"}
 se_documents {"action":"close","document":"{{d1.handle}}","saveChanges":false}
 @sr = se_ui {"action":"state","state":"{{st0.state}}"}
 ?= sr.state {{st0.state}}
+# Buttons found by the text this Solid Edge shows (read from the live ribbon of the active theme): where they are and their id.
+@fh = se_ui {"action":"find","query":"hole","environment":"Part"}
+?~ fh.controls[0].name ole
+@fz = se_ui {"action":"find","query":"Xyzzy","environment":"Part"}
+?= fz.count 0

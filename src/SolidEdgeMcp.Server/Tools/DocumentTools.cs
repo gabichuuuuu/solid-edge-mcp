@@ -21,6 +21,7 @@ public enum DocumentAction
     Undo,
     Redo,
     Recompute,
+    Templates,
 }
 
 public enum DocumentKind
@@ -37,14 +38,14 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
 {
     [McpServerTool(Name = "se_documents", Title = "Solid Edge documents", Destructive = true, OpenWorld = false)]
     [Description("""
-        Documents. list | info | activate | new (kind, optional template) | open (path) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | close (saveChanges required if there are unsaved changes) | undo | redo (steps; only what Solid Edge recorded: holes, deletes, suppressions... but not features made from sketches, and creating a sketch clears the history; nothing to undo is an error) | recompute.
+        Documents. list | info | activate | new (kind, optional template) | open (path) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | close (saveChanges required if there are unsaved changes) | templates (this installation's default template of each kind and the templates in its folders; optional kind) | undo | redo (steps; only what Solid Edge recorded: holes, deletes, suppressions... but not features made from sketches, and creating a sketch clears the history; nothing to undo is an error) | recompute.
         Without 'document' the active document is used. Paths must be absolute and inside the allowed folders (se_server_info). save_as keeps the native format (.par .psm .asm .dft .pwd); use se_export for other formats.
         Example: {"action":"new","kind":"part"} then {"action":"save_as","path":"D:\\CAD\\block.par"}.
         """)]
     public Task<CallToolResult> Documents(
         DocumentAction action,
         [Description("Document handle (e.g. 'doc:1'); default: active document.")] string? document = null,
-        [Description("For 'new': part | sheet_metal | assembly | draft | weldment (without a .pwd template, as Solid Edge 2026 installs none, an assembly from the weldment assembly template).")] DocumentKind? kind = null,
+        [Description("For 'new' and 'templates': part | sheet_metal | assembly | draft | weldment (without a .pwd template, as Solid Edge 2026 installs none, an assembly from the weldment assembly template set in Solid Edge's options).")] DocumentKind? kind = null,
         [Description("For 'new': template file (optional; allowed folders or the Solid Edge template folder).")] string? template = null,
         [Description("For 'open', 'save_as', 'save_copy_as': absolute file path.")] string? path = null,
         [Description("For 'save_as'/'save_copy_as': replace an existing file.")] bool overwrite = false,
@@ -58,6 +59,7 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
         return action switch
         {
             DocumentAction.List => runner.RunAsync(tool, name, DocumentService.List, cancellationToken),
+            DocumentAction.Templates => runner.RunAsync(tool, name, c => DocumentService.Templates(c, kind is { } k ? ToKind(k) : null), cancellationToken),
             DocumentAction.Info => runner.RunAsync(tool, name, c => DocumentService.Info(c, document), cancellationToken),
             DocumentAction.Activate => runner.RunAsync(tool, name, c => DocumentService.Activate(c, document), cancellationToken),
             DocumentAction.New => runner.RunAsync(tool, name, c => DocumentService.New(c,

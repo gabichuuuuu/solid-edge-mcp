@@ -8,6 +8,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- Each installation is read instead of assumed: `se_ui find` finds a button by the text this Solid Edge shows (any
+  language or ribbon theme) with its tab, group and command id; `se_documents templates` lists the default template of
+  each kind (Solid Edge's options) and the templates in its folders; a weldment uses the weldment template set in Solid
+  Edge's options; `se_frame library` also lists a library folder of your own. Material, library and style names that
+  differ only in case are taken as written by Solid Edge, and a name that is not found is answered with the closest names
+  this installation has.
 - MCP prompts for common workflows (`/mcp__solid-edge__<name>` in Claude Code): `model_part`, `part_from_template`,
   `manufacturing_drawing` and `welded_frame`.
 - `se_session quit` and `restart`: close Solid Edge (refused while a document has unsaved changes) and start it again,

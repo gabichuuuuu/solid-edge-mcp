@@ -64,7 +64,7 @@ public static class AppearanceService
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         string styleName = string.IsNullOrWhiteSpace(name) ? throw ToolException.InvalidArgument("Action 'delete' requires 'name'.") : name;
-        _ = Find(document, styleName) ?? throw NotFound(document, styleName);
+        styleName = (Find(document, styleName) ?? throw NotFound(document, styleName)).StyleName;
         try
         {
             FacesStyles(document).Remove(styleName);
@@ -289,11 +289,16 @@ public static class AppearanceService
 
     private static IEnumerable<FaceStyle> Styles(SolidEdgeDocument document) => Late.Items(FacesStyles(document)).OfType<FaceStyle>();
 
-    private static FaceStyle? Find(SolidEdgeDocument document, string name) =>
-        Styles(document).FirstOrDefault(s => string.Equals(s.StyleName, name, StringComparison.Ordinal));
+    /// <summary>Style by its name, or by the only one that differs just in case (style names vary between templates and languages).</summary>
+    private static FaceStyle? Find(SolidEdgeDocument document, string name)
+    {
+        FaceStyle[] styles = [.. Styles(document)];
+        string? found = NameMatch.Resolve(styles.Select(s => s.StyleName), name);
+        return found is null ? null : styles.First(s => s.StyleName == found);
+    }
 
     private static ToolException NotFound(SolidEdgeDocument document, string name) =>
-        new("style_not_found", $"'{SeContext.SafeName(document)}' has no style named '{name}'.",
+        new("style_not_found", $"'{SeContext.SafeName(document)}' has no style named '{name}'.{NameMatch.Hint(Styles(document).Select(s => s.StyleName), name)}",
             "List the styles with action 'list', or apply a colour with 'color' ('#RRGGBB').");
 
     private static object Describe(FaceStyle style)

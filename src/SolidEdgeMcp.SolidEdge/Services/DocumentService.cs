@@ -28,6 +28,53 @@ public static class DocumentService
         ["weldment_assembly"] = [".asm"],
     };
 
+    /// <summary>
+    /// Templates of this installation: the default one of each kind (Solid Edge's options) and the template files in its
+    /// template folders, so a template is chosen from what this Solid Edge has instead of a remembered name.
+    /// </summary>
+    public static object Templates(SeContext context, string? kind)
+    {
+        string[] kinds = kind is null ? [.. DocumentKinds.CreatableKinds] : [kind];
+        var defaults = new Dictionary<string, string?>();
+        var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string k in kinds)
+        {
+            DocumentTypeConstants type = DocumentKinds.ForNew(k).Type;
+            string? path = type == DocumentTypeConstants.igWeldmentDocument ? WeldmentAssemblyTemplate(context) ?? DefaultTemplate(context, type) : DefaultTemplate(context, type);
+            defaults[k] = path is not null && File.Exists(path) ? path : null;
+            foreach (string folder in TemplateFolders(context, type))
+            {
+                folders.Add(folder);
+            }
+        }
+
+        string[] extensions = [.. kinds.SelectMany(k => NativeExtensions.GetValueOrDefault(k) ?? []).Append(".asm").Distinct()];
+        string[] files = [.. folders.Where(Directory.Exists)
+            .SelectMany(f => Directory.EnumerateFiles(f, "*.*", SearchOption.AllDirectories))
+            .Where(f => extensions.Contains(System.IO.Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).Take(context.MaxListItems)];
+        return new
+        {
+            defaults,
+            folders = folders.ToArray(),
+            count = files.Length,
+            templates = files,
+            note = "Pass a template path to se_documents new ('template'); without one, the default of the kind is used.",
+        };
+    }
+
+    private static string? DefaultTemplate(SeContext context, DocumentTypeConstants type)
+    {
+        try
+        {
+            return context.Application.GetDefaultTemplatePath(type);
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+    }
+
     public static object List(SeContext context)
     {
         Documents documents = context.Application.Documents;
@@ -394,8 +441,9 @@ public static class DocumentService
     }
 
     /// <summary>
-    /// Weldment template as an assembly (next to the default assembly template) when there is no
-    /// installed .pwd template; null if the .pwd exists or none is found.
+    /// Weldment template as an assembly when there is no installed .pwd template: the one set in Solid Edge's options
+    /// (Global\Templates\WeldAsmTemplate of the running version, verified in Solid Edge 2026), otherwise one named like a
+    /// weldment next to the default assembly template; null if the .pwd exists or none is found.
     /// </summary>
     private static string? WeldmentAssemblyTemplate(SeContext context)
     {
@@ -406,10 +454,15 @@ public static class DocumentService
                 return null;
             }
 
+            if (SolidEdgeSettings.Read(context.Application, @"Global\Templates", "WeldAsmTemplate") is { } configured && File.Exists(configured))
+            {
+                return configured;
+            }
+
             string? folder = System.IO.Path.GetDirectoryName(
                 context.Application.GetDefaultTemplatePath(DocumentTypeConstants.igAssemblyDocument));
             return folder is not null && Directory.Exists(folder)
-                ? Directory.EnumerateFiles(folder, "*weldment*.asm").Order(StringComparer.OrdinalIgnoreCase).FirstOrDefault()
+                ? Directory.EnumerateFiles(folder, "*weld*.asm").Order(StringComparer.OrdinalIgnoreCase).FirstOrDefault()
                 : null;
         }
         catch (COMException)

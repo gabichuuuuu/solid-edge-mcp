@@ -153,6 +153,86 @@ public static class UiService
         };
     }
 
+    /// <summary>
+    /// Finds buttons by the text they show in the ribbon of an environment (active theme and language of this installation,
+    /// all tabs and drop-downs), with where they are and their command id: the ribbon is read each time, so a button that
+    /// another installation shows elsewhere or under another caption is still found. Without a match it lists the closest
+    /// captions.
+    /// </summary>
+    public static object FindControl(SeContext context, string? environment, string query, int limit)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            throw ToolException.InvalidArgument("'query' is required: text of the button as Solid Edge shows it (any part of it).");
+        }
+
+        (RibbonBar bar, string env, string theme) = FindRibbon(context, environment);
+        var found = new List<(string Tab, string Group, string Path, string Name, int Id, bool Visible)>();
+        RibbonBarTabs tabs = bar.RibbonBarTabs;
+        for (int i = 0; i < tabs.Count; i++)
+        {
+            RibbonBarTab t = tabs.Item(i);
+            foreach (RibbonBarGroup g in Groups(t))
+            {
+                Collect(g.RibbonBarControls, t.Name, g.Name, "", 0, found);
+            }
+        }
+
+        var matches = found.Where(c => c.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .DistinctBy(c => (c.Tab, c.Group, c.Path, c.Id)).Take(Math.Clamp(limit, 1, 200))
+            .Select(c => new { tab = c.Tab, group = c.Group, menu = c.Path.Length == 0 ? null : c.Path, name = c.Name, id = c.Id, visible = c.Visible })
+            .ToArray();
+        return new
+        {
+            environment = env,
+            theme,
+            query,
+            count = matches.Length,
+            controls = matches,
+            closest = matches.Length == 0 ? NameMatch.Closest(found.Select(c => c.Name), query, 8) : null,
+            note = "Run a button with se_command action 'run' and its id as 'command' (activate its tab first with se_ui 'tab' if the command expects it).",
+        };
+    }
+
+    private static void Collect(RibbonBarControls? controls, string tab, string group, string path, int depth,
+        List<(string Tab, string Group, string Path, string Name, int Id, bool Visible)> found)
+    {
+        if (controls is null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < controls.Count; i++)
+        {
+            RibbonBarControl control = controls.Item(i);
+            string name = (control.Name ?? "").Trim();
+            if (control.Id == 0 && name.Length == 0)
+            {
+                continue; // separator
+            }
+
+            if (name.Length > 0)
+            {
+                found.Add((tab, group, path, name, control.Id, control.Visible));
+            }
+
+            if (depth < 2)
+            {
+                RibbonBarControls? children = null;
+                try
+                {
+                    children = control.RibbonBarControls;
+                }
+                catch (COMException)
+                {
+                    // A simple button has no child controls.
+                }
+
+                Collect(children, tab, group, path.Length == 0 ? name : $"{path} > {name}", depth + 1, found);
+            }
+        }
+    }
+
     /// <summary>Activates a tab of the ribbon of the active environment, as when it is clicked.</summary>
     public static object ActivateTab(SeContext context, string tab)
     {

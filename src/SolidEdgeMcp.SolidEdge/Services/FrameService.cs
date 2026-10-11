@@ -26,13 +26,22 @@ public static class FrameService
     private const string FramesLibrary = "Frames";
     private const string PipingLibrary = "Piping Route";
 
-    /// <summary>Section parts (Frames) or pipe and fitting parts (Piping Route) installed with Solid Edge, as library names.</summary>
-    public static object Library(SeContext context, string kind, string? filter, int offset, int limit)
+    /// <summary>
+    /// Section parts (Frames) or pipe and fitting parts (Piping Route) installed with Solid Edge, as library names; or the
+    /// parts of a library folder of your own (<paramref name="folder"/>, allowed folders), as absolute paths.
+    /// </summary>
+    public static object Library(SeContext context, string kind, string? filter, int offset, int limit, string? folder = null)
     {
-        string root = LibraryRoot(kind == "pipes" ? PipingLibrary : FramesLibrary);
+        bool own = !string.IsNullOrWhiteSpace(folder);
+        string root = own ? context.Paths.Check(folder, "folder") : LibraryRoot(kind == "pipes" ? PipingLibrary : FramesLibrary);
+        if (own && !Directory.Exists(root))
+        {
+            throw ToolException.NotFound($"The folder does not exist: '{root}'.");
+        }
+
         string[] names = Directory.Exists(root)
             ? [.. Directory.EnumerateFiles(root, "*.par", SearchOption.AllDirectories)
-                .Select(f => IOPath.ChangeExtension(IOPath.GetRelativePath(root, f), null).Replace('\\', '/'))
+                .Select(f => own ? f : LibraryName(root, f))
                 .Where(n => string.IsNullOrWhiteSpace(filter) || n.Contains(filter, StringComparison.OrdinalIgnoreCase))
                 .Order(StringComparer.OrdinalIgnoreCase)]
             : [];
@@ -46,8 +55,11 @@ public static class FrameService
             offset = skip,
             returned = page.Length,
             more = skip + page.Length < names.Length,
+            folder = root,
             parts = page,
-            note = "Pass a name as given (or the absolute path of a part of your own) to 'section', 'pipe', 'elbow'...; it is copied into the work folder and used from there.",
+            note = own
+                ? "Pass a path as given to 'section', 'pipe', 'elbow'..."
+                : "Pass a name as given (or the absolute path of a part of your own) to 'section', 'pipe', 'elbow'...; it is copied into the work folder and used from there.",
         };
     }
 
@@ -83,6 +95,7 @@ public static class FrameService
         int before = frames.Count;
         HashSet<string> existing = OccurrenceNames(assembly);
         AssemblyFeatureService.PrepareForFrame(assembly);
+        string? environment = Late.TryGetString(context.Application, "ActiveEnvironment");
         StructuralFrame frame;
         try
         {
@@ -93,14 +106,14 @@ public static class FrameService
         }
         catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
         {
-            LeaveFrameEnvironment(context);
+            LeaveFrameEnvironment(context, environment);
             RemoveFramesSince(frames, before);
             RemoveSegments(assembly, made);
             throw new ToolException("feature_failed", $"Solid Edge did not make the frame: {ComErrors.Unwrap(ex).Message.Trim()}",
                 "Check that the section is a part with a sketch or face to sweep (a library section, se_frame library) and that the path is connected.");
         }
 
-        LeaveFrameEnvironment(context);
+        LeaveFrameEnvironment(context, environment);
         frame.CutLength(out double cutLength, out _);
         Occurrence[] members = Members(assembly, frame);
         if (cutLength <= 0 || members.Length == 0 || members.All(m => existing.Contains(m.Name)))
@@ -214,6 +227,9 @@ public static class FrameService
     public static object Repair(SeContext context, string? documentHandle)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
+        // Internal name of the assembly environment (an API identifier, the same in every language and theme): frames made
+        // elsewhere may have left Solid Edge in the Frame environment.
+        const string environment = "Assembly";
         if (AssemblyFeatureService.FeaturesAvailable(assembly))
         {
             return new { repaired = false, frames = assembly.StructuralFrames.Count, note = "Assembly features already work in this assembly: nothing to repair." };
@@ -250,7 +266,7 @@ public static class FrameService
             frames.Delete(frame);
         }
 
-        LeaveFrameEnvironment(context);
+        LeaveFrameEnvironment(context, environment);
         if (!AssemblyFeatureService.FeaturesAvailable(assembly))
         {
             throw new ToolException("solid_edge_limitation", "Solid Edge still refuses the assembly features after deleting the frames; they were not made again.",
@@ -265,7 +281,7 @@ public static class FrameService
             StructuralFrame frame = condition is { } c
                 ? frames.Add(section, paths.Length, ref pathArray, c)
                 : frames.Add(section, paths.Length, ref pathArray);
-            LeaveFrameEnvironment(context);
+            LeaveFrameEnvironment(context, environment);
             if (!string.Equals(frame.Name, name, StringComparison.Ordinal))
             {
                 try
@@ -472,25 +488,36 @@ public static class FrameService
     }
 
     /// <summary>
-    /// Leaves the Frame environment that StructuralFrames.Add opens (verified: the active environment becomes "Frame", as
-    /// after the Frame command), with the command that closes it (AssemblyEnvironmentsExit), and waits for the assembly
-    /// environment. A person working in the frame environment would close it the same way.
+    /// Goes back to the environment the assembly was in (<paramref name="before"/>) when a frame call left Solid Edge in
+    /// another one (verified: StructuralFrames.Add opens the Frame environment, as the Frame command does), with the command
+    /// that closes a sub-environment, as a person would; its id comes from the interop's AssemblyCommandConstants.
     /// </summary>
-    private static void LeaveFrameEnvironment(SeContext context)
+    private static void LeaveFrameEnvironment(SeContext context, string? before)
     {
-        const int AssemblyEnvironmentsExit = 10231;
         Application app = context.Application;
-        if (!string.Equals(Late.TryGetString(app, "ActiveEnvironment"), "Frame", StringComparison.Ordinal))
+        string? current = Late.TryGetString(app, "ActiveEnvironment");
+        if (before is null || current is null || string.Equals(current, before, StringComparison.Ordinal))
         {
             return;
         }
 
-        app.StartCommand((SolidEdgeCommandConstants)AssemblyEnvironmentsExit);
-        for (int i = 0; i < 50 && string.Equals(Late.TryGetString(app, "ActiveEnvironment"), "Frame", StringComparison.Ordinal); i++)
+        app.StartCommand((SolidEdgeCommandConstants)EnvironmentExitCommand());
+        for (int i = 0; i < 50 && !string.Equals(Late.TryGetString(app, "ActiveEnvironment"), before, StringComparison.Ordinal); i++)
         {
             Thread.Sleep(100);
         }
     }
+
+    private static int EnvironmentExitCommand()
+    {
+        Type? commands = InteropCatalog.Enums.FirstOrDefault(e => e.Name == "AssemblyCommandConstants");
+        return commands is not null && Enum.GetNames(commands).Contains("AssemblyEnvironmentsExit")
+            ? Convert.ToInt32(Enum.Parse(commands, "AssemblyEnvironmentsExit"), System.Globalization.CultureInfo.InvariantCulture)
+            : 10231;
+    }
+
+    private static string LibraryName(string root, string file) =>
+        IOPath.ChangeExtension(IOPath.GetRelativePath(root, file), null).Replace(IOPath.DirectorySeparatorChar, '/');
 
     /// <summary>
     /// Path objects: one line segment per pair of consecutive points (mm, assembly coordinates), or lines of a sketch drawn
@@ -559,7 +586,11 @@ public static class FrameService
         string source = IOPath.GetFullPath(IOPath.Combine(root, relative));
         if (!source.StartsWith(root + IOPath.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(source))
         {
-            throw ToolException.NotFound($"'{value}' is not a part of the {library} library.", $"List them with se_frame library (kind {(library == FramesLibrary ? "frames" : "pipes")}).");
+            string[] known = Directory.Exists(root)
+                ? [.. Directory.EnumerateFiles(root, "*.par", SearchOption.AllDirectories).Select(f => LibraryName(root, f))]
+                : [];
+            throw ToolException.NotFound($"'{value}' is not a part of the {library} library.{NameMatch.Hint(known, value)}",
+                $"List them with se_frame library (kind {(library == FramesLibrary ? "frames" : "pipes")}), or pass the absolute path of a part.");
         }
 
         string target = IOPath.Combine(context.AppPaths.Work, "library", library, relative);

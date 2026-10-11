@@ -47,7 +47,7 @@ public static class MaterialService
     public static object Info(SeContext context, string name, string? library)
     {
         MatTable table = Table(context);
-        string lib = FindLibrary(table, name, library);
+        (string lib, name) = FindLibrary(table, name, library);
         return new { material = name, library = lib, properties = Properties(index =>
             Late.CallByRef(table, "GetMaterialPropValueFromLibrary", [name, lib, (int)index, null], 3)[3]) };
     }
@@ -65,7 +65,7 @@ public static class MaterialService
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         MatTable table = Table(context);
-        string lib = FindLibrary(table, name, library);
+        (string lib, name) = FindLibrary(table, name, library);
         // The material changes density and appearance, not the topology: faces and edges stay valid (verified).
         table.ApplyMaterialToDoc(document, name, lib);
         table.GetCurrentMaterialName(document, out string applied);
@@ -182,21 +182,30 @@ public static class MaterialService
     private static string[] Strings(object? list) => list is Array array ? array.Cast<object?>().OfType<string>().ToArray() : [];
 
     private static string RequireLibrary(MatTable table, string library) =>
-        LibraryNames(table).FirstOrDefault(l => string.Equals(l, library, StringComparison.OrdinalIgnoreCase))
-        ?? throw ToolException.NotFound($"There is no material library '{library}'.", "Use action 'libraries' to list them.");
+        NameMatch.Resolve(LibraryNames(table), library)
+        ?? throw ToolException.NotFound($"There is no material library '{library}'.{NameMatch.Hint(LibraryNames(table), library)}", "Use action 'libraries' to list them.");
 
-    /// <summary>Given library (which must contain the material) or the first one that contains it.</summary>
-    private static string FindLibrary(MatTable table, string name, string? library)
+    /// <summary>
+    /// Given library (which must contain the material) or the first one that contains it, with the material name as the
+    /// library writes it. Libraries differ between installations (and languages): a name that is not found is answered with
+    /// the closest ones there are.
+    /// </summary>
+    private static (string Library, string Name) FindLibrary(MatTable table, string name, string? library)
     {
-        foreach (string lib in library is null ? LibraryNames(table) : [RequireLibrary(table, library)])
+        string[] libraries = library is null ? LibraryNames(table) : [RequireLibrary(table, library)];
+        var all = new List<string>();
+        foreach (string lib in libraries)
         {
-            if (Materials(table, lib).Contains(name, StringComparer.Ordinal))
+            string[] materials = Materials(table, lib);
+            if (NameMatch.Resolve(materials, name) is { } found)
             {
-                return lib;
+                return (lib, found);
             }
+
+            all.AddRange(materials);
         }
 
-        throw ToolException.NotFound($"There is no material '{name}'{(library is null ? "" : $" in '{library}'")}.",
-            "Use action 'list' (optionally with 'filter') and pass the exact name, e.g. 'Steel' or 'Aluminum, 6061-T6'.");
+        throw ToolException.NotFound($"There is no material '{name}'{(library is null ? "" : $" in '{library}'")}.{NameMatch.Hint(all, name)}",
+            "Use action 'list' (optionally with 'filter') and pass the name as the library writes it.");
     }
 }

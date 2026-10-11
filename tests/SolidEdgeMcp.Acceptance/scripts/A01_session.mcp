@@ -14,6 +14,10 @@ se_session {"action":"connect"}
 ! se_export {"path":"C:\\Windows\\Temp\\x.stp"}
 ! [handle_not_found] se_sketch {"action":"info","sketch":"sketch:99999"}
 se_documents {"action":"list"}
+# Templates of this installation (its options and template folders), not remembered names.
+@tp = se_documents {"action":"templates"}
+?~ tp.defaults.part .par
+?~ tp.defaults.weldment .asm
 # Quit and restart: refused while a document has unsaved changes (the server never discards them); with none, Solid Edge is
 #   closed and started again, and the old handles expire.
 @qp = se_documents {"action":"new","kind":"part"}

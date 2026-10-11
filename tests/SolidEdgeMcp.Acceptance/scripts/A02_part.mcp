@@ -26,7 +26,11 @@ se_sketch {"action":"close","sketch":"{{k.sketch}}"}
 ?= edges.count 4
 se_material {"action":"libraries"}
 @ml = se_material {"action":"list","filter":"Steel"}
-@ap = se_material {"action":"apply","name":"Steel"}
+# Material names are the library's: one that differs only in case is taken as the library writes it, and an unknown one
+#   is refused (the message names the closest materials the libraries have).
+@ap = se_material {"action":"apply","name":"steel"}
+?= ap.material Steel
+! [not_found] se_material {"action":"apply","name":"Stel"}
 @cur = se_material {"action":"current"}
 @vl = se_variables {"action":"list"}
 @va = se_variables {"action":"add","name":"Thick","value":10}

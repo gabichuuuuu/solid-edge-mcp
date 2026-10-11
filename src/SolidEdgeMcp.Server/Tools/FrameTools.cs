@@ -39,7 +39,7 @@ public sealed class FrameTools(ToolRunner runner, PathGuard guard)
     [McpServerTool(Name = "se_frame", Title = "Structural frames and pipes", Destructive = true, OpenWorld = false)]
     [Description("""
         Structural frames and pipes in an assembly, along a polyline of points (mm, assembly coordinates; one line segment per pair) or along 'lines' drawn with se_sketch line in the assembly.
-        library (kind frames: section parts installed with Solid Edge, e.g. 'DIN/Square Tubing/SquareTubing 20x20x1.6'; kind pipes: pipes and fittings, e.g. 'DIN/Pipe/Pipe_100_mm'; filter) |
+        library (kind frames: section parts installed with Solid Edge, e.g. 'DIN/Square Tubing/SquareTubing 20x20x1.6'; kind pipes: pipes and fittings, e.g. 'DIN/Pipe/Pipe_100_mm'; filter; folder = a library folder of your own) |
         list (frames with their cut length and members, pipes with their segments and fittings) |
         frame (section = a library name or the absolute path of a part of your own; one member per segment, each an occurrence of the section; endCondition at the corners miter | butt1 | butt2 | none) |
         pipe (diameter = outside diameter mm, e.g. 114.3 for DIN 100; pipe part; elbow at corners, tee, cross, coupling) | delete (name of a frame or pipe, with its members or segments) |
@@ -52,6 +52,7 @@ public sealed class FrameTools(ToolRunner runner, PathGuard guard)
         FrameAction action,
         [Description("library: frames (sections) or pipes (pipes and fittings).")] FrameLibrary kind = FrameLibrary.Frames,
         [Description("library: only names containing this text.")] string? filter = null,
+        [Description("library: a folder of your own with section or pipe parts (allowed folders), instead of the installed library.")] string? folder = null,
         [Description("frame: section part, a library name or an absolute path.")] string? section = null,
         [Description("frame, pipe: polyline [x1,y1,z1, x2,y2,z2, ...] in mm (at least 2 points).")] double[]? points = null,
         [Description("frame, pipe: line handles from se_sketch line in the assembly, instead of points.")] string[]? lines = null,
@@ -85,7 +86,8 @@ public sealed class FrameTools(ToolRunner runner, PathGuard guard)
         };
         return action switch
         {
-            FrameAction.Library => runner.RunAsync(tool, act, c => FrameService.Library(c, Snake(kind), filter, offset, limit), cancellationToken),
+            FrameAction.Library => runner.RunAsync(tool, act, c => FrameService.Library(c, Snake(kind), filter, offset, limit, folder), cancellationToken,
+                precheck: folder is null ? null : () => guard.Check(folder, "folder")),
             FrameAction.List => runner.RunAsync(tool, act, c => FrameService.List(c, document), cancellationToken),
             FrameAction.Frame => runner.RunAsync(tool, act, c => FrameService.Frame(c, document, section, points, lines,
                 endCondition is { } e ? Snake(e) : null, name), cancellationToken, precheck: precheck),

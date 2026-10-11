@@ -34,6 +34,7 @@ public enum UiAction
     Environments,
     Ribbon,
     Tab,
+    Find,
 }
 
 public enum ArrangeStyle
@@ -102,8 +103,9 @@ public sealed class SettingsTools(ToolRunner runner)
         arrange (style tiled|horizontal|vertical|cascade) | state (state normal|minimized|maximized; window optional, default the main window) |
         environments (all environments, e.g. Part, SheetMetal, Assembly, Detail, Profile) |
         ribbon (environment, default the active one: tabs with their groups; with tab = name or index: its groups and controls with their command ids, runnable with se_command run) |
-        tab (tab = name or index: activate that ribbon tab of the active environment).
-        Example: {"action":"ribbon","tab":"Home"}.
+        tab (tab = name or index: activate that ribbon tab of the active environment) |
+        find (query = text of a button as this Solid Edge shows it, in any language or theme: the tabs, groups and menus that have it, with its command id for se_command run).
+        Example: {"action":"ribbon","tab":"Home"}; {"action":"find","query":"Hole"}.
         """)]
     public Task<CallToolResult> Ui(
         UiAction action,
@@ -112,6 +114,8 @@ public sealed class SettingsTools(ToolRunner runner)
         [Description("For state.")] WindowStateKind? state = null,
         [Description("For ribbon: environment name (see 'environments'); default: the active one.")] string? environment = null,
         [Description("For ribbon/tab: tab name or 0-based index.")] string? tab = null,
+        [Description("For find: text of the button (any part of it, any case).")] string? query = null,
+        [Description("For find: maximum number of buttons (default 50).")] int limit = 50,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_ui";
@@ -128,6 +132,7 @@ public sealed class SettingsTools(ToolRunner runner)
             UiAction.Environments => runner.RunAsync(tool, actionName, UiService.Environments, cancellationToken),
             UiAction.Ribbon => runner.RunAsync(tool, actionName, c => UiService.Ribbon(c, environment, tab), cancellationToken),
             UiAction.Tab => runner.RunAsync(tool, actionName, c => UiService.ActivateTab(c, ToolRunner.Require(tab, "tab", "tab")), cancellationToken),
+            UiAction.Find => runner.RunAsync(tool, actionName, c => UiService.FindControl(c, environment, ToolRunner.Require(query, "query", "find"), limit), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }
