@@ -19,7 +19,7 @@
     <Authors>Gabriel Spoleto Couto</Authors>
     <Product>solid_edge_mcp</Product>
     <Copyright>Copyright (c) 2026 Gabriel Spoleto Couto</Copyright>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/gabichuuuuu/solid_edge_mcp</RepositoryUrl>
     <IsPackable>false</IsPackable>
   </PropertyGroup>

@@ -10,7 +10,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![53 tools](https://img.shields.io/badge/tools-53-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 [![Functions reviewed: 87 %](https://img.shields.io/badge/functions%20reviewed-87%25-yellowgreen)](docs/COVERAGE.md#progress)
-![License: MIT](https://img.shields.io/badge/license-MIT-green)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 It lets an AI assistant work in Solid Edge through COM with the breadth of a person: querying
 models, drawing sketches, creating part and sheet metal features, building assemblies, making
@@ -415,7 +415,28 @@ Commits follow Conventional Commits, in English.
 
 ## License
 
-Released under the [MIT License](LICENSE). Copyright (c) 2026 Gabriel Spoleto Couto.
+Copyright (c) 2026 Gabriel Spoleto Couto.
+
+Released under the [GNU Affero General Public License v3.0 only](LICENSE) (AGPL-3.0-only). You may
+use, study, modify and share it, but if you distribute it, or a modified version, or let others use
+a modified version over a network, you must release the complete source code under the same license.
+
+**Additional permission under GNU AGPL version 3 section 7.** If you modify this program, or any
+covered work, by linking or combining it with Siemens Solid Edge or with interop assemblies
+generated from its type libraries (or a modified version of them), containing parts covered by the
+terms of the Solid Edge license, the licensors of this program grant you additional permission to
+convey the resulting work.
+
+**Commercial license.** To use it in a closed-source product or service, or under other terms than
+the AGPL, a separate commercial license is available from the author: contact
+[@gabichuuuuu](https://github.com/gabichuuuuu) on GitHub.
+
+**Contributions.** To keep both licenses possible, pull requests are accepted only from
+contributors who agree to a contributor license agreement (CLA) that allows the author to
+relicense their contribution. Open an issue before submitting one.
+
+Versions published before the change to the AGPL (2026-10-11) remain available under the MIT
+License.
 
 ## Trademarks and disclaimer
 

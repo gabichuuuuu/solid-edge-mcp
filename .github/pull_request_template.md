@@ -27,3 +27,4 @@
 
 - [ ] No interop, API dumps, `publish/`, `policy.json`, logs or secrets
 - [ ] Conventional commits in English
+- [ ] I agree to the contributor license agreement (CLA) described in the README "License" section

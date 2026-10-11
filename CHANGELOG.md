@@ -86,7 +86,9 @@ Relevant changes to this project are recorded here. The format follows
   its relations with their elements.
 - Acceptance scripts A11 (options and units) and A12 (user interface); A06 and A07 cover the new
   relations and annotations.
-- License: the project is released under the MIT License ([LICENSE](LICENSE)).
+- License: GNU AGPL-3.0-only ([LICENSE](LICENSE)), with an additional permission to combine it
+  with Solid Edge and a separate commercial license (see the README). The code first published on
+  2026-10-11 was released under the MIT License and remains available under it.
 
 ### Changed
 
