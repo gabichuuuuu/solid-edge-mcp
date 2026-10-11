@@ -20,7 +20,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class FeatureService
 {
-    private static readonly string[] CurveTypes = ["points", "intersection", "projected", "cross", "derived"];
+    private static readonly string[] CurveTypes = ["points", "intersection", "projected", "cross", "derived", "contour", "wrap"];
 
     public static object Curves(SeContext context, string? documentHandle)
     {
@@ -158,6 +158,229 @@ public static partial class FeatureService
             c => Math.Abs(CurveEdges(c).Sum(EdgeLength) - expected) <= 1e-6 * Math.Max(1, expected) ? null : "its length differs from the edges'");
     }
 
+    /// <summary>
+    /// Curve drawn on one face through points that lie on it (model mm); open, or closed back to the first point. It must pass
+    /// through every point and, if open, end at the first and last. Solid Edge rejects several faces (E_FAIL, even tangent ones).
+    /// </summary>
+    public static object ContourCurve(SeContext context, string? documentHandle, string[]? faces, double[]? points, bool closed)
+    {
+        if (faces is not { Length: 1 })
+        {
+            throw ToolException.InvalidArgument("contour needs one face in 'faces' (se_geometry faces); Solid Edge rejects several faces.",
+                "Make one curve per face, or a points curve (action 'points') across them.");
+        }
+
+        List<(double X, double Y, double Z)> list = Geo.Points3(points, "points", closed ? 3 : 2);
+        ModelDocument model = ModelDocument.For(context, documentHandle, faces[0]);
+        Face face = context.Handles.Resolve<Face>(faces[0], "faces");
+        int far = list.FindIndex(p => DistanceToFace(face, [p.X, p.Y, p.Z]) > 1e-5);
+        if (far >= 0)
+        {
+            (double x, double y, double z) = list[far];
+            throw ToolException.InvalidArgument($"Point {far + 1} is {Geo.Mm(DistanceToFace(face, [x, y, z]))} mm away from the face; the points must lie on it.");
+        }
+
+        double[][] nodes = list.Select(p => new[] { p.X, p.Y, p.Z }).ToArray();
+        bool switched = model.EnsureOrdered();
+        var errors = new List<string>();
+        foreach (bool spareAtEnd in new[] { true, false })
+        {
+            object? curve = MakeContour(model, face, nodes, closed, spareAtEnd, errors);
+            if (curve is null)
+            {
+                continue;
+            }
+
+            string? problem = StatusOf(curve) is not ("ok" or "warning") ? $"status {StatusOf(curve)}" : ContourProblem(curve, nodes, closed);
+            if (problem is null)
+            {
+                return CheckedCurve(context, model, curve, "contour", switched, null);
+            }
+
+            errors.Add(problem);
+            TryDeleteCurve(curve);
+        }
+
+        context.ModelChanged(model.Document, "the model changed (contour curve attempts)");
+        throw new ToolException("feature_failed", "Solid Edge did not make the contour curve: " + string.Join("; ", errors.Distinct()),
+            "Give points inside the face, in order along the curve; a closed curve must not leave the face.");
+    }
+
+    /// <summary>
+    /// ContourCurves.Add reads point k of PointSet at index k instead of 3k (point k = PointSet[k..k+2]), so only one point can be
+    /// given there. The curve is made with that point (the first, or the last when spareAtEnd is false) and spare ones, the other
+    /// points are inserted with InsertPoint (1-based, before a given point) and the spare points are removed. Null if it fails.
+    /// </summary>
+    private static object? MakeContour(ModelDocument model, Face face, double[][] nodes, bool closed, bool spareAtEnd, List<string> errors)
+    {
+        int seeds = closed ? 3 : 2;
+        int n = nodes.Length;
+        double[] given = spareAtEnd ? nodes[0] : nodes[^1];
+        int at = spareAtEnd ? 0 : seeds - 1;
+        // The spare points are read from the same values: the filler is chosen so that no two seed points coincide.
+        double[] values = new[] { given[2], given[0], given[1], 0, 0.01 }.Select(fill =>
+        {
+            var v = new double[3 * seeds];
+            Array.Fill(v, fill);
+            Array.Copy(given, 0, v, at, 3);
+            return v;
+        }).First(v => Enumerable.Range(0, seeds).All(i => Enumerable.Range(i + 1, seeds - i - 1)
+            .All(j => Geo.Distance(v[i..(i + 3)], v[j..(j + 3)]) > 1e-6)));
+        Array faceArray = new[] { face };
+        Array pointArray = values;
+        Array ownerArray = Enumerable.Repeat((object)face, seeds).ToArray();
+        ContourCurve curve;
+        try
+        {
+            curve = ConstructionsOf(model).ContourCurves.Add(faceArray.Length, ref faceArray, seeds, ref pointArray, ref ownerArray, !closed);
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        {
+            errors.Add("rejected: " + ComErrors.Unwrap(ex).Message.Trim());
+            return null;
+        }
+
+        try
+        {
+            // Spare at the end: P0, spare... -> P0..Pn-1, spare...; at the start: spare..., Pn-1 -> spare..., P0..Pn-1.
+            for (int i = 0; i < n - 1; i++)
+            {
+                int node = spareAtEnd ? i + 1 : i;
+                Array point = nodes[node].ToArray();
+                curve.InsertPoint(face, ref point, spareAtEnd ? i + 2 : seeds + i);
+            }
+
+            for (int k = 0; k < seeds - 1; k++)
+            {
+                curve.RemovePoint(spareAtEnd ? n + 1 : 1);
+            }
+
+            return curve;
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        {
+            errors.Add("points not accepted: " + ComErrors.Unwrap(ex).Message.Trim());
+            TryDeleteCurve(curve);
+            return null;
+        }
+    }
+
+    /// <summary>Why the contour curve is wrong: a point off the curve, or (open) ends that are not the first and last points.</summary>
+    private static string? ContourProblem(object curve, double[][] nodes, bool closed)
+    {
+        Edge[] edges = CurveEdges(curve);
+        if (edges.Length == 0)
+        {
+            return "it has no edges";
+        }
+
+        int off = Array.FindIndex(nodes, p => edges.Min(e => DistanceToEdge(e, p)) > 1e-5);
+        if (off >= 0)
+        {
+            return $"it does not pass through point {off + 1}";
+        }
+
+        double[][] ends = CurveEnds(curve);
+        return closed ? (ends.Length == 0 ? null : $"it is not closed: it leaves the faces, ends at {string.Join(" and ", ends.Select(e => "(" + string.Join(", ", e.Select(Geo.Mm)) + ")"))} mm")
+            : ends.Any(e => Geo.Distance(e, nodes[0]) < 1e-6) && ends.Any(e => Geo.Distance(e, nodes[^1]) < 1e-6) ? null
+            : "it does not end at the first and last points";
+    }
+
+    private static void TryDeleteCurve(object curve)
+    {
+        try
+        {
+            Late.Call(curve, "Delete");
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            // The error being reported is the failed curve.
+        }
+    }
+
+    /// <summary>A sketch wrapped onto cylindrical or conical faces (tangent to them); its length is checked against the sketch's.</summary>
+    public static object WrapCurve(SeContext context, string? documentHandle, string? sketch, string[]? faces)
+    {
+        string handle = sketch ?? throw ToolException.InvalidArgument("wrap requires 'sketch': drawn on a plane tangent to the faces and closed with se_sketch 'close' (open: true for open elements).");
+        if (faces is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("wrap needs 'faces': the cylindrical or conical faces to wrap onto (se_geometry faces).");
+        }
+
+        ModelDocument model = ModelDocument.For(context, documentHandle, handle);
+        Profile profile = SketchService.Resolve(context, handle);
+        double expected = SketchLength(profile);
+        bool switched = model.EnsureOrdered();
+        Array faceArray = faces.Select(h => (object)context.Handles.Resolve<Face>(h, "faces")).ToArray();
+        Array tools = new object[] { profile };
+        object curve = MakeCurve("wrapped sketch", () => ConstructionsOf(model).WrapSketchs.Add(faceArray.Length, ref faceArray, 1, ref tools),
+            "Draw the sketch on a plane tangent to the faces.");
+        object result = CheckedCurve(context, model, curve, "wrap", switched, c =>
+        {
+            double length = CurveEdges(c).Sum(EdgeLength);
+            return Math.Abs(length - expected) > Math.Max(1e-6, expected * 1e-3)
+                ? $"its length is {Geo.Mm(length)} mm instead of the sketch's {Geo.Mm(expected)} mm"
+                : null;
+        });
+        Hide(profile);
+        return result;
+    }
+
+    /// <summary>Distance (m) from a model point to a face: the point is mapped to the face's parameters and back.</summary>
+    private static double DistanceToFace(Face face, double[] point)
+    {
+        try
+        {
+            Array points = point.ToArray();
+            Array guess = new double[2];
+            Array deviations = new double[1];
+            Array parameters = new double[2];
+            Array flags = new int[1];
+            face.GetParamAtPoint(1, ref points, ref guess, ref deviations, ref parameters, ref flags);
+            Array back = new double[3];
+            face.GetPointAtParam(1, ref parameters, ref back);
+            return Geo.Distance(point, [.. Geo.Doubles(back)]);
+        }
+        catch (COMException)
+        {
+            return double.MaxValue;
+        }
+    }
+
+    /// <summary>
+    /// Distance (m) from a model point to an edge, mapped to the edge's parameter and back; several starting parameters, since
+    /// on a winding spline the mapping can stop at a local minimum.
+    /// </summary>
+    private static double DistanceToEdge(Edge edge, double[] point)
+    {
+        try
+        {
+            edge.GetParamExtents(out double low, out double high);
+            return Enumerable.Range(0, 9).Min(k =>
+            {
+                Array points = point.ToArray();
+                Array guess = new[] { low + (high - low) * k / 8 };
+                Array deviations = new double[1];
+                Array parameters = new double[1];
+                Array flags = new int[1];
+                edge.GetParamAtPoint(1, ref points, ref guess, ref deviations, ref parameters, ref flags);
+                Array back = new double[3];
+                edge.GetPointAtParam(1, ref parameters, ref back);
+                return Geo.Distance(point, [.. Geo.Doubles(back)]);
+            });
+        }
+        catch (COMException)
+        {
+            return double.MaxValue;
+        }
+    }
+
+    /// <summary>Total length (m) of the elements of a sketch.</summary>
+    private static double SketchLength(Profile profile) =>
+        new object[] { profile.Lines2d, profile.Arcs2d, profile.Circles2d, profile.Ellipses2d, profile.BSplineCurves2d }
+            .SelectMany(c => Late.Items(c))
+            .Sum(e => Late.TryGet(e, "Length") is double length ? length : 0);
+
     public static object DeleteCurve(SeContext context, string? documentHandle, string? name)
     {
         ModelDocument model = ModelDocument.Get(context, documentHandle);
@@ -206,15 +429,7 @@ public static partial class FeatureService
             : check?.Invoke(curve);
         if (problem is not null)
         {
-            try
-            {
-                Late.Call(curve, "Delete");
-            }
-            catch (Exception ex) when (Late.IsMemberFailure(ex))
-            {
-                // The error being reported is the failed curve.
-            }
-
+            TryDeleteCurve(curve);
             throw new ToolException("feature_failed", $"Solid Edge did not make the {type} curve ({problem}); it was deleted.",
                 "Check the input: the sets must cross, the projection must hit the target, the edges must form a chain.");
         }
@@ -309,8 +524,10 @@ public static partial class FeatureService
     {
         Constructions constructions = ConstructionsOf(model);
         object[] collections = [constructions.KeyPointCurves, constructions.IntersectionCurves, constructions.ProjectCurves,
-            constructions.CrossCurves, constructions.DerivedCurves];
-        return collections.SelectMany((c, i) => Late.Items(c).Select(s => (s, CurveTypes[i])));
+            constructions.CrossCurves, constructions.DerivedCurves, constructions.ContourCurves];
+        // WrapSketchs.Count stays 0 after Add: the wrapped sketches are taken from the feature tree.
+        IEnumerable<object> wraps = Late.Items(model.EdgebarFeatures).Where(f => f is WrapSketch);
+        return collections.SelectMany((c, i) => Late.Items(c).Select(s => (s, CurveTypes[i]))).Concat(wraps.Select(w => (w, "wrap")));
     }
 
     private static object? FindCurve(ModelDocument model, string name) =>

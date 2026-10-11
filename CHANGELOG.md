@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_curve` `contour` (a curve on one face through points on it, open or closed) and `wrap` (a
+  sketch wrapped onto cylindrical or conical faces, checked by its length).
 - `se_surface` `loft`, `sweep` (along a sketch or a curve), `stitch` and `bounded` (fills a closed
   chain of edges).
 - `se_part_family`: family of parts (family variables, members with values and suppressed

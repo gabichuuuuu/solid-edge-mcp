@@ -110,8 +110,10 @@ damages the document in Solid Edge 2026 (do not use).
 | Surfaces by extrusion and revolve (open or closed sketch, end caps) and offset from a face; list and delete | `se_surface` | ✔ |
 | Lofted surfaces (sections in order, end caps), swept surfaces (along a sketch or a 3D curve), stitched surfaces (area checked), surface filling a closed chain of edges | `se_surface loft`, `sweep`, `stitch`, `bounded` | ✔ |
 | Loft or sweep surfaces with guide curves or tangency, ruled, mid, parting, B-spline and mesh surfaces | COM (`LoftedSurfaces.Add2`, `RuledSurfaces`, `MidSurfaces`, `PartingSurfaces`, `BSplineSurfaces`…) | · |
-| Curves through 3D points (open or closed), intersection of faces, surfaces and the body, sketches projected onto faces, crossing of two sketches, composite of edges; list and delete | `se_curve` | ✔ |
-| Helical curves, curves from a table, contour curves, wrapped sketches | COM (`Constructions.HelicalCurves`, `CurvesByTables`, `ContourCurves`; `ProjectCurves` with `igProjectOptionWrap`) | · |
+| Curves through 3D points (open or closed), intersection of faces, surfaces and the body, sketches projected onto faces, crossing of two sketches, composite of edges, contour on one face through points on it (open or closed), sketch wrapped onto cylindrical or conical faces; list and delete | `se_curve` | ✔ |
+| Curves from a table | COM (`Constructions.CurvesByTables`) | · |
+| Helical curves | — | ✘ `HelicalCurves.AddSingleSectionCurve` leaves the curve failed with no edges for every combination tried (reference axis or sketch line; start point on the axis, at the radius or a key point; both ends and directions; all three methods) |
+| Contour curves across several faces | — | ✘ `ContourCurves.Add` returns E_FAIL with more than one face, also tangent ones; one curve per face works |
 
 ## Sheet metal
 

@@ -93,6 +93,8 @@ public enum CurveAction
     Project,
     Cross,
     Derived,
+    Contour,
+    Wrap,
     Delete,
 }
 
@@ -295,21 +297,24 @@ public sealed class PartTools(ToolRunner runner)
         points (smooth curve through 'points' [x1,y1,z1,...] mm, >= 2 points; closed: true returns smoothly to the first point) |
         intersection (where 'first' and 'second' meet; each a face handle, a surface (se_surface) or feature handle = its faces, or 'body') |
         project (a 'sketch' projected onto 'onto' = a face, surface or feature handle, or 'body', along the sketch normal (direction normal) or against it (reverse)) |
-        cross (two 'sketches' on planes that are not parallel: where their extrusions meet) | derived (one curve from a chain of 'edges') | delete ('name').
-        Each curve is checked by its status and edges (points: it ends at the first and last points; derived: its length equals the edges') and deleted if it fails.
+        cross (two 'sketches' on planes that are not parallel: where their extrusions meet) | derived (one curve from a chain of 'edges') |
+        contour (a curve on one face, 'faces': [face], through 'points' that lie on it; closed: true returns to the first point) |
+        wrap (a 'sketch' drawn on a plane tangent to cylindrical or conical 'faces', wrapped onto them; its length equals the sketch's) | delete ('name').
+        Each curve is checked by its status and edges (points: it ends at the first and last points; contour: it passes through every point; derived: its length equals the edges') and deleted if it fails.
         Example: {"action":"points","points":[0,0,30,50,30,50,100,60,30]}; {"action":"intersection","first":"surface:5","second":"body"}.
         """)]
     public Task<CallToolResult> Curve(
         CurveAction action,
-        [Description("points: model points [x1,y1,z1,...] in mm.")] double[]? points = null,
-        [Description("points: return smoothly to the first point.")] bool closed = false,
+        [Description("points, contour: model points [x1,y1,z1,...] in mm (contour: on the face).")] double[]? points = null,
+        [Description("points, contour: return smoothly to the first point.")] bool closed = false,
         [Description("intersection: first set: face, surface or feature handle, or 'body'.")] string? first = null,
         [Description("intersection: second set: face, surface or feature handle, or 'body'.")] string? second = null,
-        [Description("project: sketch handle.")] string? sketch = null,
+        [Description("project, wrap: sketch handle.")] string? sketch = null,
         [Description("project: face, surface or feature handle, or 'body', to project onto.")] string? onto = null,
         FeatureDirection direction = FeatureDirection.Normal,
         [Description("cross: two sketch handles on planes that are not parallel.")] string[]? sketches = null,
         [Description("derived: edge handles forming a chain (se_geometry edges).")] string[]? edges = null,
+        [Description("contour: the one face the curve is drawn on; wrap: cylindrical or conical faces (se_geometry faces).")] string[]? faces = null,
         [Description("delete: curve name (action 'list').")] string? name = null,
         [Description("Document handle; default: the document of the handles given, or the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
@@ -324,6 +329,8 @@ public sealed class PartTools(ToolRunner runner)
             CurveAction.Project => runner.RunAsync(tool, act, c => FeatureService.ProjectedCurve(c, document, sketch, onto, Snake(direction)), cancellationToken),
             CurveAction.Cross => runner.RunAsync(tool, act, c => FeatureService.CrossCurve(c, document, sketches), cancellationToken),
             CurveAction.Derived => runner.RunAsync(tool, act, c => FeatureService.DerivedCurve(c, document, edges), cancellationToken),
+            CurveAction.Contour => runner.RunAsync(tool, act, c => FeatureService.ContourCurve(c, document, faces, points, closed), cancellationToken),
+            CurveAction.Wrap => runner.RunAsync(tool, act, c => FeatureService.WrapCurve(c, document, sketch, faces), cancellationToken),
             CurveAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteCurve(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

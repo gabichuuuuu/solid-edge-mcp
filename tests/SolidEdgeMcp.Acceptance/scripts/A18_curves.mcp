@@ -98,3 +98,53 @@ se_sketch {"action":"close","sketch":"{{rk.sketch}}"}
 @rs = se_loft_sweep {"action":"sweep","operation":"cut","sketches":["{{rk.sketch}}"],"path":"{{rc.curve.handle}}"}
 ?= rs.volumeChange -2827.433388 0.001
 se_documents {"action":"close","document":"{{r.handle}}","saveChanges":false}
+#   contour on the top face of a box 100x60x20: (10,10,20)-(90,50,20) is straight, sqrt(80^2+40^2) = 89.443; through four points it
+#   keeps within them (y 10..50); closed through three points inside the face; two faces and a point 5 mm above the face are refused
+@s = se_documents {"action":"new","kind":"part"}
+@sb = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20,"document":"{{s.handle}}"}
+@st = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{s.handle}}"}
+@n1 = se_curve {"action":"contour","faces":["{{st.items[0].handle}}"],"points":[10,10,20,90,50,20],"document":"{{s.handle}}"}
+?~ n1.curve.type contour
+?= n1.curve.length 89.442719 0.001
+?= n1.curve.boundingBox.max[0] 90 0.0001
+@st = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{s.handle}}"}
+@n2 = se_curve {"action":"contour","faces":["{{st.items[0].handle}}"],"points":[50,50,20,20,30,20,80,30,20,50,10,20],"document":"{{s.handle}}"}
+?~ n2.curve.closed false
+?= n2.curve.boundingBox.max[1] 50 0.0001
+?= n2.curve.boundingBox.min[1] 10 0.0001
+@st = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{s.handle}}"}
+@n3 = se_curve {"action":"contour","faces":["{{st.items[0].handle}}"],"points":[30,20,20,70,20,20,50,45,20],"closed":true,"document":"{{s.handle}}"}
+?~ n3.curve.closed true
+?= n3.curve.boundingBox.max[1] 45 0.001
+@st = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{s.handle}}"}
+@sf = se_geometry {"action":"faces","direction":[0,-1,0],"document":"{{s.handle}}"}
+! [invalid_argument] se_curve {"action":"contour","faces":["{{st.items[0].handle}}","{{sf.items[0].handle}}"],"points":[50,30,20,50,0,10],"document":"{{s.handle}}"}
+! [invalid_argument] se_curve {"action":"contour","faces":["{{st.items[0].handle}}"],"points":[10,10,25,90,50,20],"document":"{{s.handle}}"}
+@sl = se_curve {"action":"list","document":"{{s.handle}}"}
+?= sl.count 3 0
+@sp = se_physical {"document":"{{s.handle}}"}
+?= sp.volume 120000 0.001
+se_documents {"action":"close","document":"{{s.handle}}","saveChanges":false}
+#   wrap: a line (-10,20)-(10,40) on the front plane offset 20, tangent to a cylinder r20 h60, wrapped onto it keeps its length
+#   20*sqrt(2) = 28.284 and goes 10 mm around each way: x = +-20*sin(0.5) = +-9.589
+@w = se_documents {"action":"new","kind":"part"}
+@wc = se_primitive {"shape":"cylinder","center":[0,0,0],"radius":20,"depth":60,"document":"{{w.handle}}"}
+@wf = se_geometry {"action":"faces","document":"{{w.handle}}"}
+@wp = se_ref_plane {"action":"offset","plane":"3","distance":20,"document":"{{w.handle}}"}
+@wk = se_sketch {"action":"create","plane":"{{wp.handle}}","document":"{{w.handle}}"}
+se_sketch {"action":"line","sketch":"{{wk.sketch}}","points":[-10,20,10,40]}
+se_sketch {"action":"close","sketch":"{{wk.sketch}}","open":true}
+@w1 = se_curve {"action":"wrap","sketch":"{{wk.sketch}}","faces":["{{wf.items[?area=7539.822].handle}}"],"document":"{{w.handle}}"}
+?~ w1.curve.type wrap
+?= w1.curve.length 28.284271 0.001
+?= w1.curve.boundingBox.max[0] 9.588511 0.01
+?= w1.curve.boundingBox.max[2] 40 0.01
+@wl = se_curve {"action":"list","document":"{{w.handle}}"}
+?= wl.count 1 0
+?~ wl.curves[0].type wrap
+@wd = se_curve {"action":"delete","name":"{{w1.curve.name}}","document":"{{w.handle}}"}
+?= wd.count 0 0
+! [invalid_argument] se_curve {"action":"wrap","sketch":"{{wk.sketch}}","document":"{{w.handle}}"}
+@wv = se_physical {"document":"{{w.handle}}"}
+?= wv.volume 75398.223686 0.001
+se_documents {"action":"close","document":"{{w.handle}}","saveChanges":false}
