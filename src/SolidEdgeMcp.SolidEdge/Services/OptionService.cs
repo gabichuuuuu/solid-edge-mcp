@@ -66,8 +66,12 @@ public static class OptionService
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex))
         {
+            // Verified: with no document open, setting a display color (ColorBackground) gives E_FAIL; with a part window open it works.
+            bool noWindow = catalog.Owner == "application" && context.Application.Documents.Count == 0;
             throw new ToolException("option_failed", $"Solid Edge rejected the value for '{entry.Name}': {ComErrors.Unwrap(ex).Message}",
-                "Check the type and range of the current value (se_options get).", ex);
+                noWindow
+                    ? "No document is open: some application options, such as the display colors, can only be changed while a document window is open. Open or create one (se_documents) and try again."
+                    : "Check the type and range of the current value (se_options get).", ex);
         }
 
         object? current = ReadRaw(catalog, entry.Value, out _);

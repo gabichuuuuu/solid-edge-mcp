@@ -11,7 +11,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![53 tools](https://img.shields.io/badge/tools-53-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
-[![Functions reviewed: 88 %](https://img.shields.io/badge/functions%20reviewed-88%25-yellowgreen)](docs/COVERAGE.md#progress)
+[![Functions reviewed: 100 %](https://img.shields.io/badge/functions%20reviewed-100%25-brightgreen)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md)
@@ -55,7 +55,7 @@ for approval.
 
 **🧪 Tested for real**
 
-1870 calls and 814 checks against real Solid Edge 2026, with values calculated by hand.
+1909 calls and 829 checks against real Solid Edge 2026, with values calculated by hand.
 
 </td>
 </tr>
@@ -228,16 +228,16 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_hole` | Simple, counterbored, countersunk and threaded holes at points on a plane, without a sketch. |
 | | `se_round` | Edge fillet with a constant radius. |
 | | `se_chamfer` | Edge chamfer with equal setback. |
-| | `se_pattern` | Rectangular pattern, circular pattern and mirror of features. |
+| | `se_pattern` | Rectangular pattern, circular pattern, pattern along an edge and mirror of features. |
 | | `se_shell` | Shell with a common wall thickness and optional open faces. |
 | | `se_draft` | Face draft relative to a neutral plane. |
 | | `se_loft_sweep` | Loft, sweep (along a sketch or a 3D curve) and helix, as a boss or a cut. |
-| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, and offset faces; slots along an open path, web networks and lips in shelled parts, scaling of the body, and copies of saved parts (scaled or mirrored). |
+| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, offset faces and replace faces with a plane or a surface; slots along an open path, web networks and lips in shelled parts, scaling of the body, and copies of saved parts (scaled or mirrored). |
 | | `se_primitive` | Box (optionally turned about the plane normal), cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
 | | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps), offset from a face, lofted through sections, swept along a sketch or a 3D curve, stitched, and filling a closed chain of edges; list and delete. |
 | | `se_curve` | Construction curves: through 3D points, intersections of faces, surfaces and the body, sketches projected onto faces, crossings of two sketches, chains of edges, contours drawn on a face through points on it and sketches wrapped onto cylindrical or conical faces; list and delete. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature. |
-| **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), tab, contour flange, flange, hem, corner break, flat pattern with cut size, and changes of the angle and radius of existing bends. |
+| **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), gauges of a material library, tab, contour flange, flange, hem, corner break, flat pattern with cut size, and changes of the angle and radius of existing bends. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
 | **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences. |
 | | `se_relations` | Planar (mate and flush), axial, insert, parallel, tangent, angle and rigid set relations, checked geometrically; list and delete. |
@@ -340,7 +340,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 129/129.
-- Acceptance suite against real Solid Edge 2026: **1870 calls and 814 checks**, with values
+- Acceptance suite against real Solid Edge 2026: **1909 calls and 829 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 53 tools have correct calls, and `A10` runs every value of the action,

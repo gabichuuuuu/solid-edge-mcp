@@ -12,6 +12,7 @@ public enum SheetMetalAction
 {
     Settings,
     SetSettings,
+    Gauge,
     Tab,
     ContourFlange,
     Flange,
@@ -109,9 +110,9 @@ public sealed class SheetMetalTools(ToolRunner runner)
     [McpServerTool(Name = "se_sheetmetal", Title = "Sheet metal", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Sheet metal (.psm): settings, base, edge features and flat pattern. Lengths in mm, angles in degrees; radius defaults to the document bend radius.
-        settings: thickness, bend radius, relief width/depth, neutral factor | set_settings: changes any of them (the model updates).
-        tab: closed sketch with ONE outline -> base tab with the document thickness (first feature) or an extra tab on the plane of a sheet face; direction = side of the thickness. Cut holes afterwards (se_sheetmetal_form normal_cutout).
-        contour_flange: open sketch (se_sketch close with open=true) -> base contour flange, returned as a tab plus one flange per further segment in 'features'; width grows along the sketch normal; materialSide; radius.
+        settings: thickness, bend radius, relief width/depth, neutral factor, gauge | set_settings: changes any of them | gauge: applies a material library gauge (thickness, bend radius, relief). The model updates.
+        tab: closed sketch with ONE outline -> base tab with the document thickness (first feature) or an extra tab on the plane of a sheet face; direction = side of the thickness.
+        contour_flange: open sketch (se_sketch close with open=true) -> base contour flange (a tab plus one flange per further segment); width grows along the sketch normal; materialSide; radius.
         flange: one flange per straight edge on the sheet faces (se_geometry 'edges'); it rises from the face of the edge, away from the material (top edge -> up); length from that face, angle, side, radius.
         hem: one hem per edge (usually the free edge of a flange); hemType, length of the folded part, radius, side. An edge that meets another hem may fail (the call is undone).
         break_corner: cornerType with 'size' on corner edges through the thickness.
@@ -144,6 +145,8 @@ public sealed class SheetMetalTools(ToolRunner runner)
         [Description("set_settings: neutral factor (0-1, e.g. 0.33).")] double? neutralFactor = null,
         [Description("bend_angle: one bend face; bend_radius: bend faces (cylindrical faces of the bends, se_geometry faces of type cylinder).")] string[]? faces = null,
         [Description("bend_angle: planar face that stays in place.")] string? fixedFace = null,
+        [Description("gauge: gauge name as in the material library, e.g. '16 gage'.")] string? gauge = null,
+        [Description("gauge: material library (se_material libraries); default: the first one that has the gauge.")] string? library = null,
         [Description("Document handle; default: the document of the sketch/edges, or the active one.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -154,6 +157,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
             SheetMetalAction.Settings => runner.RunAsync(tool, name, c => FeatureService.SheetSettings(c, document), cancellationToken),
             SheetMetalAction.SetSettings => runner.RunAsync(tool, name, c => FeatureService.SetSheetSettings(c, document,
                 new SheetMetalValues(thickness, bendRadius, reliefWidth, reliefDepth, neutralFactor)), cancellationToken),
+            SheetMetalAction.Gauge => runner.RunAsync(tool, name, c => FeatureService.SheetGauge(c, document, gauge, library), cancellationToken),
             SheetMetalAction.Tab => runner.RunAsync(tool, name, c => FeatureService.Tab(c, document, RequireSketch(sketch, name), Snake(direction)), cancellationToken),
             SheetMetalAction.ContourFlange => runner.RunAsync(tool, name, c => FeatureService.ContourFlange(c, document, RequireSketch(sketch, name),
                 width, Snake(direction), Snake(materialSide), radius), cancellationToken),

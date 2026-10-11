@@ -35,12 +35,15 @@ public sealed record PatternSpec(
     double? SpacingY = null,
     int Count = 0,
     double Angle = 360,
-    double[]? Center = null);
+    double[]? Center = null,
+    string? Curve = null,
+    double? Spacing = null,
+    bool Reverse = false);
 
 public static partial class FeatureService
 {
     public static readonly IReadOnlyList<string> HoleTypes = ["simple", "counterbore", "countersink", "tapped"];
-    public static readonly IReadOnlyList<string> PatternTypes = ["rectangular", "circular", "mirror"];
+    public static readonly IReadOnlyList<string> PatternTypes = ["rectangular", "circular", "mirror", "curve"];
 
     /// <summary>
     /// Holes at the given centers. With direction "auto" it tries toward the normal of the plane and, if it
@@ -166,7 +169,7 @@ public static partial class FeatureService
         };
     }
 
-    /// <summary>Rectangular or circular pattern of features, or mirror about a plane.</summary>
+    /// <summary>Rectangular, circular or along-a-curve pattern of features, or mirror about a plane.</summary>
     public static object Pattern(SeContext context, string? documentHandle, PatternSpec spec)
     {
         if (spec.Features is not { Length: > 0 })
@@ -174,7 +177,7 @@ public static partial class FeatureService
             throw ToolException.InvalidArgument("'features' must list at least one feature handle.", "Get them from se_feature_tree or from the tool that created them.");
         }
 
-        if (string.IsNullOrWhiteSpace(spec.Plane))
+        if (spec.Type != "curve" && string.IsNullOrWhiteSpace(spec.Plane))
         {
             throw ToolException.InvalidArgument(spec.Type == "mirror"
                 ? "'plane' is required: the mirror plane ('1'-'3', refplane or planar face handle)."
@@ -185,7 +188,7 @@ public static partial class FeatureService
         object[] features = spec.Features.Select(h => context.Handles.Resolve(h, "features")).ToArray();
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
-        RefPlane refPlane = model.ResolvePlane(context, spec.Plane);
+        RefPlane? refPlane = spec.Type == "curve" ? null : model.ResolvePlane(context, spec.Plane!);
         double before = model.Volume();
         object feature;
         switch (spec.Type)
@@ -229,11 +232,45 @@ public static partial class FeatureService
             case "mirror":
                 feature = Create("mirror copy", () => target.MirrorCopies.Add(refPlane, features.Length, features));
                 break;
+            case "curve":
+                feature = CurvePattern(context, target, features, spec);
+                break;
             default:
                 throw ToolException.InvalidArgument($"Unknown pattern type '{spec.Type}'.", $"Use one of: {string.Join(", ", PatternTypes)}.");
         }
 
         return Verify(context, model, feature, before, 0, switched);
+    }
+
+    /// <summary>
+    /// Pattern along an edge, anchored at its start vertex. Verified (straight edge from x = 0 to 100, seed at x = 50, 3 every
+    /// 20 mm): with the start vertex as anchor, sePatternCurveRightSide puts the copies at 70 and 90 (towards the end of the
+    /// edge) and LeftSide at 30 and 10; with the end vertex as anchor it is the other way round. Without an anchor: E_INVALIDARG.
+    /// </summary>
+    private static object CurvePattern(SeContext context, Model target, object[] features, PatternSpec spec)
+    {
+        if (string.IsNullOrWhiteSpace(spec.Curve))
+        {
+            throw ToolException.InvalidArgument("Type 'curve' requires 'curve': the edge to follow.", "Get one with se_geometry action 'edges' (also the edge of a se_curve).");
+        }
+
+        if (spec.Count < 2)
+        {
+            throw ToolException.InvalidArgument("'count' must be at least 2 for a pattern along a curve.");
+        }
+
+        double spacing = Units.MmToM(Units.RequirePositive(spec.Spacing ?? throw ToolException.InvalidArgument("Type 'curve' requires 'spacing' (mm) between occurrences, measured along the curve."), "spacing"));
+        SolidEdgeGeometry.Edge edge = context.Handles.Resolve<SolidEdgeGeometry.Edge>(spec.Curve, "curve");
+        object anchor = Late.Get(edge, "StartVertex") ?? throw ToolException.InvalidArgument(
+            $"The edge '{spec.Curve}' has no start point (a closed edge such as a full circle).", "Use an open edge.");
+        Array featureArray = features;
+        Array curves = new object[] { edge };
+        Array none = Array.Empty<object>();
+        PatternCurveAnchorSideConstants side = spec.Reverse ? PatternCurveAnchorSideConstants.sePatternCurveLeftSide : PatternCurveAnchorSideConstants.sePatternCurveRightSide;
+        return Create("pattern along a curve", () => target.Patterns.AddByCurve(features.Length, ref featureArray, PatternTypeConstants.seSmartPattern,
+            1, ref curves, anchor, side, 0.0, OffsetType.sePatternFixedOffset, spec.Count, spacing,
+            0, ref none, null, PatternCurveAnchorSideConstants.sePatternCurveLeftSide, 0.0, OffsetType.sePatternFitOffset, 1, 0.0,
+            PatternTransformTypeConstants.sePatternTransformLinear, PatternTransformRotateTypeConstants.sePatternTransformRotateOnCurvePosition, null));
     }
 
     /// <summary>Shell (thin wall) with a common thickness; the open faces are removed.</summary>

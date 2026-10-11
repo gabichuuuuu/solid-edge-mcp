@@ -73,6 +73,35 @@ public static partial class FeatureService
         return Verify(context, model, feature, before, Math.Sign(distance), switched, direction: distance > 0 ? "outwards" : "inwards");
     }
 
+    /// <summary>
+    /// Replaces faces with a reference plane, a construction surface or a face of one: the solid grows or shrinks to it.
+    /// Verified (ordered): Model.ReplaceFaces.Add(face or face collection, plane / surface / surface face), checked by
+    /// volume and bounding box.
+    /// </summary>
+    private static object ReplaceFaces(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        if (string.IsNullOrWhiteSpace(spec.ReplaceWith))
+        {
+            throw ToolException.InvalidArgument("replace_faces requires 'replaceWith': a reference plane ('1'-'3' or refplane handle), a construction surface (se_surface) or a face of one.");
+        }
+
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "replace_faces", "the faces to replace");
+        object surface = int.TryParse(spec.ReplaceWith, out _)
+            ? model.ResolvePlaneSource(context, spec.ReplaceWith, "replaceWith")
+            : context.Handles.Resolve(spec.ReplaceWith, "replaceWith");
+        if (surface is Profile or Sketch or SolidEdgeGeometry.Edge or SolidEdgeGeometry.Vertex)
+        {
+            throw ToolException.InvalidArgument($"'{spec.ReplaceWith}' is not a plane or a surface.",
+                "Pass a reference plane, a surface from se_surface or one of its faces (se_geometry faces with source = the surface).");
+        }
+
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        object set = faces.Length == 1 ? faces[0] : FaceSet(target, faces);
+        object feature = Create("replace faces", () => target.ReplaceFaces.Add(set, surface));
+        return Verify(context, model, feature, before, 0, switched);
+    }
+
     private static (ModelDocument Model, Model Target, object[] Faces) FaceEdit(SeContext context, string? documentHandle, PartFeatureSpec spec,
         string action, string what)
     {

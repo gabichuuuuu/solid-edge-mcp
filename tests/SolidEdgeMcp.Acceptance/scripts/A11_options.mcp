@@ -9,12 +9,6 @@
 ?= u1.previous {{u0.value}}
 @u2 = se_options {"action":"set","name":"ProfileUndoSteps","value":{{u0.value}}}
 ?= u2.value {{u0.value}}
-@c0 = se_options {"action":"get","name":"ColorBackground"}
-@c1 = se_options {"action":"set","name":"ColorBackground","value":"#102030"}
-?= c1.color #102030
-?= c1.value 3153936
-@c2 = se_options {"action":"set","name":"ColorBackground","value":"{{c0.color}}"}
-?= c2.value {{c0.value}}
 @sys = se_options {"action":"get","name":"SystemInfo"}
 ?~ sys.value Solid Edge version
 ! [invalid_argument] se_options {"action":"set","name":"ProfileUndoSteps","value":"many"}
@@ -22,6 +16,13 @@
 ! [invalid_argument] se_options {"action":"set","name":"ColorBackground","value":"#12345"}
 # Options and units of a part
 @d = se_documents {"action":"new","kind":"part"}
+# Display colors are changed with a document window open (with none, Solid Edge may answer E_FAIL)
+@c0 = se_options {"action":"get","name":"ColorBackground"}
+@c1 = se_options {"action":"set","name":"ColorBackground","value":"#102030"}
+?= c1.color #102030
+?= c1.value 3153936
+@c2 = se_options {"action":"set","name":"ColorBackground","value":"{{c0.color}}"}
+?= c2.value {{c0.value}}
 @po = se_options {"action":"list","scope":"document"}
 ?= po.scope part
 ?~ po AccuracyForDensity

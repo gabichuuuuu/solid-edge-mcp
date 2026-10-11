@@ -66,6 +66,31 @@ se_sketch {"action":"close","sketch":"{{kP2.sketch}}"}
 ?= mi.volume 54502.212 0.01
 ! [invalid_argument] se_pattern {"type":"rectangular","features":["{{cP.feature.handle}}"],"plane":"1","countX":2,"countY":1}
 se_documents {"action":"close","document":"{{dP.handle}}","saveChanges":false}
+# PC: pattern along a curve. Block 100x60x20 with an r5 hole at (50,20) = 118429.204; along the edge (0,0,0)->(100,0,0), 3 every 20 mm
+#   towards the edge end -> holes at 50, 70, 90: 115287.611, centre of volume x = (6e6 - 1570.796*210)/115287.611 = 49.1825;
+#   then reverse from the same hole -> two more at 30 and 10: 112146.018, x = 50 (symmetric)
+@dPC = se_documents {"action":"new","kind":"part"}
+@kPC = se_sketch {"action":"create","plane":"1","document":"{{dPC.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{kPC.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kPC.sketch}}"}
+se_extrude {"sketch":"{{kPC.sketch}}","distance":20,"document":"{{dPC.handle}}"}
+@kPC2 = se_sketch {"action":"create","plane":"1","document":"{{dPC.handle}}"}
+se_sketch {"action":"circle","sketch":"{{kPC2.sketch}}","center":[50,20],"radius":5}
+se_sketch {"action":"close","sketch":"{{kPC2.sketch}}"}
+@cPC = se_extrude {"sketch":"{{kPC2.sketch}}","operation":"cut","extent":"through_all","document":"{{dPC.handle}}"}
+?= cPC.volume 118429.204 0.01
+@ePC = se_geometry {"action":"edges","direction":[1,0,0],"document":"{{dPC.handle}}"}
+! [invalid_argument] se_pattern {"type":"curve","features":["{{cPC.feature.handle}}"],"curve":"{{ePC.items[?start=[0,0,0]].handle}}","count":3}
+@pc1 = se_pattern {"type":"curve","features":["{{cPC.feature.handle}}"],"curve":"{{ePC.items[?start=[0,0,0]].handle}}","count":3,"spacing":20}
+?= pc1.volume 115287.611 0.01
+@pcp1 = se_physical {"document":"{{dPC.handle}}"}
+?= pcp1.centerOfVolume[0] 49.1825 0.001
+@ePC2 = se_geometry {"action":"edges","direction":[1,0,0],"document":"{{dPC.handle}}"}
+@pc2 = se_pattern {"type":"curve","features":["{{cPC.feature.handle}}"],"curve":"{{ePC2.items[?start=[0,0,0]].handle}}","count":3,"spacing":20,"reverse":true}
+?= pc2.volume 112146.018 0.01
+@pcp2 = se_physical {"document":"{{dPC.handle}}"}
+?= pcp2.centerOfVolume[0] 50 0.001
+se_documents {"action":"close","document":"{{dPC.handle}}","saveChanges":false}
 # C: disc r40 h10 with an r4 hole at (25,0) and a circular pattern of 6 -> 50265.482 - 6*502.655 = 47249.553
 @dC = se_documents {"action":"new","kind":"part"}
 @kC = se_sketch {"action":"create","plane":"1"}
@@ -312,6 +337,22 @@ se_sketch {"action":"close","sketch":"{{kH2.sketch}}"}
 ! [invalid_argument] se_part_feature {"action":"delete_holes"}
 ! [invalid_argument] se_part_feature {"action":"offset_faces","faces":["{{sH.items[0].handle}}"],"distance":0}
 ! [invalid_argument] se_part_feature {"action":"delete_faces"}
+# replace_faces on that 80x60x15 block: top face onto a plane at z=25 -> 80*60*25 = 120000; again onto the same plane changes
+#   nothing (feature_failed, deleted); the +y face onto an offset surface 10 out of it -> y 70: 80*70*25 = 140000
+@rpH = se_ref_plane {"action":"offset","plane":"1","distance":25}
+@tH5 = se_geometry {"action":"faces","direction":[0,0,1]}
+@rf1 = se_part_feature {"action":"replace_faces","faces":["{{tH5.items[0].handle}}"],"replaceWith":"{{rpH.handle}}"}
+?= rf1.volume 120000 0.05
+@tH6 = se_geometry {"action":"faces","direction":[0,0,1]}
+! [feature_failed] se_part_feature {"action":"replace_faces","faces":["{{tH6.items[0].handle}}"],"replaceWith":"{{rpH.handle}}"}
+@yH = se_geometry {"action":"faces","direction":[0,1,0]}
+@sfH = se_surface {"action":"offset","faces":["{{yH.items[0].handle}}"],"distance":10}
+@yH2 = se_geometry {"action":"faces","direction":[0,1,0]}
+@rf2 = se_part_feature {"action":"replace_faces","faces":["{{yH2.items[0].handle}}"],"replaceWith":"{{sfH.surface.handle}}"}
+?= rf2.volume 140000 0.05
+@gH2 = se_geometry {"action":"summary"}
+?= gH2.boundingBox.max[1] 70 0.001
+! [invalid_argument] se_part_feature {"action":"replace_faces","faces":["{{yH2.items[0].handle}}"]}
 se_documents {"action":"close","document":"{{dH.handle}}","saveChanges":false}
 # I: slots, web network and body scale. Block 100x60x20; sketches on a plane at z=20 (model x/y).
 #   Slot through along (20,30)-(80,30), width 10, rounded ends: (60*10 + pi*5^2)*20 = 13570.796. Square slot along (20,50)-(80,50),

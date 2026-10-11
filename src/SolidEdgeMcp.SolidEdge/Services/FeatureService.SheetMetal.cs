@@ -112,6 +112,24 @@ public static partial class FeatureService
         return new { settings = DescribeSettings(context, model, sheet), volume = Geo.Mm3(after), volumeChange = Geo.Mm3(after - before) };
     }
 
+    /// <summary>Applies a gauge of a material library: thickness, bend radius and relief come from it; the model is updated.</summary>
+    public static object SheetGauge(SeContext context, string? documentHandle, string? gauge, string? library)
+    {
+        if (string.IsNullOrWhiteSpace(gauge))
+        {
+            throw ToolException.InvalidArgument("Action 'gauge' needs 'gauge', the gauge name, e.g. '16 gage'.");
+        }
+
+        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        SheetMetalDocument sheet = Sheet(model);
+        double before = model.Volume();
+        string lib = MaterialService.ApplyGauge(context, model.Document, gauge.Trim(), library);
+        sheet.Recompute();
+        context.ModelChanged(model.Document, "the sheet metal gauge changed");
+        double after = model.Volume();
+        return new { settings = DescribeSettings(context, model, sheet), library = lib, volume = Geo.Mm3(after), volumeChange = Geo.Mm3(after - before) };
+    }
+
     /// <summary>
     /// Tab from a closed sketch with a single loop: the first one is the base tab (creates the sheet with the thickness of the
     /// document); the following ones add material on the sheet plane. In synchronous mode, AddBaseTab with nested loops
@@ -769,6 +787,7 @@ public static partial class FeatureService
         reliefDepth = Geo.Mm(GlobalNumber(sheet, SheetMetalGlobalConstants.seSheetMetalGlobalReliefLength)),
         neutralFactor = Geo.R(GlobalNumber(sheet, SheetMetalGlobalConstants.seSheetMetalGlobalNeutralFactor)),
         material = TryGlobal(sheet, SheetMetalGlobalConstants.seSheetMetalGlobalMaterial) as string is { Length: > 0 } name ? name : null,
+        gauge = MaterialService.GaugeName(context, model.Document),
         modelingMode = model.ModelingMode,
     };
 

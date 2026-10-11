@@ -24,6 +24,26 @@ se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
 @ss = se_sheetmetal {"action":"set_settings","thickness":2}
 ?= ss.settings.thickness 2
 se_documents {"action":"close","document":"{{d1.handle}}","saveChanges":false}
+# 1b) Gauges of the material library (Materials.mtl: "10 gage" thickness = bend radius = 3.581, "16 gage" = 1.575); tab 100x60 -> 6000*1.575 = 9450.
+#    Without 'library' the first library that has the gauge is used; an unknown gauge changes nothing.
+@d0 = se_documents {"action":"new","kind":"sheet_metal"}
+@g1 = se_sheetmetal {"action":"gauge","gauge":"10 gage","library":"Materials","document":"{{d0.handle}}"}
+?= g1.settings.thickness 3.581 0.001
+?= g1.settings.bendRadius 3.581 0.001
+?~ g1.settings.gauge 10 gage
+@g2 = se_sheetmetal {"action":"gauge","gauge":"16 gage","document":"{{d0.handle}}"}
+?= g2.library Materials
+?= g2.settings.thickness 1.575 0.001
+! [not_found] se_sheetmetal {"action":"gauge","gauge":"99 gage","library":"Materials","document":"{{d0.handle}}"}
+! [invalid_argument] se_sheetmetal {"action":"gauge","document":"{{d0.handle}}"}
+@g3 = se_sheetmetal {"action":"settings","document":"{{d0.handle}}"}
+?= g3.thickness 1.575 0.001
+@k0 = se_sketch {"action":"create","plane":"1","document":"{{d0.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k0.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k0.sketch}}"}
+@t0 = se_sheetmetal {"action":"tab","sketch":"{{k0.sketch}}","document":"{{d0.handle}}"}
+?= t0.volume 9450 0.01
+se_documents {"action":"close","document":"{{d0.handle}}","saveChanges":false}
 # 2) Contour flange: open polyline (0,0)-(0,30)-(50,30)-(50,0) on plane 2, width 100, material on the right (default):
 #    straight segments (110 - 4*(r+t))*100*t = 10200 + 2 bends (pi/4)*((r+t)²-r²)*100 = 150pi -> 10671.239 (= t107.out); tab + 2 flanges.
 #    Error: 'reverse' (Solid Edge always grows along the sketch normal, t107.out)

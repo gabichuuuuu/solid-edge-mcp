@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
@@ -75,6 +76,51 @@ public static class MaterialService
         }
 
         return Describe(context, table, document, applied, lib);
+    }
+
+    /// <summary>Sheet metal gauge of the document, or <c>null</c> when it has none.</summary>
+    public static string? GaugeName(SeContext context, SolidEdgeDocument document)
+    {
+        try
+        {
+            Table(context).GetCurrentGageName(document, out string name);
+            return string.IsNullOrEmpty(name) ? null : name;
+        }
+        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Applies a sheet metal gauge of a material library (thickness, bend radius, relief) and returns the library. Verified:
+    /// ApplyGageFromLibraryToDoc(doc, "10 gage", "Materials") sets thickness and bend radius to 3.581 mm. Without a library,
+    /// each one is tried until the document reports the gauge.
+    /// </summary>
+    public static string ApplyGauge(SeContext context, SolidEdgeDocument document, string gauge, string? library)
+    {
+        MatTable table = Table(context);
+        foreach (string lib in library is null ? LibraryNames(table) : [RequireLibrary(table, library)])
+        {
+            try
+            {
+                table.ApplyGageFromLibraryToDoc(document, gauge, lib);
+            }
+            catch (Exception ex) when (ex is NullReferenceException || ex is COMException com && !ComErrors.IsDisconnected(com))
+            {
+                // A gauge the library does not have gives E_POINTER (NullReferenceException) and leaves the document unchanged.
+                continue;
+            }
+
+            table.GetCurrentGageName(document, out string applied);
+            if (string.Equals(applied, gauge, StringComparison.OrdinalIgnoreCase))
+            {
+                return lib;
+            }
+        }
+
+        throw ToolException.NotFound($"There is no sheet metal gauge '{gauge}'{(library is null ? " in the material libraries" : $" in '{library}'")}.",
+            "Pass the gauge name as the library writes it, e.g. '16 gage' (se_sheetmetal 'settings' shows the current one).");
     }
 
     private static object Describe(SeContext context, MatTable table, SolidEdgeDocument document, string name, string? library = null)

@@ -12,8 +12,21 @@ Relevant changes to this project are recorded here. The format follows
   fails after 10 s with `dialog_open`, naming the dialog, its message and its buttons, instead of waiting for the time limit;
   timeouts and `solid_edge_busy` name the open dialog too, and `se_session status` lists it. The server never presses a
   dialog button.
+- `se_pattern curve`: copies features along an open edge, with a count and a spacing measured along it, towards the end
+  of the edge or its start (`reverse`).
+- `se_part_feature replace_faces`: moves faces onto a reference plane, a construction surface or a face of one, checked
+  by the volume change.
+- `se_sheetmetal gauge`: applies a sheet metal gauge of a material library (thickness, bend radius and relief, e.g.
+  `16 gage`); `settings` shows the current gauge.
 - `se_assembly_feature mirror`: mirrors of assembly cutouts about an assembly plane, checked by their status and faces (holes
   are refused: Solid Edge reports a mirrored hole fine even outside the parts).
+- Checked through the COM layer: live sections, suppressed relationships and live rules of family members, editing the
+  graphics of drawing blocks. Simulation set-up works but does not solve with the Community Edition licence, and material
+  libraries can only be edited in the installation folder (documented in `docs/COVERAGE.md`).
+- Checked through the COM layer: splitting a body by a plane and uniting the bodies again, sweeps along two paths,
+  assembly protrusions (extruded and revolved), patterns of assembly features, fillet and label welds in weldment
+  documents, structural frames, pipes and harnesses. Every function listed in `docs/COVERAGE.md` is now reviewed:
+  each one works through a tool or the COM layer, or its row says why it does not.
 - Checked through the COM layer: 3D sketch lines, PMI model views, family of parts options, the list of material libraries,
   drawing block views and labels, and converting the body to a mesh (A07, A08, A19).
 - Coverage progress: `scripts/update-progress.ps1` writes a per-area summary at the top of
@@ -113,6 +126,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- `se_options set`: when Solid Edge rejects an application option while no document is open (display colors such as
+  `ColorBackground` need a document window), the error says to open or create a document first.
 - `se_assembly_feature`: deleting a feature, or removing one that failed, no longer deletes a base plane of the assembly
   (Solid Edge deletes the plane of the feature's sketch with it, so the sketch is now deleted first; later sketches on
   plane '1' landed on another plane). A side that fails is retried by turning the same feature to the other side, and a sketch
