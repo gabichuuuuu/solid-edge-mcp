@@ -123,7 +123,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
 | **Drawings** | `se_drawing` | Sheets; base, projected, auxiliary, section and detail views; dimensions and dimensions retrieved from the model; parts list; update. |
-| | `se_annotation` | Text, balloons, callouts, centre marks, centre lines and leaders attached to the views; list and delete. |
+| | `se_annotation` | Text, balloons, callouts, centre marks, centre lines, leaders, surface finish symbols, datums and feature control frames attached to the views; list and delete. |
 | **Export** | `se_export` | Part, sheet metal and assembly to STEP, IGES, Parasolid, STL, JT, SAT, 3MF or PDF; drawings to PDF, DXF, DWG, IGES or TIF; sheet metal flat pattern to DXF or DWG. |
 | **Full API access** | `se_com_describe` | Properties and methods, with the types of their parameters, of any API object or interface. |
 | | `se_com_get` | Reads a property of an API object; objects come back as handles. |
@@ -282,8 +282,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 62/62.
-- Acceptance suite against real Solid Edge 2026: **1128 calls and 385 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 67/67.
+- Acceptance suite against real Solid Edge 2026: **1135 calls and 401 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 46 tools have correct calls, and `A10` runs every value of the action,
@@ -299,7 +299,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A04` | Sketches and dimensions |
 | `A05` | Sheet metal |
 | `A06` | Assemblies |
-| `A07` | Drawings, annotations and export to PDF, DXF and DWG |
+| `A07` | Drawings, annotations, drawing symbols and export to PDF, DXF and DWG |
 | `A08` | COM layer and commands |
 | `A09` | Faces per occurrence and measurements in an assembly |
 | `A10` | Enumeration variants |

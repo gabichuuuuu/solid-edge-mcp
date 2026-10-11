@@ -9,21 +9,46 @@ using CenterLine = SolidEdgeFrameworkSupport.CenterLine;
 using CenterLines = SolidEdgeFrameworkSupport.CenterLines;
 using CenterMark = SolidEdgeFrameworkSupport.CenterMark;
 using CenterMarks = SolidEdgeFrameworkSupport.CenterMarks;
+using DatumFrame = SolidEdgeFrameworkSupport.DatumFrame;
+using DatumFrames = SolidEdgeFrameworkSupport.DatumFrames;
+using FeatureControlFrame = SolidEdgeFrameworkSupport.FeatureControlFrame;
+using FeatureControlFrames = SolidEdgeFrameworkSupport.FeatureControlFrames;
+using FinishType = SolidEdgeFrameworkSupport.DimSurfTextureSymTypeConstants;
 using Leader = SolidEdgeFrameworkSupport.Leader;
 using Leaders = SolidEdgeFrameworkSupport.Leaders;
+using SurfaceFinishSymbol = SolidEdgeFrameworkSupport.SurfaceFinishSymbol;
+using SurfaceFinishSymbols = SolidEdgeFrameworkSupport.SurfaceFinishSymbols;
 using TextBox = SolidEdgeFrameworkSupport.TextBox;
 using TextBoxes = SolidEdgeFrameworkSupport.TextBoxes;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Drawing annotations: text, balloons, callouts, centre marks, centre lines and leaders. Annotations attached to a view
-/// pick its edges with model points, as dimensions do, so they stay associative; sheet positions are mm from the lower-left
-/// corner of the sheet.
+/// Drawing annotations: text, balloons, callouts, centre marks, centre lines, leaders, surface finish symbols, datum frames
+/// and feature control frames. Annotations attached to a view pick its edges with model points, as dimensions do, so they
+/// stay associative; sheet positions are mm from the lower-left corner of the sheet.
 /// </summary>
 public static partial class DrawingService
 {
-    public static readonly IReadOnlyList<string> AnnotationKinds = ["text", "balloon", "center_mark", "centerline", "leader"];
+    public static readonly IReadOnlyList<string> AnnotationKinds =
+        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame"];
+
+    public static readonly IReadOnlyList<string> FinishTypes = ["basic", "machined", "no_material_removal"];
+
+    /// <summary>
+    /// Codes of the geometric characteristics in the text of a feature control frame, verified by drawing them: %ST is the
+    /// statistical tolerance, not straightness, and %PA/%PE are not codes.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> Characteristics = new Dictionary<string, string>
+    {
+        ["straightness"] = "%SR", ["flatness"] = "%FL", ["circularity"] = "%CI", ["cylindricity"] = "%CY",
+        ["line_profile"] = "%PL", ["surface_profile"] = "%PS", ["angularity"] = "%AN", ["perpendicularity"] = "%PP",
+        ["parallelism"] = "%PR", ["position"] = "%PO", ["concentricity"] = "%CO", ["symmetry"] = "%SY",
+        ["circular_runout"] = "%CR", ["total_runout"] = "%TR",
+    };
+
+    /// <summary>Separator between the cells of a feature control frame.</summary>
+    private const string FrameCell = "%VB";
 
     /// <summary>Default offset (m of sheet) of a balloon or leader end from the point it points at.</summary>
     private const double AnnotationOffset = 0.015;
@@ -176,6 +201,153 @@ public static partial class DrawingService
         });
     }
 
+    /// <summary>
+    /// Surface finish symbol on the edge picked by a model point; with a position, at the end of a leader from the edge.
+    /// </summary>
+    public static object AddSurfaceFinish(SeContext context, string? viewHandle, double[]? points, double[]? position, string? roughness, string finish)
+    {
+        FinishType type = finish switch
+        {
+            "basic" => FinishType.igDimSurfaceFinishBasic,
+            "machined" => FinishType.igDimSurfaceFinishMachined,
+            "no_material_removal" => FinishType.igDimSurfaceFinishNoMaterialRemoval,
+            _ => throw ToolException.InvalidArgument($"Unknown finish '{finish}'.", $"Use one of: {string.Join(", ", FinishTypes)}."),
+        };
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        Pick pick = PickOne(view, points);
+        (double X, double Y)? at = position is null ? null : Geo.Point2(position, "position");
+        SurfaceFinishSymbol symbol = ((SurfaceFinishSymbols)SheetOf(view).SurfaceFinishSymbols)
+            .AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
+        return Checked(context, draft, "surface_finish", symbol, () =>
+        {
+            symbol.SurfaceFinishSymbol = type;
+            if (!string.IsNullOrEmpty(roughness))
+            {
+                symbol.RoughnessValue = roughness;
+                if (symbol.RoughnessValue != roughness)
+                {
+                    throw new ToolException("annotation_failed", "Solid Edge did not keep the roughness of the symbol.", "Avoid control characters in 'text'.");
+                }
+            }
+
+            OnLeader(symbol, at, "surface finish symbol");
+        });
+    }
+
+    /// <summary>Datum frame (letter) on the edge picked by a model point; with a position, at the end of a leader.</summary>
+    public static object AddDatum(SeContext context, string? viewHandle, double[]? points, double[]? position, string? letter)
+    {
+        string datum = RequireText(letter, "text");
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        Pick pick = PickOne(view, points);
+        (double X, double Y)? at = position is null ? null : Geo.Point2(position, "position");
+        DatumFrame frame = ((DatumFrames)SheetOf(view).DatumFrames).AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
+        return Checked(context, draft, "datum", frame, () =>
+        {
+            frame.Datum = datum;
+            if (frame.Datum != datum)
+            {
+                throw new ToolException("annotation_failed", "Solid Edge did not keep the datum letter.", "Use a short label such as 'A'.");
+            }
+
+            OnLeader(frame, at, "datum frame");
+        });
+    }
+
+    /// <summary>
+    /// Feature control frame: on a leader from the edge picked by a model point of a view, or free at a sheet position. The
+    /// frame is the characteristic, the tolerance and the datums, or the whole text in Solid Edge codes.
+    /// </summary>
+    public static object AddFeatureControlFrame(SeContext context, string? documentHandle, string? sheetRef, string? viewHandle, double[]? points,
+        double[]? position, string? characteristic, string? tolerance, string[]? datums, string? text)
+    {
+        string content = string.IsNullOrEmpty(text) ? FrameText(characteristic, tolerance, datums) : text;
+        DraftDocument draft;
+        FeatureControlFrame frame;
+        (double X, double Y) at;
+        if (viewHandle is null)
+        {
+            if (points is not null)
+            {
+                throw ToolException.InvalidArgument("'points' picks an edge of a view: give 'view' too, or only 'position' for a free frame.");
+            }
+
+            at = Geo.Point2(position ?? throw ToolException.InvalidArgument("'position' [x, y] in mm on the sheet is required for a free frame (or give 'view' and 'points')."), "position");
+            draft = DraftFor(context, documentHandle, sheetRef);
+            Sheet sheet = ResolveSheet(context, draft, sheetRef);
+            frame = ((FeatureControlFrames)sheet.FeatureControlFrames).Add(at.X, at.Y, 0);
+            return Checked(context, draft, "feature_control_frame", frame, () =>
+            {
+                SetFrame(frame, content);
+                RequireAround(frame, at, "feature control frame");
+            });
+        }
+
+        DrawingView view = ResolveView(context, viewHandle);
+        draft = DraftFor(context, null, viewHandle);
+        Pick pick = PickOne(view, points);
+        at = position is null ? (pick.Sheet.X + AnnotationOffset, pick.Sheet.Y + AnnotationOffset) : Geo.Point2(position, "position");
+        frame = ((FeatureControlFrames)SheetOf(view).FeatureControlFrames).AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
+        return Checked(context, draft, "feature_control_frame", frame, () =>
+        {
+            SetFrame(frame, content);
+            OnLeader(frame, at, "feature control frame");
+        });
+    }
+
+    /// <summary>Frame text: characteristic | tolerance | datums. ⌀ or Ø in the tolerance becomes the diameter code.</summary>
+    private static string FrameText(string? characteristic, string? tolerance, string[]? datums)
+    {
+        if (characteristic is null || !Characteristics.TryGetValue(characteristic, out string? code))
+        {
+            throw ToolException.InvalidArgument(characteristic is null ? "'characteristic' is required (or the whole frame in 'text')." : $"Unknown characteristic '{characteristic}'.",
+                $"Use one of: {string.Join(", ", Characteristics.Keys)}.");
+        }
+
+        string value = RequireText(tolerance, "tolerance").Replace("⌀", "%DI", StringComparison.Ordinal).Replace("Ø", "%DI", StringComparison.Ordinal);
+        var cells = new List<string> { code, value };
+        foreach (string datum in datums ?? [])
+        {
+            cells.Add(string.IsNullOrWhiteSpace(datum) ? throw ToolException.InvalidArgument("'datums' cannot contain empty labels.") : datum);
+        }
+
+        return string.Join(FrameCell, cells);
+    }
+
+    private static void SetFrame(FeatureControlFrame frame, string content)
+    {
+        frame.PrimaryFrame = content;
+        if (frame.PrimaryFrame != content)
+        {
+            throw new ToolException("annotation_failed", "Solid Edge did not keep the text of the feature control frame.", "Check the codes in 'text'.");
+        }
+    }
+
+    /// <summary>
+    /// With a position, draws the symbol on a leader ending there (verified: Leader plus one vertex, as with balloons); then
+    /// checks that it is attached to the view and drawn around its position.
+    /// </summary>
+    private static void OnLeader(object symbol, (double X, double Y)? at, string what)
+    {
+        if (at is { } end)
+        {
+            Late.Set(symbol, "Leader", true);
+            Late.Call(symbol, "AddVertex", end.X, end.Y, 0.0);
+        }
+
+        if (!Convert.ToBoolean(Late.Get(symbol, "IsTerminatorAttachedToEntity"), System.Globalization.CultureInfo.InvariantCulture))
+        {
+            throw new ToolException("annotation_failed", $"The {what} is not attached to the view.", "Give a model point on an edge, vertex or circle seen in the view.");
+        }
+
+        if (at is { } point)
+        {
+            RequireAround(symbol, point, what);
+        }
+    }
+
     public static object DeleteAnnotation(SeContext context, string? handle)
     {
         if (string.IsNullOrWhiteSpace(handle))
@@ -268,6 +440,15 @@ public static partial class DrawingService
                 case Leader leader:
                     leader.GetTerminator(out _, out x, out y, out _, out _);
                     break;
+                case SurfaceFinishSymbol symbol:
+                    symbol.GetTerminator(out _, out x, out y, out _, out _);
+                    break;
+                case DatumFrame datum:
+                    datum.GetTerminator(out _, out x, out y, out _, out _);
+                    break;
+                case FeatureControlFrame frame when frame.IsTerminatorAttachedToEntity:
+                    frame.GetTerminator(out _, out x, out y, out _, out _);
+                    break;
                 default:
                     return null;
             }
@@ -291,7 +472,8 @@ public static partial class DrawingService
         foreach ((string kind, object? collection) in new (string, object?)[]
         {
             ("text", sheet.TextBoxes), ("balloon", sheet.Balloons), ("center_mark", sheet.CenterMarks),
-            ("centerline", sheet.CenterLines), ("leader", sheet.Leaders),
+            ("centerline", sheet.CenterLines), ("leader", sheet.Leaders), ("surface_finish", sheet.SurfaceFinishSymbols),
+            ("datum", sheet.DatumFrames), ("feature_control_frame", sheet.FeatureControlFrames),
         })
         {
             if (collection is null)
@@ -313,6 +495,9 @@ public static partial class DrawingService
         CenterMark => "center_mark",
         CenterLine => "centerline",
         Leader => "leader",
+        SurfaceFinishSymbol => "surface_finish",
+        DatumFrame => "datum",
+        FeatureControlFrame => "feature_control_frame",
         _ => null,
     };
 
@@ -338,6 +523,24 @@ public static partial class DrawingService
                 info["attached"] = leader.IsTerminatorAttachedToEntity;
                 info["terminator"] = TerminatorOf(leader);
                 break;
+            case SurfaceFinishSymbol symbol:
+                info["text"] = symbol.RoughnessValue;
+                info["finish"] = FinishOf(symbol);
+                info["attached"] = symbol.IsTerminatorAttachedToEntity;
+                info["terminator"] = TerminatorOf(symbol);
+                break;
+            case DatumFrame datum:
+                info["text"] = datum.Datum;
+                info["attached"] = datum.IsTerminatorAttachedToEntity;
+                info["terminator"] = TerminatorOf(datum);
+                break;
+            case FeatureControlFrame frame:
+                string text = frame.PrimaryFrame;
+                info["text"] = text;
+                info["characteristic"] = Characteristics.FirstOrDefault(c => text.StartsWith(c.Value + FrameCell, StringComparison.Ordinal) || text == c.Value).Key;
+                info["attached"] = frame.IsTerminatorAttachedToEntity;
+                info["terminator"] = TerminatorOf(frame);
+                break;
         }
 
         try
@@ -352,6 +555,25 @@ public static partial class DrawingService
         }
 
         return info;
+    }
+
+    /// <summary>Symbol type; Solid Edge rejects reading it (E_INVALIDARG) until it has been set.</summary>
+    private static string? FinishOf(SurfaceFinishSymbol symbol)
+    {
+        try
+        {
+            return symbol.SurfaceFinishSymbol switch
+            {
+                FinishType.igDimSurfaceFinishBasic => "basic",
+                FinishType.igDimSurfaceFinishMachined => "machined",
+                FinishType.igDimSurfaceFinishNoMaterialRemoval => "no_material_removal",
+                FinishType other => other.ToString(),
+            };
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            return null;
+        }
     }
 
     private static string RequireText(string? text, string name) =>

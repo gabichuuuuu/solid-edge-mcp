@@ -71,6 +71,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_part_feature", """{"action":"thread","faces":["face:1"]}""", "'action' must be one of:")]
     [InlineData("se_part_feature", """{"action":"rib","sketch":"sketch:1","thickness":6,"side":"left"}""", "'side' must be one of:")]
     [InlineData("se_annotation", """{"action":"list","kind":"weld"}""", "'kind' must be one of:")]
+    [InlineData("se_annotation", """{"action":"feature_control_frame","characteristic":"roundness","tolerance":"0.1","position":[250,150]}""", "'characteristic' must be one of:")]
+    [InlineData("se_annotation", """{"action":"surface_finish","view":"drawing_view:2","points":[100,30,20],"finish":"polished"}""", "'finish' must be one of:")]
     [InlineData("se_appearance", """{"action":"paint","color":"#FF0000"}""", "'action' must be one of:")]
     [InlineData("se_assembly_pattern", """{"action":"mirror","occurrences":["occurrence:2"]}""", "'action' must be one of:")]
     [InlineData("se_ref_plane", """{"action":"normal_to_edge","edge":"edge:1","at":"middle"}""", "'at' must be one of:")]
@@ -125,6 +127,9 @@ public sealed class ToolRegistrationTests
     [InlineData("se_annotation", """{"action":"center_mark","view":"drawing_view:2","points":[50,30,20]}""")]
     [InlineData("se_annotation", """{"action":"callout","view":"drawing_view:2","points":[50,35,20],"text":"HOLE D10 THRU","position":[240,320]}""")]
     [InlineData("se_annotation", """{"action":"list","kind":"center_mark"}""")]
+    [InlineData("se_annotation", """{"action":"surface_finish","view":"drawing_view:2","points":[100,30,20],"finish":"no_material_removal","text":"Ra 3.2"}""")]
+    [InlineData("se_annotation", """{"action":"feature_control_frame","view":"drawing_view:2","points":[100,30,20],"characteristic":"total_runout","tolerance":"⌀0.1","datums":["A","B"]}""")]
+    [InlineData("se_annotation", """{"action":"list","kind":"feature_control_frame"}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();

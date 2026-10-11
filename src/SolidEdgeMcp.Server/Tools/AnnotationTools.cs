@@ -16,6 +16,9 @@ public enum AnnotationAction
     CenterMark,
     Centerline,
     Leader,
+    SurfaceFinish,
+    Datum,
+    FeatureControlFrame,
     Delete,
 }
 
@@ -26,6 +29,34 @@ public enum AnnotationKind
     CenterMark,
     Centerline,
     Leader,
+    SurfaceFinish,
+    Datum,
+    FeatureControlFrame,
+}
+
+public enum SurfaceFinishType
+{
+    Basic,
+    Machined,
+    NoMaterialRemoval,
+}
+
+public enum GeometricCharacteristic
+{
+    Straightness,
+    Flatness,
+    Circularity,
+    Cylindricity,
+    LineProfile,
+    SurfaceProfile,
+    Angularity,
+    Perpendicularity,
+    Parallelism,
+    Position,
+    Concentricity,
+    Symmetry,
+    CircularRunout,
+    TotalRunout,
 }
 
 [McpServerToolType]
@@ -36,16 +67,24 @@ public sealed class AnnotationTools(ToolRunner runner)
         Annotations of a drawing sheet (se_drawing makes the views). Sheet positions in mm from the lower-left corner; model points in mm pick what a view shows, as for se_drawing dimensions.
         list (sheet; kind filter) | text (text + position on the sheet) | balloon (view + points = one model point on an edge, vertex or circle + text; position = balloon centre, default 15 mm up-right) |
         callout (like balloon, the text in a callout box) | center_mark (view + points = centre of, or a point on, a circle/arc) |
-        centerline (view + points = two model points: on two circles (centre to centre) or on two straight edges (their mid line)) | leader (view + points + position = the free end) | delete (annotation handle).
+        centerline (view + points = two model points: on two circles (centre to centre) or on two straight edges (their mid line)) | leader (view + points + position = the free end) |
+        surface_finish (view + points = a point on the edge; finish, text = roughness e.g. 'Ra 3.2'; position = symbol on a leader, default on the edge) |
+        datum (view + points + text = the letter; position = frame on a leader, default on the edge) |
+        feature_control_frame (characteristic + tolerance (⌀ or Ø for a diameter zone) + datums, or text = the whole frame in Solid Edge codes;
+        view + points = on a leader from that edge, position = the frame (default 15 mm up-right); or only position = a free frame) | delete (annotation handle).
         Annotations picked from a view stay attached to it. Each one is checked (text kept, leader attached, drawn where expected) and removed if the check fails.
-        Example: {"action":"center_mark","view":"drawing_view:2","points":[50,30,20]}.
+        Example: {"action":"feature_control_frame","view":"drawing_view:2","points":[100,30,20],"characteristic":"perpendicularity","tolerance":"0.02","datums":["A"]}.
         """)]
     public Task<CallToolResult> Annotation(
         AnnotationAction action,
         [Description("Drawing view handle (balloon, callout, center_mark, centerline, leader).")] string? view = null,
         [Description("Model points [x1, y1, z1, ...] in mm that pick the edges, vertices or circles in the view.")] double[]? points = null,
         [Description("Sheet point [x, y] in mm: the text box corner, the balloon centre or the leader end.")] double[]? position = null,
-        [Description("text, balloon, callout: the text (a balloon's item number or label).")] string? text = null,
+        [Description("text, balloon, callout: the text (a balloon's item number or label); surface_finish: roughness; datum: the letter; feature_control_frame: the whole frame in Solid Edge codes (cells split by %VB, e.g. '%PO%VB%DI0.1%MC%VBA').")] string? text = null,
+        [Description("surface_finish: symbol type (default machined: material removal required).")] SurfaceFinishType finish = SurfaceFinishType.Machined,
+        [Description("feature_control_frame: geometric characteristic.")] GeometricCharacteristic? characteristic = null,
+        [Description("feature_control_frame: tolerance value, e.g. '0.05' or '⌀0.1'; %MC / %LC add the maximum / least material symbol.")] string? tolerance = null,
+        [Description("feature_control_frame: datum labels in order, e.g. [\"A\",\"B\"].")] string[]? datums = null,
         [Description("list: only this kind.")] AnnotationKind? kind = null,
         [Description("delete: annotation handle.")] string? annotation = null,
         [Description("Sheet handle or name (default: the active sheet).")] string? sheet = null,
@@ -65,6 +104,10 @@ public sealed class AnnotationTools(ToolRunner runner)
             AnnotationAction.CenterMark => runner.RunAsync(tool, act, c => DrawingService.AddCenterMark(c, view, points), cancellationToken),
             AnnotationAction.Centerline => runner.RunAsync(tool, act, c => DrawingService.AddCenterLine(c, view, points), cancellationToken),
             AnnotationAction.Leader => runner.RunAsync(tool, act, c => DrawingService.AddLeader(c, view, points, position), cancellationToken),
+            AnnotationAction.SurfaceFinish => runner.RunAsync(tool, act, c => DrawingService.AddSurfaceFinish(c, view, points, position, text, Snake(finish)), cancellationToken),
+            AnnotationAction.Datum => runner.RunAsync(tool, act, c => DrawingService.AddDatum(c, view, points, position, text), cancellationToken),
+            AnnotationAction.FeatureControlFrame => runner.RunAsync(tool, act, c => DrawingService.AddFeatureControlFrame(c, document, sheet, view, points, position,
+                characteristic is { } g ? Snake(g) : null, tolerance, datums, text), cancellationToken),
             AnnotationAction.Delete => runner.RunAsync(tool, act, c => DrawingService.DeleteAnnotation(c, annotation), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

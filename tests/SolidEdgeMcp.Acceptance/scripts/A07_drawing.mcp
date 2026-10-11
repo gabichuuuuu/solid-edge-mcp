@@ -83,6 +83,33 @@ se_drawing {"action":"views"}
 se_annotation {"action":"delete","annotation":"{{tx.annotation.handle}}"}
 @lb = se_annotation {"action":"list","kind":"balloon"}
 ?= lb.count 2
+# Drawing symbols on the top view: surface finish on the right edge at (100,15) -> terminator (210,275), on a leader to (235,262);
+#   datum A on the bottom edge (50,0) -> (160,260), the frame on the edge; perpendicularity 0.02 to A on a leader from the right
+#   edge (100,45) -> (210,305), the frame 15 mm up-right by default; a free position frame ⌀0.1 Ⓜ | A | B centred at (250,150).
+#   A free frame without position and a datum without letter fail; 2 feature control frames
+@sf = se_annotation {"action":"surface_finish","view":"{{bv.view.handle}}","points":[100,15,20],"text":"Ra 3.2","position":[235,262]}
+?= sf.annotation.attached true
+?= sf.annotation.terminator[0] 210 0.01
+?= sf.annotation.terminator[1] 275 0.01
+?~ sf.annotation.finish machined
+?~ sf.annotation.text Ra 3.2
+@dt = se_annotation {"action":"datum","view":"{{bv.view.handle}}","points":[50,0,20],"text":"A"}
+?= dt.annotation.terminator[0] 160 0.01
+?= dt.annotation.terminator[1] 260 0.01
+?~ dt.annotation.text A
+@fc = se_annotation {"action":"feature_control_frame","view":"{{bv.view.handle}}","points":[100,45,20],"characteristic":"perpendicularity","tolerance":"0.02","datums":["A"]}
+?~ fc.annotation.text %PP%VB0.02%VBA
+?~ fc.annotation.characteristic perpendicularity
+?= fc.annotation.terminator[1] 305 0.01
+@fp = se_annotation {"action":"feature_control_frame","characteristic":"position","tolerance":"⌀0.1%MC","datums":["A","B"],"position":[250,150]}
+?~ fp.annotation.text %PO%VB%DI0.1%MC%VBA%VBB
+?= fp.annotation.attached false
+?= fp.annotation.at[0] 250 0.5
+?= fp.annotation.at[1] 150 0.5
+! [invalid_argument] se_annotation {"action":"feature_control_frame","characteristic":"flatness","tolerance":"0.05"}
+! [invalid_argument] se_annotation {"action":"datum","view":"{{bv.view.handle}}","points":[50,0,20]}
+@lf = se_annotation {"action":"list","kind":"feature_control_frame"}
+?= lf.count 2
 # A3 sheet (420 x 297): top view 1:2 at (100,100) -> 100/2 + 12.7 = 62.7; hole radius 5; move (+20,+10) -> x=120; scale 1; delete.
 #   Assembly parts list: 1 row (d_blk). Rename the sheet and change it to A2 -> 594
 @s2 = se_drawing {"action":"add_sheet","name":"Detalles","paper":"a3"}

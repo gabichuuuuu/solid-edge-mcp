@@ -147,7 +147,8 @@ damages the document in Solid Edge 2026 (do not use).
 | Parts list | `se_drawing parts_list` | ✔ |
 | Update views | `se_drawing update` | ✔ |
 | Text, balloons, callouts, center marks, centerlines and leaders attached to the views; list and delete | `se_annotation` | ✔ |
-| Surface finish, welds, geometric tolerances, datums | COM (`SurfaceFinishSymbols`, `WeldSymbols`, `FeatureControlFrames`, `DatumFrames`) | · |
+| Surface finish symbols, datum frames and feature control frames (14 characteristics, diameter zone, material condition, datums), attached to the views or free | `se_annotation` | ✔ |
+| Weld symbols; composite and multi-row feature control frames | COM (`WeldSymbols`, `FeatureControlFrame.SecondaryFrame`…) | · |
 | Hole tables, bend tables, blocks | COM (`HoleTables`, `DraftBendTables`, `Blocks`) | · |
 | 2D geometry on the sheet | COM (`Sheet.Lines2d`, `Circles2d`, `Arcs2d`…) | · |
 | Export PDF, DXF, DWG (a drawing that is not saved warns: the title block fields that come from the file, such as the date, show "Error: No reference") | `se_export` | ✔ |
