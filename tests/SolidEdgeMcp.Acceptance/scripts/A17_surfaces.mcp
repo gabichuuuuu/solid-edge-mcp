@@ -1,0 +1,65 @@
+# A17: construction surfaces (se_surface). They do not change the solid: the box 100x60x20 keeps 120000 throughout.
+#   offset of the top face (6000 mm2 at z=20): +5 -> a plane at z=25, -5 -> at z=15 (into the material)
+#   line 60 long on the XZ plane extruded 20 along its normal (-y): one face of 60*20 = 1200, y from -20 to 0
+#   rectangle 40x20 on the XY plane extruded 10 with end caps: 120*10 + 2*800 = 2800 in 6 faces
+#   line at x=150 (z 0..40) on the XZ plane revolved 180 about the z axis: pi*150*40 = 18849.556
+#   rectangle x 150..160, z 0..40 revolved 180 with end caps: pi*40*(160+150) + pi*(160^2-150^2) + 2*10*40 = 49494.686
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+?= b.volume 120000 0.001
+@t = se_geometry {"action":"faces","direction":[0,0,1]}
+@o1 = se_surface {"action":"offset","faces":["{{t.items[0].handle}}"],"distance":5}
+?~ o1.surface.type offset
+?~ o1.surface.status ok
+?= o1.surface.area 6000 0.001
+?= o1.surface.boundingBox.min[2] 25 0.0001
+?= o1.surface.boundingBox.max[0] 100 0.0001
+@t2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@o2 = se_surface {"action":"offset","faces":["{{t2.items[0].handle}}"],"distance":-5}
+?= o2.surface.boundingBox.min[2] 15 0.0001
+?= o2.surface.boundingBox.max[2] 15 0.0001
+@k = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[0,0,60,0]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}","open":true}
+@e1 = se_surface {"action":"extrude","sketch":"{{k.sketch}}","depth":20}
+?~ e1.surface.type extruded
+?= e1.surface.faces 1 0
+?= e1.surface.area 1200 0.001
+?= e1.surface.boundingBox.min[1] -20 0.0001
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[200,0,240,20]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@e2 = se_surface {"action":"extrude","sketch":"{{k2.sketch}}","depth":10,"endCaps":true}
+?= e2.surface.faces 6 0
+?= e2.surface.area 2800 0.001
+?= e2.surface.boundingBox.max[2] 10 0.0001
+@k3 = se_sketch {"action":"create","plane":"3"}
+@a3 = se_sketch {"action":"line","sketch":"{{k3.sketch}}","points":[0,0,0,50]}
+se_sketch {"action":"line","sketch":"{{k3.sketch}}","points":[150,0,150,40]}
+@x3 = se_sketch {"action":"axis","sketch":"{{k3.sketch}}","element":"{{a3.element}}"}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}","open":true}
+@r1 = se_surface {"action":"revolve","sketch":"{{k3.sketch}}","axis":"{{x3.axis}}","angle":180}
+?~ r1.surface.type revolved
+?= r1.surface.area 18849.556 0.001
+?= r1.surface.boundingBox.min[0] -150 0.0001
+@k4 = se_sketch {"action":"create","plane":"3"}
+@a4 = se_sketch {"action":"line","sketch":"{{k4.sketch}}","points":[0,0,0,50]}
+se_sketch {"action":"rectangle","sketch":"{{k4.sketch}}","points":[150,0,160,40]}
+@x4 = se_sketch {"action":"axis","sketch":"{{k4.sketch}}","element":"{{a4.element}}"}
+se_sketch {"action":"close","sketch":"{{k4.sketch}}"}
+@r2 = se_surface {"action":"revolve","sketch":"{{k4.sketch}}","axis":"{{x4.axis}}","angle":180,"endCaps":true}
+?= r2.surface.area 49494.686 0.001
+@l = se_surface {"action":"list"}
+?= l.count 6 0
+@ph = se_physical {}
+?= ph.volume 120000 0.001
+@d = se_surface {"action":"delete","name":"{{e1.surface.name}}"}
+?= d.count 5 0
+! [invalid_argument] se_surface {"action":"delete","name":"{{e1.surface.name}}"}
+! [invalid_argument] se_surface {"action":"offset","faces":[],"distance":5}
+@t3 = se_geometry {"action":"faces","direction":[0,0,1]}
+! [invalid_argument] se_surface {"action":"offset","faces":["{{t3.items[0].handle}}"],"distance":0}
+! [invalid_argument] se_surface {"action":"extrude","sketch":"{{k.sketch}}"}
+! [invalid_argument] se_surface {"action":"revolve","sketch":"{{k3.sketch}}","angle":180}
+! [invalid_argument] se_surface {"action":"revolve","sketch":"{{k3.sketch}}","axis":"{{x3.axis}}","angle":400}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

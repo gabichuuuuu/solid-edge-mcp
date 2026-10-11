@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_surface`: construction surfaces extruded or revolved from a sketch (open or closed, with end
+  caps) and offset from a face, checked by their faces; list and delete.
 - `se_assembly_feature`: extruded cutouts made in the assembly through chosen parts, from a sketch
   drawn in the assembly (`se_sketch create` now works in assemblies, on their planes).
 - `se_primitive corners`: boxes by two opposite corners or by three points.

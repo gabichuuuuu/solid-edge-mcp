@@ -7,7 +7,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Solid Edge 2026](https://img.shields.io/badge/Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![50 tools](https://img.shields.io/badge/tools-50-2F6FEB)
+![51 tools](https://img.shields.io/badge/tools-51-2F6FEB)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -82,7 +82,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-50 tools, grouped by area.
+51 tools, grouped by area.
 
 | Area | Tool | What it does |
 |---|---|---|
@@ -116,6 +116,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_loft_sweep` | Loft, sweep and helix, as a boss or a cut. |
 | | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, and offset faces; slots along an open path, web networks and lips in shelled parts, scaling of the body, and copies of saved parts (scaled or mirrored). |
 | | `se_primitive` | Box (optionally turned about the plane normal), cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
+| | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps) and offset from a face; list and delete. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature. |
 | **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), tab, contour flange, flange, hem, corner break, flat pattern with cut size, and changes of the angle and radius of existing bends. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
@@ -138,7 +139,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_command` | Searches for and runs interface commands, as if the person clicked them. |
 
 Each tool declares its MCP annotations (read-only, destructive…) so the client can decide when to
-ask for approval. What has no specific tool (booleans between bodies, surfaces, exploded
+ask for approval. What has no specific tool (booleans between bodies, swept or lofted surfaces, exploded
 views…) is done with `se_com_*` or `se_command`; details are in
 [docs/COBERTURA.md](docs/COBERTURA.md).
 
@@ -164,7 +165,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 50 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 51 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -286,11 +287,11 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 104/104.
-- Acceptance suite against real Solid Edge 2026: **1521 calls and 623 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 106/106.
+- Acceptance suite against real Solid Edge 2026: **1558 calls and 645 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
-- Coverage by value: the 50 tools have correct calls, and `A10` runs every value of the action,
+- Coverage by value: the 51 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -335,7 +336,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 ```text
 solid_edge_mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (50 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (51 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/

@@ -85,6 +85,15 @@ public enum PrimitiveShape
     Sphere,
 }
 
+public enum SurfaceAction
+{
+    List,
+    Extrude,
+    Revolve,
+    Offset,
+    Delete,
+}
+
 /// <summary>Holes, patterns, shell, draft, lofts and other part features (ordered modelling), verified like the other operations.</summary>
 [McpServerToolType]
 public sealed class PartTools(ToolRunner runner)
@@ -264,4 +273,40 @@ public sealed class PartTools(ToolRunner runner)
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_primitive", Snake(shape), c => FeatureService.Primitive(c, document,
             new PrimitiveSpec(Snake(shape), Snake(operation), plane, center, size, radius, depth, Snake(side), angle, corners)), cancellationToken);
+
+    [McpServerTool(Name = "se_surface", Title = "Construction surfaces", Destructive = false, OpenWorld = false)]
+    [Description("""
+        Construction surfaces of a part (they do not change the solid): list (name, type, status, faces, area mm², bounding box) |
+        extrude ('sketch' closed with se_sketch 'close', open: true for an open chain; 'depth' mm; direction normal | reverse | symmetric; endCaps closes a closed profile) |
+        revolve ('sketch', 'axis' from se_sketch 'axis' before closing; 'angle' degrees, default 360; direction; endCaps) |
+        offset ('faces' = one face handle; 'distance' mm along its normal: positive out of the material, negative into it) | delete ('name').
+        Each surface is checked by its status and its faces, and deleted if Solid Edge does not make it.
+        Example: {"action":"extrude","sketch":"sketch:5","depth":20}; {"action":"offset","faces":["face:12"],"distance":5}.
+        """)]
+    public Task<CallToolResult> Surface(
+        SurfaceAction action,
+        [Description("extrude, revolve: sketch handle (closed, or open with se_sketch 'close' open: true).")] string? sketch = null,
+        [Description("extrude: depth in mm.")] double? depth = null,
+        [Description("revolve: axis handle from se_sketch 'axis'.")] string? axis = null,
+        [Description("revolve: angle in degrees (default 360).")] double angle = 360,
+        FeatureDirection direction = FeatureDirection.Normal,
+        [Description("extrude, revolve: close the ends of a closed profile.")] bool endCaps = false,
+        [Description("offset: one face handle.")] string[]? faces = null,
+        [Description("offset: distance in mm along the face normal (negative = into the material).")] double? distance = null,
+        [Description("delete: surface name (action 'list').")] string? name = null,
+        [Description("Document handle; default: the document of the sketch or face, or the active document.")] string? document = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string tool = "se_surface";
+        string act = Snake(action);
+        return action switch
+        {
+            SurfaceAction.List => runner.RunAsync(tool, act, c => FeatureService.Surfaces(c, document), cancellationToken),
+            SurfaceAction.Extrude => runner.RunAsync(tool, act, c => FeatureService.ExtrudeSurface(c, document, sketch, depth, Snake(direction), endCaps), cancellationToken),
+            SurfaceAction.Revolve => runner.RunAsync(tool, act, c => FeatureService.RevolveSurface(c, document, sketch, axis, angle, Snake(direction), endCaps), cancellationToken),
+            SurfaceAction.Offset => runner.RunAsync(tool, act, c => FeatureService.OffsetSurface(c, document, faces, distance), cancellationToken),
+            SurfaceAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteSurface(c, document, name), cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
 }
