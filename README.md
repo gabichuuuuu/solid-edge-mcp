@@ -125,7 +125,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them. |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
-| **Drawings** | `se_drawing` | Sheets; base, projected, auxiliary, section and detail views; dimensions and dimensions retrieved from the model; parts list; update. |
+| **Drawings** | `se_drawing` | Sheets; base, projected, auxiliary, section and detail views; dimensions and dimensions retrieved from the model; parts list; bend table; update. |
 | | `se_annotation` | Text, balloons, callouts, centre marks, centre lines, leaders, surface finish symbols, datums, feature control frames and weld symbols attached to the views; list and delete. |
 | **Export** | `se_export` | Part, sheet metal and assembly to STEP, IGES, Parasolid, STL, JT, SAT, 3MF or PDF; drawings to PDF, DXF, DWG, IGES or TIF; sheet metal flat pattern to DXF or DWG. |
 | **Full API access** | `se_com_describe` | Properties and methods, with the types of their parameters, of any API object or interface. |
@@ -285,8 +285,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 92/92.
-- Acceptance suite against real Solid Edge 2026: **1365 calls and 548 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 93/93.
+- Acceptance suite against real Solid Edge 2026: **1389 calls and 556 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 49 tools have correct calls, and `A10` runs every value of the action,
@@ -300,7 +300,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A02` | Full part: data, view and named views, selection, editing, exports and undo |
 | `A03` | Part features, ribs, thicken, mirrored body, reference planes and coordinate systems, direct face edits, slots, web networks, lips and body scale |
 | `A04` | Sketches, corner chamfers and dimensions, also on a drawing sheet |
-| `A05` | Sheet metal, bend angle and radius changes |
+| `A05` | Sheet metal, bend angle and radius changes, bend table on a drawing |
 | `A06` | Assemblies |
 | `A07` | Drawings, annotations, drawing and weld symbols, and export to PDF, DXF and DWG |
 | `A08` | COM layer and commands |

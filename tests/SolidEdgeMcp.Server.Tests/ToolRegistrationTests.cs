@@ -152,6 +152,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_annotation", """{"action":"list","kind":"feature_control_frame"}""")]
     [InlineData("se_annotation", """{"action":"weld","view":"drawing_view:2","points":[50,60,20],"weld":"v_groove","weldSide":"both","text":"a5","allAround":true,"field":true,"position":[200,350]}""")]
     [InlineData("se_annotation", """{"action":"list","kind":"weld"}""")]
+    [InlineData("se_drawing", """{"action":"bend_table","view":"drawing_view:2","position":[40,120],"style":"Normal"}""")]
     [InlineData("se_annotation", """{"action":"feature_control_frame","characteristic":"position","tolerance":"⌀0.2","datums":["A"],"rows":["⌀0.05|A"],"composite":true,"position":[300,150]}""")]
     [InlineData("se_layer", """{"action":"set","name":"Construction","shown":false,"locatable":false}""")]
     [InlineData("se_layer", """{"action":"assign","name":"Notes","objects":["text_box:4","dimension:5"],"sheet":"Sheet1"}""")]

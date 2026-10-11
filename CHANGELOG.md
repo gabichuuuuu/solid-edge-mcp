@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_drawing bend_table`: bend table of a sheet metal view, placed above the title block or at a
+  position.
 - `se_annotation weld`: weld symbols on a leader from an edge of a view (weld type, arrow side,
   other side or both, size, all around and field weld).
 - `se_annotation feature_control_frame`: up to three more rows, each with its characteristic or

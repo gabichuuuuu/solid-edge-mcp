@@ -168,6 +168,9 @@ se_drawing {"action":"delete_view","view":"{{v3.view.handle}}"}
 @va = se_drawing {"action":"base_view","path":"{{work}}\\d_asm.asm","orientation":"front","scale":1}
 @pl = se_drawing {"action":"parts_list","view":"{{va.view.handle}}"}
 ?= pl.count 1
+# Bend tables need bends: the view of the block (no sheet metal bends) and the assembly view fail
+! [bend_table_failed] se_drawing {"action":"bend_table","view":"{{bv.view.handle}}"}
+! [wrong_view] se_drawing {"action":"bend_table","view":"{{va.view.handle}}"}
 ?~ pl.rows d_blk
 @su = se_drawing {"action":"setup_sheet","sheet":"{{s2.handle}}","name":"Hoja 2","paper":"a2"}
 ?= su.size[0] 594

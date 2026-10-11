@@ -112,4 +112,38 @@ se_sheetmetal {"action":"tab","sketch":"{{k5.sketch}}"}
 ! [invalid_argument] se_sheetmetal {"action":"bend_angle","faces":["{{cz5.items[0].handle}}"],"fixedFace":"{{tq5.items[0].handle}}","angle":200}
 ! [invalid_argument] se_sheetmetal {"action":"bend_radius","faces":["{{cz5.items[0].handle}}"]}
 se_documents {"action":"close","document":"{{d5.handle}}","saveChanges":false}
+# 6) Bend table. Tab 100x60 (t=1) with flanges of 20 on y=0 and 15 on y=60 (the top face edge at y=60 after the first flange),
+#    flat pattern saved; on a drawing, the flat view gets a table with 2 rows (sequence, feature, radius 1, angle 90...), by default
+#    above the title block (lower right corner) and at a position (upper left corner). The designed (bent) view lists the same 2 bends;
+#    a missing view fails (a part without bends and an assembly view: A07).
+@d6 = se_documents {"action":"new","kind":"sheet_metal"}
+@k6 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k6.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k6.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k6.sketch}}"}
+@tp6 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te6 = se_geometry {"action":"edges","source":"{{tp6.items[0].handle}}","direction":[1,0,0]}
+se_sheetmetal {"action":"flange","edges":["{{te6.items[0].handle}}"],"length":20}
+@tq6 = se_geometry {"action":"faces","direction":[0,0,1]}
+@tf6 = se_geometry {"action":"edges","source":"{{tq6.items[?area=5800].handle}}","direction":[1,0,0]}
+se_sheetmetal {"action":"flange","edges":["{{tf6.items[?start=[100,60,1]].handle}}"],"length":15}
+se_sheetmetal {"action":"flatten"}
+se_documents {"action":"save_as","path":"{{work}}\\a05_bends.psm","overwrite":true}
+se_documents {"action":"close","document":"{{d6.handle}}","saveChanges":false}
+@g6 = se_documents {"action":"new","kind":"draft"}
+@fv6 = se_drawing {"action":"base_view","path":"{{work}}\\a05_bends.psm","flat":true,"position":[150,250],"scale":1}
+@bt6 = se_drawing {"action":"bend_table","view":"{{fv6.view.handle}}"}
+?= bt6.count 2
+?~ bt6.columns[3] Angle
+?~ bt6.rows 1.000 mm
+?~ bt6.rows Flange 2
+?~ bt6.anchor lower_right
+@bp6 = se_drawing {"action":"bend_table","view":"{{fv6.view.handle}}","position":[40,120]}
+?= bp6.origin[0] 40
+?~ bp6.anchor upper_left
+@dv6 = se_drawing {"action":"base_view","path":"{{work}}\\a05_bends.psm","position":[350,250],"scale":1}
+@bd6 = se_drawing {"action":"bend_table","view":"{{dv6.view.handle}}","position":[300,120]}
+?= bd6.count 2
+! [invalid_argument] se_drawing {"action":"bend_table"}
+se_documents {"action":"close","document":"{{g6.handle}}","saveChanges":false}
 se_documents {"action":"list"}

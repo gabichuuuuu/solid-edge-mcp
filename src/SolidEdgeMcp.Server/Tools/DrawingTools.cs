@@ -27,6 +27,7 @@ public enum DrawingAction
     RetrieveDimensions,
     Dimensions,
     PartsList,
+    BendTable,
     Update,
 }
 
@@ -103,7 +104,7 @@ public sealed class DrawingTools(ToolRunner runner)
         section_view (view + line: 2 model points of the cutting line, extended across the view; flip = look from the other side) | detail_view (view + center model point, radius mm of model, scale default 2x) |
         move_view (position or delta) | scale_view | delete_view. Without position, derived views are placed beside their source view.
         dimension (view + kind + points: model points that pick what to measure, like clicking the edges: length = a point on a straight edge; distance = two points, each a vertex/circle centre (measured exactly there) or a point on an edge (a horizontal/vertical edge is measured square to it), measure aligned/horizontal/vertical; diameter/radius = the centre or a point of a circle/arc; angle = a point on each of two edges. Linear dimensions go outside the outline, stacked; position [x, y] puts the dimension line there) |
-        retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet) | parts_list (assembly view; balloons) | update (views and title block text; force = full update).
+        retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet) | parts_list (assembly view; balloons) | bend_table (view of a sheet metal part, usually its flat pattern: one row per bend) | update (views and title block text; force = full update).
         Title block: set the draft's properties with se_properties, then 'update'. Export: se_export of the draft to .pdf/.dxf/.dwg. See it: se_view capture.
         """)]
     public Task<CallToolResult> Drawing(
@@ -115,7 +116,7 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("base_view: view orientation (default front; top for a flat pattern). top_front_right is the usual isometric.")] DrawingOrientation? orientation = null,
         [Description("projected_view: side of the source view where the new view goes.")] FoldDirection? direction = null,
         [Description("base_view/detail_view/scale_view: scale factor (1 = 1:1, 0.5 = 1:2, 2 = 2:1).")] double? scale = null,
-        [Description("View centre [x, y] in mm on the sheet (parts_list: its anchor corner).")] double[]? position = null,
+        [Description("View centre [x, y] in mm on the sheet (parts_list, bend_table: the upper left corner; default above the title block).")] double[]? position = null,
         [Description("move_view: displacement [dx, dy] in mm on the sheet.")] double[]? delta = null,
         [Description("auxiliary_view/section_view: two model points [x1, y1, z1, x2, y2, z2] in mm.")] double[]? line = null,
         [Description("detail_view: model point [x, y, z] in mm at the centre of the detail.")] double[]? center = null,
@@ -132,7 +133,7 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("add_sheet/setup_sheet: custom sheet height in mm (with width).")] double? height = null,
         [Description("add_sheet/setup_sheet: background sheet name (frame and title block) from 'sheets'.")] string? background = null,
         [Description("parts_list: add balloons to the view (default true).")] bool balloons = true,
-        [Description("parts_list: saved parts list setting name (default: the document default).")] string? style = null,
+        [Description("parts_list, bend_table: saved table setting name (default: the document default).")] string? style = null,
         [Description("update: full (forced) update of every view.")] bool force = false,
         int offset = 0,
         int limit = 100,
@@ -165,6 +166,7 @@ public sealed class DrawingTools(ToolRunner runner)
             DrawingAction.RetrieveDimensions => runner.RunAsync(tool, act, c => DrawingService.RetrieveDimensions(c, view), cancellationToken),
             DrawingAction.Dimensions => runner.RunAsync(tool, act, c => DrawingService.Dimensions(c, document, sheet, offset, limit), cancellationToken),
             DrawingAction.PartsList => runner.RunAsync(tool, act, c => DrawingService.PartsList(c, view, position, balloons, style), cancellationToken),
+            DrawingAction.BendTable => runner.RunAsync(tool, act, c => DrawingService.BendTable(c, view, position, style), cancellationToken),
             DrawingAction.Update => runner.RunAsync(tool, act, c => DrawingService.Update(c, document, view, force), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

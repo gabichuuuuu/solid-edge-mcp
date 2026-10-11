@@ -559,21 +559,73 @@ public static partial class DrawingService
                 style is null ? "Pass 'style' with the name of a saved parts list setting (e.g. 'Normal')." : "Check the saved setting name in 'style'.", ex);
         }
 
+        (TableAnchorPoint anchor, double x, double y) = TableCorner(view, position);
+        list.AnchorPoint = anchor;
+        list.SetOrigin(x, y);
+        return DescribePartsList(context, draft, list);
+    }
+
+    /// <summary>
+    /// Bend table of a view of a sheet metal part (its flat pattern or the bent part; verified: both list the same bends): one
+    /// row per bend (sequence, feature, radius, angle, direction, included angle), placed like a parts list. A view without
+    /// bends gives an empty table, which is deleted.
+    /// </summary>
+    public static object BendTable(SeContext context, string? viewHandle, double[]? position, string? style)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        if (view.ModelLink is not ModelLink link || link.ModelType != ModelLinkTypeConstants.igPartLink)
+        {
+            throw new ToolException("wrong_view", "A bend table needs a view of a sheet metal part.", "Use the flat pattern view (se_drawing base_view flat=true) of the part.");
+        }
+
+        DraftBendTable table;
+        try
+        {
+            table = draft.DraftBendTables.Add(view, style ?? "", 0, 1);
+        }
+        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        {
+            throw new ToolException("bend_table_failed", $"Solid Edge could not create the bend table: {ex.Message.Trim()}",
+                style is null ? "Give the flat pattern view (base_view flat) of a sheet metal part with bends." : "Check the saved setting name in 'style'.", ex);
+        }
+
+        if (table.Rows.Count == 0)
+        {
+            table.Delete();
+            throw new ToolException("bend_table_failed", "The bend table came out empty: the view shows no bends.",
+                "Give the flat pattern view (base_view flat) of a sheet metal part with bends.");
+        }
+
+        (TableAnchorPoint anchor, double x, double y) = TableCorner(view, position);
+        table.AnchorPoint = anchor;
+        table.SetOrigin(x, y);
+        (List<string?> headers, List<string?[]> rows) = TableContent(context, table, table.Columns, table.Rows.Count);
+        return new
+        {
+            handle = context.Register(table, "bend_table", Document(draft)),
+            origin = new[] { Geo.Mm(x), Geo.Mm(y) },
+            anchor = anchor == TableAnchorPoint.igUpperLeft ? "upper_left" : "lower_right",
+            columns = headers,
+            count = table.Rows.Count,
+            rows,
+        };
+    }
+
+    /// <summary>
+    /// Corner of a table: its upper left corner at the position, or, as a person would place it (Solid Edge leaves it outside
+    /// the frame), its lower right corner above the title block.
+    /// </summary>
+    private static (TableAnchorPoint Anchor, double X, double Y) TableCorner(DrawingView view, double[]? position)
+    {
         if (position is not null)
         {
             (double x, double y) = Geo.Point2(position, "position");
-            list.AnchorPoint = TableAnchorPoint.igUpperLeft;
-            list.SetOrigin(x, y);
-        }
-        else
-        {
-            // Solid Edge leaves it outside the frame; as a person would place it, above the title block and right-aligned.
-            (double right, double top) = AboveTitleBlock(SheetOf(view));
-            list.AnchorPoint = TableAnchorPoint.igLowerRight;
-            list.SetOrigin(right, top);
+            return (TableAnchorPoint.igUpperLeft, x, y);
         }
 
-        return DescribePartsList(context, draft, list);
+        (double right, double top) = AboveTitleBlock(SheetOf(view));
+        return (TableAnchorPoint.igLowerRight, right, top);
     }
 
     /// <summary>
@@ -763,7 +815,21 @@ public static partial class DrawingService
     private static object DescribePartsList(SeContext context, DraftDocument draft, PartsList list)
     {
         list.GetOrigin(out double x, out double y);
-        TableColumns columns = list.Columns;
+        int count = list.Rows.Count;
+        (List<string?> headers, List<string?[]> rows) = TableContent(context, list, list.Columns, count);
+        return new
+        {
+            handle = context.Register(list, "parts_list", Document(draft)),
+            origin = new[] { Geo.Mm(x), Geo.Mm(y) },
+            columns = headers,
+            count,
+            rows,
+        };
+    }
+
+    /// <summary>Headers and cell values of the shown columns of a table (parts list, bend table).</summary>
+    private static (List<string?> Headers, List<string?[]> Rows) TableContent(SeContext context, object table, TableColumns columns, int count)
+    {
         var shown = new List<int>();
         var headers = new List<string?>();
         for (int c = 1; c <= columns.Count; c++)
@@ -778,22 +844,14 @@ public static partial class DrawingService
             headers.Add(Late.TryGetString(column, "HeaderRowValue") ?? column.Header);
         }
 
-        int count = list.Rows.Count;
         var rows = new List<string?[]>();
         for (int r = 1; r <= count && r <= context.MaxListItems; r++)
         {
             int row = r;
-            rows.Add(shown.Select(c => (Late.TryGet(list, "Cell", row, c) as TableCell)?.value).ToArray());
+            rows.Add(shown.Select(c => (Late.TryGet(table, "Cell", row, c) as TableCell)?.value).ToArray());
         }
 
-        return new
-        {
-            handle = context.Register(list, "parts_list", Document(draft)),
-            origin = new[] { Geo.Mm(x), Geo.Mm(y) },
-            columns = headers,
-            count,
-            rows,
-        };
+        return (headers, rows);
     }
 
     private static string TypeName(DrawingViewTypeConstants type) => type switch
