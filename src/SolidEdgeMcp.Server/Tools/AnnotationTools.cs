@@ -19,6 +19,7 @@ public enum AnnotationAction
     SurfaceFinish,
     Datum,
     FeatureControlFrame,
+    Weld,
     Delete,
 }
 
@@ -32,6 +33,7 @@ public enum AnnotationKind
     SurfaceFinish,
     Datum,
     FeatureControlFrame,
+    Weld,
 }
 
 public enum SurfaceFinishType
@@ -59,6 +61,31 @@ public enum GeometricCharacteristic
     TotalRunout,
 }
 
+public enum WeldType
+{
+    Fillet,
+    Square,
+    VGroove,
+    Bevel,
+    UGroove,
+    JGroove,
+    Spot,
+    Seam,
+    Plug,
+    Backing,
+    Surfacing,
+    FlareV,
+    FlareBevel,
+    Edge,
+}
+
+public enum WeldSide
+{
+    Arrow,
+    Other,
+    Both,
+}
+
 [McpServerToolType]
 public sealed class AnnotationTools(ToolRunner runner)
 {
@@ -71,7 +98,8 @@ public sealed class AnnotationTools(ToolRunner runner)
         surface_finish (view + points = a point on the edge; finish, text = roughness e.g. 'Ra 3.2'; position = symbol on a leader, default on the edge) |
         datum (view + points + text = the letter; position = frame on a leader, default on the edge) |
         feature_control_frame (characteristic + tolerance (⌀ or Ø for a diameter zone) + datums, or text = the whole frame in Solid Edge codes;
-        view + points = on a leader from that edge, position = the frame (default 15 mm up-right); or only position = a free frame) | delete (annotation handle).
+        view + points = on a leader from that edge, position = the frame (default 15 mm up-right); or only position = a free frame) |
+        weld (view + points = a point on the welded edge; weld type, weldSide (arrow / other / both), text = size e.g. 'a5', allAround, field; position = start of the reference line, default 15 mm up-right) | delete (annotation handle).
         Annotations picked from a view stay attached to it. Each one is checked (text kept, leader attached, drawn where expected) and removed if the check fails.
         Example: {"action":"feature_control_frame","view":"drawing_view:2","points":[100,30,20],"characteristic":"perpendicularity","tolerance":"0.02","datums":["A"]}.
         """)]
@@ -80,11 +108,15 @@ public sealed class AnnotationTools(ToolRunner runner)
         [Description("Drawing view handle (balloon, callout, center_mark, centerline, leader).")] string? view = null,
         [Description("Model points [x1, y1, z1, ...] in mm that pick the edges, vertices or circles in the view.")] double[]? points = null,
         [Description("Sheet point [x, y] in mm: the text box corner, the balloon centre or the leader end.")] double[]? position = null,
-        [Description("text, balloon, callout: the text (a balloon's item number or label); surface_finish: roughness; datum: the letter; feature_control_frame: the whole frame in Solid Edge codes (cells split by %VB, e.g. '%PO%VB%DI0.1%MC%VBA').")] string? text = null,
+        [Description("text, balloon, callout: the text (a balloon's item number or label); surface_finish: roughness; datum: the letter; weld: the size or note; feature_control_frame: the whole frame in Solid Edge codes (cells split by %VB, e.g. '%PO%VB%DI0.1%MC%VBA').")] string? text = null,
         [Description("surface_finish: symbol type (default machined: material removal required).")] SurfaceFinishType finish = SurfaceFinishType.Machined,
         [Description("feature_control_frame: geometric characteristic.")] GeometricCharacteristic? characteristic = null,
         [Description("feature_control_frame: tolerance value, e.g. '0.05' or '⌀0.1'; %MC / %LC add the maximum / least material symbol.")] string? tolerance = null,
         [Description("feature_control_frame: datum labels in order, e.g. [\"A\",\"B\"].")] string[]? datums = null,
+        [Description("weld: weld type (default fillet).")] WeldType weld = WeldType.Fillet,
+        [Description("weld: side of the reference line: arrow (below), other (above) or both.")] WeldSide weldSide = WeldSide.Arrow,
+        [Description("weld: weld all around (circle at the bend of the leader).")] bool allAround = false,
+        [Description("weld: field weld (flag).")] bool field = false,
         [Description("list: only this kind.")] AnnotationKind? kind = null,
         [Description("delete: annotation handle.")] string? annotation = null,
         [Description("Sheet handle or name (default: the active sheet).")] string? sheet = null,
@@ -108,6 +140,7 @@ public sealed class AnnotationTools(ToolRunner runner)
             AnnotationAction.Datum => runner.RunAsync(tool, act, c => DrawingService.AddDatum(c, view, points, position, text), cancellationToken),
             AnnotationAction.FeatureControlFrame => runner.RunAsync(tool, act, c => DrawingService.AddFeatureControlFrame(c, document, sheet, view, points, position,
                 characteristic is { } g ? Snake(g) : null, tolerance, datums, text), cancellationToken),
+            AnnotationAction.Weld => runner.RunAsync(tool, act, c => DrawingService.AddWeld(c, view, points, position, Snake(weld), Snake(weldSide), text, allAround, field), cancellationToken),
             AnnotationAction.Delete => runner.RunAsync(tool, act, c => DrawingService.DeleteAnnotation(c, annotation), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

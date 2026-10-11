@@ -20,18 +20,21 @@ using SurfaceFinishSymbol = SolidEdgeFrameworkSupport.SurfaceFinishSymbol;
 using SurfaceFinishSymbols = SolidEdgeFrameworkSupport.SurfaceFinishSymbols;
 using TextBox = SolidEdgeFrameworkSupport.TextBox;
 using TextBoxes = SolidEdgeFrameworkSupport.TextBoxes;
+using WeldSymbol = SolidEdgeFrameworkSupport.WeldSymbol;
+using WeldSymbols = SolidEdgeFrameworkSupport.WeldSymbols;
+using WeldType = SolidEdgeFrameworkSupport.DimWeldTypeConstants;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
-/// Drawing annotations: text, balloons, callouts, centre marks, centre lines, leaders, surface finish symbols, datum frames
-/// and feature control frames. Annotations attached to a view pick its edges with model points, as dimensions do, so they
+/// Drawing annotations: text, balloons, callouts, centre marks, centre lines, leaders, surface finish symbols, datum frames,
+/// feature control frames and weld symbols. Annotations attached to a view pick its edges with model points, as dimensions do, so they
 /// stay associative; sheet positions are mm from the lower-left corner of the sheet.
 /// </summary>
 public static partial class DrawingService
 {
     public static readonly IReadOnlyList<string> AnnotationKinds =
-        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame"];
+        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame", "weld"];
 
     public static readonly IReadOnlyList<string> FinishTypes = ["basic", "machined", "no_material_removal"];
 
@@ -326,6 +329,102 @@ public static partial class DrawingService
     }
 
     /// <summary>
+    /// Weld types and their constants for the arrow side (below the reference line, "Bottom" in the API); the other side
+    /// ("Top") is the same type 21 lower.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, WeldType> WeldTypes = new Dictionary<string, WeldType>
+    {
+        ["fillet"] = WeldType.igDimWeldBottomFillet,
+        ["square"] = WeldType.igDimWeldBottomSquare,
+        ["v_groove"] = WeldType.igDimWeldBottomVGroove,
+        ["bevel"] = WeldType.igDimWeldBottomBevel,
+        ["u_groove"] = WeldType.igDimWeldBottomUGroove,
+        ["j_groove"] = WeldType.igDimWeldBottomJGroove,
+        ["spot"] = WeldType.igDimWeldBottomSpot,
+        ["seam"] = WeldType.igDimWeldBottomSeam,
+        ["plug"] = WeldType.igDimWeldBottomSlot,
+        ["backing"] = WeldType.igDimWeldBottomBacking,
+        ["surfacing"] = WeldType.igDimWeldBottomSurfacing,
+        ["flare_v"] = WeldType.igDimWeldBottomFlareV,
+        ["flare_bevel"] = WeldType.igDimWeldBottomFlareBevel,
+        ["edge"] = WeldType.igDimWeldBottomEdgeWeld,
+    };
+
+    public static readonly IReadOnlyList<string> WeldSides = ["arrow", "other", "both"];
+
+    private const int WeldOtherSide = WeldType.igDimWeldBottomFillet - WeldType.igDimWeldTopFillet;
+
+    /// <summary>How far (m) a weld symbol may reach left of or below its leader: the all-around circle and the arrow-side text.</summary>
+    private const double WeldReach = 0.015;
+
+    /// <summary>
+    /// Weld symbol on the edge picked by a model point: the weld type on the arrow side, the other side or both, the size
+    /// or note (e.g. 'a5'), and the all-around and field-weld flags; the leader ends at the position (default 15 mm up-right),
+    /// where the reference line starts.
+    /// </summary>
+    public static object AddWeld(SeContext context, string? viewHandle, double[]? points, double[]? position, string weld,
+        string side, string? size, bool allAround, bool field)
+    {
+        WeldType arrow = WeldTypes.TryGetValue(weld, out WeldType type) ? type
+            : throw ToolException.InvalidArgument($"Unknown weld '{weld}'.", $"Use one of: {string.Join(", ", WeldTypes.Keys)}.");
+        bool onArrow = side is "arrow" or "both";
+        bool onOther = side is "other" or "both";
+        if (!onArrow && !onOther)
+        {
+            throw ToolException.InvalidArgument($"Unknown side '{side}'.", $"Use one of: {string.Join(", ", WeldSides)}.");
+        }
+
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        Pick pick = PickOne(view, points);
+        (double X, double Y) at = position is null ? (pick.Sheet.X + AnnotationOffset, pick.Sheet.Y + AnnotationOffset) : Geo.Point2(position, "position");
+        WeldSymbol symbol = ((WeldSymbols)SheetOf(view).WeldSymbols).Add(at.X, at.Y, 0);
+        return Checked(context, draft, "weld", symbol, () =>
+        {
+            symbol.SetTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
+            symbol.Leader = true;
+            symbol.AddVertex(at.X, at.Y, 0);
+            WeldType other = arrow - WeldOtherSide;
+            if (onArrow)
+            {
+                symbol.BottomType = arrow;
+                symbol.BottomNote1 = size ?? "";
+            }
+
+            if (onOther)
+            {
+                symbol.TopType = other;
+                symbol.TopNote1 = size ?? "";
+            }
+
+            symbol.WeldAllAround = allAround;
+            symbol.WeldInField = field;
+            // Verified: without the break line (the horizontal shoulder of the leader) Solid Edge draws the body of the symbol
+            // at the sheet origin whatever the position; setting it places the reference line at the end of the leader.
+            symbol.BreakLine = true;
+            if ((onArrow && symbol.BottomType != arrow) || (onOther && symbol.TopType != other)
+                || (!string.IsNullOrEmpty(size) && (onArrow ? symbol.BottomNote1 : symbol.TopNote1) != size))
+            {
+                throw new ToolException("annotation_failed", "Solid Edge did not keep the weld type or size of the symbol.", "Avoid control characters in 'text'.");
+            }
+
+            if (!symbol.IsTerminatorAttachedToEntity)
+            {
+                throw new ToolException("annotation_failed", "The weld symbol's leader is not attached to the view.",
+                    "Give a model point on an edge seen in the view.");
+            }
+
+            RequireAround(symbol, at, "weld symbol");
+            double[] box = RangeOf(symbol);
+            if (box[0] < Math.Min(pick.Sheet.X, at.X) - WeldReach || box[1] < Math.Min(pick.Sheet.Y, at.Y) - WeldReach)
+            {
+                throw new ToolException("annotation_failed",
+                    $"The weld symbol was drawn from ({Geo.Mm(box[0])}, {Geo.Mm(box[1])}) mm, away from its leader.", "Give another 'position'.");
+            }
+        });
+    }
+
+    /// <summary>
     /// With a position, draws the symbol on a leader ending there (verified: Leader plus one vertex, as with balloons); then
     /// checks that it is attached to the view and drawn around its position.
     /// </summary>
@@ -446,6 +545,9 @@ public static partial class DrawingService
                 case DatumFrame datum:
                     datum.GetTerminator(out _, out x, out y, out _, out _);
                     break;
+                case WeldSymbol weld:
+                    weld.GetTerminator(out _, out x, out y, out _, out _);
+                    break;
                 case FeatureControlFrame frame when frame.IsTerminatorAttachedToEntity:
                     frame.GetTerminator(out _, out x, out y, out _, out _);
                     break;
@@ -474,6 +576,7 @@ public static partial class DrawingService
             ("text", sheet.TextBoxes), ("balloon", sheet.Balloons), ("center_mark", sheet.CenterMarks),
             ("centerline", sheet.CenterLines), ("leader", sheet.Leaders), ("surface_finish", sheet.SurfaceFinishSymbols),
             ("datum", sheet.DatumFrames), ("feature_control_frame", sheet.FeatureControlFrames),
+            ("weld", sheet.WeldSymbols),
         })
         {
             if (collection is null)
@@ -498,6 +601,7 @@ public static partial class DrawingService
         SurfaceFinishSymbol => "surface_finish",
         DatumFrame => "datum",
         FeatureControlFrame => "feature_control_frame",
+        WeldSymbol => "weld",
         _ => null,
     };
 
@@ -540,6 +644,18 @@ public static partial class DrawingService
                 info["characteristic"] = Characteristics.FirstOrDefault(c => text.StartsWith(c.Value + FrameCell, StringComparison.Ordinal) || text == c.Value).Key;
                 info["attached"] = frame.IsTerminatorAttachedToEntity;
                 info["terminator"] = TerminatorOf(frame);
+                break;
+            case WeldSymbol weld:
+                bool arrowSide = weld.BottomType != WeldType.igDimWeldTypeNone;
+                bool otherSide = weld.TopType != WeldType.igDimWeldTypeNone;
+                WeldType shown = arrowSide ? weld.BottomType : weld.TopType + WeldOtherSide;
+                info["weld"] = WeldTypes.FirstOrDefault(w => w.Value == shown).Key;
+                info["side"] = arrowSide && otherSide ? "both" : arrowSide ? "arrow" : otherSide ? "other" : null;
+                info["text"] = arrowSide ? weld.BottomNote1 : weld.TopNote1;
+                info["allAround"] = weld.WeldAllAround;
+                info["field"] = weld.WeldInField;
+                info["attached"] = weld.IsTerminatorAttachedToEntity;
+                info["terminator"] = TerminatorOf(weld);
                 break;
         }
 

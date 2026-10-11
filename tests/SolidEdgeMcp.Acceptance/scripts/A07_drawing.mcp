@@ -110,6 +110,34 @@ se_annotation {"action":"delete","annotation":"{{tx.annotation.handle}}"}
 ! [invalid_argument] se_annotation {"action":"datum","view":"{{bv.view.handle}}","points":[50,0,20]}
 @lf = se_annotation {"action":"list","kind":"feature_control_frame"}
 ?= lf.count 2
+# Weld symbols on the top view: fillet a5 on the arrow side of the top edge (50,60) -> terminator (160,320), the reference
+#   line from (200,350) to the right (the symbol box stays between its leader and the line, not at the sheet origin);
+#   V groove on both sides of the left edge (0,50) -> (110,310), all around and field weld, 15 mm up-right by default;
+#   bevel 6 on the other side of the bottom edge (50,0) -> (160,260). A point on no edge and a missing view fail; 3 weld symbols
+@w1 = se_annotation {"action":"weld","view":"{{bv.view.handle}}","points":[50,60,20],"weld":"fillet","text":"a5","position":[200,350]}
+?= w1.annotation.attached true
+?= w1.annotation.terminator[0] 160 0.01
+?= w1.annotation.terminator[1] 320 0.01
+?~ w1.annotation.weld fillet
+?~ w1.annotation.side arrow
+?~ w1.annotation.text a5
+?= w1.annotation.at[1] 335 5
+@w2 = se_annotation {"action":"weld","view":"{{bv.view.handle}}","points":[0,50,20],"weld":"v_groove","weldSide":"both","allAround":true,"field":true}
+?~ w2.annotation.weld v_groove
+?~ w2.annotation.side both
+?= w2.annotation.allAround true
+?= w2.annotation.field true
+?= w2.annotation.terminator[1] 310 0.01
+?= w2.annotation.at[0] 130 10
+@w3 = se_annotation {"action":"weld","view":"{{bv.view.handle}}","points":[50,0,20],"weld":"bevel","weldSide":"other","text":"6"}
+?~ w3.annotation.weld bevel
+?~ w3.annotation.side other
+?~ w3.annotation.text 6
+?= w3.annotation.at[1] 270 10
+! [not_found] se_annotation {"action":"weld","view":"{{bv.view.handle}}","points":[20,20,20]}
+! [invalid_argument] se_annotation {"action":"weld","points":[50,60,20]}
+@lw = se_annotation {"action":"list","kind":"weld"}
+?= lw.count 3
 # A3 sheet (420 x 297): top view 1:2 at (100,100) -> 100/2 + 12.7 = 62.7; hole radius 5; move (+20,+10) -> x=120; scale 1; delete.
 #   Assembly parts list: 1 row (d_blk). Rename the sheet and change it to A2 -> 594
 @s2 = se_drawing {"action":"add_sheet","name":"Detalles","paper":"a3"}
