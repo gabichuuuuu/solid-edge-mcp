@@ -98,7 +98,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_measure` | Minimum distance and angle between faces, edges, planes or occurrences, also in assemblies. |
 | | `se_physical` | Volume, area, mass, center of gravity and inertia, with the given density or the material's. |
 | | `se_selection` | Read, replace, extend or clear the active selection. |
-| **View and application** | `se_view` | Capture the view as an image, framing (on drawings, the whole sheet with the title block), orientation and display mode. Does not change the model. |
+| **View and application** | `se_view` | Capture the view as an image, framing (on drawings, the whole sheet with the title block), orientation, display mode and named views (list, save the current one, apply, delete). Does not change the model. |
 | | `se_options` | Solid Edge options and document units: list, read and change them; returns the previous value so it can be restored. |
 | | `se_ui` | Windows, environments and ribbon: list, activate and arrange windows; list environments and the tabs, groups and commands of the ribbon. |
 | **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, points, corner fillet, edge projection, revolve axis and validated close; list the elements and relations of a sketch. |
@@ -283,8 +283,8 @@ tool_timeout_sec = 300
 Results (unit tests and acceptance suite run on 2026-10-11):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 71/71.
-- Acceptance suite against real Solid Edge 2026: **1163 calls and 424 checks**, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 73/73.
+- Acceptance suite against real Solid Edge 2026: **1172 calls and 434 checks**, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
   script). All of them pass with the Debug executable.
 - Coverage by value: the 47 tools have correct calls, and `A10` runs every value of the action,
@@ -295,7 +295,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | Script | Covers |
 |---|---|
 | `A01` | Session and errors |
-| `A02` | Full part: data, view, selection, editing, exports and undo |
+| `A02` | Full part: data, view and named views, selection, editing, exports and undo |
 | `A03` | Part features, ribs, thicken, mirrored body, reference planes and coordinate systems |
 | `A04` | Sketches and dimensions |
 | `A05` | Sheet metal |

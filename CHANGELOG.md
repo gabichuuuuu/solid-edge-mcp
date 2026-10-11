@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_view`: named views (list, save the current view, apply and delete), checked by the
+  direction of the camera.
 - `se_primitive`: box, cylinder and sphere, added or cut, placed by their centre on a plane or a
   planar face. Built in synchronous modeling and checked by the volume. Acceptance script A15.
 - `se_com_invoke`: `{"handle":null}` passes Nothing (a null object) to a VARIANT parameter.

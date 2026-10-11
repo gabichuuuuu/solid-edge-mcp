@@ -95,6 +95,172 @@ public static class ViewService
         return new { renderMode = applied.ToString() };
     }
 
+    /// <summary>Named views of a 3D document (the six standard ones and those saved), with their cameras in mm.</summary>
+    public static object NamedViews(SeContext context, string? handle)
+    {
+        SolidEdgeDocument document = context.GetDocument(handle);
+        NamedViews views = NamedViewsOf(document);
+        var rows = Late.Items(views).Cast<NamedView>().Select(DescribeView).ToList();
+        return new { document = document.Name, count = rows.Count, views = rows };
+    }
+
+    /// <summary>
+    /// Saves the current view of the window under a name. Verified: <c>NamedViews.Create</c> stores a default camera, not the
+    /// current one, so the camera of the window is copied to it and read back.
+    /// </summary>
+    public static object SaveView(SeContext context, string? handle, string? name, string? description)
+    {
+        string viewName = RequireViewName(name);
+        SolidEdgeDocument document = Activate(context, handle);
+        Window window = ModelWindow(document);
+        NamedViews views = NamedViewsOf(document);
+        if (FindView(views, viewName) is not null)
+        {
+            throw ToolException.InvalidArgument($"There is already a named view '{viewName}'.", "Choose another name or delete it first (action delete_view).");
+        }
+
+        Camera camera = CameraOf(window.View);
+        NamedView view = views.Create(viewName);
+        try
+        {
+            view.SetCamera(camera.Eye[0], camera.Eye[1], camera.Eye[2], camera.Target[0], camera.Target[1], camera.Target[2],
+                camera.Up[0], camera.Up[1], camera.Up[2], camera.Perspective, camera.Scale);
+            if (!string.IsNullOrEmpty(description))
+            {
+                view.Description = description;
+            }
+
+            if (!SameDirection(CameraOf(view), camera))
+            {
+                throw new ToolException("view_failed", "Solid Edge did not keep the camera of the named view.", "Try again with the window shown.");
+            }
+        }
+        catch (Exception ex) when (ex is ToolException || (ComErrors.Unwrap(ex) is COMException && !ComErrors.IsDisconnected(ex)))
+        {
+            TryRemove(views, viewName);
+            throw ex is ToolException ? ex : new ToolException("view_failed", $"Solid Edge rejected the named view: {ComErrors.Unwrap(ex).Message.Trim()}", "Use a plain name.", ex);
+        }
+
+        return new { document = document.Name, saved = DescribeView(view) };
+    }
+
+    /// <summary>Shows a named view in the window and checks that the window now looks along it (direction and up vector).</summary>
+    public static object ApplyView(SeContext context, string? handle, string? name)
+    {
+        string viewName = RequireViewName(name);
+        SolidEdgeDocument document = Activate(context, handle);
+        Window window = ModelWindow(document);
+        NamedView view = FindView(NamedViewsOf(document), viewName) ?? throw UnknownView(document, viewName);
+        using var shown = new ShownWindow(context.Application, window);
+        window.View.ApplyNamedView(Late.TryGetString(view, "Name") ?? viewName);
+        if (!SameDirection(CameraOf(window.View), CameraOf(view)))
+        {
+            throw new ToolException("view_failed", $"The window does not look along the named view '{viewName}' after applying it.", "Try again with the window shown.");
+        }
+
+        return new { document = document.Name, applied = DescribeView(view) };
+    }
+
+    public static object DeleteView(SeContext context, string? handle, string? name)
+    {
+        string viewName = RequireViewName(name);
+        SolidEdgeDocument document = context.GetDocument(handle);
+        NamedViews views = NamedViewsOf(document);
+        NamedView view = FindView(views, viewName) ?? throw UnknownView(document, viewName);
+        string actual = Late.TryGetString(view, "Name") ?? viewName;
+        if (StandardViews.Contains(actual))
+        {
+            throw new ToolException("not_supported", $"'{actual}' is one of the standard views of Solid Edge and is not deleted.", "Delete only views saved with save_view.");
+        }
+
+        views.Remove(actual);
+        if (FindView(views, actual) is not null)
+        {
+            throw new ToolException("view_failed", $"Solid Edge did not delete the named view '{actual}'.");
+        }
+
+        return new { document = document.Name, deleted = actual };
+    }
+
+    /// <summary>Named views that every 3D document has.</summary>
+    private static readonly HashSet<string> StandardViews = new(StringComparer.OrdinalIgnoreCase) { "top", "front", "right", "iso", "dimetric", "trimetric" };
+
+    private sealed record Camera(double[] Eye, double[] Target, double[] Up, bool Perspective, double Scale);
+
+    private static Camera CameraOf(SolidEdgeFramework.View view)
+    {
+        view.GetCamera(out double ex, out double ey, out double ez, out double tx, out double ty, out double tz,
+            out double ux, out double uy, out double uz, out bool perspective, out double scale);
+        return new Camera([ex, ey, ez], [tx, ty, tz], [ux, uy, uz], perspective, scale);
+    }
+
+    private static Camera CameraOf(NamedView view)
+    {
+        view.GetCamera(out double ex, out double ey, out double ez, out double tx, out double ty, out double tz,
+            out double ux, out double uy, out double uz, out bool perspective, out double scale);
+        return new Camera([ex, ey, ez], [tx, ty, tz], [ux, uy, uz], perspective, scale);
+    }
+
+    /// <summary>Same viewing direction (eye to target) and up vector, within 0.001 rad; the distance and zoom may change.</summary>
+    private static bool SameDirection(Camera a, Camera b)
+    {
+        static double[] Unit(double[] v)
+        {
+            double length = Math.Sqrt(v.Sum(c => c * c));
+            return length < 1e-12 ? v : v.Select(c => c / length).ToArray();
+        }
+
+        static double[] Direction(Camera c) => Unit(c.Target.Zip(c.Eye, (t, e) => t - e).ToArray());
+        static bool Close(double[] x, double[] y) => x.Zip(y, (p, q) => Math.Abs(p - q)).Max() < 1e-3;
+        return Close(Direction(a), Direction(b)) && Close(Unit(a.Up), Unit(b.Up));
+    }
+
+    private static object DescribeView(NamedView view)
+    {
+        Camera camera = CameraOf(view);
+        string name = Late.TryGetString(view, "Name") ?? "";
+        double[] direction = camera.Target.Zip(camera.Eye, (t, e) => t - e).ToArray();
+        double length = Math.Sqrt(direction.Sum(c => c * c));
+        return new
+        {
+            name,
+            description = Late.TryGetString(view, "Description") is { Length: > 0 } text ? text : null,
+            standard = StandardViews.Contains(name),
+            direction = length < 1e-12 ? direction : direction.Select(c => Geo.R(c / length)).ToArray(),
+            up = camera.Up.Select(Geo.R).ToArray(),
+            target = camera.Target.Select(Geo.Mm).ToArray(),
+            perspective = camera.Perspective,
+        };
+    }
+
+    private static NamedViews NamedViewsOf(SolidEdgeDocument document) => Late.TryGet(document, "NamedViews") as NamedViews
+        ?? throw new ToolException("not_supported", $"'{document.Name}' has no named views.", "Named views belong to parts, sheet metal and assemblies.");
+
+    /// <summary>Named view by name, ignoring case (Solid Edge applies "Top" as "top").</summary>
+    private static NamedView? FindView(NamedViews views, string name) =>
+        Late.Items(views).Cast<NamedView>().FirstOrDefault(v => string.Equals(Late.TryGetString(v, "Name"), name, StringComparison.OrdinalIgnoreCase));
+
+    private static ToolException UnknownView(SolidEdgeDocument document, string name) =>
+        new("not_found", $"'{document.Name}' has no named view '{name}'.", "List them with se_view action named_views.");
+
+    private static string RequireViewName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? throw ToolException.InvalidArgument("'name' (the named view) is required.") : name.Trim();
+
+    private static Window ModelWindow(SolidEdgeDocument document) => FirstWindow(document) as Window
+        ?? throw new ToolException("not_supported", "Named views apply to 3D documents (part, sheet metal, assembly).");
+
+    private static void TryRemove(NamedViews views, string name)
+    {
+        try
+        {
+            views.Remove(name);
+        }
+        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        {
+            // Left as it is; the error reports the failure.
+        }
+    }
+
     public static CapturedImage Capture(SeContext context, string? handle, int width, int height, string? savePath, bool fit = true)
     {
         int maxWidth = context.Policy.Limits.MaxImageWidth;

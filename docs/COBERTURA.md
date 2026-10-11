@@ -37,6 +37,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Mass, volume, center of gravity, inertia | `se_physical` | ✔ |
 | Active selection (read, change) | `se_selection` | ✔ |
 | View: fit (on drawings, the whole sheet with the title block), orientation, mode, PNG capture | `se_view` | ✔ |
+| Named views: list (the 6 standard ones and the saved ones), save the current view with a description, apply, delete | `se_view named_views`, `save_view`, `apply_view`, `delete_view` | ✔ |
 | Display modes Boundary and SmoothBoundary | — | ✘ Solid Edge 2026 changes them to Smooth (`not_supported` error) |
 | Export STEP, IGES, Parasolid, STL, JT, SAT, 3MF, PDF, DXF, DWG | `se_export` | ✔ |
 | Material: libraries, properties, assignment (updates density and mass) | `se_material` | ✔ |
@@ -45,7 +46,7 @@ damages the document in Solid Edge 2026 (do not use).
 | Remove the style of a feature | — | ✘ `SetStyle` with an empty style keeps it (`not_supported`; apply another one) |
 | Layers | COM (`Layers`) | · |
 | Part families (`FamilyMembers`), configurations (`PartConfigurations`) | COM | · |
-| 3D PMI (`PMI`), named views (`NamedViews`), live sections | COM | · |
+| 3D PMI (`PMI`), live sections | COM | · |
 | Simulation and generative studies | COM / Command | · |
 
 ## Sketches and reference planes
