@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_ref_plane`: planes through three points, midway, normal to an edge and tangent to a cylinder,
+  checked against their geometry; coordinate systems with their origin and axes.
 - `se_assembly_pattern`: component patterns that follow a part pattern (list, create, delete and
   dissolve). Acceptance script A14.
 - `se_appearance`: colours of parts and assembly components through face styles (list, create,

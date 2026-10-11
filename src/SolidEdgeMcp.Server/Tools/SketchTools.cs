@@ -64,6 +64,18 @@ public enum RefPlaneAction
     List,
     Offset,
     Angle,
+    ThreePoints,
+    Mid,
+    NormalToEdge,
+    Tangent,
+    CoordinateSystem,
+    CoordinateSystems,
+}
+
+public enum EdgeEnd
+{
+    Start,
+    End,
 }
 
 /// <summary>Sketches and reference planes (ordered modelling). Coordinates in mm.</summary>
@@ -167,12 +179,17 @@ public sealed class SketchTools(ToolRunner runner)
         };
     }
 
-    [McpServerTool(Name = "se_ref_plane", Title = "Reference planes", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_ref_plane", Title = "Reference planes and coordinate systems", Destructive = false, OpenWorld = false)]
     [Description("""
-        Reference planes of a part or sheet metal document. list (index, handle, name, normal, root point in mm) |
+        Reference planes and coordinate systems of a part or sheet metal document. list (index, handle, name, normal, root point in mm) |
         offset (plane = index or refplane / planar face handle; distance in mm, negative or flip=true for the other side) |
-        angle (plane, pivot = plane whose intersection with 'plane' is the hinge, angle in degrees).
-        New planes return a handle usable as 'plane' in se_sketch create.
+        angle (plane, pivot = plane whose intersection with 'plane' is the hinge, angle in degrees) |
+        three_points (points = 3 model points in mm: vertices or midpoints of straight edges) | mid (plane + plane2: midway between two parallel planes or faces) |
+        normal_to_edge (edge handle; at start|end, optional distance in mm along the edge from that end) |
+        tangent (plane = the parallel plane, face = cylindrical or conical face; flip = the other side) |
+        coordinate_system (origin [x,y,z] mm, angles [ax,ay,az] degrees about X, then Y, then Z) | coordinate_systems (list them with their axes).
+        Each new plane is checked against the geometry it comes from. New planes return a handle usable as 'plane' in se_sketch create.
+        Example: {"action":"normal_to_edge","edge":"edge:12","at":"start","distance":30}.
         """)]
     public Task<CallToolResult> RefPlane(
         RefPlaneAction action,
@@ -180,12 +197,19 @@ public sealed class SketchTools(ToolRunner runner)
         [Description("For offset: distance in mm.")] double? distance = null,
         [Description("For angle: hinge plane index or handle.")] string? pivot = null,
         [Description("For angle: angle in degrees.")] double? angle = null,
-        [Description("Create the plane on the other side of the parent's normal.")] bool flip = false,
+        [Description("Create the plane on the other side of the parent's normal (tangent: the other side of the face).")] bool flip = false,
+        [Description("For three_points: [x1,y1,z1, x2,y2,z2, x3,y3,z3] in mm.")] double[]? points = null,
+        [Description("For mid: the second plane (index or refplane / planar face handle).")] string? plane2 = null,
+        [Description("For normal_to_edge: edge handle (se_geometry edges).")] string? edge = null,
+        [Description("For normal_to_edge: the end of the edge (default start).")] EdgeEnd at = EdgeEnd.Start,
+        [Description("For tangent: cylindrical or conical face handle.")] string? face = null,
+        [Description("For coordinate_system: origin [x,y,z] in mm.")] double[]? origin = null,
+        [Description("For coordinate_system: rotations [ax,ay,az] in degrees.")] double[]? angles = null,
         [Description("Document handle; default: active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_ref_plane";
-        string name = action.ToString();
+        string name = Snake(action);
         return action switch
         {
             RefPlaneAction.List => runner.RunAsync(tool, name, c => RefPlaneService.List(c, document), cancellationToken),
@@ -193,6 +217,15 @@ public sealed class SketchTools(ToolRunner runner)
                 ToolRunner.Require(plane, "plane", "offset"), distance, flip), cancellationToken),
             RefPlaneAction.Angle => runner.RunAsync(tool, name, c => RefPlaneService.Angle(c, document,
                 ToolRunner.Require(plane, "plane", "angle"), ToolRunner.Require(pivot, "pivot", "angle"), angle, flip), cancellationToken),
+            RefPlaneAction.ThreePoints => runner.RunAsync(tool, name, c => RefPlaneService.ThreePoints(c, document, points), cancellationToken),
+            RefPlaneAction.Mid => runner.RunAsync(tool, name, c => RefPlaneService.Mid(c, document,
+                ToolRunner.Require(plane, "plane", "mid"), ToolRunner.Require(plane2, "plane2", "mid")), cancellationToken),
+            RefPlaneAction.NormalToEdge => runner.RunAsync(tool, name, c => RefPlaneService.NormalToEdge(c, document,
+                ToolRunner.Require(edge, "edge", "normal_to_edge"), Snake(at), distance), cancellationToken),
+            RefPlaneAction.Tangent => runner.RunAsync(tool, name, c => RefPlaneService.Tangent(c, document,
+                ToolRunner.Require(plane, "plane", "tangent"), ToolRunner.Require(face, "face", "tangent"), flip), cancellationToken),
+            RefPlaneAction.CoordinateSystem => runner.RunAsync(tool, name, c => RefPlaneService.AddCoordinateSystem(c, document, origin, angles), cancellationToken),
+            RefPlaneAction.CoordinateSystems => runner.RunAsync(tool, name, c => RefPlaneService.ListCoordinateSystems(c, document), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

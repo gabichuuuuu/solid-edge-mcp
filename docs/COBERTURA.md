@@ -62,7 +62,9 @@ damages the document in Solid Edge 2026 (do not use).
 | Sketch text and chamfer | COM (`Profile.TextProfiles`, `Lines2d`…) | · |
 | 3D sketches | COM (`Sketches3D`) | · |
 | Offset and angled planes | `se_ref_plane` | ✔ |
-| Planes through 3 points, normal to curve, tangent; axes and coordinate systems | COM (`RefPlanes`, `RefAxes`, `CoordinateSystems`) | · |
+| Planes through 3 points (vertices or edge midpoints), midway, normal to an edge (at an end or a distance), tangent to a cylinder or cone; coordinate systems | `se_ref_plane` | ✔ |
+| Planes normal to a curve by arc-length ratio, tangent to a curved surface at a key point; coordinate systems from geometry | COM (`RefPlanes.AddNormalToCurveAtArcLengthRatio`, `AddTangentToCurvedSurfaceAtKeyPoint`, `CoordinateSystems.AddByGeometry`) | · |
+| Reference axes | — | ✘ `RefAxes` has no Add (the axes come from features such as revolves) |
 
 ## Part (ordered modeling)
 
