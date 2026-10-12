@@ -169,6 +169,10 @@ Relevant changes to this project are recorded here. The format follows
   version (from the `<Version>` of the server project, also shown as a badge) and lists the tools that
   `docs/COVERAGE.md` does not mention yet under "New tools" as not tested. With `-Staged`, from a
   pre-commit hook, it regenerates them from what each commit contains.
+- `docs/COVERAGE.md` lists every function of Solid Edge 2026 found in its type libraries and command sets, not only
+  the ones already reviewed: 107 functions not tried yet were added as `·` (among them a new "Program configuration"
+  area for the Options dialog settings, add-ins, customization and license), so the progress measures the whole
+  program: 112 of 254 functions work (44 %).
 - The internal development notes and AI assistant instructions are no longer published.
 - Code comments, scripts and documentation are in English, including the project notes
   (`AGENTS.md`, `STATUS.md`, `PLAN.md`). `ESTADO.md` and `docs/COBERTURA.md` were renamed to

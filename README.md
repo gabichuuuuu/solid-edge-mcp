@@ -16,7 +16,7 @@ Claude Desktop, Codex or any other MCP client.**
 
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-2F6FEB)
-[![Progress: 76 % of functions work through the MCP](https://img.shields.io/badge/progress-76%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 44 % of functions work through the MCP](https://img.shields.io/badge/progress-44%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md)
