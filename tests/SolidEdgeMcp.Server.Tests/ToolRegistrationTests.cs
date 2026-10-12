@@ -332,6 +332,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_annotation", """{"action":"list","kind":"center_mark"}""")]
     [InlineData("se_sheet_content", """{"action":"list","sheet":"Sheet1"}""")]
     [InlineData("se_drawing_view", """{"action":"broken_out","view":"drawing_view:2","points":[35,15,20, 65,15,20, 65,45,20, 35,45,20],"depth":15}""")]
+    [InlineData("se_drawing", """{"action":"base_view","path":"C:\\Work\\pair.asm","orientation":"top","scale":1,"configuration":"OnlyFirst"}""")]
     [InlineData("se_sheet_content", """{"action":"table","columns":["REV","DESCRIPTION"],"rows":["A|First issue"],"widths":[15,80],"position":[20,280]}""")]
     [InlineData("se_sheet_content", """{"action":"cell","table":"table:3","row":1,"column":2,"text":"Revised"}""")]
     [InlineData("se_sheet_content", """{"action":"rows","table":"table:3","rows":["B|Holes added"]}""")]

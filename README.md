@@ -61,7 +61,7 @@ for approval.
 
 **Tested for real**
 
-3172 calls and 1683 checks against real Solid Edge 2026, with values calculated by hand.
+3190 calls and 1687 checks against real Solid Edge 2026, with values calculated by hand.
 
 </td>
 </tr>
@@ -277,7 +277,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_frame` | Structural frames (sections from the installed library or your own part, mitred or butted) and pipes with elbows and fittings, along a polyline or assembly sketch lines; members and segments with their extent and cut lengths (also per member); list the library, list, delete and repair (frames made elsewhere before any assembly feature). |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
-| **Drawings** | `se_drawing` | Sheets and background sheets (the frame and title block: list, show or hide, draw and write on them, replace one with a background of another drawing, add, rename and delete one no sheet uses); base, projected, auxiliary, section and detail views; dimensions (also coordinate, angular coordinate and chamfer dimensions) and dimensions retrieved from the model; parts list; bend table; blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete); update. |
+| **Drawings** | `se_drawing` | Sheets and background sheets (the frame and title block: list, show or hide, draw and write on them, replace one with a background of another drawing, add, rename and delete one no sheet uses); base (also of an assembly display configuration), projected, auxiliary, section and detail views; dimensions (also coordinate, angular coordinate and chamfer dimensions) and dimensions retrieved from the model; parts list; bend table; blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete); update. |
 | | `se_drawing_view` | Display of a drawing view as in its Properties dialog: hidden and tangent edges, shading, captions and the display of each member of an assembly view (hide a part, show it as reference), checked by the edges drawn; break lines (add, list, show or hide, remove); broken-out sections cut to a depth; conversion of a view to 2D geometry. |
 | | `se_annotation` | Text, balloons, callouts, centre marks, centre lines, leaders, surface finish symbols, datums, datum targets and points, bolt hole circles, feature control frames and weld symbols attached to the views; list and delete. |
 | | `se_sheet_content` | Tables of your own (a revision list, notes in columns) and pictures (a logo) on drawing sheets: a table with headers, rows and column widths where you want it, a cell changed, rows added, an image sized by width or height; list and delete, everything read back. |
@@ -385,7 +385,7 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 307/307.
-- Acceptance suite against real Solid Edge 2026: **3172 calls and 1683 checks** in `A01`–`A36`, with values
+- Acceptance suite against real Solid Edge 2026: **3190 calls and 1687 checks** in `A01`–`A36`, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the script). All of
   them pass.
 - Coverage by value: the 67 tools have correct calls, and `A10` runs every value of the action,
@@ -433,7 +433,7 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 | `A33` | More kinds of assembly relations: center plane with two faces and with one, connect (the start of an edge onto a face, onto the end of another edge, the middle of an edge onto a face), coordinate systems (an origin and axes turned 90 degrees, and a system of the assembly), gears with the axial rotation unlocked (40:20 driven by an angle relation, flip) and a rack moving 100 mm per turn, the refused cases, and the cam and path methods refused by the COM layer |
 | `A34` | More drawing dimensions and annotations: coordinate dimensions from a corner (horizontal and vertical, also in a view at 1:2), angular coordinate dimensions of holes about a flange centre (counterclockwise and clockwise), a chamfer dimension, a bolt hole circle through three holes, a datum target A1 on a leader and a datum point, and the refused cases |
 | `A35` | Tables and pictures on a drawing sheet: a revision table with headers, rows, column widths and position, a cell changed and a row added, a table in the default place, a logo sized by width with its proportions kept, the list, the refused cases and deleting them |
-| `A36` | A broken-out section: a block with a blind hole from below cut 15 mm deep from the top inside a square outline, and the refused cases (an outline away from the part, too few points, no depth) |
+| `A36` | Drawing views: a broken-out section of a block with a blind hole from below cut 15 mm deep from the top inside a square outline, with the refused cases (an outline away from the part, too few points, no depth); a base view of an assembly display configuration that hides one part, and an unknown configuration refused |
 
 </details>
 

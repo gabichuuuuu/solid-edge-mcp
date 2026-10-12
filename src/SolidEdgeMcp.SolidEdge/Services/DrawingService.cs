@@ -181,7 +181,7 @@ public static partial class DrawingService
 
     /// <summary>Base view of a saved model; without a scale, the largest standard scale that leaves room for the projections.</summary>
     public static object BaseView(SeContext context, string? documentHandle, string? sheetRef, string? path, string? modelHandle,
-        string? orientation, double? scale, double[]? position, bool flat)
+        string? orientation, double? scale, double[]? position, bool flat, string? configuration = null)
     {
         DraftDocument draft = Draft(context, documentHandle);
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
@@ -198,10 +198,43 @@ public static partial class DrawingService
             throw ToolException.InvalidArgument($"Unknown orientation '{orientationName}'.", $"Use one of: {string.Join(", ", Orientations.Keys)}.");
         }
 
+        // A display configuration of an assembly lives in the .cfg file next to it (see AssemblyConfigService).
+        string? configFile = null;
+        if (!string.IsNullOrWhiteSpace(configuration))
+        {
+            configFile = System.IO.Path.ChangeExtension(file, ".cfg");
+            if (extension != ".asm" || flat)
+            {
+                throw ToolException.InvalidArgument("'configuration' needs an assembly (.asm): its display configurations are saved with se_assembly_config.");
+            }
+
+            if (!File.Exists(configFile))
+            {
+                throw ToolException.NotFound($"'{System.IO.Path.GetFileName(file)}' has no display configurations (no {System.IO.Path.GetFileName(configFile)} next to it).",
+                    "Save one with se_assembly_config 'save' and save the assembly.");
+            }
+        }
+
         ModelLink link = LinkTo(draft, file);
         double factor = scale is { } s ? RequireScale(s) : FitScale(link, orient, sheet);
         (double x, double y) = position is null ? Centre(sheet) : Geo.Point2(position, "position");
         sheet.Activate();
+        if (configFile is not null)
+        {
+            DrawingView configured = Create(() => sheet.DrawingViews.AddWithConfiguration(link, orient, factor, x, y, configFile, configuration!),
+                "base view", "Check the configuration name with se_assembly_config 'list'.");
+            if (!string.Equals(configured.Configuration, configuration, StringComparison.OrdinalIgnoreCase))
+            {
+                string kept = configured.Configuration;
+                TryDelete(configured);
+                throw ToolException.NotFound($"The assembly has no display configuration '{configuration}' (the view showed '{kept}').",
+                    "List them with se_assembly_config 'list'.");
+            }
+
+            CentreAt(configured, x, y);
+            return Result(context, draft, configured, warning);
+        }
+
         DrawingView view = Create(() => flat
                 ? sheet.DrawingViews.AddSheetMetalView(link, orient, factor, x, y, SheetMetalDrawingViewTypeConstants.seSheetMetalFlatView)
                 : sheet.DrawingViews.Add(link, orient, factor, x, y),

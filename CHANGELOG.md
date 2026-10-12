@@ -135,7 +135,9 @@ Relevant changes to this project are recorded here. The format follows
 - Acceptance script `A35` (a revision table and a logo on a sheet).
 - `se_drawing_view broken_out`: a broken-out section through an outline of model points, cut to a depth from the front
   of the part; the view is checked for the cut, and an outline away from the part is refused before anything is made.
-- Acceptance script `A36` (a broken-out section).
+- `se_drawing base_view configuration`: a base view of a display configuration of an assembly (saved with
+  `se_assembly_config`); an unknown configuration is refused.
+- Acceptance script `A36` (a broken-out section and a view of a display configuration).
 
 ### Changed
 
