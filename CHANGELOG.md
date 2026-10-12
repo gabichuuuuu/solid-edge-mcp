@@ -6,6 +6,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-13
+
+This release adds tolerances to dimensions of drawings, sketches and the PMI (plus/minus, limits and ISO fits) and the
+tolerance table of a drawing view. 74 tools in all. As before, it is source only: the interop is generated from your own
+Solid Edge installation, so no binaries are published.
+
 ### Added
 
 - `se_dimension`: the tolerance of a dimension of a drawing, a sketch or the PMI (plus/minus, limits, ISO fits for holes
