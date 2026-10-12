@@ -90,6 +90,7 @@ public static class Program
         typeof(ViewTools),
         typeof(SectionViewTools),
         typeof(FaceRelationTools),
+        typeof(FaceSplitTools),
         typeof(PmiTools),
         typeof(DataTools),
         typeof(InspectTools),

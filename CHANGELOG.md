@@ -17,6 +17,25 @@ Relevant changes to this project are recorded here. The format follows
   the tools stay as construction bodies, and the result is checked by the volume and the bodies.
 - Acceptance script `A41` (PMI dimensions and unite). Coverage notes for the coincident, rigid and horizontal or
   vertical face relations, Boolean features with a plane and placing new PMI dimensions, which the API does not allow.
+- `se_face_split`: faces of the body split into more faces with the volume unchanged (for a draft, a colour or a
+  relation on part of a face). `split` by reference planes, faces of surfaces or curves lying on the faces; `parting`
+  along the silhouette seen along the normal of a plane (the equator of a sphere); `offset_edge`, a line at a distance
+  from an edge of the face. The answer lists the new pieces and their areas.
+- `se_surface copy` (faces as one construction surface), `trim` (the region of a surface that holds a point, bounded
+  by surfaces or curves that cross it), `extend` (from free edges by a distance: natural, linear or reflective),
+  `intersect` (surfaces that enclose a volume closed into one solid construction body) and `bluesurf` (through section
+  edges, optionally along guide edges). Each edit is checked by the area of the surface; `list` shows the new types.
+- `se_curve isocline` (where the face normal makes an angle with a plane, on either side) and `split` (a curve split
+  where reference planes or crossing curves meet it; its length is checked).
+- `se_part_feature redefine_faces`: adjacent faces of the body merged into one B-spline face (as on imported parts); the
+  answer gives the new face and warns when the fitted face changes the volume by more than 0.01 %.
+- Acceptance script `A42` (surface and curve edits, face splits, merged faces).
+
+### Changed
+
+- The COM layer refuses `SplitCurves.Add` and `AreCurvesValid` with anything but edges in the curves array
+  (`unsafe_member`): the curve feature there closes Solid Edge 2026 (RPC_E_SERVERFAULT). `se_curve split` splits each
+  crossed edge on its own.
 
 ## [0.2.0] - 2026-10-12
 

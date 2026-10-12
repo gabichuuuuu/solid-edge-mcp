@@ -33,7 +33,7 @@ public static partial class FeatureService
     // shaft or a hole; end faces or edges; HoleData from Add or AddEx with the ISO Metric table, regular, tapped or thread
     // type; reserved arguments missing, null or 0; arrays by value or by reference). Threads are made with se_hole 'tapped'
     // (cosmetic) or a helix cut with se_loft_sweep (physical).
-    public static readonly IReadOnlyList<string> PartFeatureActions = ["rib", "thicken", "mirror_body", "delete_faces", "delete_holes", "delete_rounds", "offset_faces", "replace_faces", "resize_holes", "resize_rounds", "normal_protrusion", "normal_cutout", "split", "unite", "slot", "web_network", "lip", "scale_body", "copy_part"];
+    public static readonly IReadOnlyList<string> PartFeatureActions = ["rib", "thicken", "mirror_body", "delete_faces", "delete_holes", "delete_rounds", "offset_faces", "replace_faces", "redefine_faces", "resize_holes", "resize_rounds", "normal_protrusion", "normal_cutout", "split", "unite", "slot", "web_network", "lip", "scale_body", "copy_part"];
 
     public static object PartFeature(SeContext context, string? documentHandle, PartFeatureSpec spec) => spec.Action switch
     {
@@ -45,6 +45,7 @@ public static partial class FeatureService
         "delete_rounds" => DeleteRounds(context, documentHandle, spec),
         "offset_faces" => OffsetFaces(context, documentHandle, spec),
         "replace_faces" => ReplaceFaces(context, documentHandle, spec),
+        "redefine_faces" => RedefineFaces(context, documentHandle, spec),
         "resize_holes" => ResizeHoles(context, documentHandle, spec),
         "resize_rounds" => ResizeRounds(context, documentHandle, spec),
         "normal_protrusion" => NormalToFace(context, documentHandle, spec, cut: false),

@@ -2,13 +2,15 @@ using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
+using Body = SolidEdgeGeometry.Body;
+using Edge = SolidEdgeGeometry.Edge;
 using Face = SolidEdgeGeometry.Face;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
 /// Direct edits of the solid in ordered modelling, as done on imported parts: delete faces (the gap heals), holes up to a
-/// diameter and rounds, offset and replace faces, and resize holes and rounds.
+/// diameter and rounds, offset, replace and redefine faces, and resize holes and rounds.
 /// </summary>
 public static partial class FeatureService
 {
@@ -100,6 +102,87 @@ public static partial class FeatureService
         object set = faces.Length == 1 ? faces[0] : FaceSet(target, faces);
         object feature = Create("replace faces", () => target.ReplaceFaces.Add(set, surface));
         return Verify(context, model, feature, before, 0, switched);
+    }
+
+    /// <summary>
+    /// Merges adjacent faces into one B-spline face, as done on imported parts to edit them as one. Verified (ordered):
+    /// Model.RedefineFaces.Add(n, faces, 0, [], [], igSurfaceByBoundarySingle, true) on the top of a 100 x 60 x 20 block and
+    /// the round of radius 5 along its edge (7 faces to 6, the volume 0.46 mm³ less) and with the front face too (5 faces);
+    /// the merge options minimal and multiple gave the same. Faces that do not touch give E_INVALIDARG, and one face alone is
+    /// left as it was.
+    /// </summary>
+    private static object RedefineFaces(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        if (spec.Faces is not { Length: > 1 })
+        {
+            throw ToolException.InvalidArgument("redefine_faces requires two or more adjacent faces in 'faces': they become one B-spline face.",
+                "Get them with se_geometry action 'faces'.");
+        }
+
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "redefine_faces", "the adjacent faces to merge");
+        HashSet<int>[] edgeIds = [.. faces.Select(f => Late.Items(Late.Get(f, "Edges")!).OfType<Edge>().Select(e => e.ID).ToHashSet())];
+        if (!Connected(edgeIds))
+        {
+            throw ToolException.InvalidArgument("The faces must touch one another along edges, as one patch.",
+                "Pass adjacent faces (se_geometry edges with source = a face lists its edges).");
+        }
+
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        Body body = Late.TryGet(target, "Body") as Body ?? throw new ToolException("no_body", "The part has no body to edit.");
+        HashSet<int> idsBefore = [.. BodyFaces(body).Select(f => f.ID)];
+        Array faceArray = faces;
+        Array edges = Array.Empty<object>();
+        Array tangency = Array.Empty<int>();
+        object feature = Create("redefine faces", () => target.RedefineFaces.Add(faces.Length, ref faceArray, 0, ref edges, ref tangency,
+            SurfaceByBoundaryPatchTopology.igSurfaceByBoundarySingle, true));
+        Face[] now = Late.TryGet(target, "Body") is Body after ? BodyFaces(after) : [];
+        if (now.Length >= idsBefore.Count)
+        {
+            TryDelete(feature);
+            context.ModelChanged(model.Document, "the model changed (redefine faces deleted)");
+            throw new ToolException("feature_failed", "Solid Edge did not merge the faces; the feature was deleted.",
+                "Pass faces that touch one another along edges, on the same body.");
+        }
+
+        (double volume, string? status) = Check(context, model, feature, before, 0, null, null, changedOtherwise: () => true,
+            hint: "Pass faces that touch one another along edges, on the same body.");
+        List<string>? warnings = Warnings(switched, status == "warning");
+        if (Math.Abs(volume - before) > before * 1e-4)
+        {
+            (warnings ??= []).Add($"The new face is a B-spline fitted to the edges around the faces, not a copy of them: the volume changed by {Geo.Mm3(volume - before)} mm³. Undo it (se_feature_edit delete) if the shape must stay.");
+        }
+
+        return new
+        {
+            feature = Describe(context, model, feature),
+            facesBefore = idsBefore.Count,
+            faces = now.Length,
+            merged = now.Where(f => !idsBefore.Contains(f.ID)).Select(f => new { handle = context.Register(f, "face", model.Document), area = Geo.Mm2(f.Area) }).ToArray(),
+            volume = Geo.Mm3(volume),
+            volumeChange = Geo.Mm3(volume - before),
+            warnings,
+        };
+    }
+
+    /// <summary>Whether faces, given by the IDs of their edges, form one patch: each reached from the first through shared edges.</summary>
+    private static bool Connected(HashSet<int>[] edgeIds)
+    {
+        var reached = new HashSet<int> { 0 };
+        var queue = new Queue<int>([0]);
+        while (queue.TryDequeue(out int i))
+        {
+            for (int j = 0; j < edgeIds.Length; j++)
+            {
+                if (!reached.Contains(j) && edgeIds[i].Overlaps(edgeIds[j]))
+                {
+                    reached.Add(j);
+                    queue.Enqueue(j);
+                }
+            }
+        }
+
+        return reached.Count == edgeIds.Length;
     }
 
     /// <summary>

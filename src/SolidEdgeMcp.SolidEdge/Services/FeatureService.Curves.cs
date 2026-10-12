@@ -20,7 +20,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class FeatureService
 {
-    private static readonly string[] CurveTypes = ["points", "intersection", "projected", "cross", "derived", "contour", "wrap"];
+    private static readonly string[] CurveTypes = ["points", "intersection", "projected", "cross", "derived", "contour", "isocline"];
 
     public static object Curves(SeContext context, string? documentHandle)
     {
@@ -526,7 +526,7 @@ public static partial class FeatureService
     {
         Constructions constructions = ConstructionsOf(model);
         object[] collections = [constructions.KeyPointCurves, constructions.IntersectionCurves, constructions.ProjectCurves,
-            constructions.CrossCurves, constructions.DerivedCurves, constructions.ContourCurves];
+            constructions.CrossCurves, constructions.DerivedCurves, constructions.ContourCurves, constructions.IsoclineCurves];
         // WrapSketchs.Count stays 0 after Add: the wrapped sketches are taken from the feature tree.
         IEnumerable<object> wraps = Late.Items(model.EdgebarFeatures).Where(f => f is WrapSketch);
         return collections.SelectMany((c, i) => Late.Items(c).Select(s => (s, CurveTypes[i]))).Concat(wraps.Select(w => (w, "wrap")));

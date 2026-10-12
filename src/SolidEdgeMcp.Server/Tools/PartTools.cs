@@ -65,6 +65,7 @@ public enum PartFeatureAction
     DeleteRounds,
     OffsetFaces,
     ReplaceFaces,
+    RedefineFaces,
     ResizeHoles,
     ResizeRounds,
     NormalProtrusion,
@@ -122,6 +123,8 @@ public enum CurveAction
     Derived,
     Contour,
     Wrap,
+    Isocline,
+    Split,
     Delete,
 }
 
@@ -135,7 +138,19 @@ public enum SurfaceAction
     Sweep,
     Stitch,
     Bounded,
+    Copy,
+    Trim,
+    Extend,
+    Intersect,
+    Bluesurf,
     Delete,
+}
+
+public enum SurfaceExtension
+{
+    Natural,
+    Linear,
+    Reflective,
 }
 
 /// <summary>Holes, patterns, shell, draft, lofts and other part features (ordered modelling), verified like the other operations.</summary>
@@ -257,9 +272,9 @@ public sealed class PartTools(ToolRunner runner)
         Other part features (ordered modelling). Lengths in mm.
         rib: sketch = an open chain (se_sketch close, open: true) across the part, grown in its plane to the part; thickness; side; depth |
         thicken: faces, thickness; side |
-        mirror_body: mirrored copy of the whole body about 'plane', keeping the original.
+        mirror_body: mirrored copy of the body about 'plane' (the original stays).
         split: a reference plane ('plane') cuts the body (or 'bodies') into design bodies | unite: joins 'bodies' into one (default: all). Other body operations: se_body.
-        Direct edits (also imported parts): delete_faces (the solid heals) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | offset_faces (distance along the normal: positive adds) | replace_faces (onto replaceWith: a plane, surface or face) | resize_holes (faces of holes get diameter) | resize_rounds (faces of rounds get radius).
+        Direct edits (also imported parts): delete_faces (the solid heals) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | offset_faces (distance along the normal: positive adds) | replace_faces (onto replaceWith: a plane, surface or face) | redefine_faces (adjacent faces merged into one B-spline face) | resize_holes (faces of holes get diameter) | resize_rounds (faces of rounds get radius).
         normal_protrusion | normal_cutout: 'edges' of closed curves on faces (se_curve project or wrap) raised or recessed by 'distance'; side auto = inside them, reverse = outside.
         slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends (path extended by half the width) or squareEnds; through, or depth; optional counterbore |
         web_network: sketch = open lines on a plane across a shelled part; thickness; each line a wall grown to the next face, or depth |
@@ -268,11 +283,11 @@ public sealed class PartTools(ToolRunner runner)
         copy_part: path = a saved .par/.psm copied into this part (base body of an empty part, or united with the body); optional scale and mirror plane.
         Threads: se_hole tapped (cosmetic) or a helix cut with se_loft_sweep.
         {{VerifiedNote}}
-        Example: {"action":"rib","sketch":"sketch:6","thickness":6}; {"action":"slot","sketch":"sketch:8","width":10}; {"action":"scale_body","scale":[2]}.
+        Example: {"action":"rib","sketch":"sketch:6","thickness":6}; {"action":"scale_body","scale":[2]}.
         """)]
     public Task<CallToolResult> PartFeature(
         PartFeatureAction action,
-        [Description("thicken, delete_faces, delete_rounds, offset_faces, replace_faces, resize_holes, resize_rounds: face handles; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
+        [Description("thicken, delete_faces, delete_rounds, offset_faces, replace_faces, redefine_faces (two or more that touch), resize_holes, resize_rounds: face handles; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
         [Description("rib, slot, web_network: open sketch handle.")] string? sketch = null,
         [Description("rib, thicken, web_network: thickness in mm.")] double? thickness = null,
         [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse; normal_protrusion, normal_cutout: auto = inside the curves | reverse = outside.")] PartFeatureSide side = PartFeatureSide.Auto,
@@ -364,7 +379,9 @@ public sealed class PartTools(ToolRunner runner)
         project (a 'sketch' projected onto 'onto' = a face, surface or feature handle, or 'body', along the sketch normal (direction normal) or against it (reverse)) |
         cross (two 'sketches' on planes that are not parallel: where their extrusions meet) | derived (one curve from a chain of 'edges') |
         contour (a curve on one face, 'faces': [face], through 'points' that lie on it; closed: true returns to the first point) |
-        wrap (a 'sketch' drawn on a plane tangent to cylindrical or conical 'faces', wrapped onto them; its length equals the sketch's) | delete ('name').
+        wrap (a 'sketch' drawn on a plane tangent to cylindrical or conical 'faces', wrapped onto them; its length equals the sketch's) |
+        isocline (on 'faces', where the face normal makes 'angle' degrees with 'plane'; 0 = the silhouette; direction normal: where the normal tilts towards the side the plane normal points to, reverse: the other side) |
+        split ('curve' split where 'tools' cross it: reference planes or curves; its length stays, it gets more edges) | delete ('name').
         Each curve is checked by its status and edges (points: it ends at the first and last points; contour: it passes through every point; derived: its length equals the edges') and deleted if it fails.
         Example: {"action":"points","points":[0,0,30,50,30,50,100,60,30]}; {"action":"intersection","first":"surface:5","second":"body"}.
         """)]
@@ -379,7 +396,11 @@ public sealed class PartTools(ToolRunner runner)
         FeatureDirection direction = FeatureDirection.Normal,
         [Description("cross: two sketch handles on planes that are not parallel.")] string[]? sketches = null,
         [Description("derived: edge handles forming a chain (se_geometry edges).")] string[]? edges = null,
-        [Description("contour: the one face the curve is drawn on; wrap: cylindrical or conical faces (se_geometry faces).")] string[]? faces = null,
+        [Description("contour: the one face the curve is drawn on; wrap: cylindrical or conical faces; isocline: the faces (se_geometry faces).")] string[]? faces = null,
+        [Description("isocline: '1'-'3', 'xy', 'yz', 'xz' or a reference plane handle.")] string? plane = null,
+        [Description("isocline: degrees between the face normal and the plane, from 0 to less than 90.")] double? angle = null,
+        [Description("split: the curve handle (action 'list').")] string? curve = null,
+        [Description("split: reference planes ('1'-'3', 'xy', 'yz', 'xz' or handles) or curves that cross the curve.")] string[]? tools = null,
         [Description("delete: curve name (action 'list').")] string? name = null,
         [Description("Document handle; default: the document of the handles given, or the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
@@ -396,6 +417,8 @@ public sealed class PartTools(ToolRunner runner)
             CurveAction.Derived => runner.RunAsync(tool, act, c => FeatureService.DerivedCurve(c, document, edges), cancellationToken),
             CurveAction.Contour => runner.RunAsync(tool, act, c => FeatureService.ContourCurve(c, document, faces, points, closed), cancellationToken),
             CurveAction.Wrap => runner.RunAsync(tool, act, c => FeatureService.WrapCurve(c, document, sketch, faces), cancellationToken),
+            CurveAction.Isocline => runner.RunAsync(tool, act, c => FeatureService.IsoclineCurve(c, document, faces, plane, angle, Snake(direction)), cancellationToken),
+            CurveAction.Split => runner.RunAsync(tool, act, c => FeatureService.SplitCurve(c, document, curve, tools), cancellationToken),
             CurveAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteCurve(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
@@ -410,8 +433,13 @@ public sealed class PartTools(ToolRunner runner)
         loft ('sketches' = two or more sections in order, open or closed; optional 'origins' [x1,y1,...] = the point of each section that is joined; endCaps) |
         sweep ('sketches' = sections, 'path' = a sketch (se_sketch 'close', open: true for an open chain) or a curve from se_curve; endCaps) |
         stitch ('surfaces' = two or more surface handles that meet along edges: one surface, its area checked) |
-        bounded ('edges' = a closed chain of edge handles of the body, a surface or a curve: the surface that fills it) | delete ('name').
-        Each surface is checked by its status and its faces, and deleted if Solid Edge does not make it.
+        bounded ('edges' = a closed chain of edge handles of the body, a surface or a curve: the surface that fills it) |
+        copy ('faces' of the body or of surfaces, as one surface) |
+        trim ('surfaces' = one surface; 'tools' = surfaces, faces of surfaces, curves or edges that cross it, not planes; 'point' [x,y,z] mm on the region to remove) |
+        extend ('edges' = free edges of one surface; 'distance' mm; extension natural | linear | reflective) |
+        intersect ('surfaces' that together enclose a volume, e.g. a tube and two caps: one solid construction body, the pieces outside trimmed away) |
+        bluesurf ('edges' = one edge per section, in order, e.g. of curves; optional 'guides' = edges; endCaps) | delete ('name').
+        Each surface is checked by its status and its faces (copy: the same area; trim: less; extend: more), and deleted if Solid Edge does not make it.
         Example: {"action":"extrude","sketch":"sketch:5","depth":20}; {"action":"offset","faces":["face:12"],"distance":5}.
         """)]
     public Task<CallToolResult> Surface(
@@ -421,15 +449,19 @@ public sealed class PartTools(ToolRunner runner)
         [Description("revolve: axis handle from se_sketch 'axis'.")] string? axis = null,
         [Description("revolve: angle in degrees (default 360).")] double angle = 360,
         FeatureDirection direction = FeatureDirection.Normal,
-        [Description("extrude, revolve, loft, sweep: close the ends of closed profiles.")] bool endCaps = false,
-        [Description("offset: one face handle.")] string[]? faces = null,
-        [Description("offset: distance in mm along the face normal (negative = into the material).")] double? distance = null,
+        [Description("extrude, revolve, loft, sweep, bluesurf: close the ends of closed profiles.")] bool endCaps = false,
+        [Description("offset: one face handle; copy: face handles.")] string[]? faces = null,
+        [Description("offset: distance in mm along the face normal (negative = into the material); extend: distance in mm.")] double? distance = null,
         [Description("loft, sweep: section sketch handles, in order.")] string[]? sketches = null,
         [Description("sweep: path = sketch handle or curve handle (se_curve).")] string? path = null,
         [Description("loft, sweep: point [x, y] (sketch mm) of each section that is joined, [x1,y1,x2,y2,...]; default: the start of each section's first element.")] double[]? origins = null,
-        [Description("stitch: surface handles (action 'list').")] string[]? surfaces = null,
-        [Description("stitch: gap tolerance in mm (default: Solid Edge's).")] double? tolerance = null,
-        [Description("bounded: edge handles of a closed chain (se_geometry edges).")] string[]? edges = null,
+        [Description("stitch, intersect: surface handles (action 'list'); trim: the one surface to trim.")] string[]? surfaces = null,
+        [Description("stitch: gap tolerance in mm (default: Solid Edge's); intersect: tolerance in mm (default 0.01).")] double? tolerance = null,
+        [Description("bounded: edge handles of a closed chain; extend: free edges of one surface; bluesurf: one edge per section, in order (se_geometry edges).")] string[]? edges = null,
+        [Description("trim: surfaces, faces of surfaces, curves or edges that cross the surface.")] string[]? tools = null,
+        [Description("trim: [x, y, z] in mm, a point on the region of the surface to remove.")] double[]? point = null,
+        [Description("extend: natural (default) | linear | reflective.")] SurfaceExtension extension = SurfaceExtension.Natural,
+        [Description("bluesurf: guide edge handles.")] string[]? guides = null,
         [Description("delete: surface name (action 'list').")] string? name = null,
         [Description("Document handle; default: the document of the sketch or face, or the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
@@ -446,6 +478,11 @@ public sealed class PartTools(ToolRunner runner)
             SurfaceAction.Sweep => runner.RunAsync(tool, act, c => FeatureService.SweepSurface(c, document, sketches, path, origins, endCaps), cancellationToken),
             SurfaceAction.Stitch => runner.RunAsync(tool, act, c => FeatureService.StitchSurface(c, document, surfaces, tolerance), cancellationToken),
             SurfaceAction.Bounded => runner.RunAsync(tool, act, c => FeatureService.BoundedSurface(c, document, edges), cancellationToken),
+            SurfaceAction.Copy => runner.RunAsync(tool, act, c => FeatureService.CopySurface(c, document, faces), cancellationToken),
+            SurfaceAction.Trim => runner.RunAsync(tool, act, c => FeatureService.TrimSurface(c, document, surfaces, tools, point), cancellationToken),
+            SurfaceAction.Extend => runner.RunAsync(tool, act, c => FeatureService.ExtendSurface(c, document, edges, distance, Snake(extension)), cancellationToken),
+            SurfaceAction.Intersect => runner.RunAsync(tool, act, c => FeatureService.IntersectSurfaces(c, document, surfaces, tolerance), cancellationToken),
+            SurfaceAction.Bluesurf => runner.RunAsync(tool, act, c => FeatureService.BlueSurf(c, document, edges, guides, endCaps), cancellationToken),
             SurfaceAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteSurface(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

@@ -85,6 +85,7 @@ public static class GenericCom
                 // Some "Item" or "GetX" members are read as methods.
                 RefuseUnsafe(type, method.Name);
                 indexArgs = BindArguments(context, method.Name, method.GetParameters(), index);
+                RefuseUnsafeArguments(type, method.Name, indexArgs);
                 CheckIndex(value, type, method.Name, indexArgs);
                 result = CallMethod(value, method, indexArgs);
                 break;
@@ -152,6 +153,22 @@ public static class GenericCom
     }
 
     /// <summary>
+    /// Arguments verified to bring Solid Edge 2026 down: SplitCurves.Add and AreCurvesValid with a curve feature in the curves
+    /// array (instead of its edges) fail with RPC_E_SERVERFAULT.
+    /// </summary>
+    private static void RefuseUnsafeArguments(Type? type, string member, object?[] args)
+    {
+        if (type?.Name == "SplitCurves"
+            && (member.Equals("Add", StringComparison.OrdinalIgnoreCase) || member.Equals("AreCurvesValid", StringComparison.OrdinalIgnoreCase))
+            && args.Length > 1 && args[1] is Array curves && curves.Cast<object?>().Any(c => c is not SolidEdgeGeometry.Edge))
+        {
+            throw new ToolException("unsafe_member",
+                $"SplitCurves.{member} with anything but edges in the curves array brings Solid Edge 2026 down (RPC_E_SERVERFAULT), so it is not called.",
+                "Pass the edges of the curve (se_geometry edges with source = the curve), or use se_curve split.");
+        }
+    }
+
+    /// <summary>
     /// Checks a numeric Item/ItemEx index against the collection's Count. Verified in Solid Edge 2026: ModelMembers.Item
     /// beyond Count fails with RPC_E_SERVERFAULT, which leaves Solid Edge unstable.
     /// </summary>
@@ -196,6 +213,7 @@ public static class GenericCom
             case MethodInfo methodInfo:
                 ParameterInfo[] parameters = methodInfo.GetParameters();
                 object?[] args = BindArguments(context, methodInfo.Name, parameters, arguments);
+                RefuseUnsafeArguments(type, methodInfo.Name, args);
                 CheckIndex(obj, type, methodInfo.Name, args);
                 object? result = CallMethod(obj, methodInfo, args);
                 var outputs = new Dictionary<string, object?>();

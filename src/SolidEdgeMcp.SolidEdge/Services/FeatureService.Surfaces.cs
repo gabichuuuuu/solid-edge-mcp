@@ -18,7 +18,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class FeatureService
 {
-    private static readonly string[] SurfaceTypes = ["extruded", "revolved", "offset", "lofted", "swept", "stitched", "bounded"];
+    private static readonly string[] SurfaceTypes = ["extruded", "revolved", "offset", "lofted", "swept", "stitched", "bounded", "copy", "bluesurf"];
 
     public static object Surfaces(SeContext context, string? documentHandle)
     {
@@ -353,8 +353,20 @@ public static partial class FeatureService
     {
         Constructions constructions = ConstructionsOf(model);
         object[] collections = [constructions.ExtrudedSurfaces, constructions.RevolvedSurfaces, constructions.OffsetSurfaces,
-            constructions.LoftedSurfaces, constructions.SweptSurfaces, constructions.StitchSurfaces, constructions.SurfaceByBoundaries];
-        return collections.SelectMany((c, i) => Late.Items(c).Select(s => (s, SurfaceTypes[i])));
+            constructions.LoftedSurfaces, constructions.SweptSurfaces, constructions.StitchSurfaces, constructions.SurfaceByBoundaries,
+            constructions.CopySurfaces, constructions.BlueSurfs];
+        // Surfaces closed into a solid belong to the construction model they were made on, and each model lists them all.
+        var intersections = new List<object>();
+        foreach (object item in Late.Items(constructions).SelectMany(c => Late.TryGet(c, "IntersectSurfaces") is { } items ? Late.Items(items) : []))
+        {
+            if (!intersections.Any(known => Late.SameObject(known, item)))
+            {
+                intersections.Add(item);
+            }
+        }
+
+        return collections.SelectMany((c, i) => Late.Items(c).Select(s => (s, SurfaceTypes[i])))
+            .Concat(intersections.Select(s => (s, "intersect")));
     }
 
     private static object? FindSurface(ModelDocument model, string name) =>
