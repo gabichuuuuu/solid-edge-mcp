@@ -165,6 +165,9 @@ Relevant changes to this project are recorded here. The format follows
 - `se_relations` undoes a relation and puts the occurrences back also when Solid Edge rejects the call with an error
   that .NET raises as another exception (E_INVALIDARG, E_NOINTERFACE); `list` no longer fails on a suppressed
   center-plane, coordinate system or gear relation.
+- `se_sketch_edit offset` finds the chain of lines, arcs and circles from their ends instead of with `ChainLocate`,
+  which picks with a tolerance in pixels and offset one wrong element while the Solid Edge window was minimized; a
+  Solid Edge that the server starts is no longer left minimized.
 - `se_options set` with `null` on a text option no longer writes the text "null".
 - The generic layer describes the drawing views and blocks of a drawing with the draft interfaces, not with the part
   library's interfaces that share their IIDs.

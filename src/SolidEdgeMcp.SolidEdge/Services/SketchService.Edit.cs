@@ -152,8 +152,10 @@ public static partial class SketchService
 
     /// <summary>
     /// Offset copy of the chain of connected elements through <paramref name="at"/>, on the side of <paramref name="side"/>, as the
-    /// Offset command does. Verified: ChainLocate puts the chain in the selection, Offset2d copies it with its relations and a
-    /// driving dimension for the distance, and the chain stays selected.
+    /// Offset command does. Verified: Offset2d copies the selected chain with its relations and a driving dimension for the
+    /// distance, and the chain stays selected. The chain of lines, arcs and circles is found from their ends; ChainLocate,
+    /// which picks with a tolerance in pixels and picked a wrong single element with the Solid Edge window minimized
+    /// (verified), is only used for other curves.
     /// </summary>
     public static object Offset(SeContext context, string sketch, double[]? at, double[]? side, double? distance)
     {
@@ -167,7 +169,18 @@ public static partial class SketchService
         Late.Call(selection, "RemoveAll");
         try
         {
-            Late.Call(owner, "ChainLocate", x, y);
+            if (ChainAt(canvas, x, y) is { } found)
+            {
+                foreach (object element in found)
+                {
+                    Late.Call(selection, "Add", element);
+                }
+            }
+            else
+            {
+                Late.Call(owner, "ChainLocate", x, y);
+            }
+
             int chain = Late.Count(selection);
             if (chain == 0)
             {
@@ -189,6 +202,94 @@ public static partial class SketchService
         finally
         {
             Late.Call(selection, "RemoveAll");
+        }
+    }
+
+    /// <summary>
+    /// Lines, arcs and circles connected end to end with the one through (<paramref name="x"/>, <paramref name="y"/>) (m), or
+    /// null when the point is on no line, arc or circle (then ChainLocate is used).
+    /// </summary>
+    private static List<object>? ChainAt(Canvas2d canvas, double x, double y)
+    {
+        const double onTolerance = 1e-4, endTolerance = 1e-9;
+        var open = new List<(object Element, (double X, double Y) A, (double X, double Y) B)>();
+        object? hit = null;
+        double best = onTolerance;
+        bool closed = false;
+        foreach (Line2d line in Late.Items(canvas.Lines2d).OfType<Line2d>())
+        {
+            line.GetStartPoint(out double x1, out double y1);
+            line.GetEndPoint(out double x2, out double y2);
+            open.Add((line, (x1, y1), (x2, y2)));
+            double dx = x2 - x1, dy = y2 - y1, lengthSquared = (dx * dx) + (dy * dy);
+            double t = lengthSquared < 1e-18 ? 0 : Math.Clamp((((x - x1) * dx) + ((y - y1) * dy)) / lengthSquared, 0, 1);
+            Take(line, Math.Sqrt(Math.Pow(x - (x1 + (t * dx)), 2) + Math.Pow(y - (y1 + (t * dy)), 2)), false);
+        }
+
+        foreach (Arc2d arc in Late.Items(canvas.Arcs2d).OfType<Arc2d>())
+        {
+            arc.GetCenterPoint(out double cx, out double cy);
+            arc.GetStartPoint(out double x1, out double y1);
+            arc.GetEndPoint(out double x2, out double y2);
+            open.Add((arc, (x1, y1), (x2, y2)));
+            double angle = Math.Atan2(y - cy, x - cx), from = arc.StartAngle, sweep = arc.SweepAngle;
+            double relative = ((((sweep >= 0 ? angle - from : from - angle) % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI));
+            double onCurve = Math.Abs(Math.Sqrt(Math.Pow(x - cx, 2) + Math.Pow(y - cy, 2)) - arc.Radius);
+            Take(arc, relative <= Math.Abs(sweep) + 1e-9 ? onCurve : double.MaxValue, false);
+        }
+
+        foreach (Circle2d circle in Late.Items(canvas.Circles2d).OfType<Circle2d>())
+        {
+            circle.GetCenterPoint(out double cx, out double cy);
+            Take(circle, Math.Abs(Math.Sqrt(Math.Pow(x - cx, 2) + Math.Pow(y - cy, 2)) - circle.Radius), true);
+        }
+
+        if (hit is null)
+        {
+            return null;
+        }
+
+        if (closed)
+        {
+            return [hit];
+        }
+
+        // Breadth-first over the elements that share an end with the chain.
+        var chain = new List<object> { hit };
+        var ends = new List<(double X, double Y)>();
+        (object _, (double X, double Y) a0, (double X, double Y) b0) = open.First(o => ReferenceEquals(o.Element, hit));
+        ends.Add(a0);
+        ends.Add(b0);
+        bool grew = true;
+        while (grew)
+        {
+            grew = false;
+            foreach ((object element, (double X, double Y) a, (double X, double Y) b) in open)
+            {
+                if (chain.Any(c => ReferenceEquals(c, element)))
+                {
+                    continue;
+                }
+
+                bool Touches((double X, double Y) p) => ends.Any(e => Math.Abs(e.X - p.X) <= endTolerance && Math.Abs(e.Y - p.Y) <= endTolerance);
+                if (Touches(a) || Touches(b))
+                {
+                    chain.Add(element);
+                    ends.Add(a);
+                    ends.Add(b);
+                    grew = true;
+                }
+            }
+        }
+
+        return chain;
+
+        void Take(object element, double distance, bool isClosed)
+        {
+            if (distance < best)
+            {
+                (hit, best, closed) = (element, distance, isClosed);
+            }
         }
     }
 

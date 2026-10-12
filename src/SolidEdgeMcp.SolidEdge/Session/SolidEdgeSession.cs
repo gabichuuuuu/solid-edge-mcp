@@ -276,8 +276,13 @@ public sealed class SolidEdgeSession : IDisposable
         if (started)
         {
             // Started through COM, Solid Edge starts hidden: visible, so the person can see and control it,
-            // and it stays open when the server releases it.
+            // and it stays open when the server releases it. It may also come up minimized (seen after a restart), and then
+            // what is picked with a tolerance in pixels (ChainLocate) picks the wrong element: the window is restored.
             _application.Visible = true;
+            if (Late.TryGet(_application, "WindowState") is { } state && Convert.ToInt32(state, System.Globalization.CultureInfo.InvariantCulture) == 1)
+            {
+                Late.Set(_application, "WindowState", 0);
+            }
         }
 
         _log.Info($"Connected to Solid Edge {_application.Version} (pid {_application.ProcessID}).");
