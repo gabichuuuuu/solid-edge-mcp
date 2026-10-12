@@ -98,7 +98,51 @@ public static class ArgumentValidator
                     return $"'{name}[{index}]' must be {string.Join(" or ", itemTypes.Where(t => t != "null"))}; got {Describe(item)}.";
                 }
 
+                if (item.ValueKind == JsonValueKind.Object && CheckObject($"{name}[{index}]", items, item) is { } problem)
+                {
+                    return problem;
+                }
+
                 index++;
+            }
+        }
+
+        return value.ValueKind == JsonValueKind.Object ? CheckObject(name, property, value) : null;
+    }
+
+    /// <summary>Fields of an object argument (e.g. an item of a list of criteria) against their schema.</summary>
+    private static string? CheckObject(string name, JsonElement schema, JsonElement value)
+    {
+        if (!schema.TryGetProperty("properties", out JsonElement properties) || properties.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        // The arguments are bound ignoring the case of the field names.
+        JsonProperty[] fields = properties.EnumerateObject().ToArray();
+        if (schema.TryGetProperty("required", out JsonElement required))
+        {
+            foreach (JsonElement item in required.EnumerateArray())
+            {
+                string field = item.GetString()!;
+                if (!value.EnumerateObject().Any(p => string.Equals(p.Name, field, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return $"'{name}' requires '{field}'.";
+                }
+            }
+        }
+
+        foreach (JsonProperty field in value.EnumerateObject())
+        {
+            JsonProperty match = fields.FirstOrDefault(p => string.Equals(p.Name, field.Name, StringComparison.OrdinalIgnoreCase));
+            if (match.Value.ValueKind == JsonValueKind.Undefined)
+            {
+                return $"'{name}' has no field '{field.Name}'. Valid fields: {string.Join(", ", fields.Select(p => p.Name))}.";
+            }
+
+            if (Check($"{name}.{match.Name}", match.Value, field.Value) is { } problem)
+            {
+                return problem;
             }
         }
 

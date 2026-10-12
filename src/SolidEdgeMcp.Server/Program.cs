@@ -98,6 +98,7 @@ public static class Program
         typeof(PartTools),
         typeof(SheetMetalTools),
         typeof(AssemblyTools),
+        typeof(ComponentTools),
         typeof(LinkTools),
         typeof(FrameTools),
         typeof(DrawingTools),

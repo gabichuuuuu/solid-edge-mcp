@@ -97,6 +97,17 @@ Relevant changes to this project are recorded here. The format follows
   planes), `rename` and `delete`, which refuses the base planes and the base coordinate system and a plane that
   planes, sketches, features or assembly relations are built on.
 - Acceptance script `A30` (reference planes and coordinate systems in a part and an assembly).
+- `se_component_group`: component groups of an assembly (the groups of PathFinder): `list`, `create`, `add`, `remove`,
+  `rename`, `show`, `hide`, `ungroup`, `pack` (every ungrouped occurrence of a file) and `unpack`, and `delete`, which
+  deletes the components too, as Solid Edge does, and needs `withComponents`. A component already in a group is
+  refused (Solid Edge would leave an empty group or nest the groups).
+- `se_component_query`: finds components as the Select Tools do: `find` by occurrence name or by the properties and
+  material of their files (all criteria at once), among all, shown, hidden or selected components and inside
+  subassemblies; `zone` inside a box, with or without the components partly inside; the matches are selected and
+  listed (parts inside subassemblies with their path) and `display` shows them alone (a matched subassembly whole),
+  hides or shows them, lists what changed and undoes it if Solid Edge refuses a component. Queries and zones can be
+  saved in the assembly, `run`, `list`ed, renamed and deleted.
+- Acceptance script `A31` (component groups, queries and zones).
 
 ### Changed
 
@@ -110,6 +121,9 @@ Relevant changes to this project are recorded here. The format follows
 - `se_com_get` and `se_com_invoke` check a numeric `Item`/`ItemEx` index against the collection's `Count` and refuse
   one out of range with `index_out_of_range` (`ModelMembers.Item` beyond the end crashes Solid Edge 2026 with
   `RPC_E_SERVERFAULT`).
+- The arguments are also checked inside the objects of a list (the criteria of `se_component_query`): an unknown field,
+  a missing one or a value out of its enumeration is named with its position (`'criteria[0].property' must be one
+  of: …`).
 
 ### Fixed
 

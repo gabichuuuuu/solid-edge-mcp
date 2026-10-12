@@ -67,7 +67,21 @@ public sealed class ToolRegistrationTests
         Assert.Contains("\"drawn_cutout\"", schemas["se_sheetmetal_form"], StringComparison.Ordinal);
         Assert.Contains("\"helix\"", schemas["se_loft_sweep"], StringComparison.Ordinal);
         Assert.Contains("\"perpendicular\"", schemas["se_sketch_constraint"], StringComparison.Ordinal);
+        Assert.Contains("\"document_number\"", schemas["se_component_query"], StringComparison.Ordinal);
+        Assert.Contains("\"is_not\"", schemas["se_component_query"], StringComparison.Ordinal);
         Assert.DoesNotContain("\"SaveAs\"", schemas["se_documents"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Query_criteria_bind_with_their_defaults()
+    {
+        ComponentCriterionArgument[] criteria = JsonSerializer.Deserialize<ComponentCriterionArgument[]>(
+            """[{"property":"document_number","value":"A-1"},{"property":"custom","custom":"Supplier","condition":"is_not","value":"ACME"}]""",
+            Program.ToolJson)!;
+
+        Assert.Equal(new ComponentCriterionArgument(ComponentProperty.DocumentNumber, "A-1"), criteria[0]);
+        Assert.Equal(new ComponentCriterionArgument(ComponentProperty.Custom, "ACME", ComponentCondition.IsNot, "Supplier"), criteria[1]);
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ComponentCriterionArgument>("""{"value":"A"}""", Program.ToolJson));
     }
 
     [Theory]
@@ -132,6 +146,13 @@ public sealed class ToolRegistrationTests
     [InlineData("se_drawing", """{"action":"replace_background","path":"C:\\x\\a.dft","replaceBlocks":"yes"}""", "'replaceBlocks'")]
     [InlineData("se_publish", """{"action":"pdf","source":"C:\\x\\a.par"}""", "'action' must be one of:")]
     [InlineData("se_publish", """{"action":"pdf3d","source":"C:\\x\\a.par","attachStep":"yes"}""", "'attachStep'")]
+    [InlineData("se_component_group", """{"action":"dissolve","group":"Fasteners"}""", "'action' must be one of:")]
+    [InlineData("se_component_query", """{"action":"find","criteria":[{"property":"colour","value":"red"}]}""", "'criteria[0].property' must be one of:")]
+    [InlineData("se_component_query", """{"action":"find","criteria":[{"property":"name","value":"bolt","condition":"equals"}]}""", "'criteria[0].condition' must be one of:")]
+    [InlineData("se_component_query", """{"action":"find","criteria":[{"property":"material"}]}""", "'criteria[0]' requires 'value'")]
+    [InlineData("se_component_query", """{"action":"find","criteria":[{"property":"name","value":"bolt","op":"is"}]}""", "has no field 'op'")]
+    [InlineData("se_component_query", """{"action":"find","criteria":{"property":"name","value":"bolt"}}""", "'criteria' must be array")]
+    [InlineData("se_component_query", """{"action":"zone","box":[0,0,0,10,10,10],"display":"isolate"}""", "'display' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -319,6 +340,12 @@ public sealed class ToolRegistrationTests
     [InlineData("se_view", """{"action":"set_camera","eye":[0,0,500],"target":[0,0,0],"up":[0,1,0],"perspective":true,"angle":30,"fit":false}""")]
     [InlineData("se_view", """{"action":"rotate","angle":-30,"axis":[1,0,0]}""")]
     [InlineData("se_view", """{"action":"capture","samples":true,"width":320,"height":240}""")]
+    [InlineData("se_component_group", """{"action":"create","occurrences":["occurrence:2","occurrence:3"],"name":"Fasteners"}""")]
+    [InlineData("se_component_group", """{"action":"delete","group":"Fasteners","withComponents":true}""")]
+    [InlineData("se_component_group", """{"action":"pack","occurrence":"occurrence:4"}""")]
+    [InlineData("se_component_query", """{"action":"find","criteria":[{"property":"custom","custom":"Supplier","condition":"is_not","value":"ACME"},{"Property":"document_number","Value":"A-1"}],"scope":"shown","subassemblies":false,"display":"show_only"}""")]
+    [InlineData("se_component_query", """{"action":"zone","box":[0,-50,0,200,50,100],"overlap":true,"name":"Front"}""")]
+    [InlineData("se_component_query", """{"action":"rename","name":"Front","newName":"Front zone"}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();
