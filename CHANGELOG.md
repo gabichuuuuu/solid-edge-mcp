@@ -83,6 +83,13 @@ Relevant changes to this project are recorded here. The format follows
   and `delete` (Solid Edge deletes the profile and the unused reference planes too, without undo: the result lists
   those planes).
 - Acceptance scripts `A27` (background sheets) and `A28` (3D section views, checked by the colours of a capture).
+- `se_publish`: 3D PDF documents of saved parts, sheet metal and assemblies with the 3D PDF templates of the
+  installation (`templates` lists them; `pdf3d` takes a file or a folder, optionally with its subfolders, a template by
+  name or path, the output folder and name, STEP AP242 and JT files to embed and an HTML page). Each PDF is checked for
+  its pages, its 3D view and its embedded files. Solid Edge publishes only while no document is open, and within one
+  session it carries the pages of earlier single-file publishes over: the server publishes each file through a folder
+  of its own and never lets Solid Edge meet an existing file.
+- Acceptance script `A29` (3D PDF publishing).
 
 ### Changed
 

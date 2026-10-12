@@ -106,6 +106,7 @@ public static class Program
         typeof(AppearanceTools),
         typeof(LayerTools),
         typeof(AppTools),
+        typeof(PublishTools),
         typeof(SettingsTools),
         typeof(ProgramTools),
         typeof(StyleTools),

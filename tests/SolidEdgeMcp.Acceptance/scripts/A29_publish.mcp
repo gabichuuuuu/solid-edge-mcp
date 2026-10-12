@@ -1,0 +1,71 @@
+# A29: 3D PDF publishing (se_publish) with the installed templates: a part with STEP and JT files embedded, the same part
+# published again (Solid Edge alone would carry the pages of the first publish over: 4 pages), an assembly with its default
+# template, a folder with and without its subfolders, the HTML page, and refused cases (existing file, unknown template,
+# a drawing, a folder with a name, two files that would write the same PDF, open documents). Solid Edge publishes only
+# while no document is open, so the models are made and closed first. Every file goes to the folder a29 of the work folder.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,40,20]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":10}
+se_documents {"action":"save_copy_as","path":"{{work}}\\a29\\clash\\a29_plate.par","overwrite":true}
+se_documents {"action":"save_copy_as","path":"{{work}}\\a29\\clash\\sub\\a29_plate.par","overwrite":true}
+se_documents {"action":"save_as","path":"{{work}}\\a29\\src\\a29_plate.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@q = se_documents {"action":"new","kind":"part"}
+@kq = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kq.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{kq.sketch}}"}
+se_extrude {"sketch":"{{kq.sketch}}","distance":30}
+se_documents {"action":"save_as","path":"{{work}}\\a29\\src\\sub\\a29_pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+@as = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a29\\src\\a29_plate.par"}
+se_assembly {"action":"insert","path":"{{work}}\\a29\\src\\sub\\a29_pin.par"}
+se_documents {"action":"save_as","path":"{{work}}\\a29\\a29_asm.asm","overwrite":true}
+se_documents {"action":"close","document":"{{as.handle}}","saveChanges":false}
+@dr = se_documents {"action":"new","kind":"draft"}
+se_documents {"action":"save_as","path":"{{work}}\\a29\\a29_sheet.dft","overwrite":true}
+se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}
+# The 3D PDF templates of this installation
+@t = se_publish {"action":"templates"}
+?~ t.templates[0].path .dft
+# A part with STEP and JT embedded: two pages (the template's), a 3D view and both files
+@a = se_publish {"action":"pdf3d","source":"{{work}}\\a29\\src\\a29_plate.par","folder":"{{work}}\\a29\\out","name":"plate","attachStep":true,"attachJt":true,"overwrite":true}
+?= a.count 1
+?= a.files[0].pages 2
+?= a.files[0].has3D true
+?= a.files[0].attachments[0] a29_plate.jt
+?= a.files[0].attachments[1] a29_plate.step
+?~ a.files[0].path plate.pdf
+! [file_exists] se_publish {"action":"pdf3d","source":"{{work}}\\a29\\src\\a29_plate.par","folder":"{{work}}\\a29\\out","name":"plate"}
+# Again, with the HTML page: still two pages, and no attachments this time
+@b = se_publish {"action":"pdf3d","source":"{{work}}\\a29\\src\\a29_plate.par","folder":"{{work}}\\a29\\out","name":"plate.pdf","html":true,"overwrite":true}
+?= b.files[0].pages 2
+?~ b.files[0].html plate.html
+# An assembly gets the assembly template by default
+@c = se_publish {"action":"pdf3d","source":"{{work}}\\a29\\a29_asm.asm","folder":"{{work}}\\a29\\out","overwrite":true}
+?~ c.template Assembly
+?= c.files[0].pages 2
+?= c.files[0].has3D true
+?~ c.files[0].path a29_asm.pdf
+# A folder: its own models, then with its subfolders (all PDFs in one folder), with a template named in other letter case
+@f0 = se_publish {"action":"pdf3d","source":"{{work}}\\a29\\src","folder":"{{work}}\\a29\\set","overwrite":true}
+?= f0.count 1
+?= f0.files[0].source a29_plate.par
+@f = se_publish {"action":"pdf3d","source":"{{work}}\\a29\\src","folder":"{{work}}\\a29\\set","subfolders":true,"template":"part_portrait","overwrite":true}
+?= f.count 2
+?~ f.template Part_Portrait
+?= f.files[0].source a29_plate.par
+?= f.files[1].source a29_pin.par
+?= f.files[1].pages 2
+# Refused
+! [name_conflict] se_publish {"action":"pdf3d","source":"{{work}}\\a29\\clash","subfolders":true,"folder":"{{work}}\\a29\\set","overwrite":true}
+! [not_found] se_publish {"action":"pdf3d","source":"{{work}}\\a29\\src\\a29_plate.par","template":"Part_Landscap","folder":"{{work}}\\a29\\out","overwrite":true}
+! [invalid_argument] se_publish {"action":"pdf3d","source":"{{work}}\\a29\\a29_sheet.dft","folder":"{{work}}\\a29\\out"}
+! [invalid_argument] se_publish {"action":"pdf3d","source":"{{work}}\\a29\\src","name":"all","folder":"{{work}}\\a29\\out"}
+! [not_found] se_publish {"action":"pdf3d","source":"{{work}}\\a29\\none.par"}
+! [invalid_argument] se_publish {"action":"pdf3d"}
+@o = se_documents {"action":"new","kind":"part"}
+! [documents_open] se_publish {"action":"pdf3d","source":"{{work}}\\a29\\src\\a29_plate.par","folder":"{{work}}\\a29\\out","overwrite":true}
+se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
