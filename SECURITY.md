@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-The project is in alpha: fixes go to the `main` branch and to the next release. Use the latest
-release or the latest commit of `main`.
+Fixes go to the `main` branch and to the next release. Use the latest release or the latest commit of
+`main`.
 
 ## Reporting a vulnerability
 

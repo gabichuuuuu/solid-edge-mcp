@@ -1,7 +1,7 @@
 # Contributing
 
-Thank you for your interest. The project is in alpha and has a single maintainer, so please start with
-an issue before writing code.
+Thank you for your interest. The project has a single maintainer, so please start with an issue before
+writing code.
 
 ## Before you start
 

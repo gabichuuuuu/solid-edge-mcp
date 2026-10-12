@@ -167,6 +167,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Changed
 
+- The project is no longer labelled alpha. Each minor version (0.x) adds tools and actions, and may rename tools or
+  parameters (listed under Changed or Removed), up to 1.0.0, the first complete version.
 - The project is now named `solid-edge-mcp` and the repository moved to `github.com/gabichuuuuu/solid-edge-mcp`; the old
   URL redirects. Update existing clones with
   `git remote set-url origin https://github.com/gabichuuuuu/solid-edge-mcp.git`.
@@ -233,7 +235,7 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [0.1.0] - 2026-10-12
 
-First published release (alpha), validated against Solid Edge Community Edition 2026. It is source only: the
+First published release, validated against Solid Edge Community Edition 2026. It is source only: the
 interop is generated from your own Solid Edge installation, so no binaries are published.
 
 ### Added

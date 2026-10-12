@@ -278,8 +278,8 @@ function Get-Progress([string]$root) {
     # Tool count: the tools badge and every "N tools" / "N se_* tools" of the README.
     $newReadme = [regex]::Replace($newReadme, '(?<=img\.shields\.io/badge/tools-)\d+(?=-)', "$($tools.Count)")
     $newReadme = [regex]::Replace($newReadme, '(?<![\w.,])\d+(?= (se_\* )?tools\b)', "$($tools.Count)")
-    # Version: the <Version> of the server project, in the version badge and in "version (x.y.z)" /
-    # "Alpha (x.y.z)" of the README.
+    # Version: the <Version> of the server project, in the version badge and in every "version (x.y.z)"
+    # of the README.
     $project = Read-Text (Join-Path $root 'src/SolidEdgeMcp.Server/SolidEdgeMcp.Server.csproj')
     if ($project -notmatch '<Version>([^<]+)</Version>') {
         throw 'src/SolidEdgeMcp.Server/SolidEdgeMcp.Server.csproj has no <Version>.'
@@ -288,7 +288,7 @@ function Get-Progress([string]$root) {
     $version = $Matches[1].Trim()
     $newReadme = [regex]::Replace($newReadme, '(?<=!\[Version )[^\]]+(?=\])', $version)
     $newReadme = [regex]::Replace($newReadme, '(?<=img\.shields\.io/badge/version-)[^-]+(?:--[^-]+)*(?=-)', $version.Replace('-', '--'))
-    $newReadme = [regex]::Replace($newReadme, '(?<=\b(?:version|Alpha) \()\d+\.\d+\.\d+[^)]*(?=\))', $version)
+    $newReadme = [regex]::Replace($newReadme, '(?<=\bversion \()\d+\.\d+\.\d+[^)]*(?=\))', $version)
 
     $files = [ordered]@{
         'docs/COVERAGE.md' = $newCoverage
