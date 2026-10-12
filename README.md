@@ -16,7 +16,7 @@ Claude Desktop, Codex or any other MCP client.**
 
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-2F6FEB)
-[![Progress: 57 % of functions work through the MCP](https://img.shields.io/badge/progress-57%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 58 % of functions work through the MCP](https://img.shields.io/badge/progress-58%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -61,7 +61,7 @@ for approval.
 
 **Tested for real**
 
-3190 calls and 1687 checks against real Solid Edge 2026, with values calculated by hand.
+3243 calls and 1721 checks against real Solid Edge 2026, with values calculated by hand.
 
 </td>
 </tr>
@@ -254,17 +254,17 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Part** | `se_extrude` | Boss or cut by extrusion: blind, through all or up to next; normal, reversed or symmetric. |
 | | `se_revolve` | Boss or cut by revolution about the sketch axis. |
 | | `se_hole` | Simple, counterbored, countersunk and threaded holes at points on a plane, without a sketch. |
-| | `se_round` | Edge fillet with a constant radius. |
+| | `se_round` | Edge fillet with a constant radius, or a variable one (a radius at the start and the end of each edge). |
 | | `se_chamfer` | Edge chamfer with equal setback. |
 | | `se_pattern` | Rectangular pattern, circular pattern, pattern along an edge and mirror of features. |
 | | `se_shell` | Shell with a common wall thickness and optional open faces. |
 | | `se_draft` | Face draft relative to a neutral plane. |
 | | `se_loft_sweep` | Loft, sweep (along a sketch or a 3D curve) and helix, as a boss or a cut. |
-| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, offset faces and replace faces with a plane or a surface; slots along an open path, web networks and lips in shelled parts, scaling of the body, copies of saved parts (scaled or mirrored), and splitting a body by a plane into design bodies and uniting them again (`se_geometry` and `se_physical` measure every body). |
+| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, offset faces, replace faces with a plane or a surface, and resize holes and rounds; slots along an open path, web networks and lips in shelled parts, scaling of the body, copies of saved parts (scaled or mirrored), and splitting a body by a plane into design bodies and uniting them again (`se_geometry` and `se_physical` measure every body). |
 | | `se_primitive` | Box (optionally turned about the plane normal), cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
 | | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps), offset from a face, lofted through sections, swept along a sketch or a 3D curve, stitched, and filling a closed chain of edges; list and delete. |
 | | `se_curve` | Construction curves: through 3D points, intersections of faces, surfaces and the body, sketches projected onto faces, crossings of two sketches, chains of edges, contours drawn on a face through points on it and sketches wrapped onto cylindrical or conical faces; list and delete. |
-| | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature. |
+| | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature or a group; group features and dissolve a group; move a feature before or after another; roll the model back to a feature (new features go after it) and forward to its end. |
 | **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), gauges of a material library, tab, contour flange, flange, hem, corner break, flat pattern with cut size, changes of the angle and radius of existing bends, and conversion of a thin-walled part into sheet metal. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
 | **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences; activate or inactivate them; make a subassembly from occurrences, move occurrences into a subassembly and disperse one. |
@@ -384,8 +384,8 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 Results (unit tests and acceptance suite run on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 307/307.
-- Acceptance suite against real Solid Edge 2026: **3190 calls and 1687 checks** in `A01`–`A36`, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 317/317.
+- Acceptance suite against real Solid Edge 2026: **3243 calls and 1721 checks** in `A01`–`A37`, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the script). All of
   them pass.
 - Coverage by value: the 67 tools have correct calls, and `A10` runs every value of the action,
@@ -434,6 +434,7 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 | `A34` | More drawing dimensions and annotations: coordinate dimensions from a corner (horizontal and vertical, also in a view at 1:2), angular coordinate dimensions of holes about a flange centre (counterclockwise and clockwise), a chamfer dimension, a bolt hole circle through three holes, a datum target A1 on a leader and a datum point, and the refused cases |
 | `A35` | Tables and pictures on a drawing sheet: a revision table with headers, rows, column widths and position, a cell changed and a row added, a table in the default place, a logo sized by width with its proportions kept, the list, the refused cases and deleting them |
 | `A36` | Drawing views: a broken-out section of a block with a blind hole from below cut 15 mm deep from the top inside a square outline, with the refused cases (an outline away from the part, too few points, no depth); a base view of an assembly display configuration that hides one part, and an unknown configuration refused |
+| `A37` | Feature tree: a group of two holes (holes apart and a hole already in a group refused) suppressed and dissolved, holes moved (not before the synchronous box), the model rolled back to a hole, a variable-radius round added there and the model rolled forward; holes resized (a blind one keeps its depth) and a round resized (a variable-radius one refused); user-defined sets in synchronous modelling; the generic layer refusing `Rounds.AddBlend` and `ResizeHoles.Add` |
 
 </details>
 
@@ -492,7 +493,7 @@ solid-edge-mcp/
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A36 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A37 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, update-progress.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md (coverage by function and route), assets/
@@ -503,7 +504,7 @@ solid-edge-mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A36`, listed under [Validation](#validation)) with volumes, measurements and expected
+calls (`A01`–`A37`, listed under [Validation](#validation)) with volumes, measurements and expected
 errors calculated by hand. Each script creates and closes its documents without saving:
 
 ```powershell

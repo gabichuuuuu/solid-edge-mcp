@@ -65,6 +65,8 @@ public enum PartFeatureAction
     DeleteRounds,
     OffsetFaces,
     ReplaceFaces,
+    ResizeHoles,
+    ResizeRounds,
     Split,
     Unite,
     Slot,
@@ -232,15 +234,15 @@ public sealed class PartTools(ToolRunner runner)
     [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Other part features (ordered modelling). Lengths in mm.
-        rib: sketch = an open chain (se_sketch close with open: true) on a plane across the part; it grows in the sketch plane until it meets the part; thickness; side; depth = finite depth |
+        rib: sketch = an open chain (se_sketch close, open: true) across the part, grown in its plane up to the part; thickness; side; depth |
         thicken: faces, thickness; side |
         mirror_body: mirrored copy of the whole body about 'plane', keeping the original.
         split: a reference plane ('plane') cuts the body (or 'bodies') into separate design bodies | unite: joins 'bodies' into one (default: all). se_geometry and se_physical measure every body.
-        Direct edits (also for imported parts): delete_faces (the solid heals: a hole face fills the hole) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | offset_faces (distance along the normal: positive adds material) | replace_faces (faces move onto replaceWith: a plane, a se_surface surface or face).
+        Direct edits (also for imported parts): delete_faces (the solid heals: a hole face fills the hole) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | offset_faces (distance along the normal: positive adds material) | replace_faces (faces move onto replaceWith: a plane, a se_surface surface or face) | resize_holes (faces of holes get diameter; type and extent kept) | resize_rounds (faces of rounds get radius).
         slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends (the path is extended by half the width) or squareEnds; through the part, or depth; optional counterbore |
         web_network: sketch = open lines on a plane across a shelled part; thickness; each line becomes a wall that grows to the next face, or depth |
-        lip: edges = one chain of edges of a rim (e.g. the outer edges of the open face of a shelled part), width and height: a strip standing on the rim, flush with the side face of the edges |
-        scale_body: scale = one factor (uniform) or three (x, y, z) about the part origin (the first body of a split part); the volume is checked.
+        lip: edges = a chain of rim edges (e.g. the outer edges of the open face of a shelled part), width, height: a strip on the rim, flush with its side face |
+        scale_body: scale = one factor or three (x, y, z) about the part origin (the first body of a split part).
         copy_part: path = a saved .par/.psm file copied into this part (the base body of an empty part, or united with the body); optional scale and mirror plane.
         Threads: se_hole type tapped (cosmetic) or a helix cut with se_loft_sweep (physical).
         {{VerifiedNote}}
@@ -248,14 +250,15 @@ public sealed class PartTools(ToolRunner runner)
         """)]
     public Task<CallToolResult> PartFeature(
         PartFeatureAction action,
-        [Description("thicken, delete_faces, delete_rounds, offset_faces, replace_faces: face handles; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
+        [Description("thicken, delete_faces, delete_rounds, offset_faces, replace_faces, resize_holes, resize_rounds: face handles; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
         [Description("rib, slot, web_network: open sketch handle.")] string? sketch = null,
         [Description("rib, thicken, web_network: thickness in mm.")] double? thickness = null,
         [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse.")] PartFeatureSide side = PartFeatureSide.Auto,
         [Description("mirror_body: mirror plane ('1'-'3', refplane or planar face handle); split: the cutting reference plane; copy_part: optional mirror reference plane.")] string? plane = null,
         [Description("rib, web_network: finite depth in mm (default: up to the part or the next face); slot: depth in mm (default: through the part).")] double? depth = null,
         [Description("offset_faces: distance in mm along the face normals (positive outwards adds material, negative inwards).")] double? distance = null,
-        [Description("delete_holes: largest hole diameter to delete, mm.")] double? diameter = null,
+        [Description("delete_holes: largest hole diameter to delete; resize_holes: new diameter (mm).")] double? diameter = null,
+        [Description("resize_rounds: new radius in mm.")] double? radius = null,
         [Description("slot, lip: width in mm.")] double? width = null,
         [Description("lip: height in mm.")] double? height = null,
         [Description("lip: edge handles of the rim (se_geometry edges).")] string[]? edges = null,
@@ -268,7 +271,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Document handle; default: the document of the faces, sketch or plane.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
-            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies)), cancellationToken);
+            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies, radius)), cancellationToken);
 
     [McpServerTool(Name = "se_primitive", Title = "Box / cylinder / sphere", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -293,7 +296,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("box: [width, height] in mm along the plane's x and y axes.")] double[]? size = null,
         [Description("cylinder, sphere: radius in mm.")] double? radius = null,
         [Description("box, cylinder: depth in mm from the plane.")] double? depth = null,
-        [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse.")] PartFeatureSide side = PartFeatureSide.Auto,
+        [Description("box, cylinder: auto (along the plane normal to add, against it to cut, then the other way if that changes nothing) | normal | reverse | symmetric.")] PartFeatureSide side = PartFeatureSide.Auto,
         [Description("box: rotation in degrees about the plane normal, from the plane's x axis towards its y axis (default 0).")] double? angle = null,
         [Description("box: 2 opposite corners or 3 points (an edge, then a point on the opposite edge) [x1,y1,z1, ...] in mm on the plane, instead of center/size/angle.")] double[]? corners = null,
         [Description("Document handle; default: the document of the plane handle or the active document.")] string? document = null,

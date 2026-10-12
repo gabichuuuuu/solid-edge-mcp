@@ -128,16 +128,71 @@ public static partial class FeatureService
         return result;
     }
 
-    /// <summary>Constant-radius fillet on the given edges.</summary>
-    public static object Round(SeContext context, string? documentHandle, string[]? edges, double? radius)
+    /// <summary>
+    /// Fillet on the given edges: a constant radius, or a variable one given at the start and end of each edge.
+    /// Verified: Rounds.AddVariable with the edges, their end vertices and a radius per vertex; the radius changes
+    /// linearly along the edge (2 to 8 mm along a 100 mm edge removes 601.2 mm3; circular sections would give 600.9).
+    /// </summary>
+    public static object Round(SeContext context, string? documentHandle, string[]? edges, double? radius, double[]? radii = null)
     {
         (ModelDocument model, object[] edgeObjects) = ResolveEdges(context, documentHandle, edges);
-        double r = Units.MmToM(Units.RequirePositive(radius ?? throw ToolException.InvalidArgument("se_round requires 'radius' (mm)."), "radius"));
+        if (radius is not null == radii is not null)
+        {
+            throw ToolException.InvalidArgument("se_round takes either 'radius' (constant) or 'radii' (variable), not both and not neither.");
+        }
+
+        if (radii is not null)
+        {
+            return VariableRound(context, model, edgeObjects, radii);
+        }
+
+        double r = Units.MmToM(Units.RequirePositive(radius!.Value, "radius"));
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
         double before = model.Volume();
-        double[] radii = Enumerable.Repeat(r, edgeObjects.Length).ToArray();
-        object feature = Create("round", () => target.Rounds.Add(edgeObjects.Length, edgeObjects, radii));
+        double[] constant = Enumerable.Repeat(r, edgeObjects.Length).ToArray();
+        object feature = Create("round", () => target.Rounds.Add(edgeObjects.Length, edgeObjects, constant));
+        return Verify(context, model, feature, before, 0, switched);
+    }
+
+    private static object VariableRound(SeContext context, ModelDocument model, object[] edgeObjects, double[] radii)
+    {
+        if (radii.Length != 2 * edgeObjects.Length)
+        {
+            throw ToolException.InvalidArgument($"'radii' needs two values per edge (radius at its start and at its end, mm): {2 * edgeObjects.Length} for {edgeObjects.Length} edge(s).",
+                "The start and end of each edge are those given by se_geometry 'edges'.");
+        }
+
+        // One radius per vertex: a vertex shared by two edges of a chain must get the same radius from both.
+        var vertices = new List<object>();
+        var vertexRadii = new List<double>();
+        for (int i = 0; i < edgeObjects.Length; i++)
+        {
+            var edge = (SolidEdgeGeometry.Edge)edgeObjects[i];
+            foreach ((object vertex, double value) in new[] { ((object)edge.StartVertex, radii[2 * i]), (edge.EndVertex, radii[2 * i + 1]) })
+            {
+                double r = Units.MmToM(Units.RequirePositive(value, "radii"));
+                int known = vertices.FindIndex(v => Late.SameObject(v, vertex));
+                if (known < 0)
+                {
+                    vertices.Add(vertex);
+                    vertexRadii.Add(r);
+                }
+                else if (Math.Abs(vertexRadii[known] - r) > 1e-9)
+                {
+                    throw ToolException.InvalidArgument("Two edges that meet give different radii for the vertex they share.",
+                        "Give the same radius at the end of one edge and the start of the next.");
+                }
+            }
+        }
+
+        bool switched = model.EnsureOrdered();
+        Model target = model.RequireModel();
+        double before = model.Volume();
+        Array edgeArray = edgeObjects;
+        Array vertexArray = vertices.ToArray();
+        Array radiusArray = vertexRadii.ToArray();
+        object feature = Create("variable round", () => target.Rounds.AddVariable(edgeObjects.Length, ref edgeArray, vertices.Count, ref vertexArray, ref radiusArray));
         return Verify(context, model, feature, before, 0, switched);
     }
 
@@ -153,12 +208,43 @@ public static partial class FeatureService
         return Verify(context, model, feature, before, 0, switched);
     }
 
-    /// <summary>Suppress, unsuppress, delete or rename a feature.</summary>
-    public static object Edit(SeContext context, string? documentHandle, string featureHandle, string action, string? name)
+    public static readonly IReadOnlyList<string> FeatureEditActions = ["suppress", "unsuppress", "delete", "rename", "group", "ungroup", "reorder", "roll_to", "roll_to_end"];
+
+    /// <summary>
+    /// Suppress, unsuppress, delete or rename a feature; group features and dissolve a group; move a feature next to another
+    /// one; roll the model back to a feature and forward to its end.
+    /// </summary>
+    public static object Edit(SeContext context, string? documentHandle, string? featureHandle, string action, string? name,
+        string[]? features = null, string? target = null, bool insertBefore = true)
     {
+        switch (action)
+        {
+            case "group":
+                return Group(context, documentHandle, features, name);
+            case "roll_to_end":
+                return RollToEnd(context, documentHandle);
+            case var known when !FeatureEditActions.Contains(known):
+                throw ToolException.InvalidArgument($"Unknown action '{action}'.", $"Use one of: {string.Join(", ", FeatureEditActions)}.");
+        }
+
+        if (string.IsNullOrWhiteSpace(featureHandle))
+        {
+            throw ToolException.InvalidArgument($"Action '{action}' requires 'feature': a handle from se_feature_tree.");
+        }
+
         ModelDocument model = ModelDocument.For(context, documentHandle, featureHandle);
         object feature = context.Handles.Resolve(featureHandle, "feature");
         string label = Late.TryGetString(feature, "Name") ?? featureHandle;
+        switch (action)
+        {
+            case "ungroup":
+                return Ungroup(context, model, featureHandle, feature, label);
+            case "reorder":
+                return Reorder(context, model, feature, label, target, insertBefore);
+            case "roll_to":
+                return RollTo(context, model, feature, label);
+        }
+
         double before = model.Volume();
         try
         {
@@ -178,7 +264,7 @@ public static partial class FeatureService
                         : name);
                     break;
                 default:
-                    throw ToolException.InvalidArgument($"Unknown action '{action}'.", "Use suppress, unsuppress, delete or rename.");
+                    throw ToolException.InvalidArgument($"Unknown action '{action}'.", $"Use one of: {string.Join(", ", FeatureEditActions)}.");
             }
         }
         catch (Exception ex) when (ComErrors.Unwrap(ex) is MissingMemberException
@@ -249,6 +335,7 @@ public static partial class FeatureService
             type = shortType,
             status = StatusOf(feature),
             suppressed = Late.TryGet(feature, "Suppress") as bool?,
+            members = feature is FeatureGroup ? Late.TryGet(feature, "Count") as int? : null,
         };
     }
 
@@ -364,9 +451,9 @@ public static partial class FeatureService
 
     /// <summary>Verifies the feature with <see cref="Check"/> and describes the result.</summary>
     private static object Verify(SeContext context, ModelDocument model, object feature, double before, int expectedSign, bool switched,
-        string? sketch = null, IncludedProfile? included = null, string? direction = null, Func<bool>? changedOtherwise = null)
+        string? sketch = null, IncludedProfile? included = null, string? direction = null, Func<bool>? changedOtherwise = null, string? hint = null)
     {
-        (double after, string? status) = Check(context, model, feature, before, expectedSign, sketch, included, changedOtherwise);
+        (double after, string? status) = Check(context, model, feature, before, expectedSign, sketch, included, changedOtherwise, hint: hint);
         return new
         {
             feature = Describe(context, model, feature),
@@ -382,10 +469,11 @@ public static partial class FeatureService
     /// <c>feature_failed</c>. <paramref name="expectedSign"/>: +1 adds material, -1 removes it, 0 any change;
     /// with 0, <paramref name="changedOtherwise"/> detects changes that do not alter the volume (e.g. a draft
     /// with the neutral plane in the middle of the face). With <paramref name="undoneByCaller"/> it is not deleted: the caller undoes
-    /// it (in synchronous mode, deleting a feature does not return the faces it trimmed).
+    /// it (in synchronous mode, deleting a feature does not return the faces it trimmed). <paramref name="hint"/> replaces the
+    /// next step about sketches for features made from faces or edges.
     /// </summary>
     private static (double After, string? Status) Check(SeContext context, ModelDocument model, object feature, double before, int expectedSign,
-        string? sketch, IncludedProfile? included, Func<bool>? changedOtherwise = null, bool undoneByCaller = false)
+        string? sketch, IncludedProfile? included, Func<bool>? changedOtherwise = null, bool undoneByCaller = false, string? hint = null)
     {
         context.ModelChanged(model.Document, "the model changed (new feature)");
         string name = Late.TryGetString(feature, "Name") ?? "The feature";
@@ -413,7 +501,7 @@ public static partial class FeatureService
                 : sketch.Contains(',', StringComparison.Ordinal) ? $" The sketches ({sketch}) are kept: call the tool again with them."
                 : $" The sketch '{sketch}' is kept: call the tool again with it.";
             throw new ToolException("feature_failed", $"{name} was {(undoneByCaller ? "undone" : "deleted")} because {problem}.{kept}",
-                "Check that the geometry meets the part (sketch x/y are measured from the frame origin returned by se_sketch 'create', which on a face is not the model origin), the direction ('normal' follows the sketch normal; try another one) and the extent.");
+                hint ?? "Check that the geometry meets the part (sketch x/y are measured from the frame origin returned by se_sketch 'create', which on a face is not the model origin), the direction ('normal' follows the sketch normal; try another one) and the extent.");
         }
 
         return (after, status);

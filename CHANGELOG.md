@@ -138,6 +138,13 @@ Relevant changes to this project are recorded here. The format follows
 - `se_drawing base_view configuration`: a base view of a display configuration of an assembly (saved with
   `se_assembly_config`); an unknown configuration is refused.
 - Acceptance script `A36` (a broken-out section and a view of a display configuration).
+- `se_feature_edit` actions `group`, `ungroup`, `reorder`, `roll_to` and `roll_to_end`: feature groups (features next to
+  each other in the tree), moving a feature before or after another (moved back if a feature then fails), and rolling
+  the model back to a feature (new features go after it) and forward to its end.
+- `se_round radii`: variable-radius rounds, with a radius at the start and the end of each edge.
+- `se_part_feature resize_holes` and `resize_rounds`: a new diameter for holes (their type and extent are kept) and a
+  new radius for constant-radius rounds.
+- Acceptance script `A37` (feature tree, variable-radius rounds, resized holes and rounds, user-defined sets).
 
 ### Changed
 
@@ -162,11 +169,16 @@ Relevant changes to this project are recorded here. The format follows
   rotation (`rotationLocked`) and the ratio of gear relations (a rack in mm).
 - The COM layer refuses `Relations3d.AddPlanarCam` and `AddPath` (`unsafe_member`): they leave Solid Edge 2026
   unstable (RPC_E_SERVERFAULT).
+- The COM layer also refuses `Rounds.AddBlend` (a blend between faces closed Solid Edge once and is otherwise created
+  failed) and `ResizeHoles.Add` (without a HoleData it leaves Solid Edge unstable); the refusal names the tool to use.
+- `se_feature_edit`: `feature` is optional (`group` and `roll_to_end` do not use it). `se_round`: `radius` is optional
+  when `radii` is given.
 - The acceptance runner compares texts by value in list filters, so a filter can write a space as `\u0020`
   (`[?name="Microsoft\u0020Print\u0020to\u0020PDF"]`).
 
 ### Fixed
 
+- `se_primitive`: the description of `side` was that of a rib.
 - An operation that Solid Edge cannot build and removes while creating it (for example a hole exactly as wide as the
   bar) is reported as `feature_failed`, saying so, and its profile is removed. Before, the error was `object_deleted`
   and the copy of the profile stayed in the part: undoing and cleaning up were skipped whenever Solid Edge deleted an

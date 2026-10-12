@@ -8,7 +8,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
 /// Direct edits of the solid in ordered modelling, as done on imported parts: delete faces (the gap heals), holes up to a
-/// diameter and rounds, and offset faces along their normal.
+/// diameter and rounds, offset and replace faces, and resize holes and rounds.
 /// </summary>
 public static partial class FeatureService
 {
@@ -100,6 +100,43 @@ public static partial class FeatureService
         object set = faces.Length == 1 ? faces[0] : FaceSet(target, faces);
         object feature = Create("replace faces", () => target.ReplaceFaces.Add(set, surface));
         return Verify(context, model, feature, before, 0, switched);
+    }
+
+    /// <summary>
+    /// Gives holes a new diameter, keeping their type and extent. Verified (ordered): Model.ResizeHoles.Add with the hole
+    /// faces, the diameter, igFinite and a regular HoleData of that diameter; a through hole stays through and a blind one
+    /// keeps its depth. A HoleData of another type (counterbore) leaves the feature failed, and none at all brings Solid Edge
+    /// down (RPC_E_SERVERFAULT).
+    /// </summary>
+    private static object ResizeHoles(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        double diameter = Units.MmToM(Units.RequirePositive(spec.Diameter ?? throw ToolException.InvalidArgument(
+            "resize_holes requires 'diameter': the new diameter of the holes (mm)."), "diameter"));
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "resize_holes", "the cylindrical faces of the holes");
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        HoleData data = model.HoleData.Add(FeaturePropertyConstants.igRegularHole, diameter);
+        Array faceArray = faces;
+        object feature = Create("resize holes", () => target.ResizeHoles.Add(faces.Length, ref faceArray, diameter, FeaturePropertyConstants.igFinite, data));
+        return Verify(context, model, feature, before, 0, switched,
+            hint: "Give the cylindrical faces of holes (se_geometry faces, type cylinder) and a diameter that fits in the part.");
+    }
+
+    /// <summary>
+    /// Gives rounds a new radius. Verified (ordered): Model.ResizeRounds.Add with the faces of constant-radius rounds and the
+    /// radius; the face of a variable-radius round leaves the feature failed.
+    /// </summary>
+    private static object ResizeRounds(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        double radius = Units.MmToM(Units.RequirePositive(spec.Radius ?? throw ToolException.InvalidArgument(
+            "resize_rounds requires 'radius': the new radius of the rounds (mm)."), "radius"));
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "resize_rounds", "the faces of the rounds");
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        Array faceArray = faces;
+        object feature = Create("resize rounds", () => target.ResizeRounds.Add(faces.Length, ref faceArray, radius));
+        return Verify(context, model, feature, before, 0, switched,
+            hint: "Give the faces of constant-radius rounds (se_geometry faces with source = the round) and a radius that fits; a variable-radius round cannot be resized this way.");
     }
 
     private static (ModelDocument Model, Model Target, object[] Faces) FaceEdit(SeContext context, string? documentHandle, PartFeatureSpec spec,

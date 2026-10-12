@@ -33,6 +33,17 @@ public enum FeatureEditAction
     Unsuppress,
     Delete,
     Rename,
+    Group,
+    Ungroup,
+    Reorder,
+    RollTo,
+    RollToEnd,
+}
+
+public enum ReorderPosition
+{
+    Before,
+    After,
 }
 
 /// <summary>
@@ -80,13 +91,14 @@ public sealed class FeatureTools(ToolRunner runner)
             angle, Snake(direction)), cancellationToken);
 
     [McpServerTool(Name = "se_round", Title = "Round edges", Destructive = false, OpenWorld = false)]
-    [Description($"Rounds (fillets) edges with a constant radius in mm. Get edge handles with se_geometry 'edges'. {VerifiedNote}")]
+    [Description($"Rounds (fillets) edges with a constant radius in mm, or a variable one (radii: at the start and end of each edge, changing linearly along it). Get edge handles, with their start and end points, from se_geometry 'edges'. To resize rounds later use se_part_feature resize_rounds. {VerifiedNote}")]
     public Task<CallToolResult> Round(
         [Description("Edge handles, e.g. [\"edge:12\",\"edge:13\"].")] string[] edges,
-        [Description("Radius in mm.")] double radius,
+        [Description("Constant radius in mm.")] double? radius = null,
+        [Description("Variable radius instead of 'radius': two values in mm per edge, at its start and its end, e.g. [2, 8].")] double[]? radii = null,
         [Description("Document handle; default: the edges' document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_round", "add", c => FeatureService.Round(c, document, edges, radius), cancellationToken);
+        runner.RunAsync("se_round", radii is null ? "add" : "variable", c => FeatureService.Round(c, document, edges, radius, radii), cancellationToken);
 
     [McpServerTool(Name = "se_chamfer", Title = "Chamfer edges", Destructive = false, OpenWorld = false)]
     [Description($"Chamfers edges with an equal setback in mm. Get edge handles with se_geometry 'edges'. {VerifiedNote}")]
@@ -98,14 +110,25 @@ public sealed class FeatureTools(ToolRunner runner)
         runner.RunAsync("se_chamfer", "add", c => FeatureService.Chamfer(c, document, edges, distance), cancellationToken);
 
     [McpServerTool(Name = "se_feature_edit", Title = "Edit feature", Destructive = true, OpenWorld = false)]
-    [Description("Suppresses, unsuppresses, deletes or renames a feature (handle from se_feature_tree). Returns the new volume (mm3). To change dimensions use se_variables.")]
+    [Description("""
+        Edits the feature tree (handles from se_feature_tree); returns the volume in mm3. To change dimensions use se_variables.
+        suppress | unsuppress | delete | rename (name) a feature or a group.
+        group: features = features next to each other in the tree (one or more), optional name; suppressing the group suppresses them | ungroup: feature = the group.
+        reorder: feature moves before or after target (position); if a feature fails afterwards (it went before what it is built on), it is moved back.
+        roll_to: rolls the model back to just after feature (PathFinder Go To): later features are rolled back and new features go after it | roll_to_end: brings them back.
+        Example: {"action":"group","features":["feature:3","feature:4"],"name":"Bolt holes"}; {"action":"reorder","feature":"feature:5","target":"feature:3"}.
+        """)]
     public Task<CallToolResult> FeatureEdit(
-        [Description("Feature handle.")] string feature,
         FeatureEditAction action,
-        [Description("For rename: new name.")] string? name = null,
+        [Description("Feature handle; for ungroup, the group (not used by group and roll_to_end).")] string? feature = null,
+        [Description("rename: new name; group: optional name of the group.")] string? name = null,
+        [Description("group: feature handles, next to each other in the tree.")] string[]? features = null,
+        [Description("reorder: the feature to move it next to.")] string? target = null,
+        [Description("reorder: before (default) or after the target.")] ReorderPosition position = ReorderPosition.Before,
         [Description("Document handle; default: the feature's document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_feature_edit", Snake(action), c => FeatureService.Edit(c, document, feature, Snake(action), name), cancellationToken);
+        runner.RunAsync("se_feature_edit", Snake(action), c => FeatureService.Edit(c, document, feature, Snake(action), name,
+            features, target, position == ReorderPosition.Before), cancellationToken);
 
     [McpServerTool(Name = "se_feature_tree", Title = "Feature tree", ReadOnly = true, OpenWorld = false)]
     [Description("Lists the features of a part or sheet metal document in order (handle, name, type, status ok/failed/warning/suppressed), with the modeling mode and the body volume in mm3.")]

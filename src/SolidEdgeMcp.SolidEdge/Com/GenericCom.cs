@@ -130,22 +130,24 @@ public static class GenericCom
     /// Methods verified to bring Solid Edge 2026 down or leave it unstable: refused, because Solid Edge may hold the
     /// person's unsaved work.
     /// </summary>
-    private static readonly Dictionary<string, string> Unsafe = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, (string Effect, string? Instead)> Unsafe = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["RadialMenu.DumpPallets"] = "closes Solid Edge (access violation in control.dll)",
-        ["RadialMenu.SavePallets"] = "closes Solid Edge (access violation in control.dll)",
-        ["ViewStyle.BeginPropertyBuffer"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT)",
-        ["ViewStyle.FlushPropertyBuffer"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT)",
-        ["Relations3d.AddPlanarCam"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the faces of the cam and the follower as assembly references)",
-        ["Relations3d.AddPath"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT, with an edge, a circular edge or a vertex as the follower)",
+        ["RadialMenu.DumpPallets"] = ("closes Solid Edge (access violation in control.dll)", null),
+        ["RadialMenu.SavePallets"] = ("closes Solid Edge (access violation in control.dll)", null),
+        ["ViewStyle.BeginPropertyBuffer"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT)", null),
+        ["ViewStyle.FlushPropertyBuffer"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT)", null),
+        ["Relations3d.AddPlanarCam"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the faces of the cam and the follower as assembly references)", null),
+        ["Relations3d.AddPath"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with an edge, a circular edge or a vertex as the follower)", null),
+        ["Rounds.AddBlend"] = ("closed Solid Edge (with one face set and two radii) and otherwise leaves the blend failed", "Round the edge the faces share with se_round."),
+        ["ResizeHoles.Add"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT) when ThreadHoleData is not a HoleData", "Use se_part_feature resize_holes."),
     };
 
     private static void RefuseUnsafe(Type? type, string member)
     {
-        if (type is not null && Unsafe.TryGetValue($"{type.Name}.{member.Trim()}", out string? effect))
+        if (type is not null && Unsafe.TryGetValue($"{type.Name}.{member.Trim()}", out (string Effect, string? Instead) found))
         {
-            throw new ToolException("unsafe_member", $"{type.Name}.{member.Trim()} {effect} in Solid Edge 2026, so it is not called.",
-                "Do it in the Solid Edge interface instead.");
+            throw new ToolException("unsafe_member", $"{type.Name}.{member.Trim()} {found.Effect} in Solid Edge 2026, so it is not called.",
+                found.Instead ?? "Do it in the Solid Edge interface instead.");
         }
     }
 
