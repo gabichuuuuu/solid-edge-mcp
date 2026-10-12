@@ -67,6 +67,8 @@ public enum PartFeatureAction
     ReplaceFaces,
     ResizeHoles,
     ResizeRounds,
+    NormalProtrusion,
+    NormalCutout,
     Split,
     Unite,
     Slot,
@@ -82,6 +84,24 @@ public enum PartFeatureSide
     Normal,
     Reverse,
     Symmetric,
+}
+
+public enum BodyAction
+{
+    List,
+    Subtract,
+    Intersect,
+    Emboss,
+    ToConstruction,
+    ToDesign,
+    Divide,
+}
+
+public enum BodySide
+{
+    Auto,
+    Normal,
+    Reverse,
 }
 
 public enum PrimitiveShape
@@ -234,17 +254,18 @@ public sealed class PartTools(ToolRunner runner)
     [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Other part features (ordered modelling). Lengths in mm.
-        rib: sketch = an open chain (se_sketch close, open: true) across the part, grown in its plane up to the part; thickness; side; depth |
+        rib: sketch = an open chain (se_sketch close, open: true) across the part, grown in its plane to the part; thickness; side; depth |
         thicken: faces, thickness; side |
         mirror_body: mirrored copy of the whole body about 'plane', keeping the original.
-        split: a reference plane ('plane') cuts the body (or 'bodies') into separate design bodies | unite: joins 'bodies' into one (default: all). se_geometry and se_physical measure every body.
-        Direct edits (also for imported parts): delete_faces (the solid heals: a hole face fills the hole) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | offset_faces (distance along the normal: positive adds material) | replace_faces (faces move onto replaceWith: a plane, a se_surface surface or face) | resize_holes (faces of holes get diameter; type and extent kept) | resize_rounds (faces of rounds get radius).
-        slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends (the path is extended by half the width) or squareEnds; through the part, or depth; optional counterbore |
-        web_network: sketch = open lines on a plane across a shelled part; thickness; each line becomes a wall that grows to the next face, or depth |
-        lip: edges = a chain of rim edges (e.g. the outer edges of the open face of a shelled part), width, height: a strip on the rim, flush with its side face |
+        split: a reference plane ('plane') cuts the body (or 'bodies') into design bodies | unite: joins 'bodies' into one (default: all). Other body operations: se_body.
+        Direct edits (also imported parts): delete_faces (the solid heals) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | offset_faces (distance along the normal: positive adds) | replace_faces (onto replaceWith: a plane, surface or face) | resize_holes (faces of holes get diameter) | resize_rounds (faces of rounds get radius).
+        normal_protrusion | normal_cutout: 'edges' of closed curves on faces (se_curve project or wrap) raised or recessed by 'distance'; side auto = inside them, reverse = outside.
+        slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends (path extended by half the width) or squareEnds; through, or depth; optional counterbore |
+        web_network: sketch = open lines on a plane across a shelled part; thickness; each line a wall grown to the next face, or depth |
+        lip: edges = a chain of rim edges (e.g. outer edges of the open face of a shelled part), width, height: a strip on the rim, flush with its side |
         scale_body: scale = one factor or three (x, y, z) about the part origin (the first body of a split part).
-        copy_part: path = a saved .par/.psm file copied into this part (the base body of an empty part, or united with the body); optional scale and mirror plane.
-        Threads: se_hole type tapped (cosmetic) or a helix cut with se_loft_sweep (physical).
+        copy_part: path = a saved .par/.psm copied into this part (base body of an empty part, or united with the body); optional scale and mirror plane.
+        Threads: se_hole tapped (cosmetic) or a helix cut with se_loft_sweep.
         {{VerifiedNote}}
         Example: {"action":"rib","sketch":"sketch:6","thickness":6}; {"action":"slot","sketch":"sketch:8","width":10}; {"action":"scale_body","scale":[2]}.
         """)]
@@ -253,15 +274,15 @@ public sealed class PartTools(ToolRunner runner)
         [Description("thicken, delete_faces, delete_rounds, offset_faces, replace_faces, resize_holes, resize_rounds: face handles; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
         [Description("rib, slot, web_network: open sketch handle.")] string? sketch = null,
         [Description("rib, thicken, web_network: thickness in mm.")] double? thickness = null,
-        [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse.")] PartFeatureSide side = PartFeatureSide.Auto,
+        [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse; normal_protrusion, normal_cutout: auto = inside the curves | reverse = outside.")] PartFeatureSide side = PartFeatureSide.Auto,
         [Description("mirror_body: mirror plane ('1'-'3', refplane or planar face handle); split: the cutting reference plane; copy_part: optional mirror reference plane.")] string? plane = null,
         [Description("rib, web_network: finite depth in mm (default: up to the part or the next face); slot: depth in mm (default: through the part).")] double? depth = null,
-        [Description("offset_faces: distance in mm along the face normals (positive outwards adds material, negative inwards).")] double? distance = null,
+        [Description("offset_faces: distance in mm along the face normals (positive outwards adds material, negative inwards); normal_protrusion, normal_cutout: height or depth in mm.")] double? distance = null,
         [Description("delete_holes: largest hole diameter to delete; resize_holes: new diameter (mm).")] double? diameter = null,
         [Description("resize_rounds: new radius in mm.")] double? radius = null,
         [Description("slot, lip: width in mm.")] double? width = null,
         [Description("lip: height in mm.")] double? height = null,
-        [Description("lip: edge handles of the rim (se_geometry edges).")] string[]? edges = null,
+        [Description("lip: edge handles of the rim; normal_protrusion, normal_cutout: the edges of the curves (se_geometry edges with source = the curve).")] string[]? edges = null,
         [Description("slot: square ends instead of rounded.")] bool squareEnds = false,
         [Description("slot: counterbore at the top of the slot, [total width, depth] in mm (wider than the slot).")] double[]? counterbore = null,
         [Description("scale_body, copy_part: one factor or three (x, y, z), e.g. [2] or [1, 1, 0.5].")] double[]? scale = null,
@@ -272,6 +293,35 @@ public sealed class PartTools(ToolRunner runner)
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
             new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies, radius)), cancellationToken);
+
+    [McpServerTool(Name = "se_body", Title = "Bodies: list / subtract / intersect / emboss / construction and design", Destructive = false, OpenWorld = false)]
+    [Description($$"""
+        Design and construction bodies of a part (ordered modelling). Lengths in mm. Body handles come from action list; a surface (se_surface) or a face stands for the body it belongs to.
+        list: design bodies (volume, box) and construction bodies (kind solid = closed, surface or curve) |
+        subtract: 'tools' take material from 'targets' (design bodies, default the first): a closed tool removes what it overlaps (a tool design body stays); an open surface removes one side of it, 'side' normal (where the normal of its face points, se_geometry faces) or reverse |
+        intersect: 'targets' keep only what they share with the closed 'tools', which are used up |
+        emboss: closed 'tools' pressed into one thin target (default the first body): with thicken (default) a wall of 'thickness' wraps each tool, 'clearance' away from it (side reverse: towards the other face of the target); thicken false only cuts the tools' shape out |
+        to_construction: design 'bodies' become construction bodies (left out of mass properties and drawings) |
+        to_design: closed construction 'bodies' (a surface with endCaps, a closed stitched surface, a body made construction) become design bodies; they may overlap the others, e.g. to subtract or intersect them |
+        divide: a saved part without unsaved changes is cut by 'tools' = [one reference plane or surface] into part files 'paths' (one per piece, default <part>_1, _2...), each a linked copy of its region; the part is then saved.
+        Split and unite: se_part_feature.
+        {{VerifiedNote}}
+        Example: {"action":"to_design","bodies":["surface:14"]}; {"action":"subtract","tools":["body:22"]}; {"action":"emboss","tools":["surface:9"],"thickness":2}.
+        """)]
+    public Task<CallToolResult> Body(
+        BodyAction action,
+        [Description("subtract, intersect: design bodies to change (default: the first); emboss: the one thin target.")] string[]? targets = null,
+        [Description("subtract, intersect, emboss: body handles (action list), surfaces (se_surface) or faces.")] string[]? tools = null,
+        [Description("to_construction: design bodies; to_design: closed construction bodies or closed surfaces.")] string[]? bodies = null,
+        [Description("subtract with an open surface: normal | reverse = the side of the surface that loses its material; emboss: reverse = towards the other face of the target.")] BodySide side = BodySide.Auto,
+        [Description("emboss: wall thickness in mm.")] double? thickness = null,
+        [Description("emboss: gap between each tool and the wall in mm (default 0).")] double clearance = 0,
+        [Description("emboss: false only cuts the tools' shape out of the target.")] bool thicken = true,
+        [Description("divide: one new part file per piece, in an allowed folder (default: next to the part, <part>_1, _2...).")] string[]? paths = null,
+        [Description("Document handle; default: the document of the bodies or the active one.")] string? document = null,
+        CancellationToken cancellationToken = default) =>
+        runner.RunAsync("se_body", Snake(action), c => FeatureService.BodyOperation(c, document,
+            new BodySpec(Snake(action), targets, tools, bodies, Snake(side), thickness, clearance, thicken, paths)), cancellationToken);
 
     [McpServerTool(Name = "se_primitive", Title = "Box / cylinder / sphere", Destructive = false, OpenWorld = false)]
     [Description($$"""

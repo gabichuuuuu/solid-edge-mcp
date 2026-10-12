@@ -145,6 +145,14 @@ Relevant changes to this project are recorded here. The format follows
 - `se_part_feature resize_holes` and `resize_rounds`: a new diameter for holes (their type and extent are kept) and a
   new radius for constant-radius rounds.
 - Acceptance script `A37` (feature tree, variable-radius rounds, resized holes and rounds, user-defined sets).
+- `se_body`: the bodies of a part. `list` (design and construction bodies), `subtract` and `intersect` design bodies
+  (a closed tool, or an open surface as the tool with `side` `normal` or `reverse`), `emboss` closed bodies into
+  another (thickened or as a cut only, with a clearance, on either side), `to_construction` and `to_design` (closed
+  construction bodies, such as end-capped surfaces, become design bodies that may overlap), and `divide` a saved part
+  into part files by a reference plane or a surface. Each result is checked by the volume and the bodies.
+- `se_part_feature normal_protrusion` and `normal_cutout`: the region inside (or outside) closed curves projected or
+  wrapped onto faces, raised or recessed normal to them by a distance.
+- Acceptance script `A38` (bodies, emboss, normal protrusions and cutouts, a part divided into files).
 
 ### Changed
 
@@ -208,6 +216,8 @@ Relevant changes to this project are recorded here. The format follows
   them.
 - `se_com_invoke` and `se_com_get`: an argument whose type does not fit its parameter (an array for a number) fails
   with `invalid_argument` instead of an unexpected internal error.
+- `se_sketch polyline` with `closed` and the first point repeated at the end no longer draws a zero-length line
+  (Solid Edge failed with 0x80040210); two identical consecutive points are refused with `invalid_argument`.
 
 ## [0.1.0] - 2026-10-12
 

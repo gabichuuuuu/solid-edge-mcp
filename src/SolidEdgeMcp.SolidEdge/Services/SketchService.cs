@@ -106,6 +106,22 @@ public static partial class SketchService
     {
         Canvas2d canvas = ResolveCanvas(context, sketch);
         List<(double X, double Y)> p = Geo.Points2(points, "points", closed ? 3 : 2);
+        static bool Same((double X, double Y) a, (double X, double Y) b) => Math.Abs(a.X - b.X) < 1e-9 && Math.Abs(a.Y - b.Y) < 1e-9;
+
+        // Ending on the first point, as when drawing it, is the same closed shape (a zero-length line makes Solid Edge fail).
+        if (closed && p.Count > 3 && Same(p[0], p[^1]))
+        {
+            p.RemoveAt(p.Count - 1);
+        }
+
+        for (int i = 1; i < p.Count; i++)
+        {
+            if (Same(p[i - 1], p[i]))
+            {
+                throw ToolException.InvalidArgument($"Points {i} and {i + 1} of 'points' are the same: each line needs two different points.");
+            }
+        }
+
         Line2d[] lines = Chain(canvas, p, closed);
         return new { elements = lines.Select(l => context.RegisterBeside(l, "line2d", sketch)).ToArray() };
     }

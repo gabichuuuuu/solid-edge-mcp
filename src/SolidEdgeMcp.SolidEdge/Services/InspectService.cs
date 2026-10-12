@@ -77,7 +77,7 @@ public static class InspectService
     }
 
     /// <summary>Box around one or more bodies, in mm.</summary>
-    private static (double[] Min, double[] Max) Range(IEnumerable<Body> bodies)
+    internal static (double[] Min, double[] Max) Range(IEnumerable<Body> bodies)
     {
         double[] lo = [double.MaxValue, double.MaxValue, double.MaxValue];
         double[] hi = [double.MinValue, double.MinValue, double.MinValue];

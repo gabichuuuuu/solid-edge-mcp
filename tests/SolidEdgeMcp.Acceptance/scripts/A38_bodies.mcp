@@ -1,0 +1,194 @@
+# A38: bodies (se_body): list, to_design, subtract (closed tool and open surface), intersect, to_construction, emboss and divide into part files;
+# recovered bodies through the generic layer; protrusions and cutouts normal to faces from projected and wrapped curves (se_part_feature).
+# Block 100 x 60 x 20 and a closed box surface 40 x 20 x 30 at x 80..120, y 20..40: they overlap by 20 x 20 x 20 = 8000 mm3.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[80,20,120,40]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@s = se_surface {"action":"extrude","sketch":"{{k2.sketch}}","depth":30,"endCaps":true}
+@l = se_body {"action":"list"}
+?= l.design[0].volume 120000 0.01
+?~ l.construction[0].kind solid
+?= l.construction[0].volume 24000 0.01
+# The closed surface becomes a second design body, overlapping the block
+@d = se_body {"action":"to_design","bodies":["{{s.surface.handle}}"]}
+?= d.volumeChange 24000 0.01
+?= d.bodies[1].volume 24000 0.01
+! [invalid_argument] se_body {"action":"to_design","bodies":["{{d.bodies[0].handle}}"]}
+# The box takes 8000 mm3 from the block and stays
+@sb = se_body {"action":"subtract","targets":["{{d.bodies[0].handle}}"],"tools":["{{d.bodies[1].handle}}"]}
+?= sb.volumeChange -8000 0.01
+?= sb.bodies[0].volume 112000 0.01
+?= sb.bodies[1].volume 24000 0.01
+! [invalid_argument] se_body {"action":"subtract","targets":["{{sb.bodies[0].handle}}"],"tools":["{{sb.bodies[0].handle}}"]}
+! [invalid_argument] se_body {"action":"intersect"}
+# The box made a construction body again: out of the volume, listed as a solid construction
+@tc = se_body {"action":"to_construction","bodies":["{{sb.bodies[1].handle}}"]}
+?= tc.volumeChange -24000 0.01
+?= tc.volume 112000 0.01
+?= tc.construction[?kind="solid"].volume 24000 0.01
+! [invalid_argument] se_body {"action":"to_construction","bodies":["{{tc.bodies[0].handle}}"]}
+# An open surface at x = 30 (normal +x): it cannot become a design body; as a tool it needs a side, and 'normal' removes x > 30: 30 x 60 x 20 = 36000 left
+@pl = se_ref_plane {"action":"offset","plane":"1","distance":-5}
+@k3 = se_sketch {"action":"create","plane":"{{pl.handle}}"}
+se_sketch {"action":"line","sketch":"{{k3.sketch}}","points":[30,-10,30,70]}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}","open":true}
+@o = se_surface {"action":"extrude","sketch":"{{k3.sketch}}","depth":30}
+@of = se_geometry {"action":"faces","source":"{{o.surface.handle}}"}
+?= of.items[0].normal[0] 1
+! [invalid_argument] se_body {"action":"to_design","bodies":["{{o.surface.handle}}"]}
+! [invalid_argument] se_body {"action":"subtract","tools":["{{o.surface.handle}}"]}
+@so = se_body {"action":"subtract","tools":["{{o.surface.handle}}"],"side":"normal"}
+?= so.volume 36000 0.01
+?= so.bodies[0].boundingBox.max[0] 30 0.0001
+se_documents {"action":"close","saveChanges":false}
+# Intersect: the same block and box leave their common 20 x 20 x 20 at x 80..100
+@p2 = se_documents {"action":"new","kind":"part"}
+@q = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{q.sketch}}"}
+se_extrude {"sketch":"{{q.sketch}}","distance":20}
+@q2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q2.sketch}}","points":[80,20,120,40]}
+se_sketch {"action":"close","sketch":"{{q2.sketch}}"}
+@s2 = se_surface {"action":"extrude","sketch":"{{q2.sketch}}","depth":30,"endCaps":true}
+@i = se_body {"action":"intersect","tools":["{{s2.surface.handle}}"]}
+?= i.volume 8000 0.01
+?= i.bodies[0].boundingBox.min[0] 80 0.0001
+?= i.bodies[0].boundingBox.max[2] 20 0.0001
+# A box away from what is left shares nothing with it: refused and deleted
+@q3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q3.sketch}}","points":[200,0,220,20]}
+se_sketch {"action":"close","sketch":"{{q3.sketch}}"}
+@s3 = se_surface {"action":"extrude","sketch":"{{q3.sketch}}","depth":10,"endCaps":true}
+! [feature_failed] se_body {"action":"intersect","tools":["{{s3.surface.handle}}"]}
+@g2 = se_geometry {"action":"summary"}
+?= g2.volume 8000 0.01
+# Recovered bodies (generic layer): Add takes the body of a closed construction (not the surface feature, which gives a failed feature) and remakes it as a new construction body, which replaces it
+@l2 = se_body {"action":"list"}
+@c = se_com_get {"target":"active_document","member":"Constructions"}
+@rb = se_com_get {"target":"{{c.value.handle}}","member":"RecoveredBodies"}
+@r = se_com_invoke {"target":"{{rb.value.handle}}","method":"Add","arguments":[1,{"type":"object[]","value":[{"handle":"{{l2.construction[?volume=4000].handle}}"}]}]}
+@rs = se_com_invoke {"target":"{{r.result.handle}}","method":"GetStatusEx"}
+?~ rs.result igFeatureOK
+@l3 = se_body {"action":"list"}
+?= l3.construction[0].volume 4000 0.01
+?~ l3.construction[0].name Solid Body_3
+?= l3.design[0].volume 8000 0.01
+se_documents {"action":"close","saveChanges":false}
+# Emboss: a 100 x 60 x 2 plate and a closed cylinder of radius 10, 10 high, standing on it at (50, 30)
+@p3 = se_documents {"action":"new","kind":"part"}
+@w = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{w.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{w.sketch}}"}
+se_extrude {"sketch":"{{w.sketch}}","distance":2}
+@w2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{w2.sketch}}","center":[50,30],"radius":10}
+se_sketch {"action":"close","sketch":"{{w2.sketch}}"}
+@cy = se_surface {"action":"extrude","sketch":"{{w2.sketch}}","depth":10,"endCaps":true}
+! [invalid_argument] se_body {"action":"emboss","tools":["{{cy.surface.handle}}"]}
+# A cup with walls of 2 around the tool: + pi x (144 x 2 + 44 x 8 - 100 x 2) = pi x 440 = 1382.301
+@e1 = se_body {"action":"emboss","tools":["{{cy.surface.handle}}"],"thickness":2}
+?= e1.volumeChange 1382.301 0.01
+?~ e1.feature.type EmbossFeature
+@g3 = se_geometry {"action":"summary"}
+?= g3.boundingBox.max[2] 12 0.0001
+se_feature_edit {"action":"delete","feature":"{{e1.feature.handle}}"}
+# 0.5 mm away from the tool: + pi x (156.25 x 2 + 46 x 8.5 - 110.25 x 2) = 1517.389
+@e2 = se_body {"action":"emboss","tools":["{{cy.surface.handle}}"],"thickness":2,"clearance":0.5}
+?= e2.volumeChange 1517.389 0.01
+se_feature_edit {"action":"delete","feature":"{{e2.feature.handle}}"}
+# Towards the other face of the plate: + pi x (144 x 2 - 100 x 2) = 276.460, down to z = -2
+@e3 = se_body {"action":"emboss","tools":["{{cy.surface.handle}}"],"thickness":2,"side":"reverse"}
+?= e3.volumeChange 276.46 0.01
+?= e3.bodies[0].boundingBox.min[2] -2 0.0001
+se_feature_edit {"action":"delete","feature":"{{e3.feature.handle}}"}
+# Not thickened, the tool's shape is only cut out: - pi x 100 x 2 = 628.319
+@e4 = se_body {"action":"emboss","tools":["{{cy.surface.handle}}"],"thicken":false}
+?= e4.volumeChange -628.319 0.01
+se_documents {"action":"close","saveChanges":false}
+# Normal protrusions and cutouts: a 40 x 20 rectangle projected onto the top of the block, 5 mm: inside +4000, outside (the rest of the top) +26000, cut -4000
+@p4 = se_documents {"action":"new","kind":"part"}
+@n = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{n.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{n.sketch}}"}
+se_extrude {"sketch":"{{n.sketch}}","distance":20}
+@top = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@pl4 = se_ref_plane {"action":"offset","plane":"1","distance":30}
+@n2 = se_sketch {"action":"create","plane":"{{pl4.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{n2.sketch}}","points":[30,20,70,40]}
+se_sketch {"action":"close","sketch":"{{n2.sketch}}"}
+@pc = se_curve {"action":"project","sketch":"{{n2.sketch}}","onto":"{{top.items[0].handle}}","direction":"reverse"}
+@ce = se_geometry {"action":"edges","source":"{{pc.curve.handle}}"}
+! [invalid_argument] se_part_feature {"action":"normal_protrusion","edges":["{{ce.items[0].handle}}","{{ce.items[1].handle}}","{{ce.items[2].handle}}","{{ce.items[3].handle}}"]}
+@np = se_part_feature {"action":"normal_protrusion","edges":["{{ce.items[0].handle}}","{{ce.items[1].handle}}","{{ce.items[2].handle}}","{{ce.items[3].handle}}"],"distance":5}
+?= np.volumeChange 4000 0.01
+?~ np.side inside
+?~ np.feature.type NormalToFaceProtrusion
+se_feature_edit {"action":"delete","feature":"{{np.feature.handle}}"}
+@ce2 = se_geometry {"action":"edges","source":"{{pc.curve.handle}}"}
+@no = se_part_feature {"action":"normal_protrusion","edges":["{{ce2.items[0].handle}}","{{ce2.items[1].handle}}","{{ce2.items[2].handle}}","{{ce2.items[3].handle}}"],"distance":5,"side":"reverse"}
+?= no.volumeChange 26000 0.01
+se_feature_edit {"action":"delete","feature":"{{no.feature.handle}}"}
+@ce3 = se_geometry {"action":"edges","source":"{{pc.curve.handle}}"}
+@nc = se_part_feature {"action":"normal_cutout","edges":["{{ce3.items[0].handle}}","{{ce3.items[1].handle}}","{{ce3.items[2].handle}}","{{ce3.items[3].handle}}"],"distance":5}
+?= nc.volumeChange -4000 0.01
+se_feature_edit {"action":"delete","feature":"{{nc.feature.handle}}"}
+# A 15 x 40 rectangle drawn clockwise (its chain runs the other way) is still raised inside: 600 x 3 = 1800
+@n3 = se_sketch {"action":"create","plane":"{{pl4.handle}}"}
+se_sketch {"action":"polyline","sketch":"{{n3.sketch}}","points":[10,10,10,50,25,50,25,10,10,10]}
+se_sketch {"action":"close","sketch":"{{n3.sketch}}"}
+@top2 = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@pc2 = se_curve {"action":"project","sketch":"{{n3.sketch}}","onto":"{{top2.items[0].handle}}","direction":"reverse"}
+@ce4 = se_geometry {"action":"edges","source":"{{pc2.curve.handle}}"}
+@nw = se_part_feature {"action":"normal_protrusion","edges":["{{ce4.items[0].handle}}","{{ce4.items[1].handle}}","{{ce4.items[2].handle}}","{{ce4.items[3].handle}}"],"distance":3}
+?= nw.volumeChange 1800 0.01
+se_documents {"action":"close","saveChanges":false}
+# A 20 x 10 rectangle wrapped on a cylinder of radius 20 and raised 2 mm: 1 rad x (22^2 - 20^2) / 2 x 10 = 420
+@p5 = se_documents {"action":"new","kind":"part"}
+@c5 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{c5.sketch}}","center":[0,0],"radius":20}
+se_sketch {"action":"close","sketch":"{{c5.sketch}}"}
+se_extrude {"sketch":"{{c5.sketch}}","distance":60}
+@cyl = se_geometry {"action":"faces","type":"cylinder"}
+@tp = se_ref_plane {"action":"offset","plane":"2","distance":20}
+@c6 = se_sketch {"action":"create","plane":"{{tp.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{c6.sketch}}","points":[-10,20,10,30]}
+se_sketch {"action":"close","sketch":"{{c6.sketch}}"}
+@wr = se_curve {"action":"wrap","sketch":"{{c6.sketch}}","faces":["{{cyl.items[0].handle}}"]}
+@we = se_geometry {"action":"edges","source":"{{wr.curve.handle}}"}
+@nr = se_part_feature {"action":"normal_protrusion","edges":["{{we.items[0].handle}}","{{we.items[1].handle}}","{{we.items[2].handle}}","{{we.items[3].handle}}"],"distance":2}
+?= nr.volumeChange 420 0.01
+?= nr.volume 75818.224 0.01
+se_documents {"action":"close","saveChanges":false}
+# Divide: the block saved in the work folder is cut at x = 30 into two part files next to it; piece 1 is x 30..100 (84000), piece 2 x 0..30 (36000)
+@p6 = se_documents {"action":"new","kind":"part"}
+@v = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{v.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{v.sketch}}"}
+se_extrude {"sketch":"{{v.sketch}}","distance":20}
+@vp = se_ref_plane {"action":"offset","plane":"2","distance":30}
+! [never_saved] se_body {"action":"divide","tools":["{{vp.handle}}"]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a38_divide_{{run}}.par","overwrite":true}
+! [invalid_argument] se_body {"action":"divide","tools":["{{vp.handle}}"],"paths":["{{work}}\\runs\\a38_piece_{{run}}.par"]}
+@dv = se_body {"action":"divide","tools":["{{vp.handle}}"]}
+?= dv.pieces[0].written true
+?~ dv.pieces[0].status up_to_date
+?~ dv.pieces[1].status up_to_date
+! [invalid_argument] se_body {"action":"divide","tools":["{{vp.handle}}"]}
+@dl = se_documents {"action":"list"}
+?= dl.documents[0].dirty false
+se_documents {"action":"close","saveChanges":false}
+@d1 = se_documents {"action":"open","path":"{{esc:dv.pieces[0].path}}"}
+@d1g = se_geometry {"action":"summary"}
+?= d1g.volume 84000 0.01
+?= d1g.boundingBox.min[0] 30 0.0001
+se_documents {"action":"close","saveChanges":false}
+@d2 = se_documents {"action":"open","path":"{{esc:dv.pieces[1].path}}"}
+@d2g = se_geometry {"action":"summary"}
+?= d2g.volume 36000 0.01
+se_documents {"action":"close","saveChanges":false}
