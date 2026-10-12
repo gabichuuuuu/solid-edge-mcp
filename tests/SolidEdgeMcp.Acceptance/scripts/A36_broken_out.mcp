@@ -30,7 +30,7 @@ se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
 @as = se_documents {"action":"new","kind":"assembly"}
 @o1 = se_assembly {"action":"insert","path":"{{work}}\\a33_g1.par"}
 @o2 = se_assembly {"action":"insert","path":"{{work}}\\a33_g2.par","origin":[100,0,0]}
-se_documents {"action":"save_as","path":"{{work}}\\a36_pair.asm","overwrite":true}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a36_pair_{{run}}.asm","overwrite":true}
 se_assembly {"action":"hide","occurrence":"{{o2.handle}}"}
 se_assembly_config {"action":"save","name":"OnlyFirst"}
 se_assembly {"action":"show","occurrence":"{{o2.handle}}"}
@@ -38,14 +38,14 @@ se_documents {"action":"save","document":"{{as.handle}}"}
 se_documents {"action":"close","document":"{{as.handle}}","saveChanges":false}
 # Top views: the whole assembly is 145 mm long (-30..115) and the configured one shows only the first bar (60 mm)
 @d2 = se_documents {"action":"new","kind":"draft"}
-@va = se_drawing {"action":"base_view","path":"{{work}}\\a36_pair.asm","orientation":"top","position":[150,300],"scale":1}
-@vb = se_drawing {"action":"base_view","path":"{{work}}\\a36_pair.asm","orientation":"top","position":[150,120],"scale":1,"configuration":"OnlyFirst"}
+@va = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a36_pair_{{run}}.asm","orientation":"top","position":[150,300],"scale":1}
+@vb = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a36_pair_{{run}}.asm","orientation":"top","position":[150,120],"scale":1,"configuration":"OnlyFirst"}
 @cfg = se_com_get {"target":"{{vb.view.handle}}","member":"Configuration"}
 ?= cfg.value OnlyFirst
 @vw = se_drawing {"action":"views"}
 ?= vw.views[0].size[0] 157.7 0.1
 ?= vw.views[1].size[0] 72.7 0.1
-! [not_found] se_drawing {"action":"base_view","path":"{{work}}\\a36_pair.asm","orientation":"top","position":[400,120],"scale":1,"configuration":"Nope"}
+! [not_found] se_drawing {"action":"base_view","path":"{{work}}\\runs\\a36_pair_{{run}}.asm","orientation":"top","position":[400,120],"scale":1,"configuration":"Nope"}
 ! [invalid_argument] se_drawing {"action":"base_view","path":"{{work}}\\a33_g1.par","orientation":"top","position":[400,300],"scale":1,"configuration":"OnlyFirst"}
 @vw2 = se_drawing {"action":"views"}
 ?= vw2.views[1].size[0] 72.7 0.1

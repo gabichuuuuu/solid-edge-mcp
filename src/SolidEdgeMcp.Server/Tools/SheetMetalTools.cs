@@ -120,7 +120,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
         break_corner: cornerType with 'size' on corner edges through the thickness.
         flatten: flat pattern and its cut size (x, y); export it with se_export flatPattern=true.
         bend_angle: faces = one bend face, fixedFace = a planar face that stays, angle = the new angle | bend_radius: faces = bend faces, radius = the new inside radius.
-        convert: thin-walled part copied in (se_part_feature copy_part) -> sheet metal; faces = the base face that stays flat, edges = the corner edges to rip; set the thickness to the wall's first.
+        convert: thin-walled part copied in (se_part_feature copy_part) -> sheet metal; faces = the base face that stays flat, edges = the corner edges to rip; first set_settings thickness = the wall thickness.
         match_face: faces = the outer or inner face of a flange, plane = a plane or planar face parallel to it -> the flange moves onto it, or distance mm short (negative: beyond).
         tab, contour_flange, flange, hem and break_corner are built in synchronous modeling (the only mode the API solves them in) and the document returns to ordered; flanges and hems need edges of those features.
         Sketch-based features: se_sheetmetal_form. Verified: a feature that fails or has no effect is an error and the call is undone.

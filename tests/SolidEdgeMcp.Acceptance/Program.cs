@@ -11,7 +11,7 @@
 // {{var.field[0].sub}} is replaced by the stored value; {{work}} is the work folder (SE_MCP_WORK or
 // %LocalAppData%\SolidEdgeMcp\work\acceptance), already escaped for JSON; {{esc:var.path}} escapes a stored
 // text for a JSON string (such as a path read from another call); {{run}} is an id of this run, for files that
-// must not exist yet (they stay in the work folder).
+// must not exist yet (they go in {{work}}\runs, which the client creates, and stay there).
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -22,7 +22,7 @@ string exe = args[0];
 string script = args[1];
 string work = Environment.GetEnvironmentVariable("SE_MCP_WORK")
     ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SolidEdgeMcp", "work", "acceptance");
-Directory.CreateDirectory(work);
+Directory.CreateDirectory(Path.Combine(work, "runs"));
 
 var transport = new StdioClientTransport(new StdioClientTransportOptions
 {
