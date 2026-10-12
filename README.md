@@ -60,7 +60,7 @@ for approval.
 
 **Tested for real**
 
-3576 calls and 1848 checks against real Solid Edge 2026, with values calculated by hand.
+3576 calls and 1848 checks against real Solid Edge 2026, compared with expected values computed from formulas.
 
 </td>
 </tr>
@@ -386,8 +386,8 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 346/346.
-- Acceptance suite against real Solid Edge 2026: **3576 calls and 1848 checks** in `A01`–`A40`, with values
-  calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the script). All of
+- Acceptance suite against real Solid Edge 2026: **3576 calls and 1848 checks** in `A01`–`A40`, with expected
+  values computed from formulas (or Solid Edge reference values when there is no simple formula, noted in the script). All of
   them pass.
 - Coverage by value: the 69 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
@@ -424,7 +424,7 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 | `A23` | Display of drawing views (hidden edges, shading, members of an assembly view), break lines, conversion to 2D, and import of STEP, IGES, Parasolid, STL and DXF files |
 | `A24` | Sketch editing: move, rotate, scale and mirror (related sets and copies), trim, extend, split, corner, offset, construction, patterns and delete, also on a drawing sheet |
 | `A25` | Assembly structure (activate, inactivate, bundle, transfer, disperse), links (list, replace, break), where used, top-level assemblies, document search, physical properties of assemblies and attribute sets |
-| `A26` | Closed regions: fills by elements and by points, the side of a split region, refused points (outside, on an element, no loop, island), fill styles, list and delete, and area properties with holes against values by hand (inertia of a triangle, an L-like section, an ellipse) |
+| `A26` | Closed regions: fills by elements and by points, the side of a split region, refused points (outside, on an element, no loop, island), fill styles, list and delete, and area properties with holes against values computed from formulas (inertia of a triangle, an L-like section, an ellipse) |
 | `A27` | Background sheets: list them with the sheets that use them, show or hide the background of a sheet, draw and write on a background, replace one with a background of another drawing (changes detected, a frame of another paper size reported), add one of a custom size and give it to a sheet, refuse to delete one in use, rename, and the background view |
 | `A28` | 3D section views checked by the colour of the cut in a capture: inside and outside of a closed profile, both sides of an open line, extents along the sketch normal (front, back, a depth, symmetric), show, hide, edit, the look repeated by the next section views, delete (the reference plane of the profile stays), refused arguments and a section of an assembly |
 | `A29` | 3D PDF publishing: a part with STEP and JT files embedded, the same part published again without the pages of the first publish, an assembly with its template, a folder with and without its subfolders, the HTML page, and refused cases (existing file, unknown template, a drawing, two files that would write the same PDF, open documents) |
@@ -508,8 +508,8 @@ solid-edge-mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A40`, listed under [Validation](#validation)) with volumes, measurements and expected
-errors calculated by hand. Each script creates and closes its documents without saving:
+calls (`A01`–`A40`, listed under [Validation](#validation)) with expected volumes, measurements
+and errors written in advance. Each script creates and closes its documents without saving:
 
 ```powershell
 dotnet build SolidEdgeMcp.slnx
