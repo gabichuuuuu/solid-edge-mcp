@@ -2,15 +2,15 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
-  <img src="docs/assets/banner.svg" alt="solid_edge_mcp: model, assemble and draft in Solid Edge from any MCP client" width="100%">
+  <img src="docs/assets/banner.svg" alt="solid_edge_mcp: MCP server for Siemens Solid Edge. Model, assemble and draft from any MCP client" width="100%">
 </picture>
 
-**Unofficial local [MCP](https://modelcontextprotocol.io) server to operate Solid Edge from Claude Code,
+**Unofficial local [MCP](https://modelcontextprotocol.io) server to operate Siemens Solid Edge from Claude Code,
 Claude Desktop, Codex or any other MCP client.**
 
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
-![Solid Edge 2026](https://img.shields.io/badge/Solid%20Edge-2026-009999)
+![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![54 tools](https://img.shields.io/badge/tools-54-2F6FEB)
 
