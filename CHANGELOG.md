@@ -6,6 +6,20 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_annotation corner`: corner annotations (edge conditions, ISO 13715) on the edge a model point picks, with one
+  deviation or an upper and lower deviation, optionally on a leader.
+- `se_sheet_content frame`: an empty smart frame (a reserved area) by its lower-left corner and size, of the default
+  style or of a style of the drawing whose frame keeps its size; frames are listed and deleted like tables and images.
+- Acceptance script `A47` (corner annotations and smart frames).
+
+### Fixed
+
+- The descriptions of `se_part_feature`, `se_drawing` and `se_annotation` are shortened to the 2,048 characters a
+  client shows; the two first had grown past it in 0.6.0 and 0.6.1.
+- The generic layer refuses `SmartFrame2d.CreateLink`, which closed Solid Edge with a part file.
+
 ## [0.6.1] - 2026-10-13
 
 ### Added

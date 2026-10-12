@@ -26,6 +26,7 @@ public enum AnnotationAction
     BoltCircle,
     DatumTarget,
     DatumPoint,
+    Corner,
     Delete,
 }
 
@@ -43,6 +44,7 @@ public enum AnnotationKind
     BoltCircle,
     DatumTarget,
     DatumPoint,
+    Corner,
 }
 
 public enum SurfaceFinishType
@@ -100,18 +102,18 @@ public sealed class AnnotationTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_annotation", Title = "Drawing annotations", Destructive = true, OpenWorld = false)]
     [Description("""
-        Annotations of a drawing sheet (se_drawing makes the views). Sheet positions in mm from the lower-left corner; model points in mm pick what a view shows, as for se_drawing dimensions.
+        Annotations of a drawing sheet. Sheet positions in mm from its lower-left corner; model points in mm pick what a view shows (as for se_drawing dimensions).
         list (sheet; kind filter) | text (text + position on the sheet) | balloon (view + points = one model point on an edge, vertex or circle + text; position = balloon centre, default 15 mm up-right) |
-        callout (like balloon, the text in a callout box) | center_mark (view + points = centre of, or a point on, a circle/arc) |
+        callout (like balloon, in a box) | center_mark (view + points = centre of, or a point on, a circle/arc) |
         centerline (view + points = two model points: on two circles (centre to centre) or on two straight edges (their mid line)) | leader (view + points + position = the free end) |
         surface_finish (view + points = a point on the edge; finish, text = roughness e.g. 'Ra 3.2'; position = symbol on a leader, default on the edge) |
         datum (view + points + text = the letter; position = frame on a leader, default on the edge) | datum_target (like datum, text = e.g. 'A1') | datum_point (view + points) |
-        bolt_circle (view + points = three hole centres) |
+        bolt_circle (view + points = three hole centres) | corner (view + points = a point on the edge; text = edge deviation mm "+0.3" or range "upper|lower" "-0.1|-0.3"; position = on a leader) |
         feature_control_frame (characteristic + tolerance (⌀ or Ø for a diameter zone) + datums, or text = the whole frame in Solid Edge codes;
         rows = up to 3 more rows 'characteristic|tolerance|datum…', or with composite 'tolerance|datum…' sharing the first characteristic;
         view + points = on a leader from that edge, position = the frame (default 15 mm up-right); or only position = a free frame) |
         weld (view + points = a point on the welded edge; weld type, weldSide (arrow / other / both), text = size e.g. 'a5', allAround, field; position = start of the reference line, default 15 mm up-right) | delete (annotation handle).
-        Annotations picked from a view stay attached to it. Each one is checked (text kept, leader attached, drawn where expected) and removed if the check fails.
+        Annotations picked from a view stay attached to it; each is checked (text, leader, place) and removed if wrong.
         Example: {"action":"feature_control_frame","view":"drawing_view:2","points":[100,30,20],"characteristic":"perpendicularity","tolerance":"0.02","datums":["A"]}.
         """)]
     public Task<CallToolResult> Annotation(
@@ -150,6 +152,7 @@ public sealed class AnnotationTools(ToolRunner runner)
             AnnotationAction.Centerline => runner.RunAsync(tool, act, c => DrawingService.AddCenterLine(c, view, points), cancellationToken),
             AnnotationAction.Leader => runner.RunAsync(tool, act, c => DrawingService.AddLeader(c, view, points, position), cancellationToken),
             AnnotationAction.SurfaceFinish => runner.RunAsync(tool, act, c => DrawingService.AddSurfaceFinish(c, view, points, position, text, Snake(finish)), cancellationToken),
+            AnnotationAction.Corner => runner.RunAsync(tool, act, c => DrawingService.AddCorner(c, view, points, position, text), cancellationToken),
             AnnotationAction.Datum => runner.RunAsync(tool, act, c => DrawingService.AddDatum(c, view, points, position, text), cancellationToken),
             AnnotationAction.FeatureControlFrame => runner.RunAsync(tool, act, c => DrawingService.AddFeatureControlFrame(c, document, sheet, view, points, position,
                 characteristic is { } g ? Snake(g) : null, tolerance, datums, text, rows, composite), cancellationToken),

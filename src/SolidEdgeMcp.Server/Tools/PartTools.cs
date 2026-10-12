@@ -278,15 +278,15 @@ public sealed class PartTools(ToolRunner runner)
     [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part / fillet weld", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Other part features (ordered modelling). Lengths in mm.
-        rib: sketch = an open chain (se_sketch close, open: true) across the part, grown in its plane to the part; thickness; side; depth |
+        rib: sketch = an open chain (se_sketch close open:true) across the part; thickness; side; depth |
         thicken: faces, thickness; side |
-        mirror_body: mirrored copy of the body about 'plane' (the original stays).
-        split: a reference plane ('plane') cuts the body (or 'bodies') into design bodies | unite: joins 'bodies' into one (default: all). Other body operations: se_body.
-        Direct edits (also imported parts): delete_faces (the solid heals) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | delete_region (edges = the closed loop around a region, faces = [one face inside it]: removed and healed) | offset_faces (distance along the normal: positive adds) | replace_faces (onto replaceWith: a plane, surface or face) | redefine_faces (adjacent faces merged into one B-spline face) | resize_holes (faces of holes get diameter) | resize_rounds (faces of rounds get radius).
-        normal_protrusion | normal_cutout: 'edges' of closed curves on faces (se_curve project or wrap) raised or recessed by 'distance'; side auto = inside them, reverse = outside.
+        mirror_body: a mirrored copy about 'plane'.
+        split: 'plane' cuts the body (or 'bodies') into design bodies | unite: 'bodies' into one (default all); more in se_body.
+        Direct edits (also imported parts): delete_faces (healed) | delete_holes (diameter: holes up to it) | delete_rounds (round faces) | delete_region (edges = closed loop, faces = [one face inside]) | offset_faces (distance, positive adds) | replace_faces (onto replaceWith: plane, surface or face) | redefine_faces (adjacent faces into one B-spline) | resize_holes (hole faces, diameter) | resize_rounds (round faces, radius).
+        normal_protrusion | normal_cutout: 'edges' of closed curves on faces (se_curve project/wrap) raised or recessed by 'distance'; side auto = inside, reverse = outside.
         slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends (path extended by half the width) or squareEnds; through, or depth; optional counterbore |
-        web_network: sketch = open lines on a plane across a shelled part; thickness; each line a wall grown to the next face, or depth |
-        lip: edges = a chain of rim edges (e.g. outer edges of the open face of a shelled part), width, height: a strip on the rim, flush with its side |
+        web_network: sketch = open lines across a shelled part; thickness; walls to the next face, or depth |
+        lip: edges = a chain of rim edges (outer edges of a shelled part's open face), width, height |
         scale_body: scale = one factor or three (x, y, z) about the part origin (the first body of a split part).
         copy_part: path = a saved .par/.psm copied into this part (base body of an empty part, or united with the body); optional scale and mirror plane.
         fillet_weld (part documents): a weld bead body between 'faces' (base) and 'targetFaces' meeting them along an edge; leg mm on the base faces, leg2 on the targets (default leg).

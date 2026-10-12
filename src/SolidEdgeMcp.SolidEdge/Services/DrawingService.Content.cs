@@ -7,6 +7,9 @@ using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using Image2d = SolidEdgeFrameworkSupport.Image2d;
+using SmartFrame2d = SolidEdgeFrameworkSupport.SmartFrame2d;
+using SmartFrame2dStyle = SolidEdgeFrameworkSupport.SmartFrame2dStyle;
+using SmartFrames2d = SolidEdgeFrameworkSupport.SmartFrames2d;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
@@ -22,14 +25,15 @@ public static partial class DrawingService
 {
     private static readonly string[] ImageExtensions = [".bmp", ".jpg", ".jpeg", ".png", ".gif", ".tif", ".tiff", ".emf", ".wmf"];
 
-    /// <summary>Tables of the drawing (with the sheet each is on) and images of the sheet.</summary>
+    /// <summary>Tables of the drawing (with the sheet each is on), images and smart frames of the sheet.</summary>
     public static object Contents(SeContext context, string? documentHandle, string? sheetRef)
     {
         DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
         object[] tables = [.. Late.Items(draft.Tables).OfType<Table>().Select(t => DescribeTable(context, draft, t))];
         object[] images = [.. Late.Items(sheet.Images2d).OfType<Image2d>().Select(i => DescribeImage(context, draft, i))];
-        return new { sheet = sheet.Name, tables, images };
+        object[] frames = [.. Late.Items(sheet.SmartFrames2d).OfType<SmartFrame2d>().Select(f => DescribeFrame(context, draft, f))];
+        return new { sheet = sheet.Name, tables, images, frames };
     }
 
     /// <summary>
@@ -227,12 +231,70 @@ public static partial class DrawingService
         return new { image = DescribeImage(context, draft, image) };
     }
 
-    /// <summary>Deletes a table or an image of a sheet.</summary>
+    /// <summary>
+    /// An empty smart frame (a reserved area, e.g. for a logo or a stamp) of a style of the drawing (default: the default
+    /// style), its lower-left corner at <paramref name="position"/> and its size in mm. Verified: AddBy2Points draws it
+    /// with the range given; linking a part file into it (CreateLink) closed Solid Edge, so no content is placed.
+    /// </summary>
+    public static object AddFrame(SeContext context, string? documentHandle, string? sheetRef, string? style, double[]? position, double? width,
+        double? height)
+    {
+        (double x, double y) = Geo.Point2(position ?? throw ToolException.InvalidArgument("Action 'frame' requires 'position': the lower-left corner [x, y] in mm."), "position");
+        if (width is not { } w || height is not { } h || !double.IsFinite(w) || !double.IsFinite(h) || w <= 0 || h <= 0)
+        {
+            throw ToolException.InvalidArgument("Action 'frame' requires 'width' and 'height' > 0 in mm.");
+        }
+
+        DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
+        Sheet sheet = ResolveSheet(context, draft, sheetRef);
+        SmartFrame2dStyle[] styles = [.. Late.Items(draft.SmartFrame2dStyles).OfType<SmartFrame2dStyle>()];
+        SmartFrame2dStyle? wanted = string.IsNullOrWhiteSpace(style) ? null
+            : styles.FirstOrDefault(s => string.Equals(s.Name, style, StringComparison.OrdinalIgnoreCase))
+                ?? throw ToolException.NotFound($"The drawing has no smart frame style '{style}'.", $"Its styles: {string.Join(", ", styles.Select(s => s.Name))}.");
+        if (wanted is { SizeMode: SolidEdgeFrameworkSupport.SizeModeConstants.igFrameChangesSize })
+        {
+            // Verified with the "Reference" style: the frame takes the size of its content, so an empty one has no extent.
+            throw ToolException.InvalidArgument($"The smart frame style '{wanted.Name}' sizes the frame to its content, so an empty frame has no extent.",
+                "Leave 'style' out for the default style, or use a style whose frame keeps its size.");
+        }
+
+        var frames = (SmartFrames2d)sheet.SmartFrames2d;
+        int before = frames.Count;
+        double x2 = x + Units.MmToM(w), y2 = y + Units.MmToM(h);
+        // Verified: with a style name the frame gets no range and is not drawn; with "" it takes the default style.
+        SmartFrame2d frame = frames.AddBy2Points("", x, y, x2, y2);
+        try
+        {
+            if (wanted is not null)
+            {
+                frame.Style = wanted;
+                if (!string.Equals(frame.Style?.Name, wanted.Name, StringComparison.Ordinal))
+                {
+                    throw new ToolException("frame_failed", $"Solid Edge kept the style '{frame.Style?.Name}' instead of '{wanted.Name}'.");
+                }
+            }
+
+            frame.Range(out double x0, out double y0, out double x1, out double y1);
+            if (frames.Count != before + 1 || Math.Abs(x0 - x) > 1e-6 || Math.Abs(y0 - y) > 1e-6 || Math.Abs(x1 - x2) > 1e-6 || Math.Abs(y1 - y2) > 1e-6)
+            {
+                throw new ToolException("frame_failed", $"Solid Edge drew the frame from ({Geo.Mm(x0)}, {Geo.Mm(y0)}) to ({Geo.Mm(x1)}, {Geo.Mm(y1)}) mm.");
+            }
+        }
+        catch (Exception ex) when (ex is ToolException || (ComErrors.Unwrap(ex) is COMException && !ComErrors.IsGone(ex)))
+        {
+            frame.Delete();
+            throw ex is ToolException ? ex : new ToolException("frame_failed", $"Solid Edge rejected the frame: {ComErrors.Unwrap(ex).Message.Trim()}", null, ex);
+        }
+
+        return new { frame = DescribeFrame(context, draft, frame) };
+    }
+
+    /// <summary>Deletes a table, an image or a smart frame of a sheet.</summary>
     public static object DeleteContent(SeContext context, string? handle)
     {
         if (string.IsNullOrWhiteSpace(handle))
         {
-            throw ToolException.InvalidArgument("'item' is required: a table or image handle from action 'list'.");
+            throw ToolException.InvalidArgument("'item' is required: a table, image or frame handle from action 'list'.");
         }
 
         object item = context.Handles.Resolve(handle, "item");
@@ -259,8 +321,18 @@ public static partial class DrawingService
                 }
 
                 break;
+            case SmartFrame2d frame:
+                var frames = (SmartFrames2d)((Sheet)Late.Get(frame, "Parent")!).SmartFrames2d;
+                int framed = frames.Count;
+                frame.Delete();
+                if (frames.Count != framed - 1)
+                {
+                    throw new ToolException("frame_failed", "Solid Edge did not delete the frame.");
+                }
+
+                break;
             default:
-                throw ToolException.InvalidArgument($"'{handle}' is not a table or an image of a sheet.");
+                throw ToolException.InvalidArgument($"'{handle}' is not a table, an image or a smart frame of a sheet.");
         }
 
         context.Handles.Remove(handle, "it was deleted");
@@ -359,6 +431,18 @@ public static partial class DrawingService
             link = image.IsLink,
             position = new[] { Geo.Mm(x), Geo.Mm(y) },
             size = new[] { Geo.Mm(image.Width), Geo.Mm(image.Height) },
+        };
+    }
+
+    private static object DescribeFrame(SeContext context, DraftDocument draft, SmartFrame2d frame)
+    {
+        frame.Range(out double x0, out double y0, out double x1, out double y1);
+        return new
+        {
+            handle = context.Register(frame, "frame", Document(draft)),
+            style = frame.Style?.Name,
+            position = new[] { Geo.Mm(x0), Geo.Mm(y0) },
+            size = new[] { Geo.Mm(x1 - x0), Geo.Mm(y1 - y0) },
         };
     }
 }

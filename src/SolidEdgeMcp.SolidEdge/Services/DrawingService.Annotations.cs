@@ -12,6 +12,8 @@ using CenterLine = SolidEdgeFrameworkSupport.CenterLine;
 using CenterLines = SolidEdgeFrameworkSupport.CenterLines;
 using CenterMark = SolidEdgeFrameworkSupport.CenterMark;
 using CenterMarks = SolidEdgeFrameworkSupport.CenterMarks;
+using CornerAnnotation = SolidEdgeFrameworkSupport.CornerAnnotation;
+using CornerAnnotations = SolidEdgeFrameworkSupport.CornerAnnotations;
 using DatumFrame = SolidEdgeFrameworkSupport.DatumFrame;
 using DatumFrames = SolidEdgeFrameworkSupport.DatumFrames;
 using FeatureControlFrame = SolidEdgeFrameworkSupport.FeatureControlFrame;
@@ -43,7 +45,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 public static partial class DrawingService
 {
     public static readonly IReadOnlyList<string> AnnotationKinds =
-        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame", "weld", "bolt_circle", "datum_target", "datum_point"];
+        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame", "weld", "bolt_circle", "datum_target", "datum_point", "corner"];
 
     public static readonly IReadOnlyList<string> FinishTypes = ["basic", "machined", "no_material_removal"];
 
@@ -244,6 +246,47 @@ public static partial class DrawingService
             }
 
             OnLeader(symbol, at, "surface finish symbol");
+        });
+    }
+
+    /// <summary>
+    /// Corner annotation (edge condition, ISO 13715) on the edge picked by a model point: text = the upper deviation,
+    /// or "upper|lower" (e.g. "+0.3" for a burr allowed, "-0.1|-0.3" for an undercut range), shown in the ISO 13715 symbol;
+    /// with a position, on a leader. Verified: CornerAnnotations.Add(x, y, z) alone makes an annotation with an empty range, so it is attached
+    /// to the edge with AddByTerminator; it is drawn (at the picked vertex) once UseISODIN2000CornerAnnot is set.
+    /// </summary>
+    public static object AddCorner(SeContext context, string? viewHandle, double[]? points, double[]? position, string? text)
+    {
+        string[] deviations = string.IsNullOrWhiteSpace(text)
+            ? throw ToolException.InvalidArgument("corner requires 'text': the edge deviation in mm, e.g. \"+0.3\", or \"upper|lower\" for a range, e.g. \"-0.1|-0.3\".")
+            : [.. text.Split('|').Select(p => p.Trim())];
+        if (deviations.Length > 2 || deviations.Any(d => !double.TryParse(d, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)))
+        {
+            throw ToolException.InvalidArgument($"'text' for a corner annotation is one deviation or two separated by '|', as signed numbers in mm (e.g. \"+0.3\" or \"-0.1|-0.3\"); got '{text}'.");
+        }
+
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        Pick pick = PickOne(view, points);
+        (double X, double Y)? at = position is null ? null : Geo.Point2(position, "position");
+        CornerAnnotation corner = ((CornerAnnotations)SheetOf(view).CornerAnnotations)
+            .AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
+        return Checked(context, draft, "corner", corner, () =>
+        {
+            // Verified: without the ISO/DIN 2000 symbol, setting a deviation fails with E_FAIL and the annotation is not drawn.
+            corner.UseISODIN2000CornerAnnot = true;
+            corner.UpperToleranceForEnhancedSymbol = deviations[0];
+            if (deviations.Length > 1)
+            {
+                corner.LowerToleranceForEnhancedSymbol = deviations[1];
+            }
+
+            if (corner.UpperToleranceForEnhancedSymbol != deviations[0] || deviations.Length > 1 && corner.LowerToleranceForEnhancedSymbol != deviations[1])
+            {
+                throw new ToolException("annotation_failed", "Solid Edge did not keep the deviations of the corner annotation.", "Give signed numbers, e.g. \"+0.3\".");
+            }
+
+            OnLeader(corner, at, "corner annotation");
         });
     }
 
@@ -756,7 +799,7 @@ public static partial class DrawingService
             ("centerline", sheet.CenterLines), ("leader", sheet.Leaders), ("surface_finish", sheet.SurfaceFinishSymbols),
             ("datum", sheet.DatumFrames), ("feature_control_frame", sheet.FeatureControlFrames),
             ("weld", sheet.WeldSymbols), ("bolt_circle", sheet.BoltHoleCircles), ("datum_target", sheet.DatumTargets),
-            ("datum_point", sheet.DatumPoints),
+            ("datum_point", sheet.DatumPoints), ("corner", sheet.CornerAnnotations),
         })
         {
             if (collection is null)
@@ -785,6 +828,7 @@ public static partial class DrawingService
         BoltHoleCircle => "bolt_circle",
         DatumTarget => "datum_target",
         DatumPoint => "datum_point",
+        CornerAnnotation => "corner",
         _ => null,
     };
 

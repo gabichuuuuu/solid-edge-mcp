@@ -150,6 +150,7 @@ public static class GenericCom
         ["Rounds.AddBlend"] = ("closed Solid Edge (with one face set and two radii) and otherwise leaves the blend failed", "Round the edge the faces share with se_round."),
         ["SheetMetalSensors.AddMinimumDistanceSensor"] = ("fails with E_INVALIDARG after leaving an empty sensor that stops the document from saving (sensors cannot be deleted either)", "Use a variable sensor, or a distance sensor in an assembly that holds the part."),
         ["Sensor.Delete"] = ("breaks every sensor of the document, also in the saved file (each later call on Sensors fails with 0x80040225)", "Keep the sensor and change its condition with se_sensor set."),
+        ["SmartFrame2d.CreateLink"] = ("closed Solid Edge (a part file linked into a smart frame of a drawing)", "Place a view of the part with se_drawing base_view, or a picture with se_sheet_content image."),
         ["ResizeHoles.Add"] =("leaves Solid Edge unstable (RPC_E_SERVERFAULT) when ThreadHoleData is not a HoleData", "Use se_part_feature resize_holes."),
     };
 
