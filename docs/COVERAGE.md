@@ -31,8 +31,8 @@ beside Solid Edge (CAM Pro, Electrical Design, Technical Publications) are outsi
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/progress-dark.svg">
-  <img src="assets/progress.svg" alt="Progress by area: one square per function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/progress-dark.svg?v=0544482d">
+  <img src="assets/progress.svg?v=f9eadc9a" alt="Progress by area: one square per function" width="100%">
 </picture>
 
 **60 % working** (181 of 299 functions work through the MCP, ✔): 43 do not work in Solid Edge 2026

@@ -14,6 +14,9 @@
     are listed in its "New tools" section as · rows, so a new tool counts as pending until its rows
     are written; the README tool count follows the code and its version follows the <Version> of
     src/SolidEdgeMcp.Server/SolidEdgeMcp.Server.csproj.
+    The chart URLs in docs/COVERAGE.md and README.md carry a fingerprint of the chart (?v=...), so a
+    changed chart gets a new URL and clients that cache images (such as the GitHub mobile app) do not
+    keep showing an old one.
     Without switches it rewrites the files of the working tree. -Check changes nothing and fails when
     they are out of date. -Staged, meant for a local pre-commit hook, updates the staged versions
     from the staged tables and code (so every commit is consistent) and then the working tree.
@@ -49,6 +52,13 @@ function Percent([int]$working, [int]$total) {
 }
 
 function Esc([string]$text) { [Security.SecurityElement]::Escape($text) }
+
+# First 8 hex digits of the SHA-256 of a text: the version of a chart in its URL.
+function Fingerprint([string]$text) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $hash = $sha.ComputeHash($utf8.GetBytes($text)) } finally { $sha.Dispose() }
+    -join ($hash[0..3] | ForEach-Object { $_.ToString('x2') })
+}
 
 # Progress chart: one square per function, one row per area, in a light and a dark version (the
 # README picks one with prefers-color-scheme). Transparent background, GitHub's own colors; blue and
@@ -209,13 +219,23 @@ function Get-Progress([string]$root) {
     $total = $done + $notViable + $pending
     $percent = Percent $done $total
 
+    # The charts come first: their URLs carry their fingerprint.
+    $charts = [ordered]@{}
+    foreach ($theme in $themes.Keys) {
+        $file = if ($theme -eq 'light') { 'docs/assets/progress.svg' } else { "docs/assets/progress-$theme.svg" }
+        $charts[$file] = Chart $themes[$theme]
+    }
+
+    $lightChart = "progress.svg?v=$(Fingerprint $charts['docs/assets/progress.svg'])"
+    $darkChart = "progress-dark.svg?v=$(Fingerprint $charts['docs/assets/progress-dark.svg'])"
+
     $lines = @(
         $startMarker
         '## Progress'
         ''
         '<picture>'
-        '  <source media="(prefers-color-scheme: dark)" srcset="assets/progress-dark.svg">'
-        '  <img src="assets/progress.svg" alt="Progress by area: one square per function" width="100%">'
+        "  <source media=""(prefers-color-scheme: dark)"" srcset=""assets/$darkChart"">"
+        "  <img src=""assets/$lightChart"" alt=""Progress by area: one square per function"" width=""100%"">"
         '</picture>'
         ''
         "**$percent % working** ($done of $total functions work through the MCP, ✔): $notViable do not work in Solid Edge 2026"
@@ -245,6 +265,16 @@ function Get-Progress([string]$root) {
     }
 
     $newReadme = [regex]::Replace($readme, $badgePattern, $badge)
+    # Progress chart of the README (light and dark): the same fingerprinted URLs.
+    $chartPattern = '(?<=(?:src|srcset)="docs/assets/)progress(-dark)?\.svg(?:\?v=[0-9a-f]+)?(?=")'
+    if ($newReadme -notmatch $chartPattern) {
+        throw 'README.md has no progress chart (docs/assets/progress.svg) to update.'
+    }
+
+    $newReadme = [regex]::Replace($newReadme, $chartPattern, {
+            param($match)
+            if ($match.Groups[1].Success) { $darkChart } else { $lightChart }
+        })
     # Tool count: the tools badge and every "N tools" / "N se_* tools" of the README.
     $newReadme = [regex]::Replace($newReadme, '(?<=img\.shields\.io/badge/tools-)\d+(?=-)', "$($tools.Count)")
     $newReadme = [regex]::Replace($newReadme, '(?<![\w.,])\d+(?= (se_\* )?tools\b)', "$($tools.Count)")
@@ -264,9 +294,8 @@ function Get-Progress([string]$root) {
         'docs/COVERAGE.md' = $newCoverage
         'README.md' = $newReadme
     }
-    foreach ($theme in $themes.Keys) {
-        $file = if ($theme -eq 'light') { 'docs/assets/progress.svg' } else { "docs/assets/progress-$theme.svg" }
-        $files[$file] = Chart $themes[$theme]
+    foreach ($file in $charts.Keys) {
+        $files[$file] = $charts[$file]
     }
 
     [pscustomobject]@{
