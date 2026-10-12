@@ -6,6 +6,15 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-12
+
+This release adds the tools for editing imported and complex parts: 3D (PMI) dimensions that you can read and
+drive, Boolean unite with construction bodies, face splits, surface edits (copy, trim, extend, intersect and
+BlueSurf), curve edits (isoclines and split curves) and merged faces; the face edits also work on every design body of
+a split part. 71 tools in all, validated against Solid Edge Community Edition 2026 with 3857 calls and 2009 checks.
+As before, it is source only: the interop is generated from your own Solid Edge installation, so no binaries are
+published.
+
 ### Added
 
 - `se_pmi`: the 3D (PMI) dimensions of a part or sheet metal document, the ones synchronous features carry (the height,
