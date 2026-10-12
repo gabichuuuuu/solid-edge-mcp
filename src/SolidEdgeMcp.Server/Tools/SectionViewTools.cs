@@ -51,7 +51,7 @@ public sealed class SectionViewTools(ToolRunner runner)
         show | hide | edit (caption, display = what is drawn, opacity of the cutting plane 0-1, showPlane, cutHardware) | delete.
         A new section view repeats the display and showPlane last set in its document unless add gives them.
         section = handle, name or caption from list or add.
-        Delete also deletes the profile sketch and every reference plane of the document that nothing uses (Solid Edge does it, and it cannot be undone): the result lists them; hide the section instead to keep them.
+        Delete also deletes the profile sketch and any local plane that only it used (Solid Edge does it, and it cannot be undone): the result lists removed planes; planes made with se_ref_plane stay. Hide the section instead to keep the sketch.
         See the cut with se_view capture. Example: {"action":"add","sketch":"sketch:7","keep":"inside","caption":"Half"}.
         """)]
     public Task<CallToolResult> SectionView(

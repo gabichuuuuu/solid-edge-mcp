@@ -60,7 +60,7 @@ for approval.
 
 **Tested for real**
 
-2778 calls and 1388 checks against real Solid Edge 2026, with values calculated by hand.
+2854 calls and 1437 checks against real Solid Edge 2026, with values calculated by hand.
 
 </td>
 </tr>
@@ -248,7 +248,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_sketch_constraint` | Geometric relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions that move the geometry, in sketches and on drawing sheets. |
 | | `se_sketch_edit` | Move, rotate, scale and mirror elements (in place, keeping the relations among them, or as connected copies), trim, extend, split, corner, offset a chain, construction geometry, rectangular and circular patterns and delete, in sketches and on drawing sheets; each result measured. |
 | | `se_region` | Closed regions of drawing sheets and sketches: fills and hatching (round a point among the elements or by the corners of a polygon) with fill style, colour, angle and spacing; list, restyle and delete them; area properties (area, perimeter, centroid, second moments, principal axes, radii of gyration and section moduli), minus holes. The point is proved to be inside a closed loop before Solid Edge looks for the region. |
-| | `se_ref_plane` | Reference planes: list; offset, angled, through three points, midway between two planes, normal to an edge (at an end, a distance or a fraction of its length) and tangent to a cylinder, each checked against its geometry; coordinate systems by origin and angles or along two edges, with their origin and axes. |
+| | `se_ref_plane` | Reference planes of parts and assemblies: list; offset, angled, through three points, midway between two planes, normal to an edge (at an end, a distance or a fraction of its length) and tangent to a cylinder, each checked against its geometry and global, as the Planes commands make them; in an assembly, offset and angled from assembly planes or faces of occurrences and normal to an edge of an occurrence. Coordinate systems by origin and angles or along two edges, with their origin and axes. Show, hide, rename and delete planes and coordinate systems (the base ones and those something is built on are kept). |
 | **Part** | `se_extrude` | Boss or cut by extrusion: blind, through all or up to next; normal, reversed or symmetric. |
 | | `se_revolve` | Boss or cut by revolution about the sketch axis. |
 | | `se_hole` | Simple, counterbored, countersunk and threaded holes at points on a plane, without a sketch. |
@@ -378,8 +378,8 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 Results (unit tests and acceptance suite run on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 74/74 and `SolidEdgeMcp.Server.Tests` 250/250.
-- Acceptance suite against real Solid Edge 2026: **2778 calls and 1388 checks** in `A01`–`A29`, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 74/74 and `SolidEdgeMcp.Server.Tests` 256/256.
+- Acceptance suite against real Solid Edge 2026: **2854 calls and 1437 checks** in `A01`–`A30`, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the script). All of
   them pass.
 - Coverage by value: the 63 tools have correct calls, and `A10` runs every value of the action,
@@ -419,8 +419,9 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 | `A25` | Assembly structure (activate, inactivate, bundle, transfer, disperse), links (list, replace, break), where used, top-level assemblies, document search, physical properties of assemblies and attribute sets |
 | `A26` | Closed regions: fills by elements and by points, the side of a split region, refused points (outside, on an element, no loop, island), fill styles, list and delete, and area properties with holes against values by hand (inertia of a triangle, an L-like section, an ellipse) |
 | `A27` | Background sheets: list them with the sheets that use them, show or hide the background of a sheet, draw and write on a background, replace one with a background of another drawing (changes detected, a frame of another paper size reported), add one of a custom size and give it to a sheet, refuse to delete one in use, rename, and the background view |
-| `A28` | 3D section views checked by the colour of the cut in a capture: inside and outside of a closed profile, both sides of an open line, extents along the sketch normal (front, back, a depth, symmetric), show, hide, edit, the look repeated by the next section views, delete with the unused reference planes Solid Edge deletes too, refused arguments and a section of an assembly |
+| `A28` | 3D section views checked by the colour of the cut in a capture: inside and outside of a closed profile, both sides of an open line, extents along the sketch normal (front, back, a depth, symmetric), show, hide, edit, the look repeated by the next section views, delete (the reference plane of the profile stays), refused arguments and a section of an assembly |
 | `A29` | 3D PDF publishing: a part with STEP and JT files embedded, the same part published again without the pages of the first publish, an assembly with its template, a folder with and without its subfolders, the HTML page, and refused cases (existing file, unknown template, a drawing, two files that would write the same PDF, open documents) |
+| `A30` | Reference planes and coordinate systems: global planes in a part (in the feature tree), rename, hide, delete, and the planes kept because a plane, a sketch or a feature is built on them; in an assembly, planes offset from base planes and from a face of an occurrence, turned about a hinge and normal to an edge of an occurrence, a coordinate system, hide and show every plane, and the planes kept because of a plane, an assembly sketch or a relation |
 
 </details>
 
@@ -474,7 +475,7 @@ solid_edge_mcp/
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A29 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A30 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, update-progress.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md (coverage by function and route), assets/
@@ -485,7 +486,7 @@ solid_edge_mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A29`, listed under [Validation](#validation)) with volumes, measurements and expected
+calls (`A01`–`A30`, listed under [Validation](#validation)) with volumes, measurements and expected
 errors calculated by hand. Each script creates and closes its documents without saving:
 
 ```powershell

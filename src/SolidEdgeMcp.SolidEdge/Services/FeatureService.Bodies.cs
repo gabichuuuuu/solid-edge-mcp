@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
 
@@ -103,26 +103,11 @@ public static partial class FeatureService
         int[] indexes = [.. handles.Select(h =>
         {
             SolidEdgeGeometry.Body body = context.Handles.Resolve<SolidEdgeGeometry.Body>(h, "bodies");
-            int index = bodies.ToList().FindIndex(b => SameObject(b.Body, body));
+            int index = bodies.ToList().FindIndex(b => Late.SameObject(b.Body, body));
             return index >= 0
                 ? index
                 : throw ToolException.InvalidArgument($"'{h}' is not a design body of this document.", "Take the body handles from se_geometry summary ('bodies').");
         }).Distinct().Order()];
         return (bodies[indexes[0]].Model, [.. indexes.Select(i => (object)bodies[i].Body)]);
-    }
-
-    private static bool SameObject(object a, object b)
-    {
-        IntPtr first = Marshal.GetIUnknownForObject(a);
-        IntPtr second = Marshal.GetIUnknownForObject(b);
-        try
-        {
-            return first == second;
-        }
-        finally
-        {
-            Marshal.Release(first);
-            Marshal.Release(second);
-        }
     }
 }

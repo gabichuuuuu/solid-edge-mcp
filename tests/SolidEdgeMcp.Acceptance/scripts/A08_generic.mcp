@@ -47,7 +47,9 @@ se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
 ! [not_found] se_command {"action":"run","command":"NoSuchCommand"}
 # Two through holes Ø6.6 (A02 recipe): each one -pi*3.3²*10 = -342.119 -> 59657.881 and 59315.762
 @t = se_geometry {"action":"faces","direction":[0,0,1]}
-@hA = se_hole {"plane":"{{t.items[0].handle}}","centers":[10,10,10],"diameter":6.6}
+# An argument of the wrong type (an array where Face.GetNormal takes the number of points) is the caller's error
+! [invalid_argument] se_com_invoke {"target":"{{t.items[0].handle}}","method":"GetNormal","arguments":[{"type":"double[]","value":[0,0,0]}]}
+@hA =se_hole {"plane":"{{t.items[0].handle}}","centers":[10,10,10],"diameter":6.6}
 ?= hA.volume 59657.881 0.01
 @t2 = se_geometry {"action":"faces","direction":[0,0,1]}
 @hB = se_hole {"plane":"{{t2.items[0].handle}}","centers":[90,50,10],"diameter":6.6}

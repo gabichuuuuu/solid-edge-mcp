@@ -433,9 +433,23 @@ public static class GenericCom
     /// IDispatch lets Solid Edge apply its default value. By-reference parameters are marked
     /// to receive the output values in <paramref name="args"/>. If IDispatch rejects the call with DISP_E_TYPEMISMATCH (it
     /// happens with by-reference arrays, e.g. ConvToSMs.Add with only the face), it is retried through the interop with the
-    /// missing typed arguments set to empty arrays and zero.
+    /// missing typed arguments set to empty arrays and zero. An argument whose given type does not fit its parameter (e.g. an
+    /// array for a number) is refused by reflection before Solid Edge is called: that is the caller's argument error.
     /// </summary>
     private static object? CallMethod(object target, MethodInfo method, object?[] args)
+    {
+        try
+        {
+            return CallMethodCore(target, method, args);
+        }
+        catch (ArgumentException ex)
+        {
+            throw ToolException.InvalidArgument($"An argument of '{method.Name}' does not fit its parameter ({ex.Message}).",
+                "Use se_com_describe to see the signature: the types and order of the parameters.");
+        }
+    }
+
+    private static object? CallMethodCore(object target, MethodInfo method, object?[] args)
     {
         ParameterInfo[] parameters = method.GetParameters();
         bool outArrays = false;

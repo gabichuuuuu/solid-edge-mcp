@@ -13,15 +13,24 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
 /// Reference planes and coordinate systems: list (with normal and root point) and create offset, angled, three-point, mid,
-/// normal-to-edge and tangent planes, and coordinate systems. Each new plane is checked against the geometry it comes from.
+/// normal-to-edge and tangent planes, and coordinate systems; show, hide, rename and delete them. Each new plane is checked
+/// against the geometry it comes from. Part planes are made global (<c>Local: false</c>), as the Planes commands make them:
+/// the API's default is a local plane, which has no name, is not in the feature tree and cannot be renamed (E_FAIL) or
+/// deleted (E_INVALIDARG). Assembly planes: RefPlaneService.Assembly.cs.
 /// </summary>
-public static class RefPlaneService
+public static partial class RefPlaneService
 {
     private const double Tolerance = 1e-7;
 
     public static object List(SeContext context, string? documentHandle)
     {
-        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        if (document is SolidEdgeAssembly.AssemblyDocument assembly)
+        {
+            return AssemblyList(context, assembly);
+        }
+
+        ModelDocument model = ModelDocument.From(document);
         RefPlanes planes = model.RefPlanes;
         var items = new List<object>();
         for (int i = 1; i <= planes.Count && items.Count < context.MaxListItems; i++)
@@ -35,30 +44,42 @@ public static class RefPlaneService
     /// <summary>Plane parallel to another plane or planar face, at a distance in mm.</summary>
     public static object Offset(SeContext context, string? documentHandle, string parent, double? distance, bool flip)
     {
-        ModelDocument model = ModelDocument.Get(context, documentHandle);
         double d = Units.MmToM(Units.RequireFinite(distance ?? throw ToolException.InvalidArgument("Action 'offset' requires 'distance' (mm)."), "distance"));
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        if (document is SolidEdgeAssembly.AssemblyDocument assembly)
+        {
+            return AssemblyOffset(context, assembly, parent, flip ? -d : d);
+        }
+
+        ModelDocument model = ModelDocument.From(document);
         object parentPlane = ResolveParent(context, model, parent);
         ReferenceElementConstants side = flip ? ReferenceElementConstants.igReverseNormalSide : ReferenceElementConstants.igNormalSide;
-        RefPlane plane = model.RefPlanes.AddParallelByDistance(parentPlane, Math.Abs(d), d < 0 ? Flip(side) : side);
+        RefPlane plane = model.RefPlanes.AddParallelByDistance(parentPlane, Math.Abs(d), d < 0 ? Flip(side) : side, Local: false);
         return Describe(context, model, plane, model.RefPlanes.Count);
     }
 
     /// <summary>Plane rotated by an angle (degrees) relative to another plane, about its intersection with the pivot plane.</summary>
     public static object Angle(SeContext context, string? documentHandle, string parent, string pivot, double? angle, bool flip)
     {
-        ModelDocument model = ModelDocument.Get(context, documentHandle);
         double a = Units.DegToRad(Units.RequireFinite(angle ?? throw ToolException.InvalidArgument("Action 'angle' requires 'angle' (degrees)."), "angle"));
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        if (document is SolidEdgeAssembly.AssemblyDocument assembly)
+        {
+            return AssemblyAngle(context, assembly, parent, pivot, a, flip);
+        }
+
+        ModelDocument model = ModelDocument.From(document);
         object parentPlane = ResolveParent(context, model, parent);
         object pivotPlane = ResolveParent(context, model, pivot, "pivot");
         ReferenceElementConstants side = flip ? ReferenceElementConstants.igReverseNormalSide : ReferenceElementConstants.igNormalSide;
-        RefPlane plane = model.RefPlanes.AddAngularByAngle(parentPlane, a, side, pivotPlane, ReferenceElementConstants.igPivotEnd);
+        RefPlane plane = model.RefPlanes.AddAngularByAngle(parentPlane, a, side, pivotPlane, ReferenceElementConstants.igPivotEnd, Local: false);
         return Describe(context, model, plane, model.RefPlanes.Count);
     }
 
     /// <summary>Plane through three points of the model: vertices, or midpoints of straight edges (mm).</summary>
     public static object ThreePoints(SeContext context, string? documentHandle, double[]? points)
     {
-        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        ModelDocument model = PartOnly(context.GetDocument(documentHandle), "three-point planes");
         if (points is not { Length: 9 })
         {
             throw ToolException.InvalidArgument("'points' must be three model points [x1,y1,z1, x2,y2,z2, x3,y3,z3] in mm: vertices or midpoints of straight edges.");
@@ -83,14 +104,14 @@ public static class RefPlaneService
             keyPoints.SetValue((int)type, i);
         }
 
-        RefPlane plane = Created(model, () => model.RefPlanes.AddBy3Points(3, ref edgeSet, ref keyPoints));
+        RefPlane plane = Created(model, () => model.RefPlanes.AddBy3Points(3, ref edgeSet, ref keyPoints, Local: false));
         return Checked(context, model, plane, Unit(normal), targets[0], "three points");
     }
 
     /// <summary>Plane midway between two parallel planes or planar faces.</summary>
     public static object Mid(SeContext context, string? documentHandle, string first, string second)
     {
-        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        ModelDocument model = PartOnly(context.GetDocument(documentHandle), "mid planes");
         object a = ResolveParent(context, model, first);
         object b = ResolveParent(context, model, second, "plane2");
         (double[] rootA, double[] normalA) = PlaneData(a);
@@ -122,19 +143,25 @@ public static class RefPlaneService
             throw ToolException.InvalidArgument("'ratio' is a fraction of the edge length, from 0 to 1.");
         }
 
-        ModelDocument model = ModelDocument.For(context, documentHandle, edgeHandle);
-        Edge edge = context.Handles.Resolve<Edge>(edgeHandle, "edge");
-        Array start = new double[3];
-        Array end = new double[3];
-        edge.GetEndPoints(ref start, ref end);
-        double[] s = Geo.Doubles(start).ToArray();
-        double[] e = Geo.Doubles(end).ToArray();
         ReferenceElementConstants from = at switch
         {
             "start" => ReferenceElementConstants.igCurveStart,
             "end" => ReferenceElementConstants.igCurveEnd,
             _ => throw ToolException.InvalidArgument($"Unknown 'at' value '{at}'.", "Use start or end."),
         };
+        SolidEdgeDocument document = string.IsNullOrWhiteSpace(documentHandle) ? context.DocumentOf(edgeHandle) : context.GetDocument(documentHandle);
+        if (document is SolidEdgeAssembly.AssemblyDocument assembly)
+        {
+            return AssemblyNormalToEdge(context, assembly, edgeHandle, from, distance, ratio);
+        }
+
+        ModelDocument model = ModelDocument.From(document);
+        Edge edge = context.Handles.Resolve<Edge>(edgeHandle, "edge");
+        Array start = new double[3];
+        Array end = new double[3];
+        edge.GetEndPoints(ref start, ref end);
+        double[] s = Geo.Doubles(start).ToArray();
+        double[] e = Geo.Doubles(end).ToArray();
         double[] chord = Minus(e, s);
         if (Geo.Length(chord) < 1e-9)
         {
@@ -148,7 +175,7 @@ public static class RefPlaneService
         if (ratio is { } fraction)
         {
             plane = Created(model, () => model.RefPlanes.AddNormalToCurveAtArcLengthRatio(edge, orientation, fraction, 0,
-                ReferenceElementConstants.igNormalSide, from));
+                ReferenceElementConstants.igNormalSide, from, Local: false));
             if (edge.Geometry is SolidEdgeGeometry.Line)
             {
                 double[] origin = at == "start" ? s : e;
@@ -159,7 +186,7 @@ public static class RefPlaneService
         else if (distance is { } d)
         {
             double metres = Units.MmToM(Units.RequirePositive(d, "distance"));
-            plane = Created(model, () => model.RefPlanes.AddNormalToCurveAtDistance(edge, from, orientation, ReferenceElementConstants.igPivotEnd, metres));
+            plane = Created(model, () => model.RefPlanes.AddNormalToCurveAtDistance(edge, from, orientation, ReferenceElementConstants.igPivotEnd, metres, Local: false));
             if (edge.Geometry is SolidEdgeGeometry.Line)
             {
                 double[] origin = at == "start" ? s : e;
@@ -169,7 +196,7 @@ public static class RefPlaneService
         }
         else
         {
-            plane = Created(model, () => model.RefPlanes.AddNormalToCurve(edge, from, orientation, ReferenceElementConstants.igPivotEnd));
+            plane = Created(model, () => model.RefPlanes.AddNormalToCurve(edge, from, orientation, ReferenceElementConstants.igPivotEnd, Local: false));
             expectedPoint = at == "start" ? s : e;
         }
 
@@ -185,7 +212,7 @@ public static class RefPlaneService
     /// </summary>
     public static object Tangent(SeContext context, string? documentHandle, string? parent, string faceHandle, bool flip, double[]? point = null, double? angle = null)
     {
-        ModelDocument model = ModelDocument.For(context, documentHandle, faceHandle);
+        ModelDocument model = PartOnly(string.IsNullOrWhiteSpace(documentHandle) ? context.DocumentOf(faceHandle) : context.GetDocument(documentHandle), "tangent planes");
         Face face = context.Handles.Resolve<Face>(faceHandle, "face");
         if (point is not null)
         {
@@ -208,7 +235,7 @@ public static class RefPlaneService
         }
 
         KeyPointExtentConstants side = flip ? KeyPointExtentConstants.igReverseTangentNormal : KeyPointExtentConstants.igTangentNormal;
-        RefPlane plane = Created(model, () => model.RefPlanes.AddParallelByTangent(parentPlane, face, side));
+        RefPlane plane = Created(model, () => model.RefPlanes.AddParallelByTangent(parentPlane, face, side, Local: false));
         return Checked(context, model, plane, PlaneData(parentPlane).Normal, null, "tangent");
     }
 
@@ -245,7 +272,7 @@ public static class RefPlaneService
         }
 
         ReferenceElementConstants side = flip ? ReferenceElementConstants.igReverseNormalSide : ReferenceElementConstants.igNormalSide;
-        RefPlane plane = Created(model, () => model.RefPlanes.AddTangentToCurvedSurfaceAtKeyPoint(face, parentPlane, edge, type, 0, side));
+        RefPlane plane = Created(model, () => model.RefPlanes.AddTangentToCurvedSurfaceAtKeyPoint(face, parentPlane, edge, type, 0, side, Local: false));
         return Checked(context, model, plane, flip ? outward.Select(c => -c).ToArray() : outward, target, "tangent", signed: true);
     }
 
@@ -277,7 +304,7 @@ public static class RefPlaneService
         double radians = Units.DegToRad(Units.RequireFinite(angle, "angle"));
         FeaturePropertyConstants towards = radians >= 0 ? FeaturePropertyConstants.igLeft : FeaturePropertyConstants.igRight;
         ReferenceElementConstants side = flip ? ReferenceElementConstants.igReverseNormalSide : ReferenceElementConstants.igNormalSide;
-        RefPlane plane = Created(model, () => model.RefPlanes.AddTangentToCylinderOrConeAtAngle(face, parentPlane, Math.Abs(radians), 0, towards, side));
+        RefPlane plane = Created(model, () => model.RefPlanes.AddTangentToCylinderOrConeAtAngle(face, parentPlane, Math.Abs(radians), 0, towards, side, Local: false));
 
         (double[] root, double[] normal) = PlaneData(plane);
         double[] outward = flip ? normal.Select(c => -c).ToArray() : normal;
@@ -310,7 +337,8 @@ public static class RefPlaneService
 
     /// <summary>
     /// Coordinate system at an origin (mm) rotated by angles (degrees) about X, then Y, then Z; or, with two straight edges,
-    /// its X and Y axes along them, pointing away from the origin, which is an end of either edge.
+    /// its X and Y axes along them, pointing away from the origin, which is an end of either edge. In an assembly only by
+    /// origin and angles: its planes are faces there, read the same way.
     /// </summary>
     public static object AddCoordinateSystem(SeContext context, string? documentHandle, double[]? origin, double[]? angles, string[]? edges = null)
     {
@@ -321,7 +349,7 @@ public static class RefPlaneService
                 : throw ToolException.InvalidArgument("Give 'angles' or 'edges', not both: with edges the axes follow them.");
         }
 
-        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        SolidEdgeDocument document = SystemsDocument(context.GetDocument(documentHandle));
         if (origin is { Length: not 3 } || angles is { Length: not 3 })
         {
             throw ToolException.InvalidArgument("'origin' must be [x,y,z] in mm and 'angles' [ax,ay,az] in degrees.");
@@ -329,15 +357,15 @@ public static class RefPlaneService
 
         double[] o = (origin ?? [0, 0, 0]).Select(v => Units.MmToM(Units.RequireFinite(v, "origin"))).ToArray();
         double[] r = (angles ?? [0, 0, 0]).Select(v => Units.DegToRad(Units.RequireFinite(v, "angles"))).ToArray();
-        var systems = (CoordinateSystems)Late.Get(model.Document, "CoordinateSystems")!;
+        var systems = (CoordinateSystems)Late.Get(document, "CoordinateSystems")!;
         int before = systems.Count;
         SolidEdgePart.CoordinateSystem system = systems.Add(o[0], o[1], o[2], r[0], r[1], r[2]);
         if (systems.Count != before + 1)
         {
-            throw new ToolException("refplane_failed", "Solid Edge did not add the coordinate system.", "Check the document with se_feature_tree.");
+            throw new ToolException("refplane_failed", "Solid Edge did not add the coordinate system.", "List them with action 'coordinate_systems'.");
         }
 
-        return DescribeSystem(context, model, system);
+        return DescribeSystem(context, document, system);
     }
 
     /// <summary>
@@ -354,7 +382,8 @@ public static class RefPlaneService
         double[] o = origin is { Length: 3 } point
             ? point.Select(v => Units.MmToM(Units.RequireFinite(v, "origin"))).ToArray()
             : throw ToolException.InvalidArgument("With 'edges', 'origin' [x,y,z] in mm is required: an end of either edge.");
-        ModelDocument model = ModelDocument.For(context, documentHandle, xHandle);
+        ModelDocument model = PartOnly(string.IsNullOrWhiteSpace(documentHandle) ? context.DocumentOf(xHandle) : context.GetDocument(documentHandle),
+            "coordinate systems along edges");
         var axes = new[] { xHandle, yHandle }.Select(h =>
         {
             Edge edge = context.Handles.Resolve<Edge>(h, "edges");
@@ -418,27 +447,136 @@ public static class RefPlaneService
                 "Check the edges and the origin with se_geometry.");
         }
 
-        return DescribeSystem(context, model, system);
+        return DescribeSystem(context, model.Document, system);
     }
 
     public static object ListCoordinateSystems(SeContext context, string? documentHandle)
     {
-        ModelDocument model = ModelDocument.Get(context, documentHandle);
-        var systems = (CoordinateSystems)Late.Get(model.Document, "CoordinateSystems")!;
-        object[] items = Late.Items(systems).OfType<SolidEdgePart.CoordinateSystem>().Select(s => DescribeSystem(context, model, s)).ToArray();
+        SolidEdgeDocument document = SystemsDocument(context.GetDocument(documentHandle));
+        var systems = (CoordinateSystems)Late.Get(document, "CoordinateSystems")!;
+        object[] items = Late.Items(systems).OfType<SolidEdgePart.CoordinateSystem>().Select(s => DescribeSystem(context, document, s)).ToArray();
         return new { count = items.Length, coordinateSystems = items };
+    }
+
+    /// <summary>
+    /// Shows or hides a reference plane or a coordinate system, or with 'all' every reference plane of the document. Planes
+    /// that Solid Edge does not change (a local plane of a feature) are counted apart.
+    /// </summary>
+    public static object SetVisible(SeContext context, string? documentHandle, string target, bool visible)
+    {
+        SolidEdgeDocument document = DocumentFor(context, documentHandle, target);
+        object[] items = target.Trim().Equals("all", StringComparison.OrdinalIgnoreCase) ? Planes(document) : [Element(context, document, target)];
+        var changed = new List<string>();
+        int unchanged = 0;
+        foreach (object item in items)
+        {
+            try
+            {
+                Late.Set(item, "Visible", visible);
+                if (Late.Get(item, "Visible") is bool now && now == visible)
+                {
+                    changed.Add(Label(item));
+                    continue;
+                }
+            }
+            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+            {
+                // Counted below: the other planes are still shown or hidden.
+            }
+
+            unchanged++;
+        }
+
+        return changed.Count > 0
+            ? new { visible, changed, unchanged = unchanged > 0 ? unchanged : (int?)null }
+            : throw new ToolException("refplane_failed", $"Solid Edge did not {(visible ? "show" : "hide")} '{target}'.",
+                "Local planes made by features cannot be shown or hidden; use a plane from action 'list'.");
+    }
+
+    /// <summary>Renames a reference plane or a coordinate system; the new name is read back.</summary>
+    public static object Rename(SeContext context, string? documentHandle, string target, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw ToolException.InvalidArgument("Action 'rename' requires 'name'.");
+        }
+
+        SolidEdgeDocument document = DocumentFor(context, documentHandle, target);
+        object item = Element(context, document, target);
+        try
+        {
+            Late.Set(item, "Name", name);
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        {
+            throw new ToolException("refplane_failed", $"Solid Edge did not rename '{target}' ({ComErrors.Unwrap(ex).Message}).",
+                "A local plane made by a feature has no name of its own; rename a plane listed with a name by action 'list'.");
+        }
+
+        string? now = Late.TryGetString(item, "Name");
+        return now == name
+            ? DescribeAny(context, document, item)
+            : throw new ToolException("refplane_failed", $"Solid Edge kept the name '{now}' instead of '{name}'.", "Use a name that no other plane or coordinate system has.");
+    }
+
+    /// <summary>
+    /// Deletes a reference plane or a coordinate system that nothing is built on. Verified: the base planes and the base
+    /// coordinate system can be deleted through the API, so they are refused here; deleting a part plane also deletes the
+    /// sketches on it and leaves the features and planes made from it with warnings, and in an assembly the planes made from
+    /// it fail, so a plane with dependents is refused. A local plane cannot be deleted (E_INVALIDARG).
+    /// </summary>
+    public static object Delete(SeContext context, string? documentHandle, string target)
+    {
+        SolidEdgeDocument document = DocumentFor(context, documentHandle, target);
+        object item = Element(context, document, target);
+        string label = Label(item);
+        object[] planes = Planes(document);
+        if (OrientedPlanes.Bases(planes).Any(b => Late.SameObject(b, item)))
+        {
+            throw ToolException.InvalidArgument($"'{label}' is a base plane of the document: it cannot be deleted.", "Hide it with action 'hide'.");
+        }
+
+        object? collection = item is SolidEdgePart.CoordinateSystem ? Late.Get(document, "CoordinateSystems") : null;
+        if (collection is not null && Late.Items(collection).FirstOrDefault() is { } first && Late.SameObject(first, item))
+        {
+            throw ToolException.InvalidArgument($"'{label}' is the base coordinate system of the document: it cannot be deleted.", "Hide it with action 'hide'.");
+        }
+
+        if (collection is null && Dependents(document, item, planes) is { Count: > 0 } dependents)
+        {
+            throw new ToolException("in_use", $"'{label}' is used by {string.Join(", ", dependents)}.",
+                "Delete or redefine those first (se_feature_tree, se_relations), or hide the plane.");
+        }
+
+        int before = collection is null ? planes.Length : Late.Count(collection);
+        try
+        {
+            Late.Call(item, "Delete");
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException { HResult: ComErrors.EInvalidArg })
+        {
+            throw new ToolException("refplane_failed", $"Solid Edge refused to delete '{label}' (a local plane belongs to the feature that made it).",
+                "Delete or edit that feature instead (se_feature_tree).");
+        }
+
+        int after = collection is null ? Planes(document).Length : Late.Count(collection);
+        context.Handles.Remove(target, "it was deleted");
+        return after == before - 1
+            ? new { deleted = label }
+            : throw new ToolException("refplane_failed", $"After deleting '{label}' the document has {before - after} fewer planes or coordinate systems instead of 1.",
+                "Check them with action 'list' or 'coordinate_systems'.");
     }
 
     /// <summary>
     /// Origin and axes read from the planes of the system: the XY normal is Z, the YZ normal is X, and the origin is where
     /// the three planes meet.
     /// </summary>
-    private static object DescribeSystem(SeContext context, ModelDocument model, SolidEdgePart.CoordinateSystem system)
+    private static object DescribeSystem(SeContext context, SolidEdgeDocument document, SolidEdgePart.CoordinateSystem system)
     {
         (double[] origin, double[] x, double[] y, double[] z) = Axes(system);
         return new
         {
-            handle = context.Register(system, "coordsys", model.Document),
+            handle = context.Register(system, "coordsys", document),
             name = system.Name,
             origin = origin.Select(Geo.Mm).ToArray(),
             xAxis = x.Select(Geo.R).ToArray(),
@@ -504,7 +642,6 @@ public static class RefPlaneService
             : throw new ToolException("refplane_failed", "Solid Edge did not add the plane.", "Check the inputs with se_geometry.");
     }
 
-    /// <summary>Checks the new plane (normal parallel to the expected one, expected point on it); deletes it if it is wrong.</summary>
     /// <summary>Checks the normal (with its sign when <paramref name="signed"/>) and a point of a new plane, or deletes it.</summary>
     private static object Checked(SeContext context, ModelDocument model, RefPlane plane, double[]? normal, double[]? point, string what, bool signed = false)
     {
@@ -538,6 +675,10 @@ public static class RefPlaneService
                 refPlane.GetRootPoint(ref root);
                 refPlane.GetNormal(ref normal);
                 break;
+            case SolidEdgeAssembly.AsmRefPlane assemblyPlane:
+                assemblyPlane.GetRootPoint(ref root);
+                assemblyPlane.GetNormal(ref normal);
+                break;
             case Face { Geometry: SolidEdgeGeometry.Plane plane }:
                 plane.GetPlaneData(ref root, ref normal);
                 break;
@@ -560,6 +701,138 @@ public static class RefPlaneService
 
     private static ReferenceElementConstants Flip(ReferenceElementConstants side) =>
         side == ReferenceElementConstants.igNormalSide ? ReferenceElementConstants.igReverseNormalSide : ReferenceElementConstants.igNormalSide;
+
+    /// <summary>Part or sheet metal document; an assembly is refused for what se_ref_plane only makes in parts.</summary>
+    private static ModelDocument PartOnly(SolidEdgeDocument document, string what) => document is SolidEdgeAssembly.AssemblyDocument
+        ? throw new ToolException("not_supported", $"In an assembly, se_ref_plane does not create {what}.",
+            "In an assembly use offset, angle or normal_to_edge (faces and edges from se_geometry with 'source' = an occurrence), or a coordinate system by origin and angles; or create it in the part.")
+        : ModelDocument.From(document);
+
+    /// <summary>Assembly, part or sheet metal document: the ones with coordinate systems.</summary>
+    private static SolidEdgeDocument SystemsDocument(SolidEdgeDocument document) =>
+        document is SolidEdgeAssembly.AssemblyDocument ? document : ModelDocument.From(document).Document;
+
+    /// <summary>Document of the given handle or, without one, of the plane's handle (the active one for an index or 'all').</summary>
+    private static SolidEdgeDocument DocumentFor(SeContext context, string? documentHandle, string target) =>
+        !string.IsNullOrWhiteSpace(documentHandle) || int.TryParse(target, out _) || OrientedPlanes.TryAxis(target, out _)
+            || target.Trim().Equals("all", StringComparison.OrdinalIgnoreCase)
+            ? SystemsDocument(context.GetDocument(documentHandle))
+            : SystemsDocument(context.DocumentOf(target));
+
+    /// <summary>Reference planes of the document in their order (assembly or part planes).</summary>
+    private static object[] Planes(SolidEdgeDocument document) => document is SolidEdgeAssembly.AssemblyDocument assembly
+        ? [.. Late.Items(assembly.AsmRefPlanes)]
+        : [.. Late.Items(ModelDocument.From(document).RefPlanes)];
+
+    /// <summary>Reference plane (index, 'xy'/'yz'/'xz' or handle) or coordinate system (handle) of the document.</summary>
+    private static object Element(SeContext context, SolidEdgeDocument document, string value)
+    {
+        object[] planes = Planes(document);
+        if (OrientedPlanes.TryAxis(value, out int axis))
+        {
+            return OrientedPlanes.Find(planes, axis, value);
+        }
+
+        if (int.TryParse(value, out int index))
+        {
+            return index >= 1 && index <= planes.Length
+                ? planes[index - 1]
+                : throw ToolException.InvalidArgument($"Reference plane index {index} is out of range (1–{planes.Length}).", "List the planes with action 'list'.");
+        }
+
+        object resolved = context.Handles.Resolve(value, "plane");
+        return resolved is RefPlane or SolidEdgeAssembly.AsmRefPlane or SolidEdgePart.CoordinateSystem
+            ? resolved
+            : throw new ToolException("handle_wrong_type", $"'{value}' is not a reference plane or a coordinate system.",
+                "Use an index or a handle from action 'list', or a handle from 'coordinate_systems'.");
+    }
+
+    private static string Label(object item) => Late.TryGetString(item, "Name") is { Length: > 0 } name ? name
+        : item is SolidEdgePart.CoordinateSystem ? "a coordinate system" : "an unnamed (local) plane";
+
+    /// <summary>
+    /// What is built on a plane: planes made from it (ParentPlane in a part, ParentRelations in an assembly), sketch and
+    /// feature profiles drawn on it (directly or on a local plane made from it, which is how a part sketch sits on a
+    /// reference plane) and, in an assembly, relations to it.
+    /// </summary>
+    private static List<string> Dependents(SolidEdgeDocument document, object plane, object[] planes)
+    {
+        bool Is(object? candidate) => candidate is not null && Late.SameObject(candidate, plane);
+
+        var named = new List<string>();
+        int local = 0;
+        foreach (object other in planes.Where(p => !Late.SameObject(p, plane)))
+        {
+            if (Is(Late.TryGet(other, "ParentPlane")) || (Late.TryGet(other, "ParentRelations") is Array parents && parents.Cast<object?>().Any(Is)))
+            {
+                if (Late.TryGetString(other, "Name") is { Length: > 0 } name)
+                {
+                    named.Add($"'{name}'");
+                }
+                else
+                {
+                    local++;
+                }
+            }
+        }
+
+        var found = new List<string>();
+        if (named.Count > 0)
+        {
+            found.Add($"the plane{(named.Count == 1 ? "" : "s")} {string.Join(", ", named)}");
+        }
+
+        int profiles = local + (Late.TryGet(document, "ProfileSets") is { } sets
+            ? Late.Items(sets).Sum(set => Late.TryGet(set, "Profiles") is { } list ? Late.Items(list).Count(p => Is(Late.TryGet(p, "Plane"))) : 0)
+            : 0);
+        if (profiles > 0)
+        {
+            found.Add(profiles == 1 ? "a sketch or feature profile" : $"{profiles} sketch or feature profiles");
+        }
+
+        if (document is SolidEdgeAssembly.AssemblyDocument assembly && Late.Items(assembly.Relations3d).Count(r => Touches(r, Is)) is > 0 and int relations)
+        {
+            found.Add(relations == 1 ? "an assembly relation" : $"{relations} assembly relations");
+        }
+
+        return found;
+    }
+
+    /// <summary>Whether either element of an assembly relation passes <paramref name="isPlane"/> (GetElement1/2 have an out flag).</summary>
+    private static bool Touches(object relation, Func<object?, bool> isPlane)
+    {
+        foreach (string method in new[] { "GetElement1", "GetElement2" })
+        {
+            try
+            {
+                object?[] args = [false];
+                var modifier = new System.Reflection.ParameterModifier(1);
+                modifier[0] = true;
+                if (isPlane(relation.GetType().InvokeMember(method, System.Reflection.BindingFlags.InvokeMethod, null, relation, args, [modifier],
+                    System.Globalization.CultureInfo.InvariantCulture, null)))
+                {
+                    return true;
+                }
+            }
+            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+            {
+                // Rigid sets and other relations without two elements.
+            }
+        }
+
+        return false;
+    }
+
+    private static object DescribeAny(SeContext context, SolidEdgeDocument document, object item)
+    {
+        int index = Array.FindIndex(Planes(document), p => Late.SameObject(p, item)) + 1;
+        return item switch
+        {
+            SolidEdgePart.CoordinateSystem system => DescribeSystem(context, document, system),
+            SolidEdgeAssembly.AsmRefPlane plane => DescribeAssembly(context, (SolidEdgeAssembly.AssemblyDocument)document, plane, index),
+            _ => Describe(context, ModelDocument.From(document), (RefPlane)item, index),
+        };
+    }
 
     private static object ResolveParent(SeContext context, ModelDocument model, string value, string argumentName = "plane")
     {

@@ -17,8 +17,9 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 ///   y up), and its right keeps the left;
 /// - the cut acts only within the extent, along the normal of the sketch plane: Solid Edge's left extents go against the
 ///   sketch frame's normal and its right extents along it; a symmetric extent is the total width (6 mm: 3 to each side);
-/// - Delete also deletes the profile and every reference plane of the document that nothing uses (no sketch or feature on
-///   it), and Undo cannot bring them back (no transaction is recorded);
+/// - Delete also deletes the profile, and Undo cannot bring it back (no transaction is recorded); local reference planes
+///   that nothing else uses go with it (the API makes local planes unless told otherwise), while global planes, the ones
+///   se_ref_plane and the Planes commands make, stay;
 /// - a new section view takes the display mode and the cutting plane visibility last set in its document (not the opacity);
 ///   a new document starts with cut faces and cut bodies and the plane hidden;
 /// - PlaneExtentType gives E_INVALIDARG for these section views.
@@ -136,7 +137,7 @@ public static class SectionViewService
         return Describe(context, document, view);
     }
 
-    /// <summary>Deletes a section view; Solid Edge also deletes its profile and the unused reference planes, which are reported.</summary>
+    /// <summary>Deletes a section view; Solid Edge also deletes its profile and the unused local planes, which are reported.</summary>
     public static object Delete(SeContext context, string? documentHandle, string? section)
     {
         (SolidEdgeDocument document, SectionView view) = Find(context, documentHandle, section);

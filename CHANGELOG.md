@@ -80,8 +80,8 @@ Relevant changes to this project are recorded here. The format follows
 - `se_section_view`: 3D section views of parts, sheet metal and assemblies (View > Section) from a sketch profile:
   `keep` (inside or outside of a closed profile, left or right of an open line), `depth` and `direction` along the
   sketch normal, caption, fasteners cut or not, what is drawn and the cutting plane; `list`, `show`, `hide`, `edit`
-  and `delete` (Solid Edge deletes the profile and the unused reference planes too, without undo: the result lists
-  those planes).
+  and `delete` (Solid Edge deletes the profile too, without undo, and any local plane that only it used: the result
+  lists those planes).
 - Acceptance scripts `A27` (background sheets) and `A28` (3D section views, checked by the colours of a capture).
 - `se_publish`: 3D PDF documents of saved parts, sheet metal and assemblies with the 3D PDF templates of the
   installation (`templates` lists them; `pdf3d` takes a file or a folder, optionally with its subfolders, a template by
@@ -90,6 +90,13 @@ Relevant changes to this project are recorded here. The format follows
   session it carries the pages of earlier single-file publishes over: the server publishes each file through a folder
   of its own and never lets Solid Edge meet an existing file.
 - Acceptance script `A29` (3D PDF publishing).
+- `se_ref_plane` in assemblies: `list`; `offset` from an assembly plane or a planar face of an occurrence; `angle`
+  about the line where the parent meets a pivot plane; `normal_to_edge` on an edge of an occurrence (at an end, a
+  distance or a fraction of its length); `coordinate_system` by origin and angles. Each new plane is checked against
+  its geometry. New actions in parts and assemblies: `show` and `hide` (a plane, a coordinate system or `all`
+  planes), `rename` and `delete`, which refuses the base planes and the base coordinate system and a plane that
+  planes, sketches, features or assembly relations are built on.
+- Acceptance script `A30` (reference planes and coordinate systems in a part and an assembly).
 
 ### Changed
 
@@ -120,6 +127,11 @@ Relevant changes to this project are recorded here. The format follows
 - `se_assembly list` with `recursive` and `se_bom` with `flat` no longer fail on a subassembly without components.
 - A value that .NET cannot convert (`Query.Criteria` gives an invalid OLE variant) fails with `unreadable_value`
   instead of an unexpected internal error.
+- `se_ref_plane` makes global planes in parts, as the Planes commands do. They were local planes: without a name,
+  outside the feature tree, impossible to rename or delete, and Solid Edge deleted them with a section view drawn on
+  them.
+- `se_com_invoke` and `se_com_get`: an argument whose type does not fit its parameter (an array for a number) fails
+  with `invalid_argument` instead of an unexpected internal error.
 
 ## [0.1.0] - 2026-10-12
 

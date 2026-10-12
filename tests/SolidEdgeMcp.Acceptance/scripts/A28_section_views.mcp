@@ -1,6 +1,6 @@
 # A28: 3D section views (se_section_view): the part that stays (inside and outside of a closed profile, either side of an
-# open line), the extent along the sketch normal (front, back, a depth, symmetric), show, hide, edit, delete with the unused
-# reference planes that Solid Edge deletes too, an assembly, and refused arguments. Block 40 x 20 x 10 at x 10..50 seen from
+# open line), the extent along the sketch normal (front, back, a depth, symmetric), show, hide, edit, delete (the reference
+# plane of the profile stays), an assembly, and refused arguments. Block 40 x 20 x 10 at x 10..50 seen from
 # the top on a white background: the image centre is the model point (30, 0), so its colour tells whether the cut kept it.
 # The front plane has the sketch frame normal -y; the planes 5 mm away from it lie at y = -5, so the centre is behind them.
 # Every document is new and is closed without saving, except the block a28_block.par used by the assembly.
@@ -91,9 +91,9 @@ se_sketch {"action":"close","sketch":"{{kx1.sketch}}"}
 @cx1 = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
 ?# cx1.samples.center #FFFFFF
 @dx1 = se_section_view {"action":"delete","section":"{{x1.section.handle}}"}
-# The plane of the profile was used only by it: Solid Edge deletes it too, and the result says so
-?= dx1.removedPlanes[0].rootPoint[1] -5
-?~ dx1.warning reference plane
+# The profile goes with the section view; the global plane it was drawn on stays
+@sx1 = se_ref_plane {"action":"hide","plane":"{{px1.handle}}"}
+?= sx1.changed[0] {{px1.name}}
 @px2 = se_ref_plane {"action":"offset","plane":"3","distance":5}
 @kx2 = se_sketch {"action":"create","plane":"{{px2.handle}}"}
 se_sketch {"action":"rectangle","sketch":"{{kx2.sketch}}","points":[0,-5,60,15]}

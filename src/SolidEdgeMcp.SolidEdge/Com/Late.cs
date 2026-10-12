@@ -69,4 +69,20 @@ public static class Late
     }
 
     public static int Count(object collection) => Convert.ToInt32(Get(collection, "Count"), CultureInfo.InvariantCulture);
+
+    /// <summary>Whether two references point to the same COM object (same IUnknown).</summary>
+    public static bool SameObject(object a, object b)
+    {
+        IntPtr first = Marshal.GetIUnknownForObject(a);
+        IntPtr second = Marshal.GetIUnknownForObject(b);
+        try
+        {
+            return first == second;
+        }
+        finally
+        {
+            Marshal.Release(first);
+            Marshal.Release(second);
+        }
+    }
 }
