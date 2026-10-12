@@ -429,8 +429,8 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 | `A30` | Reference planes and coordinate systems: global planes in a part (in the feature tree), rename, hide, delete, and the planes kept because a plane, a sketch or a feature is built on them; in an assembly, planes offset from base planes and from a face of an occurrence, turned about a hinge and normal to an edge of an occurrence, a coordinate system, hide and show every plane, and the planes kept because of a plane, an assembly sketch or a relation |
 | `A31` | Component groups, queries and zones: pack and unpack, groups that refuse a component already grouped, remove, add, rename, hide and show, ungroup and delete with the components; queries by occurrence name, title, material and a custom property, two criteria at once, hidden, shown and selected components, parts inside a subassembly (also three levels down) with their path, show only (a matched subassembly whole), show and hide; zones with and without overlap; saved queries and zones run, renamed, kept after saving and reopening, and deleted |
 | `A32` | Printing drawing sheets to PDF files with the Microsoft Print to PDF printer (nothing goes on paper): the Windows printers and Solid Edge's print settings, every working sheet fitted to A4 (one PDF per sheet, checked for its page count and size), one sheet named in another case on A3 portrait at half size, as black and with two copies, refused cases (a printer that asks for a file name without a folder, an unknown printer or sheet, a bad scale, existing files) and the print settings put back |
-
 | `A33` | More kinds of assembly relations: center plane with two faces and with one, connect (the start of an edge onto a face, onto the end of another edge, the middle of an edge onto a face), coordinate systems (an origin and axes turned 90 degrees), gears with the axial rotation unlocked (40:20 driven by an angle relation, flip) and a rack moving 100 mm per turn, the refused cases, and the cam and path methods refused by the COM layer |
+
 </details>
 
 ## Known limitations
@@ -457,9 +457,9 @@ Results (unit tests and acceptance suite run on 2026-10-12):
   Solid Edge 2026, so the COM layer refuses them.
 - An exported drawing that is not saved shows "Error: No reference" in the title block fields that
   come from the file, such as the date; the server warns about it.
-- Printing: only printing to files (Microsoft Print to PDF) is tested, not printing on paper. When Windows manages
 - Planar cam and path relations leave Solid Edge 2026 unstable through its API, so they are refused: add them with
   the Cam and Path commands of Solid Edge.
+- Printing: only printing to files (Microsoft Print to PDF) is tested, not printing on paper. When Windows manages
   the default printer ("Let Windows manage my default printer"), it makes the last printer used the default:
   `se_print` reports the change but does not undo it, since it is a Windows setting.
 - Windows x64 only; tested only with Solid Edge Community Edition 2026.

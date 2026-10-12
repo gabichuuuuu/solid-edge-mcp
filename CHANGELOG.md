@@ -143,22 +143,22 @@ Relevant changes to this project are recorded here. The format follows
   a missing one or a value out of its enumeration is named with its position (`'criteria[0].property' must be one
   of: …`).
 - PDF checks read the page sizes (MediaBox, in mm) besides the page count, embedded files and 3D views.
-- The acceptance runner compares texts by value in list filters, so a filter can write a space as `\u0020`
-  (`[?name="Microsoft\u0020Print\u0020to\u0020PDF"]`).
-
 - `se_relations list` names point relations `connect`, as Solid Edge does, shows whether an axial relation locks the
   rotation (`rotationLocked`) and the ratio of gear relations (a rack in mm).
 - The COM layer refuses `Relations3d.AddPlanarCam` and `AddPath` (`unsafe_member`): they leave Solid Edge 2026
   unstable (RPC_E_SERVERFAULT).
+- The acceptance runner compares texts by value in list filters, so a filter can write a space as `\u0020`
+  (`[?name="Microsoft\u0020Print\u0020to\u0020PDF"]`).
+
 ### Fixed
 
-- `se_options set` with `null` on a text option no longer writes the text "null".
-- The generic layer describes the drawing views and blocks of a drawing with the draft interfaces, not with the part
-  library's interfaces that share their IIDs.
 - An operation that Solid Edge cannot build and removes while creating it (for example a hole exactly as wide as the
   bar) is reported as `feature_failed`, saying so, and its profile is removed. Before, the error was `object_deleted`
   and the copy of the profile stayed in the part: undoing and cleaning up were skipped whenever Solid Edge deleted an
   object during a call, as if Solid Edge had closed.
+- `se_options set` with `null` on a text option no longer writes the text "null".
+- The generic layer describes the drawing views and blocks of a drawing with the draft interfaces, not with the part
+  library's interfaces that share their IIDs.
 - A drawing view converted to 2D (also by Solid Edge's own command) is listed without a model; parts lists and bend
   tables refuse it with `wrong_view` instead of an unexpected error.
 - `se_com_items` reads collections through their interop `Count` and `Item`: by name, an attribute set with an
