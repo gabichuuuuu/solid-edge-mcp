@@ -1,0 +1,180 @@
+# A21: Solid Edge as a program: options by category, snapshot and restore (se_options), interface display (se_ui),
+# version, add-ins, templates and recent files (se_app), command licence check (se_command check), ribbon themes and
+# keyboard shortcuts (se_customize). Every setting of the person that the script changes is put back: the options
+# through the snapshot, the rest with the previous value each call returns. The recent files list is suspended
+# meanwhile, although Solid Edge 2026 still adds the files saved with save_as.
+se_app {"action":"suspend_recent"}
+@r0 = se_app {"action":"recent"}
+?~ r0.note save_as
+@inf = se_app {"action":"info"}
+?~ inf.version 226
+?~ inf.installFolder Solid Edge
+?~ inf.templateFolder Template
+# Options by category, snapshot and restore
+@cat = se_options {"action":"categories"}
+?= cat.categories[?key="save"].options 14
+?= cat.categories[?key="interface"].options 46
+@lt = se_options {"action":"list","category":"interface","filter":"ColorTheme"}
+?= lt.count 1
+?= lt.options[0].category interface
+! [invalid_argument] se_options {"action":"list","category":"nosuchpage"}
+@th0 = se_options {"action":"get","name":"ColorTheme"}
+@pu0 = se_options {"action":"get","name":"ProfileUndoSteps"}
+@snap = se_options {"action":"snapshot","path":"{{work}}\\a21_options.json"}
+?~ snap.path a21_options.json
+?= snap.documentOpen false
+@thd = se_options {"action":"set","name":"ColorTheme","value":"dark"}
+?= thd.value 2
+?= thd.meaning dark
+@pu1 = se_options {"action":"set","name":"ProfileUndoSteps","value":37}
+?= pu1.value 37
+! [invalid_argument] se_options {"action":"set","name":"ColorTheme","value":"purple"}
+@dry = se_options {"action":"restore","path":"{{work}}\\a21_options.json","dryRun":true}
+?= dry.changed[?name="ProfileUndoSteps"].from 37
+?= dry.changed[?name="ColorTheme"].to {{th0.value}}
+@pu2 = se_options {"action":"get","name":"ProfileUndoSteps"}
+?= pu2.value 37
+@rs = se_options {"action":"restore","path":"{{work}}\\a21_options.json"}
+?= rs.failed []
+?= rs.changed[?name="ProfileUndoSteps"].to {{pu0.value}}
+@th1 = se_options {"action":"get","name":"ColorTheme"}
+?= th1.value {{th0.value}}
+@pu3 = se_options {"action":"get","name":"ProfileUndoSteps"}
+?= pu3.value {{pu0.value}}
+# Folder options point into the allowed folders, the Solid Edge installation or back to their previous value
+# (ExternalBom has a value outside both, so setting it back uses the value recorded before the change)
+@m0 = se_options {"action":"get","name":"ExternalBom"}
+! [path_not_allowed] se_options {"action":"set","name":"ExternalBom","value":"C:\\Windows\\Temp"}
+@m1 = se_options {"action":"set","name":"ExternalBom","value":"{{work}}"}
+?~ m1.value acceptance
+@m2 = se_options {"action":"set","name":"ExternalBom","value":"{{esc:m0.value}}"}
+?~ m2.value {{m0.value}}
+# Interface: status bar, recent files, colour theme, main window size
+@d0 = se_ui {"action":"display"}
+?= d0.theme {{th0.meaning}}
+?~ d0.language.culture en
+@sb = se_ui {"action":"set_display","name":"status_bar","value":true}
+?= sb.value true
+@sb2 = se_ui {"action":"set_display","name":"status_bar","value":{{sb.previous}}}
+?= sb2.value {{sb.previous}}
+@rc = se_ui {"action":"set_display","name":"recent_files_count","value":5}
+?= rc.value 5
+@rc2 = se_ui {"action":"set_display","name":"recent_files_count","value":{{rc.previous}}}
+?= rc2.value {{rc.previous}}
+@td = se_ui {"action":"set_display","name":"theme","value":"dark"}
+?= td.meaning dark
+@td2 = se_ui {"action":"set_display","name":"theme","value":{{td.previous}}}
+?= td2.value {{td.previous}}
+! [invalid_argument] se_ui {"action":"set_display","name":"sidebar","value":true}
+! [invalid_argument] se_ui {"action":"set_display","name":"status_bar","value":"maybe"}
+@wn = se_ui {"action":"state","state":"normal"}
+@g1 = se_ui {"action":"set_display","name":"width","value":1000}
+?= g1.value 1000
+@g2 = se_ui {"action":"set_display","name":"width","value":{{g1.previous}}}
+?= g2.value {{g1.previous}}
+se_ui {"action":"state","state":"maximized"}
+! [ui_failed] se_ui {"action":"set_display","name":"left","value":10}
+se_ui {"action":"state","state":"{{wn.previous}}"}
+# Edge bar (PathFinder pane) with a document window open
+@pd = se_documents {"action":"new","kind":"part"}
+# The snapshot was made with no document open: with one, Solid Edge reads some drawing options differently
+! [state_mismatch] se_options {"action":"restore","path":"{{work}}\\a21_options.json","dryRun":true}
+@d1 = se_ui {"action":"display"}
+@eb = se_ui {"action":"set_display","name":"edge_bar","value":false}
+?= eb.value false
+@eb2 = se_ui {"action":"set_display","name":"edge_bar","value":{{d1.edgeBar}}}
+?= eb2.value {{d1.edgeBar}}
+# A simulation display colour, changed and set back with a document window open
+@sc0 = se_options {"action":"get","name":"GraphicsColorForce"}
+?= sc0.category simulation
+@sc1 = se_options {"action":"set","name":"GraphicsColorForce","value":"#10A020"}
+?= sc1.color #10A020
+@sc2 = se_options {"action":"set","name":"GraphicsColorForce","value":"{{sc0.color}}"}
+?= sc2.value {{sc0.value}}
+# Commands this installation knows and its licence includes
+@cc = se_command {"action":"check","command":"PartToolsOptions","environment":"Part"}
+?= cc.id 25042
+?= cc.known true
+?= cc.licensed true
+@cu = se_command {"action":"check","command":"999999","environment":"Part"}
+?= cu.known false
+# Add-in Manager: unload and load back the first add-in
+@ad = se_app {"action":"addins"}
+@sa = se_app {"action":"set_addin","addin":"{{ad.addIns[0].progId}}","connect":false}
+?= sa.connected false
+@sa2 = se_app {"action":"set_addin","addin":"{{ad.addIns[0].progId}}","connect":{{sa.previous}}}
+?= sa2.connected {{sa.previous}}
+! [not_found] se_app {"action":"set_addin","addin":"NoSuchAddIn","connect":true}
+# Default part template: a template with a custom property makes the new parts carry it; then the previous one is set back
+@t0 = se_app {"action":"templates"}
+?= t0.templates[?kind="part"].exists true
+se_properties {"action":"set","name":"A21Template","value":"yes","document":"{{pd.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\a21_template.par","overwrite":true,"document":"{{pd.handle}}"}
+@st1 = se_app {"action":"set_template","documentType":"part","path":"{{work}}\\a21_template.par"}
+?~ st1.path a21_template.par
+@np = se_documents {"action":"new","kind":"part"}
+@npp = se_properties {"action":"list","set":"Custom","document":"{{np.handle}}"}
+?~ npp A21Template
+se_documents {"action":"close","document":"{{np.handle}}","saveChanges":false}
+@st2 = se_app {"action":"set_template","documentType":"part","path":"{{esc:st1.previous}}"}
+?~ st2.path {{st1.previous}}
+! [path_not_allowed] se_app {"action":"set_template","documentType":"part","path":"C:\\Windows\\win.ini"}
+! [invalid_argument] se_app {"action":"set_template","documentType":"draft","path":"{{work}}\\a21_template.par"}
+# Ribbon themes: a theme copied from the default one, with a tab, a group and a command, shown in the Part ribbon
+@rt = se_customize {"action":"ribbon_themes"}
+?= rt.themes[?isDefault=true].editable false
+@ct = se_customize {"action":"create_ribbon_theme","name":"A21 theme"}
+?~ ct.created.name A21 theme
+?= ct.created.editable true
+?= ct.created.active false
+! [already_exists] se_customize {"action":"create_ribbon_theme","name":"A21 theme"}
+@at = se_customize {"action":"add_tab","theme":"A21 theme","environment":"Part","name":"A21 Tab"}
+?~ at.result.name A21 Tab
+@ag = se_customize {"action":"add_group","theme":"A21 theme","environment":"Part","tab":"A21 Tab","name":"A21 Group"}
+?~ ag.result.name A21 Group
+@ac = se_customize {"action":"add_command","theme":"A21 theme","environment":"Part","tab":"A21 Tab","group":"A21 Group","command":"PartToolsOptions"}
+?= ac.result.id 25042
+@si = se_customize {"action":"set_item","theme":"A21 theme","environment":"Part","tab":"A21 Tab","newName":"A21 Renamed"}
+?~ si.result.name A21 Renamed
+@sh = se_customize {"action":"set_item","theme":"A21 theme","environment":"Part","tab":"Home","group":"Clipboard","visible":false}
+?= sh.result.visible false
+@sz = se_customize {"action":"set_ribbon_theme","theme":"A21 theme","controlSize":"large"}
+?= sz.theme.controlSize large
+! [read_only] se_customize {"action":"set_ribbon_theme","theme":"{{esc:rt.themes[?isDefault=true].name}}","controlSize":"large"}
+! [read_only] se_customize {"action":"add_tab","theme":"{{esc:rt.themes[?isDefault=true].name}}","environment":"Part","name":"X"}
+@av = se_customize {"action":"activate_ribbon_theme","theme":"A21 theme"}
+?~ av.active.name A21 theme
+! [theme_active] se_customize {"action":"remove_ribbon_theme","theme":"A21 theme"}
+@rbn = se_ui {"action":"ribbon","tab":"A21 Renamed"}
+?~ rbn.theme A21 theme
+?~ rbn.groups[0].name A21 Group
+?= rbn.groups[0].controls[0].id 25042
+@ab = se_customize {"action":"activate_ribbon_theme","theme":"{{esc:av.previous}}"}
+?~ ab.active.name {{av.previous}}
+@rm = se_customize {"action":"remove_item","theme":"A21 theme","environment":"Part","tab":"A21 Renamed"}
+?= rm.result.removed tab
+se_customize {"action":"remove_ribbon_theme","theme":"A21 theme"}
+@rt2 = se_customize {"action":"ribbon_themes"}
+?= rt2.count {{rt.count}}
+# Keyboard shortcuts of the Part environment: add, refuse keys in use, remove
+@ks = se_customize {"action":"shortcuts","environment":"Part"}
+?~ ks.shortcuts Ctrl+C
+@ka = se_customize {"action":"add_shortcut","environment":"Part","keys":"Ctrl+Shift+K","command":"PartToolsOptions"}
+?= ka.shortcut.keys Ctrl+Shift+K
+?= ka.shortcut.command 25042
+! [already_exists] se_customize {"action":"add_shortcut","environment":"Part","keys":"Ctrl+Shift+K","command":"PartToolsOptions"}
+@kr = se_customize {"action":"remove_shortcut","environment":"Part","keys":"Ctrl+Shift+K"}
+?= kr.removed.command 25042
+! [not_found] se_customize {"action":"remove_shortcut","environment":"Part","keys":"Ctrl+Shift+K"}
+@kt = se_customize {"action":"add_shortcut","environment":"Part","keys":"Alt+Shift+F11","command":"PartToolsOptions"}
+?= kt.shortcut.keys Shift+Alt+F11
+?~ kt.shortcut.shown Alt
+se_customize {"action":"remove_shortcut","environment":"Part","keys":"Alt+Shift+F11"}
+! [invalid_argument] se_customize {"action":"add_shortcut","environment":"Part","keys":"Ctrl+","command":"PartToolsOptions"}
+@kc = se_customize {"action":"shortcuts","environment":"Part"}
+?= kc.count {{ks.count}}
+se_documents {"action":"close","document":"{{pd.handle}}","saveChanges":false}
+# Solid Edge 2026 adds the files saved with save_as to the recent files even while the list is suspended
+@r1 = se_app {"action":"recent"}
+?~ r1.files[0].path a21_template.par
+se_app {"action":"resume_recent"}

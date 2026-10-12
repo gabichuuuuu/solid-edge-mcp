@@ -100,6 +100,41 @@ public static class CommandService
         };
     }
 
+    /// <summary>
+    /// Whether a command exists in this installation, is licensed (the Community Edition lacks some) and can run now in an
+    /// environment (by default the active one), without running it.
+    /// </summary>
+    public static object Check(SeContext context, string command, string? environment)
+    {
+        Application app = context.Application;
+        string? active = Late.TryGetString(app, "ActiveEnvironment");
+        string env = string.IsNullOrWhiteSpace(environment) ? active ?? "Part" : environment.Trim();
+        (string name, string group, int id) = Resolve(command, env);
+        bool enabled = app.CommandEnabled(id, env, out bool licensed, out bool unknown);
+        return new
+        {
+            command = name,
+            group,
+            id,
+            environment = env,
+            known = !unknown,
+            licensed = !unknown && licensed,
+            enabled = !unknown && enabled,
+            note = unknown
+                ? $"Solid Edge does not know the command {id} in the {env} environment."
+                : !licensed
+                    ? "The licence of this installation does not include the command."
+                    : enabled ? null : "The command exists but cannot run now (for example it needs a document of that environment or a selection).",
+        };
+    }
+
+    /// <summary>Id and name of a command given by name (resolved in <paramref name="environment"/>) or numeric id.</summary>
+    internal static (string Name, int Id) ResolveId(string command, string? environment)
+    {
+        (string name, _, int id) = Resolve(command, environment);
+        return (name, id);
+    }
+
     private static (string Name, string Group, int Id) Resolve(string command, string? environment)
     {
         if (string.IsNullOrWhiteSpace(command))

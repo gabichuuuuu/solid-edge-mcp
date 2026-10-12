@@ -413,7 +413,7 @@ public static class DocumentService
     /// Templates are only read: they are accepted in the allowed folders and in the Solid Edge
     /// template folder.
     /// </summary>
-    private static string CheckTemplate(SeContext context, string template, DocumentTypeConstants type)
+    internal static string CheckTemplate(SeContext context, string template, DocumentTypeConstants type)
     {
         string full;
         try

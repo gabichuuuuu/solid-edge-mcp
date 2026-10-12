@@ -5,6 +5,7 @@ using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
+using IOPath = System.IO.Path;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
@@ -20,11 +21,19 @@ public static class OptionService
     /// <summary>Enumeration of parameters of the scope, the object that serves them, and prefixes removed from the name.</summary>
     private sealed record Catalog(Type Enum, object Target, string Owner, string[] Prefixes);
 
-    public static object List(SeContext context, string scope, string? documentHandle, string? filter, int offset, int limit)
+    public static object List(SeContext context, string scope, string? documentHandle, string? filter, string? category, int offset, int limit)
     {
         Catalog catalog = CatalogOf(context, scope, documentHandle);
+        if (!string.IsNullOrWhiteSpace(category) && catalog.Owner == "application" && !OptionCategories.Exists(category))
+        {
+            throw ToolException.InvalidArgument($"Unknown category '{category}'.",
+                $"Use one of: {string.Join(", ", OptionCategories.All.Select(c => c.Key))} (se_options action 'categories').");
+        }
+
         var matches = Entries(catalog)
             .Where(e => string.IsNullOrWhiteSpace(filter) || e.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .Where(e => string.IsNullOrWhiteSpace(category) || catalog.Owner != "application"
+                || string.Equals(OptionCategories.Of(e.Value), category.Trim(), StringComparison.OrdinalIgnoreCase))
             .ToList();
         int start = Math.Max(offset, 0);
         int take = Math.Clamp(limit, 1, context.MaxListItems);
@@ -32,11 +41,206 @@ public static class OptionService
         return new
         {
             scope = catalog.Owner,
+            category = string.IsNullOrWhiteSpace(category) ? null : category.Trim().ToLowerInvariant(),
             count = matches.Count,
             offset = start,
             returned = items.Count,
             more = start + items.Count < matches.Count,
             options = items,
+        };
+    }
+
+    /// <summary>Categories of the application options, as the Solid Edge Options dialog groups them, with their number of options.</summary>
+    public static object Categories(SeContext context)
+    {
+        Catalog catalog = CatalogOf(context, "application", null);
+        var counts = Entries(catalog).GroupBy(e => OptionCategories.Of(e.Value)).ToDictionary(g => g.Key, g => g.Count());
+        return new
+        {
+            scope = catalog.Owner,
+            categories = OptionCategories.All.Select(c => new { key = c.Key, title = c.Title, options = counts.GetValueOrDefault(c.Key) }).ToList(),
+            note = "List a category with se_options action 'list' and 'category'. Document options: scope 'document'.",
+        };
+    }
+
+    /// <summary>Value of an application option (null when Solid Edge cannot read it), for the other services.</summary>
+    internal static object? ReadApplication(SeContext context, ApplicationGlobalConstants option)
+    {
+        Catalog catalog = CatalogOf(context, "application", null);
+        return ReadRaw(catalog, (int)option, out _);
+    }
+
+    /// <summary>
+    /// Saves every readable option of the scope to a JSON file in an allowed folder (by default the work folder), so that
+    /// se_options 'restore' can put them back after changes.
+    /// </summary>
+    public static object Snapshot(SeContext context, string scope, string? documentHandle, string? path)
+    {
+        Catalog catalog = CatalogOf(context, scope, documentHandle);
+        string target = path is null
+            ? IOPath.Combine(context.AppPaths.Work, "options",
+                $"{catalog.Owner}-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.json")
+            : context.Paths.Check(path);
+        if (!target.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            throw ToolException.InvalidArgument("The snapshot is a .json file.", "Give 'path' the .json extension, or leave it out to use the work folder.");
+        }
+
+        var entries = new List<SnapshotEntry>();
+        int unreadable = 0;
+        foreach ((string Name, int Value) entry in Entries(catalog))
+        {
+            if (Volatile(entry.Name))
+            {
+                continue;
+            }
+
+            object? raw = ReadRaw(catalog, entry.Value, out string? error);
+            if (error is not null || raw is null or DBNull or Array || Format(raw) is not { } value || value is string && raw is not string)
+            {
+                unreadable++;
+                continue;
+            }
+
+            entries.Add(new SnapshotEntry(entry.Name, raw.GetType().Name, JsonSerializer.SerializeToElement(value)));
+        }
+
+        Directory.CreateDirectory(IOPath.GetDirectoryName(target)!);
+        bool documentOpen = context.Application.Documents.Count > 0;
+        var file = new SnapshotFile(SnapshotFormat, DateTimeOffset.Now, context.Application.Version, catalog.Owner, entries, documentOpen);
+        File.WriteAllText(target, JsonSerializer.Serialize(file, SnapshotJson));
+        return new
+        {
+            path = target,
+            scope = catalog.Owner,
+            saved = entries.Count,
+            unreadable,
+            documentOpen,
+            note = "Put them back with se_options action 'restore' and this path (dryRun = true lists the differences first)"
+                + (documentOpen ? ", with a document window open." : ", with no document open (with one, Solid Edge reads some drawing options differently)."),
+        };
+    }
+
+    /// <summary>
+    /// Sets back every option that differs from a snapshot made by 'snapshot' (also changes the person made since then;
+    /// <paramref name="dryRun"/> only lists them).
+    /// </summary>
+    public static object Restore(SeContext context, string? documentHandle, string path, bool dryRun)
+    {
+        string file = context.Paths.Check(path);
+        if (!File.Exists(file))
+        {
+            throw ToolException.NotFound($"There is no snapshot file '{file}'.", "Make one with se_options action 'snapshot'.");
+        }
+
+        SnapshotFile? snapshot;
+        try
+        {
+            snapshot = JsonSerializer.Deserialize<SnapshotFile>(File.ReadAllText(file), SnapshotJson);
+        }
+        catch (JsonException ex)
+        {
+            throw ToolException.InvalidArgument($"'{file}' is not an options snapshot: {ex.Message}");
+        }
+
+        if (snapshot is null || snapshot.Format != SnapshotFormat || snapshot.Options is null)
+        {
+            throw ToolException.InvalidArgument($"'{file}' is not an options snapshot made by se_options 'snapshot'.");
+        }
+
+        Catalog catalog = CatalogOf(context, snapshot.Scope == "application" ? "application" : "document", documentHandle);
+        if (catalog.Owner != snapshot.Scope)
+        {
+            throw new ToolException("wrong_document_type", $"The snapshot holds {snapshot.Scope} options, but the document is a {catalog.Owner}.",
+                "Pass a document of the same type (document) or use an application snapshot.");
+        }
+
+        // Verified: with no document window, Solid Edge cannot read some drawing options and reports others as -1
+        // (LimitsViewsDraft, DetailEnvelope), so a snapshot is only compared in the same state it was made in.
+        bool documentOpen = context.Application.Documents.Count > 0;
+        if (snapshot.Scope == "application" && snapshot.DocumentOpen is { } wasOpen && wasOpen != documentOpen)
+        {
+            throw new ToolException("state_mismatch",
+                wasOpen
+                    ? "The snapshot was made with a document window open and none is open now: Solid Edge reads some options differently without one."
+                    : "The snapshot was made with no document open and one is open now: Solid Edge reads some drawing options differently with one.",
+                wasOpen
+                    ? "Open or create a document (se_documents) and restore again."
+                    : "Close the documents and restore again, or make the snapshot again with a document open.");
+        }
+
+        var changed = new List<object>();
+        var failed = new List<object>();
+        int unchanged = 0;
+        foreach (SnapshotEntry entry in snapshot.Options)
+        {
+            (string Name, int Value)? option = TryFind(catalog, entry.Name);
+            if (option is null)
+            {
+                failed.Add(new { name = entry.Name, error = "This Solid Edge version has no such option." });
+                continue;
+            }
+
+            object? current = ReadRaw(catalog, option.Value.Value, out string? readError);
+            if (readError is not null)
+            {
+                failed.Add(new { name = entry.Name, error = readError });
+                continue;
+            }
+
+            object wanted;
+            try
+            {
+                wanted = FromSnapshot(entry);
+            }
+            catch (Exception ex) when (ex is FormatException or InvalidOperationException or OverflowException)
+            {
+                failed.Add(new { name = entry.Name, error = $"The saved value {entry.Value.GetRawText()} is not a {entry.Type}." });
+                continue;
+            }
+
+            if (SameValue(current, wanted))
+            {
+                unchanged++;
+                continue;
+            }
+
+            if (!dryRun)
+            {
+                try
+                {
+                    Late.Call(catalog.Target, "SetGlobalParameter", option.Value.Value, wanted);
+                }
+                catch (Exception ex) when (Late.IsMemberFailure(ex))
+                {
+                    failed.Add(new { name = entry.Name, from = Format(current), to = Format(wanted), error = ComErrors.Unwrap(ex).Message });
+                    continue;
+                }
+
+                object? after = ReadRaw(catalog, option.Value.Value, out _);
+                if (!SameValue(after, wanted))
+                {
+                    failed.Add(new { name = entry.Name, from = Format(current), to = Format(wanted), error = $"Solid Edge kept {Describe(after)}." });
+                    continue;
+                }
+            }
+
+            changed.Add(new { name = entry.Name, from = Format(current), to = Format(wanted) });
+        }
+
+        bool noWindow = catalog.Owner == "application" && !documentOpen;
+        return new
+        {
+            path = file,
+            scope = snapshot.Scope,
+            created = snapshot.Created,
+            dryRun,
+            changed,
+            unchanged,
+            failed,
+            note = failed.Count > 0 && noWindow
+                ? "Some options, such as the display colours, can only be changed while a document window is open: open one and restore again."
+                : null,
         };
     }
 
@@ -59,7 +263,15 @@ public static class OptionService
                 "Only options that can be read can be changed safely; use se_com_invoke on SetGlobalParameter if you must.");
         }
 
-        object converted = ConvertValue(value, previous, IsColor(entry.Name));
+        object converted = EnumOption(entry.Name) is { } codes && value.ValueKind == JsonValueKind.String
+            ? ConvertValue(JsonSerializer.SerializeToElement(CodeOf(codes, entry.Name, value.GetString() ?? "")), previous, false)
+            : ConvertValue(value, previous, IsColor(entry.Name));
+        if (converted is string text && PathGuard.LooksLikePath(text) && !SameValue(text, previous))
+        {
+            CheckPathValue(context, catalog, entry.Name, text);
+        }
+
+        Originals.TryAdd($"{catalog.Owner}/{entry.Name}", previous);
         try
         {
             Late.Call(catalog.Target, "SetGlobalParameter", entry.Value, converted);
@@ -89,11 +301,142 @@ public static class OptionService
             name = entry.Name,
             previous = Format(previous),
             value = Format(current),
+            meaning = Meaning(entry.Name, current),
             color = IsColor(entry.Name) ? Hex(current) : null,
             note = applied ? null : "Solid Edge adjusted the value (for example to its allowed range).",
-            restore = $"To undo, set it back to {Describe(previous)}.",
+            // Verified: Solid Edge refuses an empty value (E_FAIL) for an unset folder option such as Macros.
+            restore = previous is null
+                ? "It had no value before, and Solid Edge refuses an empty value for some options (such as the Macros folder): this change may not be undone through se_options."
+                : $"To undo, set it back to {Describe(previous)}.",
         };
     }
+
+    private const string SnapshotFormat = "solid-edge-mcp/options/1";
+
+    private static readonly JsonSerializerOptions SnapshotJson = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    private sealed record SnapshotEntry(string Name, string Type, JsonElement Value);
+
+    private sealed record SnapshotFile(string Format, DateTimeOffset Created, string? Version, string Scope, List<SnapshotEntry>? Options, bool? DocumentOpen = null);
+
+    /// <summary>Value each option had before this server first changed it, so a path can always be set back.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, object?> Originals = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Options that Solid Edge changes by itself (last folder of a dialog, system information): not saved in snapshots.</summary>
+    private static bool Volatile(string name) =>
+        name.StartsWith("Last", StringComparison.OrdinalIgnoreCase) || name.Contains("SystemInfo", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("OEM", StringComparison.OrdinalIgnoreCase) || name.Contains("Migration", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A folder or file option may point into the allowed folders, the Solid Edge installation (templates, material
+    /// tables, standards) or back to the value it had before this server changed it; anything else needs the policy.
+    /// </summary>
+    private static void CheckPathValue(SeContext context, Catalog catalog, string name, string text)
+    {
+        if (context.Paths.IsAllowed(text)
+            || (Originals.TryGetValue($"{catalog.Owner}/{name}", out object? original) && SameValue(original, text)))
+        {
+            return;
+        }
+
+        string? install = SolidEdgeSettings.InstallFolder(context.Application);
+        string full;
+        try
+        {
+            full = IOPath.GetFullPath(text);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            throw ToolException.InvalidArgument($"'{text}' is not a valid path: {ex.Message}");
+        }
+
+        if (install is not null && full.StartsWith(install.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        throw new ToolException("path_not_allowed", $"The option '{name}' would point Solid Edge to '{text}', outside the allowed folders.",
+            $"Use a folder under one of: {string.Join("; ", context.Paths.AllowedRoots)}, or the Solid Edge installation; other folders need allowedRoots in policy.json.");
+    }
+
+    private static (string Name, int Value)? TryFind(Catalog catalog, string name)
+    {
+        string wanted = Strip(name.Trim(), catalog.Prefixes);
+        foreach ((string Name, int Value) entry in Entries(catalog))
+        {
+            if (string.Equals(entry.Name, wanted, StringComparison.OrdinalIgnoreCase))
+            {
+                return entry;
+            }
+        }
+
+        return null;
+    }
+
+    private static object FromSnapshot(SnapshotEntry entry)
+    {
+        JsonElement v = entry.Value;
+        return entry.Type switch
+        {
+            nameof(Boolean) => v.GetBoolean(),
+            nameof(Int32) => v.GetInt32(),
+            nameof(Int16) => v.GetInt16(),
+            nameof(UInt16) => v.GetUInt16(),
+            nameof(UInt32) => v.GetUInt32(),
+            nameof(Int64) => v.GetInt64(),
+            nameof(Byte) => v.GetByte(),
+            nameof(Single) => v.GetSingle(),
+            nameof(Double) => v.GetDouble(),
+            nameof(String) => v.GetString() ?? "",
+            _ => throw new FormatException(),
+        };
+    }
+
+    /// <summary>Options whose number stands for a named choice (enumeration of the interop).</summary>
+    private static Type? EnumOption(string name) =>
+        string.Equals(name, "ColorTheme", StringComparison.OrdinalIgnoreCase) ? typeof(SEColorTheme) : null;
+
+    /// <summary>Name of the choice (dark, light...) of an option that stores a code, or null.</summary>
+    internal static string? Meaning(string name, object? value)
+    {
+        if (EnumOption(name) is not { } codes || value is null or DBNull)
+        {
+            return null;
+        }
+
+        try
+        {
+            string? member = Enum.GetName(codes, Enum.ToObject(codes, Convert.ToInt32(value, CultureInfo.InvariantCulture)));
+            return member is null ? null : Snake(member[CodePrefix(codes).Length..]);
+        }
+        catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
+        {
+            return null;
+        }
+    }
+
+    private static int CodeOf(Type codes, string option, string choice)
+    {
+        string prefix = CodePrefix(codes);
+        string wanted = choice.Replace("_", "", StringComparison.Ordinal).Replace(" ", "", StringComparison.Ordinal);
+        foreach (string member in Enum.GetNames(codes))
+        {
+            if (string.Equals(member[prefix.Length..], wanted, StringComparison.OrdinalIgnoreCase))
+            {
+                return Convert.ToInt32(Enum.Parse(codes, member), CultureInfo.InvariantCulture);
+            }
+        }
+
+        if (int.TryParse(choice, NumberStyles.Integer, CultureInfo.InvariantCulture, out int raw))
+        {
+            return raw;
+        }
+
+        throw ToolException.InvalidArgument($"'{choice}' is not a value of {option}.",
+            $"Use one of: {string.Join(", ", Enum.GetNames(codes).Select(m => Snake(m[prefix.Length..])))}.");
+    }
+
+    private static string CodePrefix(Type codes) => UnitPrefix(codes);
 
     /// <summary>Document units: type, readout unit and precision.</summary>
     public static object Units(SeContext context, string? documentHandle)
@@ -215,7 +558,9 @@ public static class OptionService
         return new
         {
             name,
+            category = catalog.Owner == "application" ? OptionCategories.Of(parameter) : null,
             value = Format(raw),
+            meaning = error is null ? Meaning(name, raw) : null,
             color = error is null && IsColor(name) ? Hex(raw) : null,
             error,
         };
@@ -302,11 +647,18 @@ public static class OptionService
                 },
                 int => Convert.ToInt32(Number(value), CultureInfo.InvariantCulture),
                 short => Convert.ToInt16(Number(value), CultureInfo.InvariantCulture),
+                ushort => Convert.ToUInt16(Number(value), CultureInfo.InvariantCulture),
+                byte => Convert.ToByte(Number(value), CultureInfo.InvariantCulture),
                 uint => Convert.ToUInt32(Number(value), CultureInfo.InvariantCulture),
                 long => Convert.ToInt64(Number(value), CultureInfo.InvariantCulture),
                 double => Number(value),
                 float => (float)Number(value),
-                string => value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : value.GetRawText(),
+                string => value.ValueKind switch
+                {
+                    JsonValueKind.String => value.GetString() ?? "",
+                    JsonValueKind.Null => "",
+                    _ => value.GetRawText(),
+                },
                 _ => value.ValueKind switch
                 {
                     JsonValueKind.String => value.GetString() ?? "",

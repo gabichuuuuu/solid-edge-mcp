@@ -6,6 +6,33 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Solid Edge as a program, not only modelling and drawing:
+  - `se_app`: version, edition, language, operating system and folders; the Add-In Manager (`set_addin` loads or
+    unloads an add-in found by index, ProgID, GUID or description); the default template of each document type
+    (`set_template`, checked by creating a document from it); the recent files list (read, suspend, resume, clear).
+  - `se_customize`: ribbon themes (create from the active or another theme, activate, rename, button size and labels,
+    remove), tabs, groups and command buttons of a theme (add, show, hide, rename, remove), and keyboard shortcuts of
+    each environment (`'Ctrl+Shift+K'`, `'Alt+F5'`…; keys in use are refused unless `replace` is set). The Solid Edge
+    default theme, read from its settings, is never edited.
+  - `se_options`: `categories` and `list` by page of the Options dialog (21 pages, every option of the API);
+    `snapshot` saves every option to a .json file and `restore` puts back the ones that differ (`dryRun` lists them);
+    coded options take their name (`ColorTheme`: `light`, `medium`, `dark`, `framed`); the answer explains the value.
+  - `se_ui display` and `set_display`: colour theme, status bar, edge bar, start screen, recent files shown, language,
+    and position and size of the main window.
+  - `se_command check`: whether this installation knows a command, its licence includes it and it can run now.
+- Acceptance script `A21` (program settings), which puts back every setting it changes.
+
+### Changed
+
+- A folder or file option can only point into the allowed folders, the Solid Edge installation or back to the value it
+  had before the server changed it (`path_not_allowed` otherwise).
+
+### Fixed
+
+- `se_options set` with `null` on a text option no longer writes the text "null".
+
 ## [0.1.0] - 2026-10-12
 
 First published release (alpha), validated against Solid Edge Community Edition 2026. It is source only: the

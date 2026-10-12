@@ -10,6 +10,7 @@ public enum CommandAction
 {
     Find,
     Run,
+    Check,
 }
 
 public enum SelectionAction
@@ -42,13 +43,14 @@ public sealed class AppTools(ToolRunner runner)
     [McpServerTool(Name = "se_command", Title = "Run a UI command", Destructive = true, OpenWorld = false)]
     [Description("""
         Solid Edge UI commands, as if the person clicked them. find (query, optional environment: Part, SheetMetal, Assembly, Detail...) lists names and ids without needing Solid Edge |
-        run (command = name such as 'PartViewISOView', 'Environment.Name', or numeric id). Commands that need picks or a dialog wait for the person: prefer the specific se_* tools when they exist.
+        run (command = name such as 'PartViewISOView', 'Environment.Name', or numeric id). Commands that need picks or a dialog wait for the person: prefer the specific se_* tools when they exist |
+        check (command, optional environment, default the active one): whether this installation knows the command, its licence includes it and it can run now, without running it.
         """)]
     public Task<CallToolResult> Command(
         CommandAction action,
         [Description("For find: text contained in the command name.")] string? query = null,
-        [Description("For find: environment filter (Part, SheetMetal, Assembly, Detail, Profile...).")] string? environment = null,
-        [Description("For run: command name or numeric id.")] string? command = null,
+        [Description("For find and check: environment (Part, SheetMetal, Assembly, Detail, Profile...).")] string? environment = null,
+        [Description("For run and check: command name or numeric id.")] string? command = null,
         int offset = 0,
         [Description("For find: maximum number of results (default 50).")] int limit = 50,
         CancellationToken cancellationToken = default) => action switch
@@ -57,6 +59,8 @@ public sealed class AppTools(ToolRunner runner)
                 () => Task.FromResult<object?>(CommandService.Find(ToolRunner.Require(query, "query", "find"), environment, offset, limit))),
             CommandAction.Run => runner.RunAsync("se_command", "run",
                 c => CommandService.Run(c, ToolRunner.Require(command, "command", "run")), cancellationToken),
+            CommandAction.Check => runner.RunAsync("se_command", "check",
+                c => CommandService.Check(c, ToolRunner.Require(command, "command", "check"), environment), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
 

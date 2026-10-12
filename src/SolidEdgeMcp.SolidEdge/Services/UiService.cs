@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
@@ -34,6 +35,169 @@ public static class UiService
             delayCompute = app.DelayCompute,
             interactive = app.Interactive,
         };
+    }
+
+    public static readonly IReadOnlyList<string> DisplaySettings =
+        ["status_bar", "edge_bar", "full_screen", "startup_screen", "recent_files", "recent_files_count", "theme", "left", "top", "width", "height"];
+
+    /// <summary>
+    /// How the Solid Edge window looks: status bar, edge bar (PathFinder pane), full screen, start-up screen, recent files,
+    /// colour theme and scheme, interface language, main window geometry and active ribbon theme.
+    /// </summary>
+    public static object Display(SeContext context)
+    {
+        Application app = context.Application;
+        object? theme = OptionService.ReadApplication(context, ApplicationGlobalConstants.seApplicationGlobalColorTheme);
+        object? language = OptionService.ReadApplication(context, ApplicationGlobalConstants.seApplicationGlobalDefaultUserLangID);
+        return new
+        {
+            statusBar = Try(() => app.StatusBarVisible),
+            edgeBar = Try(() => app.EdgeBarVisible),
+            fullScreen = Try(() => app.DisplayFullScreen),
+            startupScreen = Try(() => app.ShowStartupScreen),
+            recentFiles = Try(() => app.DisplayRecentFiles),
+            recentFilesCount = Try(() => app.DisplayRecentFilesCount),
+            theme = OptionService.Meaning("ColorTheme", theme),
+            colorScheme = OptionService.ReadApplication(context, ApplicationGlobalConstants.seApplicationGlobalApplicationColorScheme) as string,
+            language = Language(language),
+            window = new
+            {
+                state = StateName(app.WindowState),
+                left = Try(() => app.Left),
+                top = Try(() => app.Top),
+                width = Try(() => app.Width),
+                height = Try(() => app.Height),
+                usableWidth = Try(() => app.UsableWidth),
+                usableHeight = Try(() => app.UsableHeight),
+            },
+            ribbonTheme = ActiveRibbonTheme(app),
+            note = "Change them with se_ui action 'set_display' (name, value). Colours and every other option: se_options.",
+        };
+    }
+
+    /// <summary>Changes one display setting (see <see cref="DisplaySettings"/>) and returns the previous value.</summary>
+    public static object SetDisplay(SeContext context, string name, JsonElement value)
+    {
+        Application app = context.Application;
+        string key = name.Trim().ToLowerInvariant().Replace(' ', '_').Replace('-', '_');
+        return key switch
+        {
+            "status_bar" => Flag(key, () => app.StatusBarVisible, v => app.StatusBarVisible = v, value, null),
+            "edge_bar" => Flag(key, () => app.EdgeBarVisible, v => app.EdgeBarVisible = v, value,
+                "The edge bar (PathFinder pane) only shows while a document window is open."),
+            "full_screen" => Flag(key, () => app.DisplayFullScreen, v => app.DisplayFullScreen = v, value, null),
+            "startup_screen" => Flag(key, () => app.ShowStartupScreen, v => app.ShowStartupScreen = v, value, null),
+            "recent_files" => Flag(key, () => app.DisplayRecentFiles, v => app.DisplayRecentFiles = v, value, null),
+            "recent_files_count" => Number(key, () => app.DisplayRecentFilesCount, v => app.DisplayRecentFilesCount = v, value, null),
+            "theme" => OptionService.Set(context, "application", null, "ColorTheme", value),
+            "left" => Geometry(app, key, () => app.Left, v => app.Left = v, value),
+            "top" => Geometry(app, key, () => app.Top, v => app.Top = v, value),
+            "width" => Geometry(app, key, () => app.Width, v => app.Width = v, value),
+            "height" => Geometry(app, key, () => app.Height, v => app.Height = v, value),
+            _ => throw ToolException.InvalidArgument($"Unknown display setting '{name}'.", $"Use one of: {string.Join(", ", DisplaySettings)}."),
+        };
+    }
+
+    private static object Flag(string name, Func<bool> get, Action<bool> set, JsonElement value, string? hint)
+    {
+        bool wanted = value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String when bool.TryParse(value.GetString(), out bool parsed) => parsed,
+            _ => throw ToolException.InvalidArgument($"'{name}' takes true or false."),
+        };
+        bool before = get();
+        set(wanted);
+        bool after = get();
+        if (after != wanted)
+        {
+            throw new ToolException("option_not_applied", $"Solid Edge kept {name} {(after ? "on" : "off")}.", hint);
+        }
+
+        return new { name, previous = before, value = after };
+    }
+
+    private static object Number(string name, Func<int> get, Action<int> set, JsonElement value, string? hint)
+    {
+        int wanted = value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int number)
+            ? number
+            : value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)
+                ? parsed
+                : throw ToolException.InvalidArgument($"'{name}' takes a whole number.");
+        int before = get();
+        set(wanted);
+        int after = get();
+        if (after != wanted)
+        {
+            throw new ToolException("option_not_applied", $"Solid Edge kept {name} at {after} instead of {wanted}.", hint);
+        }
+
+        return new { name, previous = before, value = after };
+    }
+
+    /// <summary>Position or size of the main window in pixels; only a window in the normal state can be moved or sized.</summary>
+    private static object Geometry(Application app, string name, Func<int> get, Action<int> set, JsonElement value)
+    {
+        if (app.WindowState != 0)
+        {
+            throw new ToolException("ui_failed", $"The main window is {StateName(app.WindowState)}: it cannot be moved or sized.",
+                "Set it to normal first with se_ui action 'state' (state normal).");
+        }
+
+        return Number(name, get, set, value, "Solid Edge keeps the window inside the screen and above its minimum size.");
+    }
+
+    private static object? Try<T>(Func<T> read)
+    {
+        try
+        {
+            return read();
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+    }
+
+    internal static object? Language(object? id)
+    {
+        if (id is null or DBNull)
+        {
+            return null;
+        }
+
+        int lcid = Convert.ToInt32(id, CultureInfo.InvariantCulture);
+        try
+        {
+            CultureInfo culture = CultureInfo.GetCultureInfo(lcid);
+            return new { id = lcid, culture = culture.Name, name = culture.EnglishName };
+        }
+        catch (CultureNotFoundException)
+        {
+            return new { id = lcid, culture = (string?)null, name = (string?)null };
+        }
+    }
+
+    private static string? ActiveRibbonTheme(Application app)
+    {
+        try
+        {
+            RibbonBarThemes themes = app.Customization.RibbonBarThemes;
+            for (int i = 0; i < themes.Count; i++)
+            {
+                if (themes.Item(i).Active)
+                {
+                    return themes.Item(i).Name;
+                }
+            }
+        }
+        catch (COMException)
+        {
+            // Without a ribbon (for example while Solid Edge starts) there is no theme.
+        }
+
+        return null;
     }
 
     public static object Windows(SeContext context)

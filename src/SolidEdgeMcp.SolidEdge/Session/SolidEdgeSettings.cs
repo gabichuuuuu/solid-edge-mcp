@@ -34,6 +34,59 @@ internal static class SolidEdgeSettings
         return null;
     }
 
+    /// <summary>
+    /// Recent files as Solid Edge last stored them (MRU\File1..FileN of the running version, verified in Solid Edge 2026),
+    /// newest first.
+    /// </summary>
+    public static IReadOnlyList<string> RecentFiles(Application app)
+    {
+        string? major = MajorVersion(app);
+        var files = new List<string>();
+        if (major is null)
+        {
+            return files;
+        }
+
+        foreach (string root in Roots)
+        {
+            using RegistryKey? key = Registry.CurrentUser.OpenSubKey($@"{root}\Version {major}\MRU");
+            if (key is null)
+            {
+                continue;
+            }
+
+            for (int i = 1; key.GetValue($"File{i}") is string file; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(file))
+                {
+                    files.Add(file);
+                }
+            }
+
+            break;
+        }
+
+        return files;
+    }
+
+    /// <summary>
+    /// Installation folder of the running Solid Edge (the parent of the Program folder that holds Edge.exe), or null.
+    /// </summary>
+    public static string? InstallFolder(Application app)
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(app.ProcessID);
+            string? program = System.IO.Path.GetDirectoryName(process.MainModule?.FileName);
+            return program is null ? null : System.IO.Path.GetDirectoryName(program);
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or ArgumentException or InvalidOperationException
+            or System.ComponentModel.Win32Exception or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>"226" from "226.00.01.04".</summary>
     private static string? MajorVersion(Application app)
     {

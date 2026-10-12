@@ -102,6 +102,7 @@ public static class Program
         typeof(LayerTools),
         typeof(AppTools),
         typeof(SettingsTools),
+        typeof(ProgramTools),
         typeof(ComTools),
     ];
 

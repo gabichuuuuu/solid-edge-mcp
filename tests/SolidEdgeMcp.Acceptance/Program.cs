@@ -8,7 +8,8 @@
 //   ?~ path text                         checks that the value contains the text
 //   !list | !schemas                     summary or schemas of the tools
 // {{var.field[0].sub}} is replaced by the stored value; {{work}} is the work folder (SE_MCP_WORK or
-// %LocalAppData%\SolidEdgeMcp\work\acceptance), already escaped for JSON.
+// %LocalAppData%\SolidEdgeMcp\work\acceptance), already escaped for JSON; {{esc:var.path}} escapes a stored
+// text for a JSON string (such as a path read from another call).
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -123,7 +124,9 @@ foreach (string raw in File.ReadAllLines(script))
             line = assign.Groups[2].Value;
         }
 
-        line = Regex.Replace(line, @"\{\{([^{}]+)\}\}", m => Resolve(vars, m.Groups[1].Value));
+        line = Regex.Replace(line, @"\{\{([^{}]+)\}\}", m => m.Groups[1].Value.StartsWith("esc:", StringComparison.Ordinal)
+            ? JsonEncodedText.Encode(Resolve(vars, m.Groups[1].Value[4..])).ToString()
+            : Resolve(vars, m.Groups[1].Value));
         int space = line.IndexOf(' ');
         string tool = space < 0 ? line : line[..space];
         string json = space < 0 ? "{}" : line[(space + 1)..];

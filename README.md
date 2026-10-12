@@ -12,11 +12,11 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![54 tools](https://img.shields.io/badge/tools-54-2F6FEB)
+![56 tools](https://img.shields.io/badge/tools-56-2F6FEB)
 
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-2F6FEB)
-[![Progress: 44 % of functions work through the MCP](https://img.shields.io/badge/progress-44%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 50 % of functions work through the MCP](https://img.shields.io/badge/progress-50%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -34,7 +34,7 @@ machine or a specific workflow.
 
 **Broad coverage**
 
-Parts, sheet metal, assemblies, drawings and export with 54 tools, plus the whole API through a
+Parts, sheet metal, assemblies, drawings and export with 56 tools, plus the whole API through a
 generic COM layer.
 
 </td>
@@ -201,14 +201,14 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-54 tools, grouped by area.
+56 tools, grouped by area.
 
 | Area | Tools |
 |---|---|
 | **Server and session** | `se_server_info` `se_session` |
 | **Documents and data** | `se_documents` `se_properties` `se_variables` `se_part_family` `se_material` `se_appearance` `se_layer` |
 | **Query** | `se_feature_tree` `se_geometry` `se_measure` `se_physical` `se_selection` |
-| **View and application** | `se_view` `se_options` `se_ui` |
+| **View and application** | `se_view` `se_options` `se_ui` `se_app` `se_customize` |
 | **Sketches** | `se_sketch` `se_sketch_constraint` `se_ref_plane` |
 | **Part** | `se_extrude` `se_revolve` `se_hole` `se_round` `se_chamfer` `se_pattern` `se_shell` `se_draft` `se_loft_sweep` `se_part_feature` `se_primitive` `se_surface` `se_curve` `se_feature_edit` |
 | **Sheet metal** | `se_sheetmetal` `se_sheetmetal_form` |
@@ -237,8 +237,10 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_physical` | Volume, area, mass, center of gravity and inertia, with the given density or the material's. |
 | | `se_selection` | Read, replace, extend or clear the active selection. |
 | **View and application** | `se_view` | Capture the view as an image, framing (on drawings, the whole sheet with the title block), orientation, display mode and named views (list, save the current one, apply, delete). Does not change the model. |
-| | `se_options` | Solid Edge options and document units: list, read and change them; returns the previous value so it can be restored. |
-| | `se_ui` | Windows, environments and ribbon: list, activate and arrange windows; list environments and the tabs, groups and commands of the ribbon; find a button by the text it shows (any language or theme). |
+| | `se_options` | Every Solid Edge option by page of the Options dialog (general, save, file locations, colours, helpers, assembly, drawing, units, simulation…) and document units: list, read and change them (returns the previous value); save all of them to a snapshot file and restore it. |
+| | `se_ui` | Windows, environments, ribbon and interface display: list, activate and arrange windows; list environments and the tabs, groups and commands of the ribbon; find a button by the text it shows (any language or theme); colour theme, status bar, edge bar, recent files shown, and position and size of the main window. |
+| | `se_app` | Solid Edge as a program: version, edition, language and folders; the Add-In Manager (load and unload add-ins); default template of each document type; the recent files list. |
+| | `se_customize` | The Customize dialog: ribbon themes (create from the default one, activate, rename, button size and labels, remove), tabs, groups and commands of a theme, and keyboard shortcuts of each environment. |
 | **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, points, corner fillet and chamfer, edge projection, revolve axis and validated close; list the elements and relations of a sketch. The same 2D geometry is drawn on drawing sheets (2D drafting). |
 | | `se_sketch_constraint` | Geometric relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions that move the geometry, in sketches and on drawing sheets. |
 | | `se_ref_plane` | Reference planes: list; offset, angled, through three points, midway between two planes, normal to an edge (at an end, a distance or a fraction of its length) and tangent to a cylinder, each checked against its geometry; coordinate systems by origin and angles or along two edges, with their origin and axes. |
@@ -275,7 +277,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_com_invoke` | Calls any API method with positional arguments (through the typed interface, with an IDispatch fallback for omitted optional arguments). |
 | | `se_com_items` | Lists the items of an API collection with their handles. |
 | | `se_com_constants` | Searches the API enumerations for constants. Does not need Solid Edge. |
-| | `se_command` | Searches for and runs interface commands, as if the person clicked them. |
+| | `se_command` | Searches for and runs interface commands, as if the person clicked them; checks whether this installation knows a command and its licence includes it. |
 
 </details>
 
@@ -298,7 +300,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 54 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 56 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -313,7 +315,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 54 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 56 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -366,14 +368,14 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Validation
 
-Results (unit tests and acceptance suite run on 2026-10-11):
+Results (unit tests on 2026-10-12; acceptance suite run on 2026-10-11, and `A21` on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 60/60 and `SolidEdgeMcp.Server.Tests` 157/157.
-- Acceptance suite against real Solid Edge 2026: **2077 calls and 947 checks**, with values
-  calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the
-  script). All of them pass with the Debug executable.
-- Coverage by value: the 54 tools have correct calls, and `A10` runs every value of the action,
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 63/63 and `SolidEdgeMcp.Server.Tests` 174/174.
+- Acceptance suite against real Solid Edge 2026: **2077 calls and 947 checks** in `A01`–`A20`, plus
+  90 calls and 72 checks in `A21`, with values calculated by hand (or Solid Edge reference values when
+  there is no simple formula, noted in the script). All of them pass with the Debug executable.
+- Coverage by value: the 56 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -403,6 +405,7 @@ Results (unit tests and acceptance suite run on 2026-10-11):
 | `A18` | Construction curves (also contours on a face and wrapped sketches) and sweeps or cuts along them |
 | `A19` | Family of parts: members, apply, member file; part display configurations through the COM layer |
 | `A20` | Structural frames and pipes from the installed libraries |
+| `A21` | Solid Edge as a program: options by page with snapshot and restore, interface display, version, add-ins, default templates, recent files, command licence check, ribbon themes and keyboard shortcuts; every setting is put back |
 
 </details>
 
@@ -420,6 +423,10 @@ Results (unit tests and acceptance suite run on 2026-10-11):
   answers it: the blocked call fails with `dialog_open` and names the dialog, and `se_session status`
   lists it. The server never presses dialog buttons.
 - The Boundary and SmoothBoundary display modes are not applied in Solid Edge 2026.
+- Program settings: suspending the recent files list (`se_app suspend_recent`) does not stop Solid Edge 2026
+  from adding the files saved with `save_as`; with no document window open Solid Edge cannot read some
+  drawing options and reports others as -1, so an options snapshot is restored in the state it was made in;
+  and a folder option that had no value (such as Macros) cannot be emptied again through the API.
 - An exported drawing that is not saved shows "Error: No reference" in the title block fields that
   come from the file, such as the date; the server warns about it.
 - Windows x64 only; tested only with Solid Edge Community Edition 2026.
@@ -442,7 +449,7 @@ one in `C:\Program Files\dotnet`.
 ```text
 solid_edge_mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (54 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (56 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
