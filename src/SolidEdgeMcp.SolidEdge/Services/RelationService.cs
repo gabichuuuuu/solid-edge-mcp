@@ -241,18 +241,14 @@ public static partial class RelationService
                 }
             }
         }
-        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsGone(ex))
+        catch (Exception ex) when (Rejected(ex))
         {
             foreach (object relation in created)
             {
                 TryDelete(relation);
             }
 
-            moving.PutTransform(x, y, z, ax, ay, az);
-            if (ungrounded)
-            {
-                assembly.Relations3d.AddGround(moving);
-            }
+            PutBack(assembly, moving, [x, y, z, ax, ay, az], ungrounded);
 
             // Moving an occurrence does not change its faces: the handles stay valid (the coordinates are queried again).
             if (ex is ToolException)
@@ -260,7 +256,7 @@ public static partial class RelationService
                 throw;
             }
 
-            throw new ToolException("relation_failed", $"Solid Edge rejected the {spec.Type} relation: {ex.Message}",
+            throw new ToolException("relation_failed", $"Solid Edge rejected the {spec.Type} relation: {ComErrors.Unwrap(ex).Message}",
                 "Use planar faces or reference planes for planar relations and cylindrical faces or straight edges for axial ones; the occurrence was put back where it was.", ex);
         }
 
@@ -553,9 +549,13 @@ public static partial class RelationService
     /// Edge rejects one, leaves it unsolved or <paramref name="add"/> finds the result wrong, the relations are deleted and
     /// the occurrence is put back where it was.
     /// </summary>
-    private static object Position(SeContext context, AssemblyDocument assembly, Occurrence moving, string type, Action<Relations3d, List<object>> add)
+    private static object Position(SeContext context, AssemblyDocument assembly, Occurrence moving, string type, Action<Relations3d, List<object>> add,
+        params Occurrence?[] others)
     {
         moving.GetTransform(out double x, out double y, out double z, out double ax, out double ay, out double az);
+        // Solid Edge may move an occurrence the relation goes to when it is free: it is put back too if the relation fails.
+        List<(Occurrence Occurrence, double[] Transform)> before = [.. others.OfType<Occurrence>()
+            .Where(o => o.OccurrenceID != moving.OccurrenceID).DistinctBy(o => o.OccurrenceID).Select(o => (o, TransformOf(o)))];
         bool ungrounded = AssemblyService.Unground(assembly, moving);
         var created = new List<object>();
         try
@@ -563,17 +563,17 @@ public static partial class RelationService
             add(assembly.Relations3d, created);
             RequireSolved(created);
         }
-        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsGone(ex))
+        catch (Exception ex) when (Rejected(ex))
         {
             foreach (object relation in created)
             {
                 TryDelete(relation);
             }
 
-            moving.PutTransform(x, y, z, ax, ay, az);
-            if (ungrounded)
+            PutBack(assembly, moving, [x, y, z, ax, ay, az], ungrounded);
+            foreach ((Occurrence other, double[] transform) in before)
             {
-                assembly.Relations3d.AddGround(moving);
+                PutBack(assembly, other, transform, false);
             }
 
             if (ex is ToolException)
@@ -581,7 +581,7 @@ public static partial class RelationService
                 throw;
             }
 
-            throw new ToolException("relation_failed", $"Solid Edge rejected the {type} relation: {ex.Message}",
+            throw new ToolException("relation_failed", $"Solid Edge rejected the {type} relation: {ComErrors.Unwrap(ex).Message}",
                 "Check the elements with se_geometry ('source' = the occurrence); the occurrence was put back where it was.", ex);
         }
 
@@ -592,6 +592,37 @@ public static partial class RelationService
             occurrence = AssemblyService.Describe(context, assembly, moving, AssemblyService.GroundedIds(assembly)),
             ungrounded,
         };
+    }
+
+    /// <summary>
+    /// An error after which the relations are undone: a tool error or a call Solid Edge rejected (.NET raises E_INVALIDARG,
+    /// E_NOINTERFACE and E_POINTER as ArgumentException, InvalidCastException and NullReferenceException), unless Solid
+    /// Edge itself is gone.
+    /// </summary>
+    private static bool Rejected(Exception ex) => ex is ToolException
+        || (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException or NullReferenceException && !ComErrors.IsGone(ex));
+
+    private static double[] TransformOf(Occurrence occurrence)
+    {
+        occurrence.GetTransform(out double x, out double y, out double z, out double ax, out double ay, out double az);
+        return [x, y, z, ax, ay, az];
+    }
+
+    /// <summary>Puts an occurrence back where it was (and grounds it again); best effort, so the original error is reported.</summary>
+    private static void PutBack(AssemblyDocument assembly, Occurrence occurrence, double[] t, bool ground)
+    {
+        try
+        {
+            occurrence.PutTransform(t[0], t[1], t[2], t[3], t[4], t[5]);
+            if (ground)
+            {
+                assembly.Relations3d.AddGround(occurrence);
+            }
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
+        {
+            // The error being reported is the original one.
+        }
     }
 
     private static void RequireSolved(IEnumerable<object> created)
@@ -648,6 +679,7 @@ public static partial class RelationService
         }
 
         double Along(Side side, string name) => Dot(PlaneOf(side, name).Point, normal);
+        Occurrence?[] owners = [.. targets.Select(t => t.Occurrence)];
         return Position(context, assembly, moving, "center_plane", (relations, created) =>
         {
             Array point1 = new double[3];
@@ -665,7 +697,7 @@ public static partial class RelationService
                     $"After the center-plane relation the centred {(mine.Length == 2 ? "mid-plane" : "face")} is {Geo.Mm(middle - goal)} mm from the middle of the two faces.",
                     "Check that the occurrence is not held by other relations (se_relations list with 'occurrence').");
             }
-        });
+        }, owners);
     }
 
     /// <summary>
@@ -724,7 +756,7 @@ public static partial class RelationService
                 throw new ToolException("relation_failed", $"After the connect relation the point is {Geo.Mm(gap)} mm away from 'element2'.",
                     "Check that the occurrence is not held by other relations (se_relations list with 'occurrence').");
             }
-        });
+        }, target);
     }
 
     private static Relation3dGeometryConstants KeyPoint(string key) => key.ToLowerInvariant() switch
@@ -755,6 +787,11 @@ public static partial class RelationService
                 point = [.. Geo.Doubles(KeyPoint(key) == Relation3dGeometryConstants.igRelation3dStartPoint ? start : end)];
                 break;
             case Relation3dGeometryConstants.igRelation3dMidPoint:
+                if (edge.Geometry is not (SolidEdgeGeometry.Line or SolidEdgeGeometry.Circle))
+                {
+                    throw ToolException.InvalidArgument($"'{argumentName}': 'mid' needs a straight or circular edge.", "Use start or end for other curves.");
+                }
+
                 edge.GetParamExtents(out double min, out double max);
                 Array parameters = new[] { (min + max) / 2 };
                 Array points = new double[3];
@@ -811,7 +848,7 @@ public static partial class RelationService
                     $"After the coordinate system relation the origins are {Geo.Mm(gap)} mm apart{(turned ? " and the axes differ" : "")}.",
                     "Check that the occurrence is not held by other relations (se_relations list with 'occurrence').");
             }
-        });
+        }, target);
     }
 
     /// <summary>Origin, X and Z axes of a coordinate system in assembly coordinates (m).</summary>
@@ -830,7 +867,7 @@ public static partial class RelationService
     /// <summary>A coordinate system of a document by name (any case) or handle; the error lists the names there are.</summary>
     private static SolidEdgePart.CoordinateSystem SystemOf(SeContext context, object document, string? element, string argumentName, string owner)
     {
-        List<SolidEdgePart.CoordinateSystem> systems = Late.Get(document, "CoordinateSystems") is { } collection
+        List<SolidEdgePart.CoordinateSystem> systems = Late.TryGet(document, "CoordinateSystems") is { } collection
             ? [.. Late.Items(collection).OfType<SolidEdgePart.CoordinateSystem>()]
             : [];
         string names = systems.Count == 0 ? "none" : string.Join(", ", systems.Select(s => s.Name));
@@ -912,7 +949,7 @@ public static partial class RelationService
                     "Check the ratio and the elements.");
             }
         }
-        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsGone(ex))
+        catch (Exception ex) when (Rejected(ex))
         {
             if (relation is not null)
             {
@@ -924,7 +961,7 @@ public static partial class RelationService
                 throw;
             }
 
-            throw new ToolException("relation_failed", $"Solid Edge rejected the gear relation: {ex.Message}",
+            throw new ToolException("relation_failed", $"Solid Edge rejected the gear relation: {ComErrors.Unwrap(ex).Message}",
                 "Use cylindrical or conical faces or circular edges for gears, and a straight edge for a rack.", ex);
         }
 
@@ -1125,12 +1162,19 @@ public static partial class RelationService
 
         if (relation is GearRelation3d gear)
         {
-            // A rack (a straight edge) moves a distance, kept in metres by Solid Edge: shown in mm.
-            bool rack = Late.TryGet(gear.GetElement2(out _), "Object") is SolidEdgeGeometry.Edge { Geometry: SolidEdgeGeometry.Line };
-            info["ratio"] = new[] { gear.RatioValue1, rack ? Geo.Mm(gear.RatioValue2) : gear.RatioValue2 };
-            if (rack)
+            try
             {
-                info["rack"] = true;
+                // A rack (a straight edge) moves a distance, kept in metres by Solid Edge: shown in mm.
+                bool rack = Late.TryGet(gear.GetElement2(out _), "Object") is SolidEdgeGeometry.Edge { Geometry: SolidEdgeGeometry.Line };
+                info["ratio"] = new[] { gear.RatioValue1, rack ? Geo.Mm(gear.RatioValue2) : gear.RatioValue2 };
+                if (rack)
+                {
+                    info["rack"] = true;
+                }
+            }
+            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
+            {
+                // A suppressed gear relation: its ratio cannot be read.
             }
         }
 
@@ -1155,14 +1199,27 @@ public static partial class RelationService
         {
             GroundRelation3d => new[] { Late.TryGet(relation, "Occurrence") },
             RigidSetRelation3d => (Late.TryGet(relation, "Occurrences") as Array)?.Cast<object?>().ToArray() ?? [],
-            CenterPlaneRelation3d plane => [ParentOf(plane.GetElement1(out _)), ParentOf(plane.GetElement2(out _)), ParentOf(plane.GetElement3(out _)), ParentOf(plane.GetElement4(out _))],
-            CoordinateSystemRelation3d systems => [ParentOf(systems.GetElement1(out _)), ParentOf(systems.GetElement2(out _))],
+            CenterPlaneRelation3d plane => Parents(() => [plane.GetElement1(out _), plane.GetElement2(out _), plane.GetElement3(out _), plane.GetElement4(out _)]),
+            CoordinateSystemRelation3d systems => Parents(() => [systems.GetElement1(out _), systems.GetElement2(out _)]),
             _ => new[] { Late.TryGet(relation, "Occurrence1"), Late.TryGet(relation, "Occurrence2") },
         })
         .OfType<Occurrence>().Where(o => Late.TryGet(o, "OccurrenceID") is not null)
         .DistinctBy(o => o.OccurrenceID).ToArray();
 
     private static object? ParentOf(object? element) => element is null ? null : Late.TryGet(element, "Parent");
+
+    /// <summary>Occurrences of the elements of a relation; none when they cannot be read (a suppressed relation).</summary>
+    private static object?[] Parents(Func<object?[]> elements)
+    {
+        try
+        {
+            return [.. elements().Select(ParentOf)];
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
+        {
+            return [];
+        }
+    }
 
     private static string TypeName(object relation) => relation switch
     {

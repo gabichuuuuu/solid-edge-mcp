@@ -82,6 +82,15 @@ se_relations {"action":"delete","relation":"{{k3.relations[0].handle}}"}
 ?= cs.occurrence.origin[2] 20
 ?= cs.occurrence.angles[2] 90
 ?= cs.occurrence.status fully_constrained
+# The same system of B onto a coordinate system of the assembly at (0,0,50): B goes back to no turn, its origin to (-10,-10,50)
+se_relations {"action":"delete","relation":"{{cs.relations[0].handle}}"}
+@acs = se_ref_plane {"action":"coordinate_system","origin":[0,0,50],"angles":[0,0,0]}
+@cs2 = se_relations {"action":"add","type":"coordinate_system","occurrence1":"{{ob.handle}}","element1":"{{csb.name}}","element2":"{{acs.name}}"}
+?= cs2.relations[0].status solved
+?= cs2.occurrence.origin[0] -10
+?= cs2.occurrence.origin[1] -10
+?= cs2.occurrence.origin[2] 50
+?= cs2.occurrence.angles[2] 0
 ! [not_found] se_relations {"action":"add","type":"coordinate_system","occurrence1":"{{ob.handle}}","element1":"No such system","occurrence2":"{{oa.handle}}","element2":"{{csa.name}}"}
 ! [invalid_argument] se_relations {"action":"add","type":"planar","element1":"{{fb1.items[0].handle}}","element2":"{{fa1.items[0].handle}}","lockRotation":false}
 se_documents {"action":"close","document":"{{as.handle}}","saveChanges":false}

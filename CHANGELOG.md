@@ -156,6 +156,9 @@ Relevant changes to this project are recorded here. The format follows
   bar) is reported as `feature_failed`, saying so, and its profile is removed. Before, the error was `object_deleted`
   and the copy of the profile stayed in the part: undoing and cleaning up were skipped whenever Solid Edge deleted an
   object during a call, as if Solid Edge had closed.
+- `se_relations` undoes a relation and puts the occurrences back also when Solid Edge rejects the call with an error
+  that .NET raises as another exception (E_INVALIDARG, E_NOINTERFACE); `list` no longer fails on a suppressed
+  center-plane, coordinate system or gear relation.
 - `se_options set` with `null` on a text option no longer writes the text "null".
 - The generic layer describes the drawing views and blocks of a drawing with the draft interfaces, not with the part
   library's interfaces that share their IIDs.
