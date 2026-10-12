@@ -6,6 +6,13 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_drawing family_table` (the family of parts members of the part in a view, with the values of the family
+  variables) and `block_table` (the blocks placed on a sheet and their quantity), placed like the other tables; a part
+  without a family and a sheet without blocks are refused.
+- Acceptance script `A46` (family of parts and block tables).
+
 ## [0.6.0] - 2026-10-13
 
 This release adds tolerances to dimensions of drawings, sketches and the PMI (plus/minus, limits and ISO fits) and the

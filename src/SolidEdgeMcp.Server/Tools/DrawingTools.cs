@@ -34,6 +34,8 @@ public enum DrawingAction
     PartsList,
     BendTable,
     ToleranceTable,
+    FamilyTable,
+    BlockTable,
     Update,
     Blocks,
     CreateBlock,
@@ -117,7 +119,7 @@ public sealed class DrawingTools(ToolRunner runner)
         Sheets: sheets (also background sheets = frame and title block; draw on them with se_sketch/se_annotation) | add_sheet (name, paper + portrait or width/height; applies the background of that size) | setup_sheet (rename, resize, background, showBackground) | activate_sheet (a background opens the background view) | delete_sheet | add_background | replace_background (copy a background of the .dft 'path' onto a background sheet).
         Views: views | base_view (path of a saved .par/.psm/.asm or model = an open saved model handle; orientation; scale, default the largest standard one that fits; flat = flat pattern) | projected_view (view + direction; diagonals give a pictorial view) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | move_view (position or delta) | scale_view | delete_view. Without position, derived views go beside their source view.
         Dimensions: dimension (view + kind + points = model points that pick what to measure, like clicking edges) | retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet).
-        Tables: parts_list (assembly view; balloons) | bend_table (view of a sheet metal part, usually its flat pattern: one row per bend) | tolerance_table (view: its dimensions with a fit, se_dimension) | update (views and title block text; force = full update).
+        Tables: parts_list (assembly view; balloons) | bend_table (view of a sheet metal part, usually its flat pattern: one row per bend) | tolerance_table (view: its dimensions with a fit, se_dimension) | family_table (view of a part with a family of parts: one row per member) | block_table (sheet: its placed blocks) | update (views and title block text; force = full update).
         Blocks: blocks (definitions and their occurrences on every sheet) | create_block (name + elements + position = block origin) | place_block (name + position; scale, angle) | import_block (path of a saved .dft) | delete_block (name: the block and its occurrences).
         Title block: set the draft's properties with se_properties, then 'update'. Export: se_export of the draft to .pdf/.dxf/.dwg. See it: se_view capture.
         Example: {"action":"projected_view","view":"view:3","direction":"down"}.
@@ -131,7 +133,7 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("base_view: view orientation (default front; top for a flat pattern). top_front_right is the usual isometric.")] DrawingOrientation? orientation = null,
         [Description("projected_view: side of the source view where the new view goes. The side of the model it shows follows the drawing's projection angle (in the result): first_angle (ISO E) puts the left view to the right of the front view and the top view below it; third_angle puts the right view to the right and the top view above.")] FoldDirection? direction = null,
         [Description("base_view/detail_view/scale_view/place_block: scale factor (1 = 1:1, 0.5 = 1:2, 2 = 2:1).")] double? scale = null,
-        [Description("View centre [x, y] in mm on the sheet (parts_list, bend_table, tolerance_table: the upper left corner; default above the title block; create_block/place_block: the block origin; dimension: a point the dimension line passes through, default outside the outline, stacked; diameter: where its text goes, default outside the circle away from the view centre).")] double[]? position = null,
+        [Description("View centre [x, y] in mm on the sheet (tables: the upper left corner; default above the title block; create_block/place_block: the block origin; dimension: a point the dimension line passes through, default outside the outline, stacked; diameter: where its text goes, default outside the circle away from the view centre).")] double[]? position = null,
         [Description("move_view: displacement [dx, dy] in mm on the sheet. Views projected from the moved view move only to stay aligned (a top view below it follows horizontal moves).")] double[]? delta = null,
         [Description("Two model points [x1, y1, z1, x2, y2, z2] in mm. auxiliary_view: along the edge to look square at; section_view: the cutting line, extended across the view.")] double[]? line = null,
         [Description("detail_view: model point [x, y, z] in mm at the centre of the detail.")] double[]? center = null,
@@ -151,7 +153,7 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("add_sheet/setup_sheet: show (true) or hide (false) the background of the sheet.")] bool? showBackground = null,
         [Description("replace_background: also replace the blocks of the same name with those of the 'path' drawing.")] bool replaceBlocks = false,
         [Description("parts_list: add balloons to the view (default true).")] bool balloons = true,
-        [Description("parts_list, bend_table, tolerance_table: saved table setting name (default: the document default; tolerance tables: e.g. ISO).")] string? style = null,
+        [Description("parts_list, bend_table, tolerance_table, block_table: saved table setting name (default: the document default; tolerance tables: e.g. ISO).")] string? style = null,
         [Description("update: full (forced) update of every view.")] bool force = false,
         [Description("create_block: handles of 2D elements drawn on the sheet (se_sketch with the sheet handle); they become the block and one occurrence takes their place.")] string[]? elements = null,
         [Description("place_block: rotation in degrees, counter-clockwise (default 0).")] double? angle = null,
@@ -190,6 +192,8 @@ public sealed class DrawingTools(ToolRunner runner)
             DrawingAction.PartsList => runner.RunAsync(tool, act, c => DrawingService.PartsList(c, view, position, balloons, style), cancellationToken),
             DrawingAction.BendTable => runner.RunAsync(tool, act, c => DrawingService.BendTable(c, view, position, style), cancellationToken),
             DrawingAction.ToleranceTable => runner.RunAsync(tool, act, c => DrawingService.ToleranceTable(c, view, position, style), cancellationToken),
+            DrawingAction.FamilyTable => runner.RunAsync(tool, act, c => DrawingService.FamilyTable(c, view, position), cancellationToken),
+            DrawingAction.BlockTable => runner.RunAsync(tool, act, c => DrawingService.BlockTable(c, document, sheet, position, style), cancellationToken),
             DrawingAction.Update => runner.RunAsync(tool, act, c => DrawingService.Update(c, document, view, force), cancellationToken),
             DrawingAction.Blocks => runner.RunAsync(tool, act, c => DrawingService.Blocks(c, document), cancellationToken),
             DrawingAction.CreateBlock => runner.RunAsync(tool, act, c => DrawingService.CreateBlock(c, document, name, elements, position), cancellationToken),

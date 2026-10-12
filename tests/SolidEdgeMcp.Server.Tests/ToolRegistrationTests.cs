@@ -338,6 +338,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_simplify", """{"action":"activate","model":"design"}""")]
     [InlineData("se_simplify", """{"action":"delete","feature":"feature:7"}""")]
     [InlineData("se_sensor", """{"action":"list"}""")]
+    [InlineData("se_drawing", """{"action":"family_table","view":"drawing_view:2","position":[20,280]}""")]
+    [InlineData("se_drawing", """{"action":"block_table","sheet":"Sheet1","style":"Normal"}""")]
     [InlineData("se_dimension", """{"action":"get","dimension":"dimension:3"}""")]
     [InlineData("se_dimension", """{"action":"tolerance","dimension":"dimension:3","tolerance":"plus_minus","upper":"0.1","lower":"-0.2"}""")]
     [InlineData("se_dimension", """{"action":"tolerance","dimension":"dimension:3","tolerance":"fit_limits","hole":"H7","shaft":"g6"}""")]

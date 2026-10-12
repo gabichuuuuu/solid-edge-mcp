@@ -864,6 +864,100 @@ public static partial class DrawingService
     }
 
     /// <summary>
+    /// Family of parts table of a view of a part with a family (se_part_family): one row per member with the value of each
+    /// family variable (verified: members Thick and Thin of a block whose depth is the family variable give two rows,
+    /// "Thick | 30.000 mm"). A part without members gives an empty table, which is deleted.
+    /// </summary>
+    public static object FamilyTable(SeContext context, string? viewHandle, double[]? position)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        FOPTable table;
+        try
+        {
+            table = draft.FOPTables.Add(view);
+        }
+        catch (NullReferenceException ex)
+        {
+            // Verified: a view of a part without a family of parts gives E_POINTER, which .NET raises as NullReferenceException.
+            throw new ToolException("family_table_failed", "The part of the view has no family of parts.",
+                "Give a view of a part with family members (se_part_family add_member, then save the part).", ex);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("family_table_failed", $"Solid Edge could not create the family of parts table: {ex.Message.Trim()}",
+                "Give a view of a part that has a family of parts (se_part_family).", ex);
+        }
+
+        if (table.Rows.Count == 0)
+        {
+            table.Delete();
+            throw new ToolException("family_table_failed", "The family of parts table came out empty: the part of the view has no family members.",
+                "Add members with se_part_family add_member and save the part, then make the table.");
+        }
+
+        (TableAnchorPoint anchor, double x, double y) = TableCorner(view, position);
+        table.AnchorPoint = anchor;
+        table.SetOrigin(x, y);
+        return TableResult(context, draft, table, "family_table", table.Columns, table.Rows.Count, anchor, x, y);
+    }
+
+    /// <summary>
+    /// Block table of a sheet: one row per block placed on it (item, name, quantity…), as the saved setting lists them
+    /// (verified: a block placed twice gives one row "Frame"). A sheet without blocks gives an empty table, which is deleted.
+    /// </summary>
+    public static object BlockTable(SeContext context, string? documentHandle, string? sheetRef, double[]? position, string? style)
+    {
+        DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
+        Sheet sheet = ResolveSheet(context, draft, sheetRef);
+        if (!Late.SameObject(sheet, draft.ActiveSheet))
+        {
+            sheet.Activate();
+        }
+
+        BlockTable? table;
+        try
+        {
+            // Verified: with no block on the sheet Solid Edge returns nothing; an unknown saved setting falls back to the default.
+            table = draft.BlockTables.AddByActiveSheet(style ?? "", 0);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("block_table_failed", $"Solid Edge could not create the block table: {ex.Message.Trim()}",
+                style is null ? "Place blocks on the sheet first (se_drawing place_block)." : "Check the saved setting name in 'style'.", ex);
+        }
+
+        if (table is null || table.Rows.Count == 0)
+        {
+            table?.Delete();
+            throw new ToolException("block_table_failed", "The block table came out empty: no block is placed on the sheet.",
+                "Place blocks with se_drawing place_block, then make the table.");
+        }
+
+        (TableAnchorPoint anchor, double x, double y) = position is null
+            ? (TableAnchorPoint.igLowerRight, AboveTitleBlock(sheet).X, AboveTitleBlock(sheet).Y)
+            : (TableAnchorPoint.igUpperLeft, Geo.Point2(position, "position").X, Geo.Point2(position, "position").Y);
+        table.AnchorPoint = anchor;
+        table.SetOrigin(x, y);
+        return TableResult(context, draft, table, "block_table", table.Columns, table.Rows.Count, anchor, x, y);
+    }
+
+    private static object TableResult(SeContext context, DraftDocument draft, object table, string kind, TableColumns columns, int count,
+        TableAnchorPoint anchor, double x, double y)
+    {
+        (List<string?> headers, List<string?[]> rows) = TableContent(context, table, columns, count);
+        return new
+        {
+            handle = context.Register(table, kind, Document(draft)),
+            origin = new[] { Geo.Mm(x), Geo.Mm(y) },
+            anchor = anchor == TableAnchorPoint.igUpperLeft ? "upper_left" : "lower_right",
+            columns = headers,
+            count,
+            rows,
+        };
+    }
+
+    /// <summary>
     /// Tolerance table of a view: one row per dimension of the view with a fit (nominal, class, deviations), as the ISO saved
     /// setting lists them (verified: a 60 mm dimension with H7 gives one row 60 | H7). A view whose dimensions have no fit gives
     /// an empty table, which is deleted.
