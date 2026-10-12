@@ -98,6 +98,11 @@ public static class ArgumentValidator
                     return $"'{name}[{index}]' must be {string.Join(" or ", itemTypes.Where(t => t != "null"))}; got {Describe(item)}.";
                 }
 
+                if (items.TryGetProperty("enum", out _) && Check($"{name}[{index}]", items, item) is { } invalid)
+                {
+                    return invalid;
+                }
+
                 if (item.ValueKind == JsonValueKind.Object && CheckObject($"{name}[{index}]", items, item) is { } problem)
                 {
                     return problem;

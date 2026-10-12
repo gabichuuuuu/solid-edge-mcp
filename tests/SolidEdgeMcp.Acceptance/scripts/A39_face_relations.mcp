@@ -1,0 +1,181 @@
+# A39: face relations (se_face_relation): offset, edit to coplanar, coplanar with two faces, parallel, perpendicular, tangent,
+# concentric, fix, delete by index and by handle; refusals (before anything changes, faces of ordered features, relations that
+# Solid Edge cannot meet); live rules: read, set, Solid Edge's restore and put back with values.
+# Steps: block 100 x 60 x 20 with box A (x 0..30, top z 30) and box B (x 70..100, top z 35): 165000 mm3.
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@t1 = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@sa = se_primitive {"shape":"box","plane":"{{t1.items[0].handle}}","center":[15,30,20],"size":[30,60],"depth":10}
+@t2 = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@sb = se_primitive {"shape":"box","plane":"{{t2.items[?area=4200].handle}}","center":[85,30,20],"size":[30,60],"depth":15}
+?= sb.volume 165000 0.01
+@fa = se_geometry {"action":"faces","source":"{{sa.feature.handle}}","type":"plane","direction":[0,0,1]}
+@fb = se_geometry {"action":"faces","source":"{{sb.feature.handle}}","type":"plane","direction":[0,0,1]}
+@side = se_geometry {"action":"faces","type":"plane","direction":[1,0,0]}
+# Refused before anything changes: the target among the faces, planes that are not parallel, a negative distance,
+# a tangent between planes, a missing target, a distance for coplanar
+! [invalid_argument] se_face_relation {"action":"coplanar","faces":["{{fa.items[0].handle}}"],"target":"{{fa.items[0].handle}}"}
+! [invalid_argument] se_face_relation {"action":"offset","faces":["{{fa.items[0].handle}}"],"target":"{{side.items[0].handle}}","distance":5}
+! [invalid_argument] se_face_relation {"action":"offset","faces":["{{fa.items[0].handle}}"],"target":"{{fb.items[0].handle}}","distance":-5}
+! [invalid_argument] se_face_relation {"action":"tangent","faces":["{{fa.items[0].handle}}"],"target":"{{fb.items[0].handle}}"}
+! [invalid_argument] se_face_relation {"action":"parallel","faces":["{{fa.items[0].handle}}"]}
+! [invalid_argument] se_face_relation {"action":"coplanar","faces":["{{fa.items[0].handle}}"],"target":"{{fb.items[0].handle}}","distance":5}
+@l0 = se_face_relation {"action":"list"}
+?= l0.count 0
+# The top of A 10 mm below the top of B: A loses 5 x 30 x 60 = 9000 mm3; the document goes back to ordered
+@o = se_face_relation {"action":"offset","faces":["{{fa.items[0].handle}}"],"target":"{{fb.items[0].handle}}","distance":10}
+?~ o.relations[0].type offset
+?= o.relations[0].distance 10
+?= o.volume 156000 0.01
+?= o.volumeChange -9000 0.01
+@m = se_com_get {"target":"active_document","member":"ModelingMode"}
+?~ m.value seModelingModeOrdered
+@l = se_face_relation {"action":"list"}
+?= l.count 1
+?~ l.relations[0].type offset
+# A new distance moves the face again: 0 makes it coplanar with B (A grows to 15 mm: 174000 mm3)
+@e = se_face_relation {"action":"edit","relation":"{{o.relations[0].handle}}","distance":0}
+?~ e.relation.type coplanar
+?= e.volume 174000 0.01
+?= e.volumeChange 18000 0.01
+! [invalid_argument] se_face_relation {"action":"edit","relation":"1"}
+! [invalid_argument] se_face_relation {"action":"edit","relation":"4","distance":5}
+# A fixed face; deleting relation 1 leaves the faces where they are and renumbers the fixed one, which its handle follows
+@bot = se_geometry {"action":"faces","type":"plane","direction":[0,0,-1]}
+@f = se_face_relation {"action":"fix","faces":["{{bot.items[0].handle}}"]}
+?= f.count 2
+?~ f.relations[0].type fixed
+?= f.relations[0].index 2
+@d1 = se_face_relation {"action":"delete","relation":"1"}
+?~ d1.type coplanar
+?= d1.count 1
+?= d1.volume 174000 0.01
+@d2 = se_face_relation {"action":"delete","relation":"{{f.relations[0].handle}}"}
+?~ d2.type fixed
+?= d2.deleted 1
+?= d2.count 0
+! [handle_expired] se_face_relation {"action":"delete","relation":"{{o.relations[0].handle}}"}
+! [invalid_argument] se_face_relation {"action":"delete","relation":"1"}
+# Live rules belong to the session: read, switch three off, Solid Edge's restore (offset stays off), put them back with values
+@lr0 = se_face_relation {"action":"live_rules"}
+@sl = se_face_relation {"action":"set_live_rules","rules":["coplanar","symmetric_xy","offset"],"maintain":false}
+?= sl.rules.coplanar false
+?= sl.rules.symmetric_xy false
+?= sl.rules.offset false
+?= sl.previous {{lr0.rules}}
+@ro = se_face_relation {"action":"restore_live_rules"}
+?= ro.rules.offset false
+@back = se_face_relation {"action":"set_live_rules","values":{{sl.previous}}}
+@lr1 = se_face_relation {"action":"live_rules"}
+?= lr1.rules {{lr0.rules}}
+! [invalid_argument] se_face_relation {"action":"set_live_rules","rules":["coplanar"],"values":{"coplanar":true}}
+! [invalid_argument] se_face_relation {"action":"set_live_rules","values":{"planar":true}}
+se_documents {"action":"close","saveChanges":false}
+# Coplanar with two faces: boxes A (x 0..20, top z 30), B (x 40..60, top z 35) and C (x 80..100, top z 25) on the block:
+# 156000 mm3; A and C up to the top of B add 6000 + 12000 mm3
+@q = se_documents {"action":"new","kind":"part"}
+@qb = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@u = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@ba = se_primitive {"shape":"box","plane":"{{u.items[0].handle}}","center":[10,30,20],"size":[20,60],"depth":10}
+@u2 = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@bb = se_primitive {"shape":"box","plane":"{{u2.items[?area=4800].handle}}","center":[50,30,20],"size":[20,60],"depth":15}
+@u3 = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@bc = se_primitive {"shape":"box","plane":"{{u3.items[?area=2400].handle}}","center":[90,30,20],"size":[20,60],"depth":5}
+?= bc.volume 156000 0.01
+@ga = se_geometry {"action":"faces","source":"{{ba.feature.handle}}","type":"plane","direction":[0,0,1]}
+@gb = se_geometry {"action":"faces","source":"{{bb.feature.handle}}","type":"plane","direction":[0,0,1]}
+@gc = se_geometry {"action":"faces","source":"{{bc.feature.handle}}","type":"plane","direction":[0,0,1]}
+@cp = se_face_relation {"action":"coplanar","faces":["{{ga.items[0].handle}}","{{gc.items[0].handle}}"],"target":"{{gb.items[0].handle}}"}
+?~ cp.relations[0].type coplanar
+?~ cp.relations[1].type coplanar
+?= cp.relations[1].index 2
+?= cp.volume 174000 0.01
+?= cp.volumeChange 18000 0.01
+@ta = se_geometry {"action":"faces","source":"{{ba.feature.handle}}","type":"plane","direction":[0,0,1]}
+?= ta.items[0].boundingBox.max[2] 35 0.001
+@tz = se_geometry {"action":"faces","source":"{{bc.feature.handle}}","type":"plane","direction":[0,0,1]}
+?= tz.items[0].boundingBox.max[2] 35 0.001
+se_documents {"action":"close","saveChanges":false}
+# Parallel: a side of a box turned 10 degrees becomes parallel to the side x = 100 of the block; the volume stays
+@r = se_documents {"action":"new","kind":"part"}
+@rb = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@ra = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@rt = se_primitive {"shape":"box","plane":"{{ra.items[0].handle}}","center":[25,30,20],"size":[20,20],"depth":10,"angle":10}
+@rs = se_geometry {"action":"faces","source":"{{rt.feature.handle}}","type":"plane"}
+@rx = se_geometry {"action":"faces","type":"plane","direction":[1,0,0]}
+?= rx.count 1
+@k1 = se_face_relation {"action":"parallel","faces":["{{rs.items[2].handle}}"],"target":"{{rx.items[0].handle}}"}
+?~ k1.relations[0].type parallel
+?= k1.volumeChange 0 0.01
+@rx2 = se_geometry {"action":"faces","type":"plane","direction":[1,0,0]}
+?= rx2.count 2
+! [invalid_argument] se_face_relation {"action":"edit","relation":"1","distance":5}
+se_documents {"action":"close","saveChanges":false}
+# Perpendicular: another side of the turned box becomes perpendicular to x = 100 (its normal turns to +y)
+@s = se_documents {"action":"new","kind":"part"}
+@sbk = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@sa2 = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@st = se_primitive {"shape":"box","plane":"{{sa2.items[0].handle}}","center":[25,30,20],"size":[20,20],"depth":10,"angle":10}
+@ss = se_geometry {"action":"faces","source":"{{st.feature.handle}}","type":"plane"}
+@sx = se_geometry {"action":"faces","type":"plane","direction":[1,0,0]}
+@k2 = se_face_relation {"action":"perpendicular","faces":["{{ss.items[1].handle}}"],"target":"{{sx.items[0].handle}}"}
+?~ k2.relations[0].type perpendicular
+@sy = se_geometry {"action":"faces","type":"plane","direction":[0,1,0]}
+?= sy.count 2
+se_documents {"action":"close","saveChanges":false}
+# Tangent: a cylinder r 3 at y 45 moves to touch the back face y = 60 (axis at y 57)
+@t = se_documents {"action":"new","kind":"part"}
+@tb = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@tc = se_primitive {"shape":"cylinder","plane":"1","center":[60,45,0],"radius":3,"depth":30}
+@ty = se_geometry {"action":"faces","type":"plane","direction":[0,1,0]}
+@tcy = se_geometry {"action":"faces","type":"cylinder"}
+! [invalid_argument] se_face_relation {"action":"concentric","faces":["{{tcy.items[0].handle}}"],"target":"{{ty.items[0].handle}}"}
+@k3 = se_face_relation {"action":"tangent","faces":["{{tcy.items[0].handle}}"],"target":"{{ty.items[0].handle}}"}
+?~ k3.relations[0].type tangent
+@tq = se_geometry {"action":"faces","type":"cylinder"}
+?= tq.items[0].axisPoint[1] 57 0.001
+?= tq.items[0].axisPoint[0] 60 0.001
+se_documents {"action":"close","saveChanges":false}
+# Concentric: a hole r 2 moves under a boss r 6 and now runs through it (30 mm instead of 20: 125.664 mm3 more removed);
+# a boss r 4 concentric with the boss r 6 cannot be met: refused, the model and the first relation stay
+@c = se_documents {"action":"new","kind":"part"}
+@cb = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@cc = se_primitive {"shape":"cylinder","plane":"1","center":[80,45,0],"radius":6,"depth":30}
+@cd = se_primitive {"shape":"cylinder","plane":"1","center":[20,15,0],"radius":4,"depth":30}
+@ch = se_primitive {"shape":"cylinder","operation":"cut","plane":"1","center":[85,15,0],"radius":2,"depth":20}
+@cy = se_geometry {"action":"faces","type":"cylinder"}
+@k4 = se_face_relation {"action":"concentric","faces":["{{cy.items[?radius=2].handle}}"],"target":"{{cy.items[?radius=6].handle}}"}
+?~ k4.relations[0].type concentric
+?= k4.volumeChange -125.663706 0.001
+@cq = se_geometry {"action":"faces","type":"cylinder"}
+?= cq.items[?radius=2].axisPoint[0] 80 0.001
+?= cq.items[?radius=2].axisPoint[1] 45 0.001
+! [feature_failed] se_face_relation {"action":"concentric","faces":["{{cq.items[?radius=4].handle}}"],"target":"{{cq.items[?radius=6].handle}}"}
+@cl = se_face_relation {"action":"list"}
+?= cl.count 1
+?~ cl.relations[0].type concentric
+@cv = se_physical {}
+?= cv.volume {{k4.volume}} 0.001
+se_documents {"action":"close","saveChanges":false}
+# Faces of ordered features cannot take relations: Solid Edge refuses and the model stays (138000 mm3)
+@o2 = se_documents {"action":"new","kind":"part"}
+@ok = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ok.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ok.sketch}}"}
+@ox = se_extrude {"sketch":"{{ok.sketch}}","distance":20}
+@ot = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@os = se_primitive {"shape":"box","plane":"{{ot.items[0].handle}}","center":[15,30,20],"size":[30,60],"depth":10}
+?= os.volume 138000 0.01
+@og = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+! [feature_failed] se_face_relation {"action":"offset","faces":["{{og.items[?area=1800].handle}}"],"target":"{{og.items[?area=4200].handle}}","distance":5}
+@ov = se_physical {}
+?= ov.volume 138000 0.01
+@ol = se_face_relation {"action":"list"}
+?= ol.count 0
+se_documents {"action":"close","saveChanges":false}
+# Sheet metal has live rules but no face relations
+@sm = se_documents {"action":"new","kind":"sheet_metal"}
+@sml = se_face_relation {"action":"live_rules"}
+?= sml.rules {{lr0.rules}}
+! [wrong_document_type] se_face_relation {"action":"list"}
+se_documents {"action":"close","saveChanges":false}

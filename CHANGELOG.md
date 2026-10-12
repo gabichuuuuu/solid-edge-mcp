@@ -153,6 +153,14 @@ Relevant changes to this project are recorded here. The format follows
 - `se_part_feature normal_protrusion` and `normal_cutout`: the region inside (or outside) closed curves projected or
   wrapped onto faces, raised or recessed normal to them by a distance.
 - Acceptance script `A38` (bodies, emboss, normal protrusions and cutouts, a part divided into files).
+- `se_face_relation`: 3D relations between faces of a part, as the Relate commands of synchronous modelling.
+  `coplanar` and `offset` (parallel planes at a distance), `parallel`, `perpendicular`, `tangent` and `concentric` move
+  the faces (a relation each) while the target stays; `fix` holds faces; `list`, `edit` (a new distance for an offset)
+  and `delete`. Each relation is checked on the geometry: one that Solid Edge does not meet is deleted and the error
+  says whether the model changed, since Solid Edge clears the undo list when a relation is added. `live_rules`,
+  `set_live_rules` (`rules` with `maintain`, or `values` to put back an earlier state) and `restore_live_rules`: the
+  live rules of the Solid Edge session, read through any part or sheet metal document.
+- Acceptance script `A39` (face relations and live rules).
 
 ### Changed
 
@@ -172,6 +180,7 @@ Relevant changes to this project are recorded here. The format follows
 - The arguments are also checked inside the objects of a list (the criteria of `se_component_query`): an unknown field,
   a missing one or a value out of its enumeration is named with its position (`'criteria[0].property' must be one
   of: …`).
+- The values of a list argument are checked against their enumeration too (`'rules[1]' must be one of: …`).
 - PDF checks read the page sizes (MediaBox, in mm) besides the page count, embedded files and 3D views.
 - `se_relations list` names point relations `connect`, as Solid Edge does, shows whether an axial relation locks the
   rotation (`rotationLocked`) and the ratio of gear relations (a rack in mm).
