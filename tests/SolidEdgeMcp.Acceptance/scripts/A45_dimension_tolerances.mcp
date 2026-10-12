@@ -1,0 +1,59 @@
+# A45: tolerances and texts of dimensions (se_dimension) and the tolerance table of a view (se_drawing tolerance_table).
+# A block 100 x 60 x 20 seen from the top: its 100 and 60 mm edges are dimensioned.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+@r = se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+@v = se_sketch_constraint {"action":"dimension","sketch":"{{k.sketch}}","dimension":"length","elements":["{{r.elements[0]}}"],"value":100}
+# 1) A sketch dimension takes a tolerance too
+@sv = se_dimension {"action":"tolerance","dimension":"{{v.dimension}}","tolerance":"plus_minus","upper":"0.2","lower":"-0.1"}
+?= sv.tolerance plus_minus
+?= sv.upper 0.2
+?= sv.lower -0.1
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\a45_blk.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# 2) Drawing dimensions: plus/minus, a fit, limits, texts, and back to nominal
+@d = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\a45_blk.par","orientation":"top","position":[160,200],"scale":1}
+@q1 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[50,60,20]}
+@q2 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[100,30,20]}
+! [tolerance_table_failed] se_drawing {"action":"tolerance_table","view":"{{bv.view.handle}}"}
+@g = se_dimension {"action":"get","dimension":"{{q1.dimension.handle}}"}
+?= g.value 100
+?= g.tolerance nominal
+! [invalid_argument] se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"plus_minus","upper":"0.1"}
+! [invalid_argument] se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"fit","hole":"h7"}
+! [invalid_argument] se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"fit","shaft":"G6"}
+! [invalid_argument] se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"plus_minus","upper":"0.1","lower":"-0.2","hole":"H7"}
+! [invalid_argument] se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"plus_minus","upper":"abc","lower":"-0.2"}
+! [invalid_argument] se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"fit"}
+! [invalid_argument] se_dimension {"action":"text","dimension":"{{q1.dimension.handle}}"}
+@t1 = se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"plus_minus","upper":"0.1","lower":"-0.2"}
+?= t1.tolerance plus_minus
+?= t1.upper 0.1
+?= t1.lower -0.2
+@t2 = se_dimension {"action":"tolerance","dimension":"{{q2.dimension.handle}}","tolerance":"fit","hole":"H7"}
+?= t2.tolerance fit
+?= t2.hole H7
+?= t2.value 60
+@t3 = se_dimension {"action":"text","dimension":"{{q1.dimension.handle}}","prefix":"2x","suffix":"TYP"}
+?= t3.prefix 2x
+?= t3.suffix TYP
+@t4 = se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"fit_limits","shaft":"g6"}
+?= t4.tolerance fit_limits
+?= t4.shaft g6
+@t5 = se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"limits","upper":"0.05","lower":"-0.05"}
+?= t5.tolerance limits
+?= t5.upper 0.05
+# 3) The tolerance table of the view lists the dimensions with a fit: 60 H7 (the 100 mm one is limits now)
+@tt = se_drawing {"action":"tolerance_table","view":"{{bv.view.handle}}","style":"ISO","position":[20,280]}
+?= tt.count 1
+?~ tt.rows[0] "60"
+?~ tt.rows[0] "H7"
+?= tt.origin[0] 20
+@t6 = se_dimension {"action":"text","dimension":"{{q1.dimension.handle}}","prefix":"","suffix":""}
+?= t6.value 100
+@t7 = se_dimension {"action":"tolerance","dimension":"{{q1.dimension.handle}}","tolerance":"nominal"}
+?= t7.tolerance nominal
+se_documents {"action":"close","saveChanges":false}

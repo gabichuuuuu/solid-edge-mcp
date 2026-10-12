@@ -6,6 +6,15 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_dimension`: the tolerance of a dimension of a drawing, a sketch or the PMI (plus/minus, limits, ISO fits for holes
+  and shafts alone or with deviations or limits, basic, reference), read back and put back if Solid Edge does not keep
+  it; prefix, suffix and a text shown instead of the value.
+- `se_drawing tolerance_table`: the tolerance table of a view, listing its dimensions with an ISO fit, placed like the
+  other tables.
+- Acceptance script `A45` (dimension tolerances and the tolerance table).
+
 ## [0.5.1] - 2026-10-13
 
 ### Fixed

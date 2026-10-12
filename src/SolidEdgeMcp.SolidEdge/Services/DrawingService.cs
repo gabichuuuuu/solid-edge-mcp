@@ -864,6 +864,48 @@ public static partial class DrawingService
     }
 
     /// <summary>
+    /// Tolerance table of a view: one row per dimension of the view with a fit (nominal, class, deviations), as the ISO saved
+    /// setting lists them (verified: a 60 mm dimension with H7 gives one row 60 | H7). A view whose dimensions have no fit gives
+    /// an empty table, which is deleted.
+    /// </summary>
+    public static object ToleranceTable(SeContext context, string? viewHandle, double[]? position, string? style)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        ToleranceTable table;
+        try
+        {
+            table = draft.ToleranceTables.AddByDrawingView(view, style ?? "", 1);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("tolerance_table_failed", $"Solid Edge could not create the tolerance table: {ex.Message.Trim()}",
+                style is null ? "Give a view with dimensions that have a fit (se_dimension tolerance fit)." : "Check the saved setting name in 'style' (e.g. ISO).", ex);
+        }
+
+        if (table.Rows.Count == 0)
+        {
+            table.Delete();
+            throw new ToolException("tolerance_table_failed", "The tolerance table came out empty: no dimension of the view has a fit.",
+                "Give dimensions of the view a fit with se_dimension tolerance (fit, e.g. hole H7), then make the table.");
+        }
+
+        (TableAnchorPoint anchor, double x, double y) = TableCorner(view, position);
+        table.AnchorPoint = anchor;
+        table.SetOrigin(x, y);
+        (List<string?> headers, List<string?[]> rows) = TableContent(context, table, table.Columns, table.Rows.Count);
+        return new
+        {
+            handle = context.Register(table, "tolerance_table", Document(draft)),
+            origin = new[] { Geo.Mm(x), Geo.Mm(y) },
+            anchor = anchor == TableAnchorPoint.igUpperLeft ? "upper_left" : "lower_right",
+            columns = headers,
+            count = table.Rows.Count,
+            rows,
+        };
+    }
+
+    /// <summary>
     /// Bend table of a view of a sheet metal part (its flat pattern or the bent part; verified: both list the same bends): one
     /// row per bend (sequence, feature, radius, angle, direction, included angle), placed like a parts list. A view without
     /// bends gives an empty table, which is deleted.

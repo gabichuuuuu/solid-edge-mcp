@@ -109,6 +109,7 @@ public static class Program
         typeof(FrameTools),
         typeof(DrawingTools),
         typeof(DrawingViewTools),
+        typeof(DimensionTools),
         typeof(AnnotationTools),
         typeof(AppearanceTools),
         typeof(LayerTools),
