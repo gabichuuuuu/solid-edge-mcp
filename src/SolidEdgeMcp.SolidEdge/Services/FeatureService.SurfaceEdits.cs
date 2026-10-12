@@ -204,7 +204,8 @@ public static partial class FeatureService
         for (int i = 0; i < sections.Length; i++)
         {
             Edge edge = (Edge)sections[i];
-            Vertex start = (Vertex)edge.StartVertex;
+            Vertex start = edge.StartVertex as Vertex ?? throw ToolException.InvalidArgument(
+                $"Section '{edges[i]}' is a closed edge (a full circle) with no vertex to start from.", "Pass open edges as sections.");
             Vertex end = edge.EndVertex as Vertex ?? start;
             origins[i] = previous is null || Geo.Distance(VertexPoint(start), previous) <= Geo.Distance(VertexPoint(end), previous) ? start : end;
             previous = VertexPoint((Vertex)origins[i]);

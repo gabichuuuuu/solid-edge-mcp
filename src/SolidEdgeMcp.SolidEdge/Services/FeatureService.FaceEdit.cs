@@ -119,7 +119,7 @@ public static partial class FeatureService
                 "Get them with se_geometry action 'faces'.");
         }
 
-        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "redefine_faces", "the adjacent faces to merge");
+        (ModelDocument model, Model target, Body body, Face[] faces) = SplitTargets(context, documentHandle, spec.Faces, "redefine_faces");
         HashSet<int>[] edgeIds = [.. faces.Select(f => Late.Items(Late.Get(f, "Edges")!).OfType<Edge>().Select(e => e.ID).ToHashSet())];
         if (!Connected(edgeIds))
         {
@@ -129,9 +129,8 @@ public static partial class FeatureService
 
         bool switched = model.EnsureOrdered();
         double before = model.Volume();
-        Body body = Late.TryGet(target, "Body") as Body ?? throw new ToolException("no_body", "The part has no body to edit.");
         HashSet<int> idsBefore = [.. BodyFaces(body).Select(f => f.ID)];
-        Array faceArray = faces;
+        Array faceArray = faces.Cast<object>().ToArray();
         Array edges = Array.Empty<object>();
         Array tangency = Array.Empty<int>();
         object feature = Create("redefine faces", () => target.RedefineFaces.Add(faces.Length, ref faceArray, 0, ref edges, ref tangency,
@@ -222,6 +221,7 @@ public static partial class FeatureService
             hint: "Give the faces of constant-radius rounds (se_geometry faces with source = the round) and a radius that fits; a variable-radius round cannot be resized this way.");
     }
 
+    /// <summary>The faces to edit, of one design body, and the model that owns it: a split part has one model per body.</summary>
     private static (ModelDocument Model, Model Target, object[] Faces) FaceEdit(SeContext context, string? documentHandle, PartFeatureSpec spec,
         string action, string what)
     {
@@ -230,9 +230,8 @@ public static partial class FeatureService
             throw ToolException.InvalidArgument($"{action} requires 'faces': {what}.", "Get them with se_geometry action 'faces'.");
         }
 
-        ModelDocument model = ModelDocument.For(context, documentHandle, spec.Faces[0]);
-        object[] faces = spec.Faces.Select(h => (object)context.Handles.Resolve<Face>(h, "faces")).ToArray();
-        return (model, model.RequireModel(), faces);
+        (ModelDocument model, Model target, Body _, Face[] faces) = SplitTargets(context, documentHandle, spec.Faces, action);
+        return (model, target, faces.Cast<object>().ToArray());
     }
 
     /// <summary>Face collection of the body with the given faces.</summary>

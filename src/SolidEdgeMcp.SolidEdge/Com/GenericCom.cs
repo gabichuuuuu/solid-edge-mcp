@@ -160,11 +160,11 @@ public static class GenericCom
     {
         if (type?.Name == "SplitCurves"
             && (member.Equals("Add", StringComparison.OrdinalIgnoreCase) || member.Equals("AreCurvesValid", StringComparison.OrdinalIgnoreCase))
-            && args.Length > 1 && args[1] is Array curves && curves.Cast<object?>().Any(c => c is not SolidEdgeGeometry.Edge))
+            && args.Length > 1 && args[1] is Array curves && (curves.Length > 1 || curves.Cast<object?>().Any(c => c is not SolidEdgeGeometry.Edge)))
         {
             throw new ToolException("unsafe_member",
-                $"SplitCurves.{member} with anything but edges in the curves array brings Solid Edge 2026 down (RPC_E_SERVERFAULT), so it is not called.",
-                "Pass the edges of the curve (se_geometry edges with source = the curve), or use se_curve split.");
+                $"SplitCurves.{member} with anything but one edge in the curves array can bring Solid Edge 2026 down (RPC_E_SERVERFAULT: the curve feature, or several edges with one of them not crossed), so it is not called.",
+                "Pass one edge of the curve per call (se_geometry edges with source = the curve), or use se_curve split.");
         }
     }
 

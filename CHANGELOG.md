@@ -23,19 +23,29 @@ Relevant changes to this project are recorded here. The format follows
   from an edge of the face. The answer lists the new pieces and their areas.
 - `se_surface copy` (faces as one construction surface), `trim` (the region of a surface that holds a point, bounded
   by surfaces or curves that cross it), `extend` (from free edges by a distance: natural, linear or reflective),
-  `intersect` (surfaces that enclose a volume closed into one solid construction body) and `bluesurf` (through section
-  edges, optionally along guide edges). Each edit is checked by the area of the surface; `list` shows the new types.
+  `intersect` (surfaces that enclose a volume closed into one solid construction body) and `bluesurf` (through open
+  section edges, optionally along guide edges). Each edit is checked by the area of the surface; `list` shows the new
+  types.
 - `se_curve isocline` (where the face normal makes an angle with a plane, on either side) and `split` (a curve split
-  where reference planes or crossing curves meet it; its length is checked).
-- `se_part_feature redefine_faces`: adjacent faces of the body merged into one B-spline face (as on imported parts); the
-  answer gives the new face and warns when the fitted face changes the volume by more than 0.01 %.
+  where reference planes, crossing curves or edges meet it; its length is checked, a tool that runs along the curve is
+  refused and a split that fails part way is deleted).
+- `se_part_feature redefine_faces`: adjacent faces of a design body merged into one B-spline face (as on imported
+  parts), also in a part split into several bodies; the answer gives the new face and warns when the fitted face
+  changes the volume by more than 0.01 %.
 - Acceptance script `A42` (surface and curve edits, face splits, merged faces).
 
 ### Changed
 
-- The COM layer refuses `SplitCurves.Add` and `AreCurvesValid` with anything but edges in the curves array
-  (`unsafe_member`): the curve feature there closes Solid Edge 2026 (RPC_E_SERVERFAULT). `se_curve split` splits each
-  crossed edge on its own.
+- The COM layer refuses `SplitCurves.Add` and `AreCurvesValid` with anything but one edge in the curves array
+  (`unsafe_member`): the curve feature there, or several edges with one of them not crossed, closes Solid Edge 2026
+  (RPC_E_SERVERFAULT). `se_curve split` splits each crossed edge on its own.
+
+### Fixed
+
+- `se_part_feature` face edits (`delete_faces`, `delete_rounds`, `offset_faces`, `replace_faces`, `resize_holes`,
+  `resize_rounds`) on a part split into several design bodies: the feature now goes to the model of the body that owns
+  the faces (`replace_faces` on the second body left the solid unchanged), and faces of two bodies in one call are
+  refused.
 
 ## [0.2.0] - 2026-10-12
 

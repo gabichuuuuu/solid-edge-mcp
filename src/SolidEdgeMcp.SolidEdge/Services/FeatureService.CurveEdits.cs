@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
@@ -19,7 +20,8 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// crossing curve edges meet it (a curve 100 long split at x = 40: 40 + 60; one edge and two planes: 30 + 40 + 30). A tool
 /// that misses the edge fails the whole split, and so does a vertex (E_INVALIDARG). Several edges in one call, one of them
 /// not crossed, close Solid Edge, and so does the curve feature itself in the curves array (RPC_E_SERVERFAULT): each crossed
-/// edge is split on its own, with only the tools that cross it.</item>
+/// edge is split on its own, with only the tools that cross it. After a split the edges of the tool curves are stale (the
+/// next split with them gives E_INVALIDARG), so each split takes them from their curves again.</item>
 /// </list>
 /// </summary>
 public static partial class FeatureService
@@ -79,9 +81,14 @@ public static partial class FeatureService
             throw new ToolException("handle_wrong_type", $"'{handle}' is not a curve.", "Use a curve handle from se_curve list.");
         }
 
-        (ConstructionModel owner, Body _) = ConstructionOf(model, edges[0], handle, "curve");
-        object[] toolItems = tools.SelectMany(h => SplitTools(context, model, h)).ToArray();
-        List<(double[] Point, object Tool)> crossings = [.. toolItems.SelectMany(t => edges.SelectMany(e => Crossings(e, t)).Select(p => (p, t)))];
+        (ConstructionModel owner, Body curveBody) = ConstructionOf(model, edges[0], handle, "curve");
+        (object Source, object[] Items)[] toolSet = [.. tools.Select(h => SplitTool(context, model, h))];
+        if (toolSet.SelectMany(t => t.Items).OfType<Edge>().Any(t => Late.TryGet(t, "Body") is Body b && b.Tag == curveBody.Tag))
+        {
+            throw ToolException.InvalidArgument("A curve cannot be split by its own edges.", "Pass reference planes or other curves that cross it.");
+        }
+
+        List<(double[] Point, object Tool)> crossings = [.. toolSet.SelectMany(t => t.Items.SelectMany(item => edges.SelectMany(e => Crossings(e, item))).Select(p => (p, t.Source)))];
         if (crossings.Count == 0)
         {
             throw ToolException.InvalidArgument("The tools do not cross the curve (away from its ends).",
@@ -102,7 +109,7 @@ public static partial class FeatureService
                     ?? throw new ToolException("feature_failed", "The curve changed while it was split.", hint);
                 List<(double[] Point, object Tool)> here = [.. crossings.Where(c => HoldsInside(edge, c.Point))];
                 Array curveArray = new object[] { edge };
-                Array toolArray = here.Select(c => c.Tool).Distinct(ReferenceEqualityComparer.Instance).ToArray();
+                Array toolArray = here.GroupBy(c => c.Tool, ReferenceEqualityComparer.Instance).SelectMany(g => ToolItemsAt(g.Key!, [.. g.Select(c => c.Point)])).ToArray();
                 object split = MakeCurve("split", () => owner.SplitCurves.Add(1, ref curveArray, toolArray.Length, ref toolArray), hint);
                 made.Add(split);
                 context.ModelChanged(model.Document, "the model changed (curve split)");
@@ -129,33 +136,69 @@ public static partial class FeatureService
                 warnings = Warnings(switched, made.Any(f => StatusOf(f) == "warning")),
             };
         }
-        catch (ToolException ex) when (made.Count > 0)
+        catch (Exception ex) when (made.Count > 0 && !ComErrors.IsGone(ex))
         {
             made.Reverse();
             made.ForEach(TryDeleteCurve);
-            throw new ToolException(ex.Code, $"{ex.Message} The split was deleted.", ex.NextStep, ex);
+            context.ModelChanged(model.Document, "the model changed (curve split deleted)");
+            throw ex is ToolException failure
+                ? new ToolException(failure.Code, $"{failure.Message} The split was deleted.", failure.NextStep, failure)
+                : new ToolException("feature_failed", $"Solid Edge failed while splitting the curve ({ComErrors.Unwrap(ex).Message.Trim()}); the split was deleted.", hint, ex);
         }
     }
 
-    /// <summary>Reference planes as given, and the edges of curves (or edges as given).</summary>
-    private static IEnumerable<object> SplitTools(SeContext context, ModelDocument model, string handle)
+    /// <summary>
+    /// A tool as given and what it splits with now: a reference plane; a curve and its edges; an edge of a curve, kept as its
+    /// curve; another edge. The edges of a curve go stale once a split changes the model (the next split with one of them
+    /// gives E_INVALIDARG), so each split takes them again from the curve (<see cref="ToolItemsAt"/>).
+    /// </summary>
+    private static (object Source, object[] Items) SplitTool(SeContext context, ModelDocument model, string handle)
     {
         if (OrientedPlanes.TryAxis(handle, out _) || int.TryParse(handle, out _))
         {
-            return [model.ResolvePlane(context, handle, "tools")];
+            RefPlane plane = model.ResolvePlane(context, handle, "tools");
+            return (plane, [plane]);
         }
 
         object resolved = context.Handles.Resolve(handle, "tools");
-        if (resolved is RefPlane or Edge)
+        if (resolved is RefPlane)
         {
-            return [resolved];
+            return (resolved, [resolved]);
+        }
+
+        if (resolved is Edge edge)
+        {
+            int tag = Late.TryGet(edge, "Body") is Body body ? body.Tag : 0;
+            object? curve = AllCurves(model).Select(c => c.Curve).FirstOrDefault(c => CurveEdges(c).FirstOrDefault() is { } first
+                && Late.TryGet(first, "Body") is Body curveBody && curveBody.Tag == tag);
+            return (curve ?? edge, [edge]);
         }
 
         Edge[] edges = resolved is Body or Face or Vertex || FacesOf(resolved).Length > 0 ? [] : CurveEdges(resolved);
         return edges.Length > 0
-            ? edges
+            ? (resolved, edges)
             : throw new ToolException("handle_wrong_type", $"'{handle}' in 'tools' is not a reference plane, a curve or an edge.",
                 "Split a curve with reference planes or with curves that cross it.");
+    }
+
+    /// <summary>What a tool splits with now at the crossings: the plane or edge itself, or the edges of the curve through them.</summary>
+    private static IEnumerable<object> ToolItemsAt(object tool, double[][] points)
+    {
+        if (tool is RefPlane or Edge)
+        {
+            return [tool];
+        }
+
+        Edge[] through = [.. CurveEdges(tool).Where(e => points.Any(p => OnEdge(e, p)))];
+        return through.Length > 0 ? through : throw new ToolException("feature_failed", "A tool curve changed while the curve was split.",
+            "Split the curve again with the tools.");
+    }
+
+    /// <summary>Whether the point (m) lies on the edge, its ends included.</summary>
+    private static bool OnEdge(Edge edge, double[] point)
+    {
+        (double[] start, double[] end) = EdgeEnds(edge);
+        return Geo.Distance(point, start) <= CrossingTolerance || Geo.Distance(point, end) <= CrossingTolerance || HoldsInside(edge, point);
     }
 
     /// <summary>Points (m) inside <paramref name="edge"/>, away from its ends, where a reference plane or another edge crosses it.</summary>
@@ -189,6 +232,12 @@ public static partial class FeatureService
                 for (int j = 0; j + 1 < Samples; j++)
                 {
                     (double distance, double s, double t) = SegmentDistance(points[i], points[i + 1], otherPoints[j], otherPoints[j + 1]);
+                    if (distance <= CrossingTolerance && Parallel(Minus(points[i + 1], points[i]), Minus(otherPoints[j + 1], otherPoints[j])))
+                    {
+                        throw ToolException.InvalidArgument("A tool runs along the curve instead of crossing it.",
+                            "Pass reference planes or curves that cross the curve.");
+                    }
+
                     double gap = 0.1 * Math.Max(Geo.Distance(points[i], points[i + 1]), Geo.Distance(otherPoints[j], otherPoints[j + 1]));
                     if (distance <= Math.Max(gap, CrossingTolerance)
                         && Meet(edge, parameters[i] + ((parameters[i + 1] - parameters[i]) * s), other,
@@ -233,7 +282,16 @@ public static partial class FeatureService
         Array deviations = new double[1];
         Array mapped = new double[1];
         Array flags = new int[1];
-        edge.GetParamAtPoint(1, ref input, ref guess, ref deviations, ref mapped, ref flags);
+        try
+        {
+            edge.GetParamAtPoint(1, ref input, ref guess, ref deviations, ref mapped, ref flags);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            // Solid Edge cannot map a point that is far from the edge: it is not on it.
+            return false;
+        }
+
         double parameter = Geo.Doubles(mapped).First();
         double low = Math.Min(parameters[0], parameters[^1]);
         double high = Math.Max(parameters[0], parameters[^1]);
@@ -332,9 +390,15 @@ public static partial class FeatureService
             u = Math.Clamp(u + (((a * f) - (b * e)) / determinant), Math.Min(u0, u1), Math.Max(u0, u1));
         }
 
-        double[] onEdge = PointAndDerivative(edge, t).Point;
-        return Geo.Distance(onEdge, PointAndDerivative(other, u).Point) <= CrossingTolerance ? onEdge : null;
+        (double[] onEdge, double[] along) = PointAndDerivative(edge, t);
+        (double[] onOther, double[] otherAlong) = PointAndDerivative(other, u);
+
+        // Edges that only touch (tangent at the point) do not cross: there is no side to split at.
+        return Geo.Distance(onEdge, onOther) <= CrossingTolerance && !Parallel(along, otherAlong) ? onEdge : null;
     }
+
+    /// <summary>Whether two directions are parallel (or one of them is zero).</summary>
+    private static bool Parallel(double[] a, double[] b) => Geo.Length(Geo.Cross(a, b)) <= 1e-6 * Geo.Length(a) * Geo.Length(b);
 
     /// <summary>Closest points of two segments: their distance and the fractions along each (0 to 1).</summary>
     private static (double Distance, double S, double T) SegmentDistance(double[] p0, double[] p1, double[] q0, double[] q1)

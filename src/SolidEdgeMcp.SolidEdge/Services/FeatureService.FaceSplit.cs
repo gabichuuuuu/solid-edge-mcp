@@ -123,14 +123,14 @@ public static partial class FeatureService
         (Model Model, Body Body) owner = bodies.FirstOrDefault(b => b.Body.Tag == tag);
         if (owner.Model is null)
         {
-            throw ToolException.InvalidArgument($"'{faces[0]}' is not a face of a design body.", "Split faces of the body; surfaces are trimmed with se_surface trim.");
+            throw ToolException.InvalidArgument($"'{faces[0]}' is not a face of a design body.", "Pass faces of a design body (se_geometry faces); surfaces are edited with se_surface.");
         }
 
         for (int i = 1; i < resolved.Length; i++)
         {
             if (!IsOnBody(resolved[i], owner.Body))
             {
-                throw ToolException.InvalidArgument($"'{faces[i]}' is on another body than '{faces[0]}'.", "Split the faces of one body at a time.");
+                throw ToolException.InvalidArgument($"'{faces[i]}' is on another body than '{faces[0]}'.", "Pass the faces of one body at a time.");
             }
         }
 
