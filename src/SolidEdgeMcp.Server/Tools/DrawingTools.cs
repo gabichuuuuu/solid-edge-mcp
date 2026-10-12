@@ -45,6 +45,9 @@ public enum DimensionKind
     Diameter,
     Radius,
     Angle,
+    Coordinate,
+    AngularCoordinate,
+    Chamfer,
 }
 
 public enum MeasureDirection
@@ -52,6 +55,8 @@ public enum MeasureDirection
     Aligned,
     Horizontal,
     Vertical,
+    Counterclockwise,
+    Clockwise,
 }
 
 public enum DrawingOrientation
@@ -128,8 +133,8 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("detail_view: model point [x, y, z] in mm at the centre of the detail.")] double[]? center = null,
         [Description("detail_view: radius of the detail circle in mm of the model.")] double? radius = null,
         [Description("dimension: what to measure.")] DimensionKind? kind = null,
-        [Description("dimension: model points [x1, y1, z1, ...] in mm that pick what to measure in the view. length: a point on a straight edge; distance: two points, each a vertex or circle centre (measured exactly there) or a point on an edge (a horizontal/vertical edge is measured square to it); diameter/radius: the centre or a point of the circle/arc; angle: a point on each of two edges.")] double[]? points = null,
-        [Description("dimension (distance): aligned (true distance, default), horizontal or vertical on the sheet.")] MeasureDirection measure = MeasureDirection.Aligned,
+        [Description("dimension: model points [x1, y1, z1, ...] in mm that pick what to measure in the view. length: a point on a straight edge; distance: two points, each a vertex or circle centre (measured exactly there) or a point on an edge (a horizontal/vertical edge is measured square to it); diameter/radius: the centre or a point of the circle/arc; angle: a point on each of two edges; coordinate: the origin (a vertex or circle centre) first, then each point measured from it; angular_coordinate: the centre, a point for the zero direction, then the points; chamfer: a point on the chamfer edge, then one on the edge it is measured from.")] double[]? points = null,
+        [Description("dimension (distance): aligned (true distance, default), horizontal or vertical on the sheet; coordinate: horizontal (default) or vertical distances from the origin; angular_coordinate: counterclockwise (default) or clockwise.")] MeasureDirection measure = MeasureDirection.Aligned,
         [Description("section_view: look from the other side of the cutting line.")] bool flip = false,
         [Description("base_view: flat pattern of a sheet metal part.")] bool flat = false,
         [Description("add_sheet/add_background/setup_sheet: sheet name (setup_sheet renames); create_block/place_block/delete_block: block name.")] string? name = null,

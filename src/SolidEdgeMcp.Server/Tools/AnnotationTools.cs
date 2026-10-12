@@ -20,6 +20,9 @@ public enum AnnotationAction
     Datum,
     FeatureControlFrame,
     Weld,
+    BoltCircle,
+    DatumTarget,
+    DatumPoint,
     Delete,
 }
 
@@ -34,6 +37,9 @@ public enum AnnotationKind
     Datum,
     FeatureControlFrame,
     Weld,
+    BoltCircle,
+    DatumTarget,
+    DatumPoint,
 }
 
 public enum SurfaceFinishType
@@ -96,7 +102,8 @@ public sealed class AnnotationTools(ToolRunner runner)
         callout (like balloon, the text in a callout box) | center_mark (view + points = centre of, or a point on, a circle/arc) |
         centerline (view + points = two model points: on two circles (centre to centre) or on two straight edges (their mid line)) | leader (view + points + position = the free end) |
         surface_finish (view + points = a point on the edge; finish, text = roughness e.g. 'Ra 3.2'; position = symbol on a leader, default on the edge) |
-        datum (view + points + text = the letter; position = frame on a leader, default on the edge) |
+        datum (view + points + text = the letter; position = frame on a leader, default on the edge) | datum_target (like datum, text = e.g. 'A1') | datum_point (view + points) |
+        bolt_circle (view + points = three hole centres) |
         feature_control_frame (characteristic + tolerance (⌀ or Ø for a diameter zone) + datums, or text = the whole frame in Solid Edge codes;
         rows = up to 3 more rows 'characteristic|tolerance|datum…', or with composite 'tolerance|datum…' sharing the first characteristic;
         view + points = on a leader from that edge, position = the frame (default 15 mm up-right); or only position = a free frame) |
@@ -144,6 +151,9 @@ public sealed class AnnotationTools(ToolRunner runner)
             AnnotationAction.FeatureControlFrame => runner.RunAsync(tool, act, c => DrawingService.AddFeatureControlFrame(c, document, sheet, view, points, position,
                 characteristic is { } g ? Snake(g) : null, tolerance, datums, text, rows, composite), cancellationToken),
             AnnotationAction.Weld => runner.RunAsync(tool, act, c => DrawingService.AddWeld(c, view, points, position, Snake(weld), Snake(weldSide), text, allAround, field), cancellationToken),
+            AnnotationAction.BoltCircle => runner.RunAsync(tool, act, c => DrawingService.AddBoltCircle(c, view, points), cancellationToken),
+            AnnotationAction.DatumTarget => runner.RunAsync(tool, act, c => DrawingService.AddDatumTarget(c, view, points, position, text), cancellationToken),
+            AnnotationAction.DatumPoint => runner.RunAsync(tool, act, c => DrawingService.AddDatumPoint(c, view, points), cancellationToken),
             AnnotationAction.Delete => runner.RunAsync(tool, act, c => DrawingService.DeleteAnnotation(c, annotation), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

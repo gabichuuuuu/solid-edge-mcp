@@ -5,6 +5,8 @@ using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using AngularDimensionQuadrantConstants = SolidEdgeFrameworkSupport.AngularDimensionQuadrantConstants;
+using DimAngularCoordnateOrientationConstants = SolidEdgeFrameworkSupport.DimAngularCoordnateOrientationConstants;
+using DimChamferModeConstants = SolidEdgeFrameworkSupport.DimChamferModeConstants;
 using Dimension = SolidEdgeFrameworkSupport.Dimension;
 using DimensionOrientationConstants = SolidEdgeFrameworkSupport.DimensionOrientationConstants;
 using DimTypeConstants = SolidEdgeFrameworkSupport.DimTypeConstants;
@@ -555,11 +557,237 @@ public static partial class DrawingService
                 break;
             }
 
+            case "coordinate":
+                return CoordinateDimensions(context, draft, view, graphics, dimensions, model, orientation == "vertical");
+
+            case "angular_coordinate":
+                return AngularCoordinateDimensions(context, draft, view, graphics, dimensions, model, orientation == "clockwise");
+
+            case "chamfer":
+            {
+                if (model.Count != 2)
+                {
+                    throw ToolException.InvalidArgument("A chamfer dimension needs two model points: one on the chamfer edge and one on the edge it is measured from.");
+                }
+
+                Pick bevel = PickAt(view, graphics, model[0], true);
+                Pick from = PickAt(view, graphics, model[1], true);
+                if (ReferenceEquals(bevel.Graphic.Value, from.Graphic.Value) || Intersection(view, bevel.Graphic, from.Graphic) is null)
+                {
+                    throw ToolException.InvalidArgument("The two points must be on the chamfer edge and on an edge that meets it.", "Give one point on each of the two edges.");
+                }
+
+                // Verified in Solid Edge 2026: the edge it is measured from goes first (the other order reads nonsense), and the
+                // dimension starts unplaced (TrackDistance -123456) until its track distance is set.
+                dimension = dimensions.AddChamfer(from.Graphic.Reference, from.Sheet.X, from.Sheet.Y, 0, false,
+                    bevel.Graphic.Reference, bevel.Sheet.X, bevel.Sheet.Y, 0, false, DimChamferModeConstants.igDimChamferModeAlongAxis);
+                (double X, double Y) b1 = ToSheet(view, bevel.Graphic.Start), b2 = ToSheet(view, bevel.Graphic.End);
+                (double X, double Y) f1 = ToSheet(view, from.Graphic.Start), f2 = ToSheet(view, from.Graphic.End);
+                double along = Distance(f1, f2);
+                double setback = Math.Abs(((b2.X - b1.X) * (f2.X - f1.X)) + ((b2.Y - b1.Y) * (f2.Y - f1.Y))) / along / view.ScaleFactor;
+                RequireValue(dimension, setback, "chamfer dimension");
+                PlaceOutside(view, graphics, dimension, at);
+                break;
+            }
+
+
             default:
-                throw ToolException.InvalidArgument($"Unknown dimension kind '{kind}'.", "Use length, distance, diameter, radius or angle.");
+                throw ToolException.InvalidArgument($"Unknown dimension kind '{kind}'.", "Use length, distance, diameter, radius, angle, coordinate, angular_coordinate or chamfer.");
         }
 
         return new { view = context.Register(view, "drawing_view", Document(draft)), dimension = DescribeDimension(context, draft, dimension) };
+    }
+
+    /// <summary>
+    /// Coordinate (ordinate) dimensions: an origin at a vertex or circle centre and one dimension per further point. Verified
+    /// in Solid Edge 2026: where the origin's text goes decides what they measure (below the view: horizontal distances; to
+    /// its left: vertical ones), and each value is checked against the points' distance on the sheet at the view scale.
+    /// </summary>
+    private static object CoordinateDimensions(SeContext context, DraftDocument draft, DrawingView view, List<Graphic> graphics,
+        SolidEdgeFrameworkSupport.Dimensions dimensions, List<(double X, double Y, double Z)> model, bool vertical)
+    {
+        if (model.Count < 2)
+        {
+            throw ToolException.InvalidArgument("Coordinate dimensions need 'points': the origin first (a vertex or circle centre), then each point measured from it.");
+        }
+
+        Pick origin = PickAt(view, graphics, model[0], false);
+        if (!origin.KeyPoint)
+        {
+            throw ToolException.InvalidArgument("The origin of coordinate dimensions (the first point) must be a vertex or a circle centre of the view.",
+                "Give the model point of a corner or a hole centre (se_geometry lists edges with their ends and circles with their centres).");
+        }
+
+        List<Pick> picks = [.. model.Skip(1).Select(p => ToEndpoint(view, PickAt(view, graphics, p, false), out _))];
+        Box outline = Outline(view, graphics);
+        (double X, double Y) Text((double X, double Y) at) => vertical ? (outline.X1 - DimensionOffset, at.Y) : (at.X, outline.Y1 - DimensionOffset);
+        double scale = view.ScaleFactor;
+        var created = new List<Dimension>();
+        try
+        {
+            (double X, double Y) text = Text(origin.Sheet);
+            Dimension start = dimensions.AddCoordinateOriginEx(origin.Graphic.Reference, origin.Sheet.X, origin.Sheet.Y, 0, true, text.X, text.Y, 0);
+            created.Add(start);
+            foreach (Pick pick in picks)
+            {
+                text = Text(pick.Sheet);
+                Dimension dimension = dimensions.AddCoordinateEx(start, pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint, text.X, text.Y, 0);
+                created.Add(dimension);
+                double expected = Math.Abs(vertical ? pick.Sheet.Y - origin.Sheet.Y : pick.Sheet.X - origin.Sheet.X) / scale;
+                if (Math.Abs(dimension.Value - expected) > 1e-6)
+                {
+                    throw new ToolException("dimension_failed",
+                        $"A coordinate dimension reads {Geo.Mm(dimension.Value)} mm instead of {Geo.Mm(expected)} mm; the dimensions were removed.",
+                        "Give points that are vertices, circle centres or points on edges of this view.");
+                }
+            }
+        }
+        catch (Exception ex) when (ex is ToolException || (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex)))
+        {
+            foreach (Dimension dimension in created)
+            {
+                try
+                {
+                    dimension.Delete();
+                }
+                catch (COMException deleteError) when (!ComErrors.IsGone(deleteError))
+                {
+                    // The error being reported is the original one.
+                }
+            }
+
+            throw ex is ToolException ? ex
+                : new ToolException("dimension_failed", $"Solid Edge rejected the coordinate dimensions: {ComErrors.Unwrap(ex).Message.Trim()}", null, ex);
+        }
+
+        return new
+        {
+            view = context.Register(view, "drawing_view", Document(draft)),
+            measures = vertical ? "vertical distances from the origin" : "horizontal distances from the origin",
+            dimensions = created.Select(d => DescribeDimension(context, draft, d)).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// Sets the track distance of a dimension that Solid Edge leaves unplaced (chamfer dimensions), or moves it to
+    /// <paramref name="position"/>: of the two sides, the one whose dimension ends farther from the middle of the view.
+    /// </summary>
+    private static void PlaceOutside(DrawingView view, List<Graphic> graphics, Dimension dimension, (double X, double Y)? position)
+    {
+        Box outline = Outline(view, graphics);
+        double best = double.MinValue, chosen = DimensionOffset;
+        foreach (double track in new[] { DimensionOffset, -DimensionOffset, 2 * DimensionOffset, -2 * DimensionOffset })
+        {
+            dimension.TrackDistance = track;
+            Box range = RangeOf(dimension);
+            double score = position is { } p
+                ? -Distance((range.CentreX, range.CentreY), p)
+                : Distance((range.CentreX, range.CentreY), (outline.CentreX, outline.CentreY));
+            if (range.Width < 1 && range.Height < 1 && score > best)
+            {
+                (best, chosen) = (score, track);
+            }
+        }
+
+        dimension.TrackDistance = chosen;
+    }
+
+    private static void RequireValue(Dimension dimension, double expected, string what)
+    {
+        if (Math.Abs(dimension.Value - expected) > 1e-6)
+        {
+            double value = dimension.Value;
+            TryDeleteDimension(dimension);
+            throw new ToolException("dimension_failed", $"The {what} reads {Geo.Mm(value)} mm instead of {Geo.Mm(expected)} mm; it was removed.",
+                "Check the points: the first on the chamfer edge, the second on the edge it is measured from.");
+        }
+    }
+
+    private static void TryDeleteDimension(Dimension dimension)
+    {
+        try
+        {
+            dimension.Delete();
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            // The error being reported is the original one.
+        }
+    }
+
+    /// <summary>
+    /// Angular coordinate dimensions: a centre (a circle or a vertex), a point that sets the zero direction, and one dimension
+    /// per further point with its angle about the centre, counterclockwise unless <paramref name="clockwise"/>. Each angle is
+    /// checked against the points on the sheet.
+    /// </summary>
+    private static object AngularCoordinateDimensions(SeContext context, DraftDocument draft, DrawingView view, List<Graphic> graphics,
+        SolidEdgeFrameworkSupport.Dimensions dimensions, List<(double X, double Y, double Z)> model, bool clockwise)
+    {
+        if (model.Count < 3)
+        {
+            throw ToolException.InvalidArgument("Angular coordinate dimensions need 'points': the centre (a circle or vertex), a point that sets the zero direction, then each point measured.");
+        }
+
+        Pick centre = PickAt(view, graphics, model[0], false);
+        Pick zero = PickAt(view, graphics, model[1], false);
+        if (!centre.KeyPoint)
+        {
+            throw ToolException.InvalidArgument("The centre of angular coordinate dimensions (the first point) must be a circle centre or a vertex of the view.");
+        }
+
+        List<Pick> picks = [.. model.Skip(2).Select(p => PickAt(view, graphics, p, false))];
+        double Angle((double X, double Y) p) => Math.Atan2(p.Y - centre.Sheet.Y, p.X - centre.Sheet.X);
+        double reach = new[] { zero }.Concat(picks).Max(p => Distance(p.Sheet, centre.Sheet)) + DimensionOffset;
+        (double X, double Y) Text((double X, double Y) p)
+        {
+            double a = Angle(p);
+            return (centre.Sheet.X + (reach * Math.Cos(a)), centre.Sheet.Y + (reach * Math.Sin(a)));
+        }
+
+        var created = new List<Dimension>();
+        try
+        {
+            (double X, double Y) text = Text(zero.Sheet);
+            Dimension start = dimensions.AddAngularCoordinateOrigin(centre.Graphic.Reference, centre.Sheet.X, centre.Sheet.Y, 0, true,
+                zero.Graphic.Reference, zero.Sheet.X, zero.Sheet.Y, 0, zero.KeyPoint, text.X, text.Y, 0);
+            created.Add(start);
+            foreach (Pick pick in picks)
+            {
+                text = Text(pick.Sheet);
+                Dimension dimension = dimensions.AddAngularCoordinate(start, pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint,
+                    text.X, text.Y, 0, clockwise ? DimAngularCoordnateOrientationConstants.igDimAngCoordOrientClockwise : DimAngularCoordnateOrientationConstants.igDimAngCoordOrientCounterClockwise);
+                created.Add(dimension);
+                double expected = (clockwise ? Angle(zero.Sheet) - Angle(pick.Sheet) : Angle(pick.Sheet) - Angle(zero.Sheet)) % (2 * Math.PI);
+                if (expected < 0)
+                {
+                    expected += 2 * Math.PI;
+                }
+
+                if (Math.Abs(dimension.Value - expected) > 1e-6)
+                {
+                    throw new ToolException("dimension_failed",
+                        $"An angular coordinate dimension reads {Units.RadToDeg(dimension.Value):0.###} degrees instead of {Units.RadToDeg(expected):0.###}; the dimensions were removed.",
+                        "Give the centre, then a point for the zero direction, then the points to measure.");
+                }
+            }
+        }
+        catch (Exception ex) when (ex is ToolException || (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex)))
+        {
+            foreach (Dimension dimension in created)
+            {
+                TryDeleteDimension(dimension);
+            }
+
+            throw ex is ToolException ? ex
+                : new ToolException("dimension_failed", $"Solid Edge rejected the angular coordinate dimensions: {ComErrors.Unwrap(ex).Message.Trim()}", null, ex);
+        }
+
+        return new
+        {
+            view = context.Register(view, "drawing_view", Document(draft)),
+            measures = clockwise ? "clockwise angles from the zero direction" : "counterclockwise angles from the zero direction",
+            dimensions = created.Select(d => DescribeDimension(context, draft, d)).ToList(),
+        };
     }
 
     public static object Dimensions(SeContext context, string? documentHandle, string? sheetRef, int offset, int limit)

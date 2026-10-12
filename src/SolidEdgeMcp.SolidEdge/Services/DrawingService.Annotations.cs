@@ -18,6 +18,12 @@ using Leader = SolidEdgeFrameworkSupport.Leader;
 using Leaders = SolidEdgeFrameworkSupport.Leaders;
 using SurfaceFinishSymbol = SolidEdgeFrameworkSupport.SurfaceFinishSymbol;
 using SurfaceFinishSymbols = SolidEdgeFrameworkSupport.SurfaceFinishSymbols;
+using BoltHoleCircle = SolidEdgeFrameworkSupport.BoltHoleCircle;
+using BoltHoleCircles = SolidEdgeFrameworkSupport.BoltHoleCircles;
+using DatumPoint = SolidEdgeFrameworkSupport.DatumPoint;
+using DatumPoints = SolidEdgeFrameworkSupport.DatumPoints;
+using DatumTarget = SolidEdgeFrameworkSupport.DatumTarget;
+using DatumTargets = SolidEdgeFrameworkSupport.DatumTargets;
 using TextBox = SolidEdgeFrameworkSupport.TextBox;
 using TextBoxes = SolidEdgeFrameworkSupport.TextBoxes;
 using WeldSymbol = SolidEdgeFrameworkSupport.WeldSymbol;
@@ -34,7 +40,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 public static partial class DrawingService
 {
     public static readonly IReadOnlyList<string> AnnotationKinds =
-        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame", "weld"];
+        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame", "weld", "bolt_circle", "datum_target", "datum_point"];
 
     public static readonly IReadOnlyList<string> FinishTypes = ["basic", "machined", "no_material_removal"];
 
@@ -236,6 +242,94 @@ public static partial class DrawingService
 
             OnLeader(symbol, at, "surface finish symbol");
         });
+    }
+
+    /// <summary>
+    /// Bolt hole circle through the centres of three holes picked by model points (their centres or points on them); the
+    /// circle Solid Edge draws is checked against the circle through the three centres.
+    /// </summary>
+    public static object AddBoltCircle(SeContext context, string? viewHandle, double[]? points)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        List<(double X, double Y, double Z)> model = Geo.Points3(points, "points", 3);
+        if (model.Count != 3)
+        {
+            throw ToolException.InvalidArgument("A bolt hole circle needs three model points: the centres of (or points on) three holes of the circle.");
+        }
+
+        List<Graphic> graphics = Graphics(view);
+        Graphic[] holes = [.. model.Select(p => PickCurve(view, graphics, p))];
+        if (holes.Select(h => h.Value).Distinct(ReferenceEqualityComparer.Instance).Count() != 3)
+        {
+            throw ToolException.InvalidArgument("The three points pick the same hole twice.", "Give one point for each of three different holes.");
+        }
+
+        (double X, double Y)[] c = [.. holes.Select(h => ToSheet(view, h.Centre))];
+        double d = 2 * ((c[0].X * (c[1].Y - c[2].Y)) + (c[1].X * (c[2].Y - c[0].Y)) + (c[2].X * (c[0].Y - c[1].Y)));
+        if (Math.Abs(d) < 1e-12)
+        {
+            throw ToolException.InvalidArgument("The three hole centres are in a line: they do not make a circle.");
+        }
+
+        double s0 = (c[0].X * c[0].X) + (c[0].Y * c[0].Y), s1 = (c[1].X * c[1].X) + (c[1].Y * c[1].Y), s2 = (c[2].X * c[2].X) + (c[2].Y * c[2].Y);
+        (double X, double Y) centre = (((s0 * (c[1].Y - c[2].Y)) + (s1 * (c[2].Y - c[0].Y)) + (s2 * (c[0].Y - c[1].Y))) / d,
+            ((s0 * (c[2].X - c[1].X)) + (s1 * (c[0].X - c[2].X)) + (s2 * (c[1].X - c[0].X))) / d);
+        double radius = Distance(centre, c[0]);
+        // KeypointIndexConstants.igCircleCenter is 0 (also the centre of an arc).
+        BoltHoleCircle circle = ((BoltHoleCircles)SheetOf(view).BoltHoleCircles).AddBoltHoleCircleBy3Points(holes[0].Reference, 0, holes[1].Reference, 0, holes[2].Reference, 0);
+        return Checked(context, draft, "bolt_circle", circle, () =>
+        {
+            circle.Circle2d(out double cx, out double cy, out double r);
+            if (Distance((cx, cy), centre) > 1e-6 || Math.Abs(r - radius) > 1e-6)
+            {
+                throw new ToolException("annotation_failed",
+                    $"The bolt hole circle has its centre at ({Geo.Mm(cx)}, {Geo.Mm(cy)}) mm and a radius of {Geo.Mm(r)} mm instead of ({Geo.Mm(centre.X)}, {Geo.Mm(centre.Y)}) and {Geo.Mm(radius)} mm.",
+                    "Pick three holes of the same circle.");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Datum target ('A1': reference letter and number) on the edge or vertex picked by a model point; with a position, its
+    /// symbol at the end of a leader.
+    /// </summary>
+    public static object AddDatumTarget(SeContext context, string? viewHandle, double[]? points, double[]? position, string? label)
+    {
+        string name = RequireText(label, "text");
+        int split = name.TakeWhile(char.IsLetter).Count();
+        if (split == 0 || split == name.Length || !name[split..].All(char.IsDigit))
+        {
+            throw ToolException.InvalidArgument($"'{name}' is not a datum target label.", "Give the datum letter and the target number, e.g. 'A1'.");
+        }
+
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        Pick pick = PickOne(view, points);
+        (double X, double Y)? at = position is null ? null : Geo.Point2(position, "position");
+        DatumTarget target = ((DatumTargets)SheetOf(view).DatumTargets).AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
+        return Checked(context, draft, "datum_target", target, () =>
+        {
+            target.DatumReference = name[..split];
+            target.DatumNumber = name[split..];
+            if (target.DatumReference != name[..split] || target.DatumNumber != name[split..])
+            {
+                throw new ToolException("annotation_failed", "Solid Edge did not keep the datum target label.", "Use a label such as 'A1'.");
+            }
+
+            OnLeader(target, at, "datum target");
+        });
+    }
+
+    /// <summary>Datum point (a cross) on the vertex, circle centre or edge point picked by a model point.</summary>
+    public static object AddDatumPoint(SeContext context, string? viewHandle, double[]? points)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        Pick pick = PickOne(view, points);
+        DatumPoint point = ((DatumPoints)SheetOf(view).DatumPoints).AddByElement(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
+        // GetCenter reads (0, 0) (verified in Solid Edge 2026): the symbol's extent is checked instead.
+        return Checked(context, draft, "datum_point", point, () => RequireAround(point, pick.Sheet, "datum point"));
     }
 
     /// <summary>Datum frame (letter) on the edge picked by a model point; with a position, at the end of a leader.</summary>
@@ -630,6 +724,9 @@ public static partial class DrawingService
                 case FeatureControlFrame frame when frame.IsTerminatorAttachedToEntity:
                     frame.GetTerminator(out _, out x, out y, out _, out _);
                     break;
+                case DatumTarget target:
+                    target.GetTerminator(out _, out x, out y, out _, out _);
+                    break;
                 default:
                     return null;
             }
@@ -655,7 +752,8 @@ public static partial class DrawingService
             ("text", sheet.TextBoxes), ("balloon", sheet.Balloons), ("center_mark", sheet.CenterMarks),
             ("centerline", sheet.CenterLines), ("leader", sheet.Leaders), ("surface_finish", sheet.SurfaceFinishSymbols),
             ("datum", sheet.DatumFrames), ("feature_control_frame", sheet.FeatureControlFrames),
-            ("weld", sheet.WeldSymbols),
+            ("weld", sheet.WeldSymbols), ("bolt_circle", sheet.BoltHoleCircles), ("datum_target", sheet.DatumTargets),
+            ("datum_point", sheet.DatumPoints),
         })
         {
             if (collection is null)
@@ -681,6 +779,9 @@ public static partial class DrawingService
         DatumFrame => "datum",
         FeatureControlFrame => "feature_control_frame",
         WeldSymbol => "weld",
+        BoltHoleCircle => "bolt_circle",
+        DatumTarget => "datum_target",
+        DatumPoint => "datum_point",
         _ => null,
     };
 
@@ -716,6 +817,20 @@ public static partial class DrawingService
                 info["text"] = datum.Datum;
                 info["attached"] = datum.IsTerminatorAttachedToEntity;
                 info["terminator"] = TerminatorOf(datum);
+                break;
+            case BoltHoleCircle circle:
+                circle.Circle2d(out double cx, out double cy, out double radius);
+                info["centre"] = new[] { Geo.Mm(cx), Geo.Mm(cy) };
+                info["radius"] = Geo.Mm(radius);
+                break;
+            case DatumTarget target:
+                info["text"] = target.DatumReference + target.DatumNumber;
+                info["attached"] = target.IsTerminatorAttachedToEntity;
+                info["terminator"] = TerminatorOf(target);
+                break;
+            case DatumPoint point:
+                double[] extent = RangeOf(point);
+                info["at"] = new[] { Geo.Mm((extent[0] + extent[2]) / 2), Geo.Mm((extent[1] + extent[3]) / 2) };
                 break;
             case FeatureControlFrame frame:
                 string text = frame.PrimaryFrame;

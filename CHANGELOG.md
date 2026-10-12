@@ -123,6 +123,12 @@ Relevant changes to this project are recorded here. The format follows
   turns the driven part the other way). Each result is measured. `lockRotation` frees (or locks) the rotation of an
   axial or insert relation, which gears need: an axial relation made through the API locks it.
 - Acceptance script `A33` (center plane, connect, coordinate system, gear and rack relations).
+- `se_drawing dimension`: kinds `coordinate` (an origin at a vertex or circle centre and the points measured from it,
+  horizontal or vertical distances), `angular_coordinate` (about a centre from a zero direction, counterclockwise or
+  clockwise) and `chamfer`; each value is checked against the points at the view scale.
+- `se_annotation`: `bolt_circle` (through three holes, checked against their circle), `datum_target` ('A1', on a leader)
+  and `datum_point`.
+- Acceptance script `A34` (coordinate, angular coordinate and chamfer dimensions, bolt circle, datum target and point).
 
 ### Changed
 
