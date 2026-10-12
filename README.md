@@ -12,7 +12,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![66 tools](https://img.shields.io/badge/tools-66-2F6FEB)
+![67 tools](https://img.shields.io/badge/tools-67-2F6FEB)
 
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-2F6FEB)
@@ -35,7 +35,7 @@ machine or a specific workflow.
 
 **Broad coverage**
 
-Parts, sheet metal, assemblies, drawings and export with 66 tools, plus the whole API through a
+Parts, sheet metal, assemblies, drawings and export with 67 tools, plus the whole API through a
 generic COM layer.
 
 </td>
@@ -61,7 +61,7 @@ for approval.
 
 **Tested for real**
 
-3135 calls and 1653 checks against real Solid Edge 2026, with values calculated by hand.
+3156 calls and 1675 checks against real Solid Edge 2026, with values calculated by hand.
 
 </td>
 </tr>
@@ -203,7 +203,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-66 tools, grouped by area.
+67 tools, grouped by area.
 
 | Area | Tools |
 |---|---|
@@ -215,7 +215,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Part** | `se_extrude` `se_revolve` `se_hole` `se_round` `se_chamfer` `se_pattern` `se_shell` `se_draft` `se_loft_sweep` `se_part_feature` `se_primitive` `se_surface` `se_curve` `se_feature_edit` |
 | **Sheet metal** | `se_sheetmetal` `se_sheetmetal_form` |
 | **Assemblies** | `se_assembly` `se_relations` `se_assembly_pattern` `se_assembly_config` `se_component_group` `se_component_query` `se_assembly_feature` `se_frame` `se_interference` `se_bom` |
-| **Drawings** | `se_drawing` `se_drawing_view` `se_annotation` |
+| **Drawings** | `se_drawing` `se_drawing_view` `se_annotation` `se_sheet_content` |
 | **Export, publishing and printing** | `se_export` `se_publish` `se_print` |
 | **Full API access** | `se_com_describe` `se_com_get` `se_com_set` `se_com_invoke` `se_com_items` `se_com_constants` `se_command` |
 
@@ -280,6 +280,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Drawings** | `se_drawing` | Sheets and background sheets (the frame and title block: list, show or hide, draw and write on them, replace one with a background of another drawing, add, rename and delete one no sheet uses); base, projected, auxiliary, section and detail views; dimensions (also coordinate, angular coordinate and chamfer dimensions) and dimensions retrieved from the model; parts list; bend table; blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete); update. |
 | | `se_drawing_view` | Display of a drawing view as in its Properties dialog: hidden and tangent edges, shading, captions and the display of each member of an assembly view (hide a part, show it as reference), checked by the edges drawn; break lines (add, list, show or hide, remove); conversion of a view to 2D geometry. |
 | | `se_annotation` | Text, balloons, callouts, centre marks, centre lines, leaders, surface finish symbols, datums, datum targets and points, bolt hole circles, feature control frames and weld symbols attached to the views; list and delete. |
+| | `se_sheet_content` | Tables of your own (a revision list, notes in columns) and pictures (a logo) on drawing sheets: a table with headers, rows and column widths where you want it, a cell changed, rows added, an image sized by width or height; list and delete, everything read back. |
 | **Export, publishing and printing** | `se_export` | Part, sheet metal and assembly to STEP, IGES, Parasolid, STL, JT, SAT, 3MF or PDF; drawings to PDF, DXF, DWG, IGES or TIF; sheet metal flat pattern to DXF or DWG. |
 | | `se_publish` | 3D PDF documents of saved parts, sheet metal and assemblies (one file, or a folder with its subfolders) with the 3D PDF templates of the installation: the model in 3D that the reader can turn, STEP AP242 and JT files embedded, and an HTML page with the model; each PDF checked for its pages, 3D view and embedded files. |
 | | `se_print` | Prints the sheets of a drawing as the Print command does: lists the Windows printers (connection, port, driver, state, whether they ask for a file name) and Solid Edge's print settings; prints every working sheet or the chosen ones on a printer or to files in a folder (one PDF, PostScript or printer file per sheet, checked for its pages and page size), with paper size, orientation, scale or fit to the paper, colours as black and copies; Solid Edge's print settings are put back afterwards. |
@@ -312,7 +313,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 66 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 67 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -327,7 +328,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 66 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 67 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -383,11 +384,11 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 Results (unit tests and acceptance suite run on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 296/296.
-- Acceptance suite against real Solid Edge 2026: **3135 calls and 1653 checks** in `A01`–`A34`, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 305/305.
+- Acceptance suite against real Solid Edge 2026: **3156 calls and 1675 checks** in `A01`–`A35`, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the script). All of
   them pass.
-- Coverage by value: the 66 tools have correct calls, and `A10` runs every value of the action,
+- Coverage by value: the 67 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -431,6 +432,7 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 | `A32` | Printing drawing sheets to PDF files with the Microsoft Print to PDF printer (nothing goes on paper): the Windows printers and Solid Edge's print settings, every working sheet fitted to A4 (one PDF per sheet, checked for its page count and size), one sheet named in another case on A3 portrait at half size, as black and with two copies, refused cases (a printer that asks for a file name without a folder, an unknown printer or sheet, a bad scale, existing files) and the print settings put back |
 | `A33` | More kinds of assembly relations: center plane with two faces and with one, connect (the start of an edge onto a face, onto the end of another edge, the middle of an edge onto a face), coordinate systems (an origin and axes turned 90 degrees, and a system of the assembly), gears with the axial rotation unlocked (40:20 driven by an angle relation, flip) and a rack moving 100 mm per turn, the refused cases, and the cam and path methods refused by the COM layer |
 | `A34` | More drawing dimensions and annotations: coordinate dimensions from a corner (horizontal and vertical, also in a view at 1:2), angular coordinate dimensions of holes about a flange centre (counterclockwise and clockwise), a chamfer dimension, a bolt hole circle through three holes, a datum target A1 on a leader and a datum point, and the refused cases |
+| `A35` | Tables and pictures on a drawing sheet: a revision table with headers, rows, column widths and position, a cell changed and a row added, a table in the default place, a logo sized by width with its proportions kept, the list, the refused cases and deleting them |
 
 </details>
 
@@ -483,13 +485,13 @@ one in `C:\Program Files\dotnet`.
 ```text
 solid-edge-mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (66 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (67 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A34 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A35 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, update-progress.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md (coverage by function and route), assets/
@@ -500,7 +502,7 @@ solid-edge-mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A34`, listed under [Validation](#validation)) with volumes, measurements and expected
+calls (`A01`–`A35`, listed under [Validation](#validation)) with volumes, measurements and expected
 errors calculated by hand. Each script creates and closes its documents without saving:
 
 ```powershell

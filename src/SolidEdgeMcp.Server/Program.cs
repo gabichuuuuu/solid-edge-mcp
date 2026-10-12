@@ -109,6 +109,7 @@ public static class Program
         typeof(AppTools),
         typeof(PublishTools),
         typeof(PrintTools),
+        typeof(SheetContentTools),
         typeof(SettingsTools),
         typeof(ProgramTools),
         typeof(StyleTools),

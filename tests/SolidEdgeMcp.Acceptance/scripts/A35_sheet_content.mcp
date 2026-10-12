@@ -1,0 +1,49 @@
+# A35: tables of one's own and pictures on drawing sheets (se_sheet_content): a revision table (headers, rows, column widths, position), a cell changed, a row added, a logo image sized by width, the list, the refused cases and deleting both.
+# The logo: a capture of a small part saved as a PNG in the work folder
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[0,0,0],"size":[40,20],"depth":10}
+se_view {"action":"capture","path":"{{work}}\\a35_logo.png","width":400,"height":300}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+# Revision table: three columns 15 + 80 + 30 = 125 mm wide, its upper-left corner at (20, 280)
+@t = se_sheet_content {"action":"table","columns":["REV","DESCRIPTION","DATE"],"rows":["A|First issue|2026-10-12","B|Holes added|2026-10-13"],"widths":[15,80,30],"position":[20,280]}
+?= t.table.position[0] 20
+?= t.table.position[1] 280
+?= t.table.size[0] 125
+?= t.table.columns[0] REV
+?= t.table.columns[2] DATE
+?~ t.table.rows[0] A|First issue|2026-10-12
+?~ t.table.rows[1] B|Holes added|2026-10-13
+?= t.table.sheet Sheet1
+@c = se_sheet_content {"action":"cell","table":"{{t.table.handle}}","row":2,"column":2,"text":"Holes moved"}
+?~ c.table.rows[1] B|Holes moved|2026-10-13
+@r = se_sheet_content {"action":"rows","table":"{{t.table.handle}}","rows":["C|Chamfers|2026-10-14"]}
+?~ r.table.rows[2] C|Chamfers|2026-10-14
+# Default position: 20 mm inside the upper-left corner of the sheet (420 high: y = 400)
+@t2 = se_sheet_content {"action":"table","columns":["NOTE"],"rows":["Break sharp edges"]}
+?= t2.table.position[0] 20
+?= t2.table.position[1] 400
+# Refused: a cell out of the table, a row with more cells than columns, no columns
+! [invalid_argument] se_sheet_content {"action":"cell","table":"{{t.table.handle}}","row":9,"column":1,"text":"x"}
+! [invalid_argument] se_sheet_content {"action":"table","columns":["A","B"],"rows":["1|2|3"]}
+! [invalid_argument] se_sheet_content {"action":"table","rows":["1|2"]}
+# The logo, 40 mm wide (its proportions kept: 300/400 x 40 = 30 mm high), its lower-left corner at (300, 20)
+@i = se_sheet_content {"action":"image","path":"{{work}}\\a35_logo.png","position":[300,20],"width":40}
+?= i.image.size[0] 40
+?= i.image.size[1] 30 0.1
+?= i.image.position[0] 300
+?= i.image.position[1] 20
+?= i.image.link false
+?= i.image.file a35_logo.png
+! [path_not_allowed] se_sheet_content {"action":"image","path":"C:\\Windows\\win.ini"}
+! [not_found] se_sheet_content {"action":"image","path":"{{work}}\\no_such_logo.png"}
+@l = se_sheet_content {"action":"list"}
+?= l.images[0].file a35_logo.png
+?~ l.tables[?position=[20,280]].rows[2] Chamfers
+se_sheet_content {"action":"delete","item":"{{i.image.handle}}"}
+se_sheet_content {"action":"delete","item":"{{t.table.handle}}"}
+se_sheet_content {"action":"delete","item":"{{t2.table.handle}}"}
+@l2 = se_sheet_content {"action":"list"}
+?= l2.tables []
+?= l2.images []
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

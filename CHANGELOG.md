@@ -129,6 +129,10 @@ Relevant changes to this project are recorded here. The format follows
 - `se_annotation`: `bolt_circle` (through three holes, checked against their circle), `datum_target` ('A1', on a leader)
   and `datum_point`.
 - Acceptance script `A34` (coordinate, angular coordinate and chamfer dimensions, bolt circle, datum target and point).
+- `se_sheet_content`: tables of one's own on drawing sheets (headers, rows of cells split by '|', column widths,
+  position; `cell` and `rows` change them) and pictures (embedded or linked, sized by width or height with their
+  proportions kept); `list` and `delete`. Everything written is read back.
+- Acceptance script `A35` (a revision table and a logo on a sheet).
 
 ### Changed
 
