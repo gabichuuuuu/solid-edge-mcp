@@ -6,6 +6,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-13
+
 ### Fixed
 
 - `se_sensor` works in sheet metal parts, whose sensors Solid Edge keeps in a collection of their own: variable and
