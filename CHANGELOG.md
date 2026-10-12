@@ -113,7 +113,8 @@ Relevant changes to this project are recorded here. The format follows
   settings of Solid Edge; `print` sends every working sheet or the chosen ones to a printer, or to files in a folder
   (one PDF, PostScript or printer file per sheet, named `<document>_<sheet>`, checked for its pages and page size), with
   paper size, orientation, scale or fit to the paper, colours as black and copies. The print settings of Solid Edge are
-  put back afterwards, and the result says when Windows has made the printer used its default printer.
+  put back afterwards. The result says when Solid Edge has recorded the print date in the drawing (which marks it
+  as modified) and when Windows has made the printer used its default printer.
 - Acceptance script `A32` (printing to PDF files with the Microsoft Print to PDF printer).
 
 ### Changed

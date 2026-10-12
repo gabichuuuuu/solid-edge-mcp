@@ -16,8 +16,9 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// the working sheets (not the backgrounds) and <c>AddSheet</c> one sheet. Printed to a file, each sheet goes to
 /// "&lt;document&gt;_&lt;sheet&gt;.pri" in <c>PrintToFilePath</c>, written by the spooler after <c>PrintOut</c> returns,
 /// and the copies are pages of it; <c>PrintToFileName</c> is ignored and cannot be emptied. The settings changed here are
-/// put back after printing. Windows may make the printer used its default printer ("Let Windows manage my default
-/// printer"): that is reported, never changed here.
+/// put back after printing. Solid Edge records the print date in the drawing ("Last Print Date") and marks it as modified;
+/// Windows may make the printer used its default printer ("Let Windows manage my default printer"): both are reported,
+/// never changed here.
 /// </summary>
 public static class PrintService
 {
@@ -115,6 +116,7 @@ public static class PrintService
             DraftPrintUtility utility = Utility(context);
             Settings before = Settings.Read(utility);
             string? defaultBefore = WindowsPrinters.Default();
+            bool dirtyBefore = draft.Dirty;
             Settings used;
             List<string> notRestored;
             try
@@ -166,6 +168,11 @@ public static class PrintService
             }
 
             result["restored"] = notRestored.Count == 0 ? true : notRestored;
+            if (!dirtyBefore && draft.Dirty)
+            {
+                result["modified"] = "Solid Edge recorded the print date (Last Print Date) in the drawing, so it is marked as modified: save it to keep the date, or close it without saving.";
+            }
+
             string? defaultNow = WindowsPrinters.Default();
             if (!string.Equals(defaultBefore, defaultNow, StringComparison.OrdinalIgnoreCase))
             {

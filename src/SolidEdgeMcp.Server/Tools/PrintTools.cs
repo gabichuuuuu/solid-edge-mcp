@@ -46,7 +46,7 @@ public sealed class PrintTools(ToolRunner runner)
         copies; paper = printer (its own paper, default) | a2 | a3 | a4 | a5 | a6 | letter | legal | tabloid | ledger; orientation = auto | portrait | landscape;
         scale = scale of the sheet on the paper (1 = full size), default: fit to the paper; black = colors as black; overwrite).
         Without 'folder' the sheets go to the printer and use paper. A printer that asks for a file name (asksForFile, e.g. Microsoft Print to PDF) prints only with 'folder'.
-        The settings of Solid Edge's Print command are put back afterwards; if Windows makes the printer used its default printer, the result says so.
+        The settings of Solid Edge's Print command are put back afterwards. Solid Edge records the print date in the drawing (it is then marked as modified), and Windows may make the printer used its default printer: the result says so.
         Example: {"action":"print","printer":"Microsoft Print to PDF","folder":"C:\\Work\\prints","paper":"a3"}.
         """)]
     public Task<CallToolResult> Print(

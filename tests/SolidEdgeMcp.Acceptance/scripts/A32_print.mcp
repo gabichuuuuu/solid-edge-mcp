@@ -30,6 +30,8 @@ se_documents {"action":"save_as","path":"{{work}}\\a32_drawing.dft","overwrite":
 ?= p1.files[1].pageSize[0] 297 0.2
 ?= p1.files[1].pageSize[1] 210 0.2
 ?= p1.restored true
+# Solid Edge records the print date in the saved drawing, which is then marked as modified
+?~ p1.modified Last Print Date
 # The files exist now: refused without overwrite. Sheet1 on A3 portrait at half size, as black, two copies: two A3 portrait pages
 ! [file_exists] se_print {"action":"print","printer":"Microsoft Print to PDF","folder":"{{work}}\\a32","sheets":["Sheet1"]}
 @p2 = se_print {"action":"print","printer":"Microsoft Print to PDF","folder":"{{work}}\\a32","sheets":["sheet1"],"paper":"a3","orientation":"portrait","scale":0.5,"black":true,"copies":2,"overwrite":true}
