@@ -201,7 +201,7 @@ public static class PartFamilyService
         {
             member.Populate();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("populate_failed", $"Solid Edge could not write the member file '{target}': {ex.Message}",
                 "Check that the folder exists and that the file is not open, and that the member applies without errors (action 'apply').", ex);

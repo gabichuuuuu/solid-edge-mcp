@@ -105,7 +105,7 @@ public static partial class AssemblyService
         {
             subassembly = assembly.Occurrences.AddWithTransform(file, 0, 0, 0, 0, 0, 0);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             TryDeleteFile(file);
             throw;
@@ -272,7 +272,7 @@ public static partial class AssemblyService
         {
             return occurrence.Activate;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }

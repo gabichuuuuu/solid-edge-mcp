@@ -41,7 +41,7 @@ public static class AssemblyExplodeService
         {
             assembly.AutoExplode(AutoExplodeSelectionTypeConstants.seTopLevelAssembly, false, technique, out result, distance);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("explode_failed", $"Solid Edge could not explode the assembly: {ex.Message.Trim()}",
                 "Auto explode follows the assembly relations: relate the components first (se_relations).", ex);
@@ -102,7 +102,7 @@ public static class AssemblyExplodeService
             double[] m = [.. Geo.Doubles(matrix)];
             return [m[12], m[13], m[14]];
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }

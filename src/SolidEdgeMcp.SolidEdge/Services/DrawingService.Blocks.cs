@@ -64,7 +64,7 @@ public static partial class DrawingService
             block = Late.Call(BlocksOf(draft), "Add", title, Units.MmToM(x), Units.MmToM(y), false, true)
                 ?? throw new ToolException("block_failed", $"Solid Edge did not create the block '{title}'.");
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsDisconnected(com))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsGone(com))
         {
             throw new ToolException("block_failed", $"Solid Edge did not create the block '{title}': {com.Message.Trim()}",
                 "Pass handles of 2D elements drawn on a sheet (se_sketch with the sheet handle).", ex);
@@ -129,7 +129,7 @@ public static partial class DrawingService
             block = Late.Call(BlocksOf(draft), "AddBlockByFile", file)
                 ?? throw new ToolException("block_failed", $"Solid Edge did not import a block from '{Path.GetFileName(file)}'.");
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsDisconnected(com))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsGone(com))
         {
             throw new ToolException("block_failed", $"Solid Edge did not import a block from '{Path.GetFileName(file)}': {com.Message.Trim()}",
                 "Pass a saved drawing (.dft).", ex);
@@ -158,7 +158,7 @@ public static partial class DrawingService
             return Late.Call(Late.Get(sheet, "BlockOccurrences")!, "Add", title, Units.MmToM(x), Units.MmToM(y), Type.Missing, scale, angle)
                 ?? throw new ToolException("block_failed", $"Solid Edge did not place the block '{title}'.");
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsDisconnected(com))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsGone(com))
         {
             throw new ToolException("block_failed", $"Solid Edge did not place the block '{title}': {com.Message.Trim()}",
                 $"Check the block in '{SeContext.SafeName(Document(draft))}' with action 'blocks'.", ex);

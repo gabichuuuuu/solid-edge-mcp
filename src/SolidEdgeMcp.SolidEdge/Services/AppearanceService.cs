@@ -69,7 +69,7 @@ public static class AppearanceService
         {
             FacesStyles(document).Remove(styleName);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("style_in_use", $"Solid Edge did not delete the style '{styleName}': it is in use.",
                 "Reset (action 'reset') or re-colour the body, faces, features or components that use it, then delete it.");
@@ -213,7 +213,7 @@ public static class AppearanceService
                 _ => Late.Call(target.Value, "GetStyle") as FaceStyle,
             };
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }
@@ -251,7 +251,7 @@ public static class AppearanceService
                 Assign(target, previous);
             }
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Best effort: the error being reported is the original one.
         }

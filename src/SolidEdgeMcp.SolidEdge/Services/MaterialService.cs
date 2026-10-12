@@ -86,7 +86,7 @@ public static class MaterialService
             Table(context).GetCurrentGageName(document, out string name);
             return string.IsNullOrEmpty(name) ? null : name;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }
@@ -106,7 +106,7 @@ public static class MaterialService
             {
                 table.ApplyGageFromLibraryToDoc(document, gauge, lib);
             }
-            catch (Exception ex) when (ex is NullReferenceException || ex is COMException com && !ComErrors.IsDisconnected(com))
+            catch (Exception ex) when (ex is NullReferenceException || ex is COMException com && !ComErrors.IsGone(com))
             {
                 // A gauge the library does not have gives E_POINTER (NullReferenceException) and leaves the document unchanged.
                 continue;

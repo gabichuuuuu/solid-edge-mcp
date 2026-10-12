@@ -356,7 +356,7 @@ public static class CustomizationService
         {
             edit();
         }
-        catch (Exception ex) when (ex is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ex is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             throw new ToolException("customization_failed", $"Solid Edge rejected the change: {ComErrors.Unwrap(ex).Message}",
                 "Check the names with se_ui ribbon or se_customize ribbon_themes.", ex);
@@ -566,7 +566,7 @@ public static class CustomizationService
         {
             return table.KeyBinding(code);
         }
-        catch (Exception ex) when (ex is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ex is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             return null;
         }

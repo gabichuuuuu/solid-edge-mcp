@@ -84,7 +84,7 @@ public static class ComponentQueryService
         {
             query = queries.Add(queryName);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("query_failed", $"Solid Edge did not create the query '{queryName}': {ex.Message}", "Pass another name.", ex);
         }
@@ -99,7 +99,7 @@ public static class ComponentQueryService
                 {
                     query.AddCriteria(property, custom, condition, value);
                 }
-                catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+                catch (COMException ex) when (!ComErrors.IsGone(ex))
                 {
                     throw new ToolException("query_failed", $"Solid Edge refused the criterion on '{property}': {ex.Message}",
                         "Check the property and the value (se_properties lists the properties of a component file).", ex);
@@ -149,7 +149,7 @@ public static class ComponentQueryService
             zone = zones.Add(Units.MmToM(corners[0]), Units.MmToM(corners[1]), Units.MmToM(corners[2]),
                 Units.MmToM(corners[3]), Units.MmToM(corners[4]), Units.MmToM(corners[5]));
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("query_failed", $"Solid Edge did not create the zone: {ex.Message}", "Check the box corners (mm).", ex);
         }

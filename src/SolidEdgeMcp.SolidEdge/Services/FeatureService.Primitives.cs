@@ -178,7 +178,7 @@ public static partial class FeatureService
         {
             feature = create();
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             UndoSince(model, undoStart);
             if (switched)
@@ -187,7 +187,9 @@ public static partial class FeatureService
             }
 
             context.ModelChanged(model.Document, "the model changed (call undone)");
-            throw new ToolException("feature_failed", $"Solid Edge rejected the {what}: {ComErrors.Unwrap(ex).Message.Trim()}", nextStep, ex);
+            throw ComErrors.IsObjectRemoved(ex)
+                ? new ToolException("feature_failed", $"Solid Edge could not build the {what} and removed it.", NotBuiltHint, ex)
+                : new ToolException("feature_failed", $"Solid Edge rejected the {what}: {ComErrors.Unwrap(ex).Message.Trim()}", nextStep, ex);
         }
 
         if (switched)

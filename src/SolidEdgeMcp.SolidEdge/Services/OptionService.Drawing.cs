@@ -93,7 +93,7 @@ public static partial class OptionService
             {
                 preferences.GetType().InvokeMember(entry.Property.Name, BindingFlags.SetProperty, null, preferences, [index, style], CultureInfo.InvariantCulture);
             }
-            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
             {
                 throw new ToolException("value_rejected", $"Solid Edge rejected '{style}' for '{entry.Name}': {ComErrors.Unwrap(ex).Message.Trim()}",
                     "Use the name of a line style (DVEdgeStyleName) or drawing view style (DVStyleNameFromTable) of the drawing (se_styles list).", ex);
@@ -149,7 +149,7 @@ public static partial class OptionService
                 : ComProperties.Read(preferences, entry.Property);
             return new { name = entry.Name, value, error = (string?)null };
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             return new { name = entry.Name, value = (object?)null, error = (string?)ComErrors.Unwrap(ex).Message.Trim() };
         }

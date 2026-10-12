@@ -89,7 +89,7 @@ public static class ExportService
                 document.SaveCopyAs(target);
             }
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("export_failed", $"Solid Edge could not export to {format}: {ex.Message.Trim()}",
                 flatPattern

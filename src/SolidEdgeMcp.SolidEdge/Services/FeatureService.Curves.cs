@@ -234,7 +234,7 @@ public static partial class FeatureService
         {
             curve = ConstructionsOf(model).ContourCurves.Add(faceArray.Length, ref faceArray, seeds, ref pointArray, ref ownerArray, !closed);
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             errors.Add("rejected: " + ComErrors.Unwrap(ex).Message.Trim());
             return null;
@@ -257,7 +257,7 @@ public static partial class FeatureService
 
             return curve;
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             errors.Add("points not accepted: " + ComErrors.Unwrap(ex).Message.Trim());
             TryDeleteCurve(curve);
@@ -413,9 +413,11 @@ public static partial class FeatureService
         {
             return create();
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsDisconnected(com))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsGone(com))
         {
-            throw new ToolException("feature_failed", $"Solid Edge rejected the {what}: {com.Message.Trim()}", hint, ex);
+            throw ComErrors.IsObjectRemoved(com)
+                ? new ToolException("feature_failed", $"Solid Edge could not build the {what} and removed it.", hint, ex)
+                : new ToolException("feature_failed", $"Solid Edge rejected the {what}: {com.Message.Trim()}", hint, ex);
         }
     }
 

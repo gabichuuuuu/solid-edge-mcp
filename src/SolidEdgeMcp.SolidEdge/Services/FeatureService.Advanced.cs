@@ -116,7 +116,7 @@ public static partial class FeatureService
                             "finite" => target.Holes.AddFinite(profile, side, depth, data),
                             "through_all" => target.Holes.AddThroughAll(profile, side, data),
                             _ => target.Holes.AddThroughNext(profile, side, data),
-                        });
+                        }, sketch: false);
                         (current, string? status) = Check(context, model, feature, current, -1, null, included);
                         Hide(profile);
                         holes.Add((feature, included));
@@ -131,7 +131,7 @@ public static partial class FeatureService
                 }
             }
         }
-        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsGone(ex))
         {
             foreach ((object feature, IncludedProfile included) in holes)
             {

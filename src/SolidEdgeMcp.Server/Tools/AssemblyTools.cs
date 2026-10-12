@@ -45,6 +45,24 @@ public enum RelationType
     Tangent,
     Angle,
     RigidSet,
+    CenterPlane,
+    Connect,
+    CoordinateSystem,
+    Gear,
+}
+
+public enum EdgePoint
+{
+    Start,
+    End,
+    Mid,
+    Center,
+}
+
+public enum GearRatio
+{
+    Teeth,
+    Turns,
 }
 
 public enum AssemblyPatternAction
@@ -164,18 +182,21 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
     [McpServerTool(Name = "se_relations", Title = "Assembly relations", Destructive = true, OpenWorld = false)]
     [Description("""
         Assembly relations (mates). list (optionally of one 'occurrence') | add | delete (relation handle).
-        add moves 'occurrence1' onto 'occurrence2' (or onto an assembly base plane '1'-'3' when occurrence2 is omitted); occurrence1 is ungrounded first.
-        type: planar (element1/element2 = planar faces or reference planes; align false = faces against each other (mate), true = same direction (flush); offset mm) |
-        axial (element1/element2 = cylindrical/conical faces or straight/circular edges; keeps the current orientation, flip reverses it) |
+        add moves occurrence1 onto occurrence2 (or onto an assembly base plane '1'-'3' if occurrence2 is omitted), ungrounding it first.
+        type: planar (planar faces or reference planes; align false = mate (faces against each other), true = flush; offset mm) |
+        axial (cylindrical/conical faces or straight/circular edges; keeps the orientation, flip reverses it; lockRotation false lets it turn) |
         insert (planar mate element1/element2 + axial axis1/axis2 with rotation locked, e.g. a pin into a hole) |
-        parallel (element1/element2 = axes as for axial; offset = distance in mm between them, 0 = free) |
-        tangent (element1 = cylindrical face; element2 = planar face (cylinder on its outer side) or cylindrical face (outside); offset mm) |
-        angle (element1/element2 = planar faces; angle = degrees between their outward normals, 0-180; plane = measurement plane perpendicular to the rotation axis, default the base plane perpendicular to both faces) |
+        parallel (axes as for axial; offset = distance in mm between them, 0 = free) |
+        tangent (element1 = cylindrical face; element2 = planar face (cylinder outside it) or cylindrical face (outside); offset mm) |
+        angle (planar faces; angle = degrees between outward normals, 0-180; plane = measurement plane normal to the rotation axis) |
+        center_plane (centered = 1 face of occurrence1, or 2 whose mid-plane is centred; between = the 2 parallel faces or planes) |
+        connect (point1 = start|end|mid|center of edge element1, onto point2 of edge element2, or onto a planar face, plane or straight edge) |
+        coordinate_system (element1 = name of a coordinate system in occurrence1's part, onto element2 in occurrence2's part or the assembly) |
+        gear (element1 = cylindrical face or circular edge of the driving part; element2 = of the driven gear, or a straight edge of a rack; ratio [teeth1, teeth2], or ratioBy turns: [turns1, turns2 or rack mm]; same turning sense unless flip; nothing moves, and both must be free to turn) |
         rigid_set (occurrences = 2+ occurrence handles that then move as one).
-        The result is checked geometrically (normals, distance, coaxiality, angle); a relation that fails is removed and the occurrence put back.
-        Faces and edges: se_geometry action 'faces'/'edges' with 'source' = the occurrence handle (assembly coordinates).
-        Gear, cam, path, center-plane and point relations: se_com_invoke on the document's Relations3d.
-        Example: {"action":"add","type":"angle","element1":"face:31","element2":"face:12","angle":30}.
+        Results are checked geometrically; a failed relation is removed and the occurrence put back. Cam and path relations crash Solid Edge 2026 via the API: use its commands.
+        Faces/edges: se_geometry with 'source' = the occurrence (assembly coordinates).
+        Example: {"action":"add","type":"gear","element1":"face:31","element2":"face:44","ratio":[40,20]}.
         """)]
     public Task<CallToolResult> Relations(
         RelationAction action,
@@ -188,10 +209,17 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         [Description("insert: cylindrical face or circular edge of occurrence2.")] string? axis2 = null,
         [Description("planar/insert: distance in mm between the faces, along the outward normal of element2; parallel: distance between the axes (0 = free); tangent: gap in mm (default 0).")] double offset = 0,
         [Description("planar: true = flush (normals in the same direction); default false = mate (faces against each other).")] bool align = false,
-        [Description("axial/insert: reverse the axis orientation.")] bool flip = false,
+        [Description("axial/insert: reverse the axis orientation; gear: the driven part turns the opposite way.")] bool flip = false,
         [Description("angle: degrees between the outward normals of element1 and element2 (0-180).")] double? angle = null,
         [Description("rigid_set: occurrence handles (2 or more).")] string[]? occurrences = null,
         [Description("angle: measurement plane, '1'-'3' (assembly base planes XY, YZ, XZ) or an assembly plane handle, perpendicular to the rotation axis; required when the faces are parallel.")] string? plane = null,
+        [Description("center_plane: 1 face or plane of occurrence1 (it is centred) or 2 (the plane midway between them is centred).")] string[]? centered = null,
+        [Description("center_plane: the 2 parallel faces or planes (of other occurrences, or '1'-'3') it is centred between.")] string[]? between = null,
+        [Description("connect: point of edge element1 that is connected.")] EdgePoint? point1 = null,
+        [Description("connect: point of edge element2 it meets; omit it to put point1 on element2 (a planar face, plane or straight edge).")] EdgePoint? point2 = null,
+        [Description("gear: [teeth of element1, teeth of element2]; with ratioBy turns: [turns of element1, turns of element2 or mm a rack moves].")] double[]? ratio = null,
+        [Description("gear: what 'ratio' counts (default teeth; a rack needs turns).")] GearRatio? ratioBy = null,
+        [Description("axial/insert: false lets the part turn about the axis (gears need it); default locked, as Solid Edge makes it.")] bool? lockRotation = null,
         [Description("delete: relation handle.")] string? relation = null,
         [Description("list: only the relations of this occurrence.")] string? occurrence = null,
         [Description("list: number of relations to skip.")] int skip = 0,
@@ -206,7 +234,8 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             RelationAction.List => runner.RunAsync(tool, name, c => RelationService.List(c, document, occurrence, skip, limit), cancellationToken),
             RelationAction.Add => runner.RunAsync(tool, name, c => RelationService.Add(c, document,
                 new RelationSpec(Snake(ToolRunner.RequireValue(type, "type", "add")), occurrence1, element1, occurrence2, element2, axis1, axis2,
-                    offset, align, flip, angle, occurrences, plane)), cancellationToken),
+                    offset, align, flip, angle, occurrences, plane, centered, between, point1 is { } p1 ? Snake(p1) : null, point2 is { } p2 ? Snake(p2) : null,
+                    ratio, ratioBy is { } by ? Snake(by) : null, lockRotation)), cancellationToken),
             RelationAction.Delete => runner.RunAsync(tool, name, c => RelationService.Delete(c, relation), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

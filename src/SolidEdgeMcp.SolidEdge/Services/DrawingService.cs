@@ -312,7 +312,7 @@ public static partial class DrawingService
             plane.GetFoldLineWithViewDirection(out _, out _, out _, out _, out lookX, out lookY);
             view.Update();
         }
-        catch (Exception ex) when (ex is ToolException || (ex is COMException com && !ComErrors.IsDisconnected(com)))
+        catch (Exception ex) when (ex is ToolException || (ex is COMException com && !ComErrors.IsGone(com)))
         {
             TryDelete(plane);
             if (ex is ToolException)
@@ -438,7 +438,7 @@ public static partial class DrawingService
         {
             view.RetrieveDimensions();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("retrieve_failed", $"Solid Edge could not retrieve dimensions: {ex.Message.Trim()}", null, ex);
         }
@@ -587,7 +587,7 @@ public static partial class DrawingService
         {
             list = draft.PartsLists.Add(view, style ?? "", balloons ? 1 : 0, 1);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("parts_list_failed", $"Solid Edge could not create the parts list: {ex.Message.Trim()}",
                 style is null ? "Pass 'style' with the name of a saved parts list setting (e.g. 'Normal')." : "Check the saved setting name in 'style'.", ex);
@@ -618,7 +618,7 @@ public static partial class DrawingService
         {
             table = draft.DraftBendTables.Add(view, style ?? "", 0, 1);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("bend_table_failed", $"Solid Edge could not create the bend table: {ex.Message.Trim()}",
                 style is null ? "Give the flat pattern view (base_view flat) of a sheet metal part with bends." : "Check the saved setting name in 'style'.", ex);
@@ -683,7 +683,7 @@ public static partial class DrawingService
                 }
             }
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Background without readable lines: the sheet corner is used.
         }
@@ -727,7 +727,7 @@ public static partial class DrawingService
         {
             draft.UpdatePropertyTextCacheAndDisplay();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Without property texts there is nothing to refresh.
         }
@@ -827,7 +827,7 @@ public static partial class DrawingService
             dimension.Range(out double x1, out double y1, out double x2, out double y2);
             at = [Geo.Mm((x1 + x2) / 2), Geo.Mm((y1 + y2) / 2)];
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // No graphic extension (dimension not placed).
         }
@@ -1377,7 +1377,7 @@ public static partial class DrawingService
                 (width, height) = (diagonal, diagonal);
             }
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return 1;
         }
@@ -1805,7 +1805,7 @@ public static partial class DrawingService
             dimension.TrackAngle = Math.Atan2(uy, ux) - Math.PI / 2;
             dimension.TrackDistance = distance;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Left where Solid Edge put it.
         }
@@ -1829,7 +1829,7 @@ public static partial class DrawingService
         {
             return create() ?? throw new ToolException("view_failed", $"Solid Edge did not create the {what}.", hint);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("view_failed", $"Solid Edge could not create the {what}: {ex.Message.Trim()}", hint, ex);
         }

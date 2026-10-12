@@ -209,7 +209,7 @@ public static partial class RefPlaneService
         {
             plane = create();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("refplane_failed", $"Solid Edge did not create the plane ({ex.Message}).", "Check the inputs with se_geometry.");
         }
@@ -231,7 +231,7 @@ public static partial class RefPlaneService
         {
             plane.Delete();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // The error being reported is the wrong plane.
         }

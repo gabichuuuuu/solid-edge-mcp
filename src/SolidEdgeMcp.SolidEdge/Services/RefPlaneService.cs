@@ -438,7 +438,7 @@ public static partial class RefPlaneService
             {
                 system.Delete();
             }
-            catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
             {
                 // The error below is what matters; the system stays in the tree.
             }
@@ -479,7 +479,7 @@ public static partial class RefPlaneService
                     continue;
                 }
             }
-            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
             {
                 // Counted below: the other planes are still shown or hidden.
             }
@@ -507,7 +507,7 @@ public static partial class RefPlaneService
         {
             Late.Set(item, "Name", name);
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             throw new ToolException("refplane_failed", $"Solid Edge did not rename '{target}' ({ComErrors.Unwrap(ex).Message}).",
                 "A local plane made by a feature has no name of its own; rename a plane listed with a name by action 'list'.");
@@ -585,7 +585,7 @@ public static partial class RefPlaneService
         };
     }
 
-    private static (double[] Origin, double[] X, double[] Y, double[] Z) Axes(SolidEdgePart.CoordinateSystem system)
+    internal static (double[] Origin, double[] X, double[] Y, double[] Z) Axes(SolidEdgePart.CoordinateSystem system)
     {
         (double[] rootXy, double[] z) = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysXYPlane]);
         (double[] rootYz, double[] x) = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysYZPlane]);
@@ -632,7 +632,7 @@ public static partial class RefPlaneService
         {
             plane = create();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("refplane_failed", $"Solid Edge did not create the plane ({ex.Message}).", "Check the inputs with se_geometry.");
         }
@@ -657,7 +657,7 @@ public static partial class RefPlaneService
         {
             plane.Delete();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // The error being reported is the wrong plane.
         }
@@ -814,7 +814,7 @@ public static partial class RefPlaneService
                     return true;
                 }
             }
-            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
             {
                 // Rigid sets and other relations without two elements.
             }

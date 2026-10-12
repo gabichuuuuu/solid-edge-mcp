@@ -89,7 +89,7 @@ public static partial class SketchService
                 trimmed = e.Select(Describe2d).ToArray(),
             };
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("fillet_failed", $"Solid Edge could not round the corner: {ex.Message}",
                 "The two elements must meet (or cross) and both be long enough for the radius; pass 'points' inside the corner to round.", ex);
@@ -129,7 +129,7 @@ public static partial class SketchService
                 trimmed = e.Select(Describe2d).ToArray(),
             };
         }
-        catch (Exception ex) when (ex is ArgumentException || ex is COMException com && !ComErrors.IsDisconnected(com))
+        catch (Exception ex) when (ex is ArgumentException || ex is COMException com && !ComErrors.IsGone(com))
         {
             // Lines without a corner (parallel) give E_INVALIDARG, which .NET raises as ArgumentException.
             throw new ToolException("chamfer_failed", $"Solid Edge could not chamfer the corner: {ex.Message}",
@@ -160,7 +160,7 @@ public static partial class SketchService
                     created.Add(new { edge = handle, element = context.RegisterBeside(geometry, KindOf(geometry), sketch), geometry = Describe2d(geometry) });
                 }
             }
-            catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
             {
                 throw new ToolException("project_failed", $"Solid Edge could not include edge '{handle}' in the sketch: {ex.Message}",
                     "The edge must belong to this part; edges lying off the sketch plane are projected onto it.", ex);
@@ -208,7 +208,7 @@ public static partial class SketchService
                 elements = e.Select(Describe2d).ToArray(),
             };
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // 0x80040210 comes with a misleading text (PerUser subscription); it appears when repeating a relation that already exists.
             string reason = ex.HResult == unchecked((int)0x80040210)
@@ -253,7 +253,7 @@ public static partial class SketchService
                 _ => throw ToolException.InvalidArgument($"Unknown dimension '{type}'.", $"Use one of: {string.Join(", ", DimensionTypes)}."),
             };
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("dimension_failed", $"Solid Edge could not dimension the elements: {ex.Message}",
                 "Check the element types: length (line), radius/diameter (circle or arc), distance (two elements or keypoints), angle (two lines).", ex);

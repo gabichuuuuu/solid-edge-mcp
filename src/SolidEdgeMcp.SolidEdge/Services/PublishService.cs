@@ -117,7 +117,7 @@ public static class PublishService
                 published = app.Publish3DPDFEx(inbox, templatePath, isFolder && subfolders, outbox, "", false, html, false, false, false, "",
                     attachStep, attachJt);
             }
-            catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
             {
                 throw new ToolException("publish_failed", $"Solid Edge could not publish: {ex.Message.Trim()}",
                     "Check that the files open in Solid Edge and that the template is a 3D PDF template (action 'templates').", ex);

@@ -388,7 +388,7 @@ public static partial class FeatureService
 
             flat.UpdateCutSize();
         }
-        catch (Exception ex) when (ex is COMException com ? !ComErrors.IsDisconnected(com) : ex is ArgumentException)
+        catch (Exception ex) when (ex is COMException com ? !ComErrors.IsGone(com) : ex is ArgumentException)
         {
             // E_INVALIDARG arrives as ArgumentException: e.g. a part copied into the document that was not converted to sheet metal.
             throw new ToolException("flatten_failed", $"Solid Edge could not flatten the sheet: {ex.Message}",
@@ -785,7 +785,7 @@ public static partial class FeatureService
         {
             model.EnsureOrdered();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // The result reports the mode the document was left in.
         }
@@ -858,7 +858,7 @@ public static partial class FeatureService
             sheet.GetGlobalParameter(parameter, out object value);
             return value;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }

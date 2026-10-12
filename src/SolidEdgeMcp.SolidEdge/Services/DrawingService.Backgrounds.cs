@@ -86,7 +86,7 @@ public static partial class DrawingService
                 back.ReplaceBackground(file, name);
             }
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("replace_failed", $"Solid Edge did not copy the background '{name}' of '{Path.GetFileName(file)}': {ex.Message.Trim()}",
                 "Pass a drawing (.dft) that Solid Edge can open.", ex);
@@ -125,7 +125,7 @@ public static partial class DrawingService
         {
             return sheet.Background;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }
@@ -186,7 +186,7 @@ public static partial class DrawingService
             {
                 r = GraphicRange(item);
             }
-            catch (Exception ex) when (Late.IsMemberFailure(ex) && !(ComErrors.Unwrap(ex) is COMException com && ComErrors.IsDisconnected(com)))
+            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
             {
                 continue;
             }

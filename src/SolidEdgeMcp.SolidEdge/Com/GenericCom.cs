@@ -136,6 +136,8 @@ public static class GenericCom
         ["RadialMenu.SavePallets"] = "closes Solid Edge (access violation in control.dll)",
         ["ViewStyle.BeginPropertyBuffer"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT)",
         ["ViewStyle.FlushPropertyBuffer"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT)",
+        ["Relations3d.AddPlanarCam"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the faces of the cam and the follower as assembly references)",
+        ["Relations3d.AddPath"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT, with an edge, a circular edge or a vertex as the follower)",
     };
 
     private static void RefuseUnsafe(Type? type, string member)

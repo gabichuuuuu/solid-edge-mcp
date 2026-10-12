@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
@@ -27,16 +28,24 @@ public sealed record RelationSpec(
     bool Flip = false,
     double? Angle = null,
     string[]? Occurrences = null,
-    string? Plane = null);
+    string? Plane = null,
+    string[]? Centered = null,
+    string[]? Between = null,
+    string? Point1 = null,
+    string? Point2 = null,
+    double[]? Ratio = null,
+    string? RatioBy = null,
+    bool? LockRotation = null);
 
 /// <summary>
 /// Assembly relations. The direction of Solid Edge's <c>NormalsAligned</c> does not always correspond to "align" or
 /// "face against" the faces, so each relation is checked against the resulting geometry in assembly coordinates
 /// (outward normals and signed distance) and is inverted if needed, as a person would do when looking at it.
 /// </summary>
-public static class RelationService
+public static partial class RelationService
 {
-    public static readonly IReadOnlyList<string> Types = ["planar", "axial", "insert", "parallel", "tangent", "angle", "rigid_set"];
+    public static readonly IReadOnlyList<string> Types =
+        ["planar", "axial", "insert", "parallel", "tangent", "angle", "rigid_set", "center_plane", "connect", "coordinate_system", "gear"];
 
     /// <summary>Result tolerances: 0.001 mm and a cosine of about 0.08°.</summary>
     private const double DistanceTolerance = 1e-6;
@@ -87,12 +96,26 @@ public static class RelationService
         if (!Types.Contains(spec.Type))
         {
             throw ToolException.InvalidArgument($"Unknown relation type '{spec.Type}'.",
-                $"Use one of: {string.Join(", ", Types)}. Other relations (gear, cam, path, center plane...) are available with se_com_invoke on the document's Relations3d.");
+                $"Use one of: {string.Join(", ", Types)}. Cam and path relations leave Solid Edge 2026 unstable through the API: add them with the Solid Edge commands.");
         }
 
-        if (spec.Type == "rigid_set")
+        if (spec.LockRotation is not null && spec.Type is not ("axial" or "insert"))
         {
-            return RigidSet(context, spec.Occurrences);
+            throw ToolException.InvalidArgument("'lockRotation' applies to axial and insert relations.");
+        }
+
+        switch (spec.Type)
+        {
+            case "rigid_set":
+                return RigidSet(context, spec.Occurrences);
+            case "center_plane":
+                return CenterPlane(context, spec);
+            case "connect":
+                return Connect(context, spec);
+            case "coordinate_system":
+                return CoordinateSystems(context, spec);
+            case "gear":
+                return Gear(context, spec);
         }
 
         Occurrence moving = OccurrenceOf(context, spec.Occurrence1, spec.Element1, "occurrence1", "element1")
@@ -179,7 +202,11 @@ public static class RelationService
 
             if (spec.Type == "axial")
             {
-                AddAxial(relations, first, second, spec.Flip, "element", created);
+                AxialRelation3d axial = AddAxial(relations, first, second, spec.Flip, "element", created);
+                if (spec.LockRotation is bool locked)
+                {
+                    LockRotation(axial, locked);
+                }
             }
             else if (spec.Type == "parallel")
             {
@@ -196,7 +223,7 @@ public static class RelationService
             else if (spec.Type == "insert")
             {
                 // Like the Solid Edge Insert command: planar mate + axial with the rotation locked.
-                AddAxial(relations, firstAxis!, secondAxis!, spec.Flip, "axis", created).FixedRotate = true;
+                LockRotation(AddAxial(relations, firstAxis!, secondAxis!, spec.Flip, "axis", created), spec.LockRotation ?? true);
                 if (planar is not null)
                 {
                     // The axis may have rotated the part: the face is checked again.
@@ -214,7 +241,7 @@ public static class RelationService
                 }
             }
         }
-        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsGone(ex))
         {
             foreach (object relation in created)
             {
@@ -521,6 +548,418 @@ public static class RelationService
         return new { relations = new[] { Describe(context, assembly, relation, []) } };
     }
 
+    /// <summary>
+    /// Adds relations that move <paramref name="moving"/>, ungrounded first as for the other positioning relations. If Solid
+    /// Edge rejects one, leaves it unsolved or <paramref name="add"/> finds the result wrong, the relations are deleted and
+    /// the occurrence is put back where it was.
+    /// </summary>
+    private static object Position(SeContext context, AssemblyDocument assembly, Occurrence moving, string type, Action<Relations3d, List<object>> add)
+    {
+        moving.GetTransform(out double x, out double y, out double z, out double ax, out double ay, out double az);
+        bool ungrounded = AssemblyService.Unground(assembly, moving);
+        var created = new List<object>();
+        try
+        {
+            add(assembly.Relations3d, created);
+            RequireSolved(created);
+        }
+        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsGone(ex))
+        {
+            foreach (object relation in created)
+            {
+                TryDelete(relation);
+            }
+
+            moving.PutTransform(x, y, z, ax, ay, az);
+            if (ungrounded)
+            {
+                assembly.Relations3d.AddGround(moving);
+            }
+
+            if (ex is ToolException)
+            {
+                throw;
+            }
+
+            throw new ToolException("relation_failed", $"Solid Edge rejected the {type} relation: {ex.Message}",
+                "Check the elements with se_geometry ('source' = the occurrence); the occurrence was put back where it was.", ex);
+        }
+
+        Occurrence[] none = [];
+        return new
+        {
+            relations = created.Select(r => Describe(context, assembly, r, none)).ToList(),
+            occurrence = AssemblyService.Describe(context, assembly, moving, AssemblyService.GroundedIds(assembly)),
+            ungrounded,
+        };
+    }
+
+    private static void RequireSolved(IEnumerable<object> created)
+    {
+        foreach (object relation in created)
+        {
+            string status = DetailedStatus(relation);
+            if (status != "solved")
+            {
+                throw new ToolException("relation_failed", $"The {TypeName(relation)} relation is {status}.",
+                    "Check that the elements can be related and that the occurrence is not held by other relations (se_relations list with 'occurrence').");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Center-plane relation: one face or plane of the moving occurrence, or the plane midway between two of its faces, ends
+    /// midway between two faces or planes of other occurrences or of the assembly. Verified in Solid Edge 2026: the single
+    /// form takes the same element twice (Nothing as the second one fails with E_NOINTERFACE).
+    /// </summary>
+    private static object CenterPlane(SeContext context, RelationSpec spec)
+    {
+        if (spec.Centered is not { Length: 1 or 2 } centered)
+        {
+            throw ToolException.InvalidArgument("A center_plane relation needs 'centered': one face or plane of the occurrence that moves (that face is centred) or two (the plane midway between them is centred).",
+                "Faces: se_geometry action 'faces' with 'source' = the occurrence.");
+        }
+
+        if (spec.Between is not { Length: 2 } between)
+        {
+            throw ToolException.InvalidArgument("A center_plane relation needs 'between': the two faces or planes it is centred between (of other occurrences, or assembly planes '1'-'3').");
+        }
+
+        Occurrence moving = OccurrenceOf(context, spec.Occurrence1, centered[0], "occurrence1", "centered[0]")
+            ?? throw ToolException.InvalidArgument("'occurrence1' is required (the occurrence that moves), unless 'centered' holds face handles from se_geometry with 'source' = that occurrence.");
+        AssemblyDocument assembly = moving.TopLevelDocument;
+        Side[] mine = [.. centered.Select((handle, i) => Resolve(context, assembly, moving, handle, $"centered[{i}]"))];
+        Side[] targets = [.. between.Select((handle, i) =>
+        {
+            Occurrence? owner = OccurrenceOf(context, spec.Occurrence2, handle, "occurrence2", $"between[{i}]");
+            return owner is not null && owner.OccurrenceID == moving.OccurrenceID
+                ? throw ToolException.InvalidArgument($"'between[{i}]' belongs to the occurrence that moves: use faces of other occurrences or assembly planes.")
+                : Resolve(context, assembly, owner, handle, $"between[{i}]");
+        })];
+
+        // The faces must be parallel planes: checked before touching the assembly.
+        (_, double[] normal) = PlaneOf(targets[0], "between[0]");
+        foreach ((Side side, string name) in mine.Select((s, i) => (s, $"centered[{i}]")).Append((targets[1], "between[1]")))
+        {
+            if (Math.Abs(Dot(PlaneOf(side, name).Normal, normal)) < ParallelCosine)
+            {
+                throw ToolException.InvalidArgument($"'{name}' is not parallel to 'between[0]': a center-plane relation relates parallel planar faces or planes.");
+            }
+        }
+
+        double Along(Side side, string name) => Dot(PlaneOf(side, name).Point, normal);
+        return Position(context, assembly, moving, "center_plane", (relations, created) =>
+        {
+            Array point1 = new double[3];
+            Array point2 = new double[3];
+            Array point3 = new double[3];
+            Array point4 = new double[3];
+            created.Add(relations.AddCenterPlane(mine[0].Reference, mine[^1].Reference, targets[0].Reference, targets[1].Reference,
+                ref point1, ref point2, ref point3, ref point4));
+            RequireSolved(created);
+            double goal = (Along(targets[0], "between[0]") + Along(targets[1], "between[1]")) / 2;
+            double middle = mine.Select((s, i) => Along(s, $"centered[{i}]")).Average();
+            if (Math.Abs(middle - goal) > DistanceTolerance)
+            {
+                throw new ToolException("relation_failed",
+                    $"After the center-plane relation the centred {(mine.Length == 2 ? "mid-plane" : "face")} is {Geo.Mm(middle - goal)} mm from the middle of the two faces.",
+                    "Check that the occurrence is not held by other relations (se_relations list with 'occurrence').");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Connect relation (PointRelation3d): a key point of an edge of the moving occurrence (start, end, middle or centre)
+    /// onto a key point of another edge, or onto a planar face, a plane or a straight edge. The start and end are those of
+    /// the edge as se_geometry lists them (verified in Solid Edge 2026).
+    /// </summary>
+    private static object Connect(SeContext context, RelationSpec spec)
+    {
+        string key1 = spec.Point1 ?? throw ToolException.InvalidArgument("A connect relation needs 'point1': start, end, mid or center of the edge 'element1'.");
+        Occurrence moving = OccurrenceOf(context, spec.Occurrence1, spec.Element1, "occurrence1", "element1")
+            ?? throw ToolException.InvalidArgument("'occurrence1' is required (the occurrence that moves), unless 'element1' is an edge handle from se_geometry with 'source' = that occurrence.");
+        AssemblyDocument assembly = moving.TopLevelDocument;
+        Occurrence? target = OccurrenceOf(context, spec.Occurrence2, spec.Element2, "occurrence2", "element2");
+        if (target is not null && target.OccurrenceID == moving.OccurrenceID)
+        {
+            throw ToolException.InvalidArgument("'occurrence1' and 'occurrence2' must be different occurrences.");
+        }
+
+        Side first = Resolve(context, assembly, moving, spec.Element1, "element1");
+        Side second = Resolve(context, assembly, target, spec.Element2, "element2");
+        double Gap()
+        {
+            double[] point = KeyPointOf(first, key1, "element1");
+            if (spec.Point2 is { } key2)
+            {
+                return Geo.Length(Minus(point, KeyPointOf(second, key2, "element2")));
+            }
+
+            if (second.Element is SolidEdgeGeometry.Edge { Geometry: SolidEdgeGeometry.Line })
+            {
+                (double[] start, double[] direction) = AxisOf(second, "element2");
+                return Geo.Length(Geo.Cross(Minus(point, start), direction));
+            }
+
+            if (second.Element is SolidEdgeGeometry.Edge)
+            {
+                throw ToolException.InvalidArgument("Without 'point2', 'element2' must be a planar face, a plane or a straight edge.",
+                    "To meet a point of a curved edge, give 'point2' (start, end, mid or center).");
+            }
+
+            (double[] root, double[] normal) = PlaneOf(second, "element2");
+            return Math.Abs(Dot(Minus(point, root), normal));
+        }
+
+        Gap(); // checks both elements before touching the assembly
+        return Position(context, assembly, moving, "connect", (relations, created) =>
+        {
+            created.Add(spec.Point2 is { } key2
+                ? relations.AddPoint(first.Reference, KeyPoint(key1), second.Reference, KeyPoint(key2))
+                : relations.AddPoint(first.Reference, KeyPoint(key1), second.Reference));
+            RequireSolved(created);
+            double gap = Gap();
+            if (gap > DistanceTolerance)
+            {
+                throw new ToolException("relation_failed", $"After the connect relation the point is {Geo.Mm(gap)} mm away from 'element2'.",
+                    "Check that the occurrence is not held by other relations (se_relations list with 'occurrence').");
+            }
+        });
+    }
+
+    private static Relation3dGeometryConstants KeyPoint(string key) => key.ToLowerInvariant() switch
+    {
+        "start" => Relation3dGeometryConstants.igRelation3dStartPoint,
+        "end" => Relation3dGeometryConstants.igRelation3dEndPoint,
+        "mid" => Relation3dGeometryConstants.igRelation3dMidPoint,
+        "center" => Relation3dGeometryConstants.igRelation3dCenterPoint,
+        _ => throw ToolException.InvalidArgument($"Unknown key point '{key}'.", "Use start, end, mid or center."),
+    };
+
+    /// <summary>Start, end, middle or centre of an edge (m, assembly coordinates).</summary>
+    private static double[] KeyPointOf(Side side, string key, string argumentName)
+    {
+        if (side.Element is not SolidEdgeGeometry.Edge edge)
+        {
+            throw ToolException.InvalidArgument($"'{argumentName}' must be an edge to take its {key} point.",
+                "Edges: se_geometry action 'edges' with 'source' = the occurrence.");
+        }
+
+        double[] point;
+        switch (KeyPoint(key))
+        {
+            case Relation3dGeometryConstants.igRelation3dStartPoint or Relation3dGeometryConstants.igRelation3dEndPoint:
+                Array start = new double[3];
+                Array end = new double[3];
+                edge.GetEndPoints(ref start, ref end);
+                point = [.. Geo.Doubles(KeyPoint(key) == Relation3dGeometryConstants.igRelation3dStartPoint ? start : end)];
+                break;
+            case Relation3dGeometryConstants.igRelation3dMidPoint:
+                edge.GetParamExtents(out double min, out double max);
+                Array parameters = new[] { (min + max) / 2 };
+                Array points = new double[3];
+                edge.GetPointAtParam(1, ref parameters, ref points);
+                point = [.. Geo.Doubles(points)];
+                break;
+            default:
+                if (edge.Geometry is not SolidEdgeGeometry.Circle circle)
+                {
+                    throw ToolException.InvalidArgument($"'{argumentName}' has no centre: 'center' needs a circular edge.");
+                }
+
+                Array center = new double[3];
+                Array axis = new double[3];
+                circle.GetCircleData(ref center, ref axis, out _);
+                point = [.. Geo.Doubles(center)];
+                break;
+        }
+
+        Placement? placement = side.Occurrence is null ? null : Placement.Of(side.Occurrence);
+        return placement?.Point(point) ?? point;
+    }
+
+    /// <summary>
+    /// Coordinate system relation: a coordinate system of the moving occurrence's part ends on one of another occurrence's
+    /// part or of the assembly, origins and axes together (verified in Solid Edge 2026).
+    /// </summary>
+    private static object CoordinateSystems(SeContext context, RelationSpec spec)
+    {
+        Occurrence moving = AssemblyService.Occurrence(context, spec.Occurrence1, "occurrence1");
+        AssemblyDocument assembly = moving.TopLevelDocument;
+        Occurrence? target = string.IsNullOrWhiteSpace(spec.Occurrence2) ? null : AssemblyService.Occurrence(context, spec.Occurrence2, "occurrence2");
+        if (target is not null && target.OccurrenceID == moving.OccurrenceID)
+        {
+            throw ToolException.InvalidArgument("'occurrence1' and 'occurrence2' must be different occurrences.");
+        }
+
+        SolidEdgePart.CoordinateSystem mine = SystemOf(context, moving.OccurrenceDocument, spec.Element1, "element1", $"'{moving.Name}'");
+        SolidEdgePart.CoordinateSystem theirs = target is null
+            ? SystemOf(context, assembly, spec.Element2, "element2", "the assembly")
+            : SystemOf(context, target.OccurrenceDocument, spec.Element2, "element2", $"'{target.Name}'");
+        return Position(context, assembly, moving, "coordinate_system", (relations, created) =>
+        {
+            object second = target is null ? theirs : assembly.CreateReference(target, theirs);
+            created.Add(relations.AddCoordinateSystem(assembly.CreateReference(moving, mine), second));
+            RequireSolved(created);
+            (double[] o1, double[] x1, double[] z1) = FrameOf(mine, moving);
+            (double[] o2, double[] x2, double[] z2) = FrameOf(theirs, target);
+            double gap = Geo.Length(Minus(o1, o2));
+            bool turned = Dot(x1, x2) < ParallelCosine || Dot(z1, z2) < ParallelCosine;
+            if (gap > DistanceTolerance || turned)
+            {
+                throw new ToolException("relation_failed",
+                    $"After the coordinate system relation the origins are {Geo.Mm(gap)} mm apart{(turned ? " and the axes differ" : "")}.",
+                    "Check that the occurrence is not held by other relations (se_relations list with 'occurrence').");
+            }
+        });
+    }
+
+    /// <summary>Origin, X and Z axes of a coordinate system in assembly coordinates (m).</summary>
+    private static (double[] Origin, double[] X, double[] Z) FrameOf(SolidEdgePart.CoordinateSystem system, Occurrence? owner)
+    {
+        (double[] origin, double[] x, _, double[] z) = RefPlaneService.Axes(system);
+        if (owner is null)
+        {
+            return (origin, Unit(x), Unit(z));
+        }
+
+        Placement placement = Placement.Of(owner);
+        return (placement.Point(origin), Unit(placement.Vector(x)), Unit(placement.Vector(z)));
+    }
+
+    /// <summary>A coordinate system of a document by name (any case) or handle; the error lists the names there are.</summary>
+    private static SolidEdgePart.CoordinateSystem SystemOf(SeContext context, object document, string? element, string argumentName, string owner)
+    {
+        List<SolidEdgePart.CoordinateSystem> systems = Late.Get(document, "CoordinateSystems") is { } collection
+            ? [.. Late.Items(collection).OfType<SolidEdgePart.CoordinateSystem>()]
+            : [];
+        string names = systems.Count == 0 ? "none" : string.Join(", ", systems.Select(s => s.Name));
+        if (string.IsNullOrWhiteSpace(element))
+        {
+            throw ToolException.InvalidArgument($"'{argumentName}' is required: a coordinate system of {owner} ({names}).");
+        }
+
+        SolidEdgePart.CoordinateSystem? found = HandlePattern().IsMatch(element.Trim())
+            ? context.Handles.Resolve<SolidEdgePart.CoordinateSystem>(element.Trim(), argumentName)
+            : systems.FirstOrDefault(s => string.Equals(s.Name, element.Trim(), StringComparison.OrdinalIgnoreCase));
+        return found is not null && systems.Any(s => Late.SameObject(s, found))
+            ? found
+            : throw ToolException.NotFound($"{owner} has no coordinate system '{element}'.", $"Its coordinate systems: {names}.");
+    }
+
+    /// <summary>
+    /// Gear relation: element2 turns, or moves along a straight edge (rack and pinion), as element1 turns. Verified in Solid
+    /// Edge 2026: nothing moves when it is added; both turn the same way unless flip is set; the distance of a rack is
+    /// given in metres per the turns of element1; and an occurrence held by an axial relation with its rotation locked does
+    /// not turn (lockRotation false on that relation frees it).
+    /// </summary>
+    private static object Gear(SeContext context, RelationSpec spec)
+    {
+        if (spec.Ratio is not { Length: 2 } ratio || ratio.Any(v => !double.IsFinite(v) || v <= 0))
+        {
+            throw ToolException.InvalidArgument("A gear relation needs 'ratio': two numbers > 0, the teeth of element1 and element2, or with ratioBy 'turns' the turns of element1 and the turns of element2 (or the mm a rack moves).");
+        }
+
+        string by = (spec.RatioBy ?? "teeth").ToLowerInvariant();
+        if (by is not ("teeth" or "turns"))
+        {
+            throw ToolException.InvalidArgument($"Unknown 'ratioBy' '{spec.RatioBy}'.", "Use teeth or turns.");
+        }
+
+        Occurrence first = OccurrenceOf(context, spec.Occurrence1, spec.Element1, "occurrence1", "element1")
+            ?? throw ToolException.InvalidArgument("'occurrence1' is required (the gear that drives), unless 'element1' is a face or edge handle from se_geometry with 'source' = that occurrence.");
+        AssemblyDocument assembly = first.TopLevelDocument;
+        Occurrence second = OccurrenceOf(context, spec.Occurrence2, spec.Element2, "occurrence2", "element2")
+            ?? throw ToolException.InvalidArgument("'occurrence2' is required (the gear or rack that is driven), unless 'element2' is a face or edge handle read from it.");
+        if (second.OccurrenceID == first.OccurrenceID)
+        {
+            throw ToolException.InvalidArgument("'occurrence1' and 'occurrence2' must be different occurrences.");
+        }
+
+        Side driver = Resolve(context, assembly, first, spec.Element1, "element1");
+        Side driven = Resolve(context, assembly, second, spec.Element2, "element2");
+        if (!Turns(driver))
+        {
+            throw ToolException.InvalidArgument("'element1' must be what turns: a cylindrical or conical face or a circular edge of the driving gear.",
+                "For a rack and pinion, element1 is the pinion and element2 a straight edge of the rack along its travel.");
+        }
+
+        bool rack = !Turns(driven);
+        if (rack && driven.Element is not SolidEdgeGeometry.Edge { Geometry: SolidEdgeGeometry.Line })
+        {
+            throw ToolException.InvalidArgument("'element2' must be a cylindrical or conical face or a circular edge (a gear), or a straight edge of a rack along its travel.");
+        }
+
+        if (rack && by != "turns")
+        {
+            throw ToolException.InvalidArgument("For a rack (a straight edge in 'element2') use ratioBy 'turns': ratio = [turns of element1, mm the rack moves].");
+        }
+
+        double value2 = rack ? Units.MmToM(ratio[1]) : ratio[1];
+        string[] held = [.. new[] { first, second }.Where(o => AssemblyService.StatusName(o) is "fully_constrained" or "fixed").Select(o => o.Name)];
+        GearRelation3d? relation = null;
+        try
+        {
+            relation = assembly.Relations3d.AddGear(driver.Reference, driven.Reference,
+                rack ? Relation3dGearTypeConstants.igRelation3dGearTypeRotaryLinear : Relation3dGearTypeConstants.igRelation3dGearTypeRotaryRotary,
+                by == "turns" ? Relation3dGearRatioTypeConstants.igRelation3dGearRatioTypeNumberOfTurns : Relation3dGearRatioTypeConstants.igRelation3dGearRatioTypeNumberOfTeeth,
+                ratio[0], value2, spec.Flip);
+            RequireSolved([relation]);
+            if (Math.Abs(relation.RatioValue1 - ratio[0]) > 1e-9 || Math.Abs(relation.RatioValue2 - value2) > 1e-9)
+            {
+                throw new ToolException("relation_failed", string.Create(CultureInfo.InvariantCulture,
+                    $"Solid Edge kept the ratio {relation.RatioValue1}:{relation.RatioValue2} instead of {ratio[0]}:{value2}."),
+                    "Check the ratio and the elements.");
+            }
+        }
+        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsGone(ex))
+        {
+            if (relation is not null)
+            {
+                TryDelete(relation);
+            }
+
+            if (ex is ToolException)
+            {
+                throw;
+            }
+
+            throw new ToolException("relation_failed", $"Solid Edge rejected the gear relation: {ex.Message}",
+                "Use cylindrical or conical faces or circular edges for gears, and a straight edge for a rack.", ex);
+        }
+
+        HashSet<int> grounded = AssemblyService.GroundedIds(assembly);
+        return new
+        {
+            relations = new[] { Describe(context, assembly, relation, []) },
+            occurrences = new[] { AssemblyService.Describe(context, assembly, first, grounded), AssemblyService.Describe(context, assembly, second, grounded) },
+            note = held.Length > 0
+                ? $"{string.Join(" and ", held)} could not move before the gear relation, so the gears do not turn: free the rotation (lockRotation false on the axial relation) or remove what holds it."
+                : null,
+        };
+    }
+
+    /// <summary>A cylindrical or conical face or a circular edge: something that turns about an axis.</summary>
+    private static bool Turns(Side side) => side.Element is Face { Geometry: SolidEdgeGeometry.Cylinder or SolidEdgeGeometry.Cone }
+        or SolidEdgeGeometry.Edge { Geometry: SolidEdgeGeometry.Circle };
+
+    [GeneratedRegex(@"^[a-z_0-9]+:\d+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex HandlePattern();
+
+    /// <summary>
+    /// Locks or frees the rotation of an axial relation about its axis. Verified in Solid Edge 2026: AddAxial locks it, so a
+    /// part held by an axial and a planar relation cannot turn (a gear relation then does not move it).
+    /// </summary>
+    private static void LockRotation(AxialRelation3d relation, bool locked)
+    {
+        relation.FixedRotate = locked;
+        if (relation.FixedRotate != locked)
+        {
+            throw new ToolException("relation_failed", $"Solid Edge kept the rotation of the axial relation {(locked ? "free" : "locked")}.",
+                "Check the relations that hold the occurrence (se_relations list with 'occurrence').");
+        }
+    }
+
     /// <summary>Axis, direction and radius of a cylindrical face (m, assembly coordinates).</summary>
     private static (double[] Point, double[] Direction, double Radius) CylinderOf(Side side, string argumentName)
     {
@@ -671,10 +1110,28 @@ public static class RelationService
             info["offset"] = Geo.Mm(offset);
         }
 
-        if (relation is AxialRelation3d { ParallelOffset: true } axial)
+        if (relation is AxialRelation3d axial)
         {
-            info["parallel"] = true;
-            info["fixedOffset"] = axial.FixedParallelOffset;
+            if (axial.ParallelOffset)
+            {
+                info["parallel"] = true;
+                info["fixedOffset"] = axial.FixedParallelOffset;
+            }
+            else
+            {
+                info["rotationLocked"] = axial.FixedRotate;
+            }
+        }
+
+        if (relation is GearRelation3d gear)
+        {
+            // A rack (a straight edge) moves a distance, kept in metres by Solid Edge: shown in mm.
+            bool rack = Late.TryGet(gear.GetElement2(out _), "Object") is SolidEdgeGeometry.Edge { Geometry: SolidEdgeGeometry.Line };
+            info["ratio"] = new[] { gear.RatioValue1, rack ? Geo.Mm(gear.RatioValue2) : gear.RatioValue2 };
+            if (rack)
+            {
+                info["rack"] = true;
+            }
         }
 
         if (Late.TryGet(relation, "Angle") is double angle)
@@ -690,14 +1147,22 @@ public static class RelationService
         return info;
     }
 
-    /// <summary>Occurrences of the relation; suppressed ones cannot be read and are skipped.</summary>
+    /// <summary>
+    /// Occurrences of the relation; suppressed ones cannot be read and are skipped. Center-plane and coordinate system
+    /// relations have no Occurrence1/2: their elements are references whose Parent is the occurrence (verified).
+    /// </summary>
     private static Occurrence[] Members(object relation) => (relation switch
         {
             GroundRelation3d => new[] { Late.TryGet(relation, "Occurrence") },
             RigidSetRelation3d => (Late.TryGet(relation, "Occurrences") as Array)?.Cast<object?>().ToArray() ?? [],
+            CenterPlaneRelation3d plane => [ParentOf(plane.GetElement1(out _)), ParentOf(plane.GetElement2(out _)), ParentOf(plane.GetElement3(out _)), ParentOf(plane.GetElement4(out _))],
+            CoordinateSystemRelation3d systems => [ParentOf(systems.GetElement1(out _)), ParentOf(systems.GetElement2(out _))],
             _ => new[] { Late.TryGet(relation, "Occurrence1"), Late.TryGet(relation, "Occurrence2") },
         })
-        .OfType<Occurrence>().Where(o => Late.TryGet(o, "OccurrenceID") is not null).ToArray();
+        .OfType<Occurrence>().Where(o => Late.TryGet(o, "OccurrenceID") is not null)
+        .DistinctBy(o => o.OccurrenceID).ToArray();
+
+    private static object? ParentOf(object? element) => element is null ? null : Late.TryGet(element, "Parent");
 
     private static string TypeName(object relation) => relation switch
     {
@@ -706,8 +1171,13 @@ public static class RelationService
         AxialRelation3d => "axial",
         AngularRelation3d => "angle",
         TangentRelation3d => "tangent",
-        PointRelation3d => "point",
+        PointRelation3d => "connect",
         RigidSetRelation3d => "rigid_set",
+        CenterPlaneRelation3d => "center_plane",
+        CoordinateSystemRelation3d => "coordinate_system",
+        GearRelation3d => "gear",
+        CamFollowerRelation3d => "cam",
+        PathRelation3d => "path",
         _ => (InteropCatalog.GetTypeName(relation) ?? "relation").Split('.')[^1],
     };
 

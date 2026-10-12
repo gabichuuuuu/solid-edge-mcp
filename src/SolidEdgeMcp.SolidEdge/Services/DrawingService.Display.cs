@@ -356,7 +356,7 @@ public static partial class DrawingService
 
             view.Update();
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             // The error that stopped the break is the one reported.
         }
@@ -378,7 +378,7 @@ public static partial class DrawingService
         {
             return [.. Late.Items(view.ModelMembers).OfType<ModelMember>()];
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             return [];
         }

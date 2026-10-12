@@ -123,7 +123,7 @@ public static partial class AssemblyFeatureService
             Array features = parents;
             pattern = patterns.Add(parents.Length, ref features, profile, (FeaturePropertyConstants)1);
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             RemoveAddedSince(patterns, before);
             TryDelete(set);
@@ -201,7 +201,7 @@ public static partial class AssemblyFeatureService
             Array edgeArray = edges;
             label = labels.Add(edges.Length, ref edgeArray, data);
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             RemoveAddedSince(labels, before);
             throw new ToolException("feature_failed", $"Solid Edge did not make the label weld: {ComErrors.Unwrap(ex).Message.Trim()}", "Pass edges of the parts read with se_geometry 'edges'.");
@@ -269,7 +269,7 @@ public static partial class AssemblyFeatureService
                 FeaturePropertyConstants.igLeft, ref length, null, ref flags, null, null);
             Discard(protrusion);
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             // Without it the frame is still made; only later assembly features may be refused.
         }
@@ -395,7 +395,7 @@ public static partial class AssemblyFeatureService
         {
             feature = add();
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             RemoveAddedSince(collection, before);
             throw new ToolException("feature_failed", $"Solid Edge did not make the {type.Replace('_', ' ')}: {ComErrors.Unwrap(ex).Message.Trim()}", hint);
@@ -452,7 +452,7 @@ public static partial class AssemblyFeatureService
         {
             return Late.TryGet(feature, "AssemblyBody") is { } assemblyBody && Late.TryGet(assemblyBody, "Body") is SolidEdgeGeometry.Body body ? body.Volume : 0;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return 0;
         }
@@ -481,7 +481,7 @@ public static partial class AssemblyFeatureService
 
             return [x1, y1, z1, x2, y2, z2];
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }
@@ -494,7 +494,7 @@ public static partial class AssemblyFeatureService
         {
             return [.. Late.Items((Faces)pattern.Faces[TopologyQuery.igQueryAll]).OfType<SolidEdgeGeometry.Face>()];
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return [];
         }

@@ -167,7 +167,7 @@ public static class StyleService
         {
             _ = kind.ParentInAdd ? Late.Call(collection, "Add", wanted, parent ?? "") : Late.Call(collection, "Add", wanted);
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             throw new ToolException("style_failed", $"Solid Edge did not create the {kind.Title} '{wanted}': {ComErrors.Unwrap(ex).Message.Trim()}", null, ex);
         }
@@ -194,7 +194,7 @@ public static class StyleService
         {
             Late.Call(collection, "Remove", styleName);
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             throw new ToolException("style_in_use", $"Solid Edge did not delete the {kind.Title} '{styleName}': {ComErrors.Unwrap(ex).Message.Trim()}",
                 "It may be in use or be one of the styles Solid Edge needs.", ex);
@@ -226,7 +226,7 @@ public static class StyleService
         {
             Late.Call(document, "ImportStyles2", importType, replace, source);
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             throw new ToolException("style_failed", $"Solid Edge did not import the {kind.Title}s: {ComErrors.Unwrap(ex).Message.Trim()}", null, ex);
         }

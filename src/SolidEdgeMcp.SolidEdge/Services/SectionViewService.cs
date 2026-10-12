@@ -78,7 +78,7 @@ public static class SectionViewService
         {
             view = (SectionView)views.Add(1, ref profiles, caption?.Trim() ?? "", metres, extent, side, cutHardware ? 1 : 0);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("section_failed", $"Solid Edge did not make the section view: {ex.Message.Trim()}",
                 "Close the sketch first (se_sketch close; open=true for a single open line) and check that it crosses the model.", ex);

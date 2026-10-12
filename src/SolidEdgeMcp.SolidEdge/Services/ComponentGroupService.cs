@@ -50,7 +50,7 @@ public static class ComponentGroupService
         {
             group = assembly.AssemblyGroups.Add(members.Length, ref components);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // A failed Add can leave an empty group behind.
             DiscardNew(assembly, groups);
@@ -85,7 +85,7 @@ public static class ComponentGroupService
         {
             group.AddToGroup(members.Length, ref components);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             TakeOut(group, members);
             throw new ToolException("group_failed", $"Solid Edge did not add the components to '{group.Name}': {ex.Message}",
@@ -118,7 +118,7 @@ public static class ComponentGroupService
         {
             group.RemoveFromGroup(members.Length, ref components);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             PutBack(group, members);
             throw new ToolException("group_failed", $"Solid Edge did not remove the components from '{group.Name}': {ex.Message}",
@@ -163,7 +163,7 @@ public static class ComponentGroupService
         {
             group.Visible = visible;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             RestoreVisibility(members, before);
             throw new ToolException("group_failed", $"Solid Edge did not {(visible ? "show" : "hide")} the group '{group.Name}': {ex.Message}",
@@ -219,7 +219,7 @@ public static class ComponentGroupService
         {
             group = assembly.AssemblyGroups.AddPacked(occurrence);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             DiscardNew(assembly, groups);
             throw new ToolException("group_failed", $"Solid Edge did not pack the occurrences of '{occurrence.Name}': {ex.Message}",
@@ -280,7 +280,7 @@ public static class ComponentGroupService
         {
             group.Delete();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             failure = ex;
         }
@@ -427,7 +427,7 @@ public static class ComponentGroupService
         {
             group.Name = name;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             undo?.Invoke();
             throw new ToolException("group_failed", $"Solid Edge did not accept the group name '{name}': {ex.Message}", "Pass another name.", ex);
@@ -495,7 +495,7 @@ public static class ComponentGroupService
         {
             operation();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("group_failed", $"Solid Edge did not {what}: {ex.Message}",
                 "Check the assembly with se_component_group list and se_assembly list.", ex);

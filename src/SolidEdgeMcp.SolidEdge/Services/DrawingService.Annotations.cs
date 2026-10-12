@@ -547,7 +547,7 @@ public static partial class DrawingService
         {
             check();
         }
-        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsGone(ex))
         {
             TryDelete(annotation);
             if (ex is ToolException)
@@ -636,7 +636,7 @@ public static partial class DrawingService
 
             return [Geo.Mm(x), Geo.Mm(y)];
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }

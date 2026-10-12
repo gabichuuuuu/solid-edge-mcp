@@ -42,6 +42,21 @@ public static class ComErrors
         hr is RpcEDisconnected or RpcEServerDied or RpcEServerDiedDne or RpcSServerUnavailable or RpcSCallFailed or CoEObjNotConnected;
 
     /// <summary>
+    /// Is Solid Edge itself gone (closed, crashed or unreachable)? Unlike <see cref="IsDisconnected(Exception)"/>, an object
+    /// that Solid Edge deleted does not count (CO_E_OBJNOTCONNECTED: verified in Solid Edge 2026, <c>Holes.AddThroughAll</c>
+    /// raises it for a hole it cannot build and removes), so undoing and cleaning up after a failed call still run.
+    /// </summary>
+    public static bool IsGone(Exception ex) => Unwrap(ex) switch
+    {
+        InvalidComObjectException => true,
+        COMException com => IsDisconnected(com.HResult) && com.HResult != CoEObjNotConnected,
+        _ => false,
+    };
+
+    /// <summary>Did Solid Edge delete the object the call used (CO_E_OBJNOTCONNECTED) while it keeps running?</summary>
+    public static bool IsObjectRemoved(Exception ex) => Unwrap(ex) is COMException { HResult: CoEObjNotConnected };
+
+    /// <summary>
     /// Was a single direct COM call rejected while Solid Edge keeps running? .NET raises some HRESULTs as other exceptions
     /// (E_INVALIDARG as ArgumentException, E_POINTER as NullReferenceException, E_NOINTERFACE as InvalidCastException), so
     /// only wrap one COM call with it.

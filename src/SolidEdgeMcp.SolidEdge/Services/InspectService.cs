@@ -511,7 +511,7 @@ public static class InspectService
         {
             return occurrence.HasBodyOverride ? occurrence.Body as Body : null;
         }
-        catch (System.Runtime.InteropServices.COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (System.Runtime.InteropServices.COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }

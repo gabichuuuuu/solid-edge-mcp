@@ -54,7 +54,7 @@ public static partial class AssemblyService
             {
                 rows.Add(Describe(context, assembly, occurrence, grounded));
             }
-            catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
             {
                 rows.Add(new { handle = context.Register(occurrence, "occurrence", (SolidEdgeDocument)assembly), name = occurrence.Name, available = false, error = ex.Message });
                 continue;
@@ -428,7 +428,7 @@ public static partial class AssemblyService
                 CultureInfo.InvariantCulture, null);
             return args[2] is Array components ? components.OfType<SuppressComponent>().ToList() : [];
         }
-        catch (Exception ex) when (ex is COMException or TargetInvocationException or NullReferenceException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ex is COMException or TargetInvocationException or NullReferenceException && !ComErrors.IsGone(ex))
         {
             return [];
         }
@@ -455,7 +455,7 @@ public static partial class AssemblyService
         {
             return ground.Occurrence.OccurrenceID;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return null;
         }
@@ -536,7 +536,7 @@ public static partial class AssemblyService
         _ => "other",
     };
 
-    private static string StatusName(Occurrence occurrence)
+    internal static string StatusName(Occurrence occurrence)
     {
         try
         {
@@ -550,7 +550,7 @@ public static partial class AssemblyService
                 _ => "unknown",
             };
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return "unknown";
         }

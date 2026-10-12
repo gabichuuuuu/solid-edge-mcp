@@ -144,7 +144,7 @@ public static partial class ViewService
                 throw new ToolException("view_failed", "Solid Edge did not keep the camera of the named view.", "Try again with the window shown.");
             }
         }
-        catch (Exception ex) when (ex is ToolException || (ComErrors.Unwrap(ex) is COMException && !ComErrors.IsDisconnected(ex)))
+        catch (Exception ex) when (ex is ToolException || (ComErrors.Unwrap(ex) is COMException && !ComErrors.IsGone(ex)))
         {
             TryRemove(views, viewName);
             throw ex is ToolException ? ex : new ToolException("view_failed", $"Solid Edge rejected the named view: {ComErrors.Unwrap(ex).Message.Trim()}", "Use a plain name.", ex);
@@ -268,7 +268,7 @@ public static partial class ViewService
         {
             views.Remove(name);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Left as it is; the error reports the failure.
         }

@@ -68,7 +68,7 @@ public static class ApplicationService
         {
             target.Connect = connect;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("addin_failed", $"Solid Edge could not {(connect ? "load" : "unload")} '{target.Description}': {ex.Message}",
                 "The add-in may be missing or broken; check it in the Add-In Manager of Solid Edge.", ex);

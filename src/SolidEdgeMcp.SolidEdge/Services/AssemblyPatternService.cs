@@ -64,7 +64,7 @@ public static class AssemblyPatternService
             created = assembly.AssemblyPatterns.Create(patternTitle, ref mastersArray,
                 assembly.CreateReference(source, pattern), assembly.CreateReference(source, reference));
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("pattern_failed", $"Solid Edge did not create the pattern ({ex.Message}).",
                 "Check that the occurrences are placed at the reference feature (the first instance of the part pattern).");
@@ -131,7 +131,7 @@ public static class AssemblyPatternService
         {
             created = assembly.AssemblyPatterns.CreateDuplicateEx(patternTitle, sources.Length, ref sourcesArray, from, targets.Length, ref targetsArray);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("pattern_failed", $"Solid Edge did not create the duplicate pattern ({ex.Message}).",
                 "Check that the occurrences to duplicate are not part of another pattern.");
@@ -206,7 +206,7 @@ public static class AssemblyPatternService
             pattern.GetOccurrences(ref occurrences);
             return occurrences.OfType<Occurrence>().ToArray();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return [];
         }
@@ -249,7 +249,7 @@ public static class AssemblyPatternService
         {
             assembly.AssemblyPatterns.Delete(name);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // The error being reported is the original one.
         }

@@ -116,6 +116,13 @@ Relevant changes to this project are recorded here. The format follows
   put back afterwards. The result says when Solid Edge has recorded the print date in the drawing (which marks it
   as modified) and when Windows has made the printer used its default printer.
 - Acceptance script `A32` (printing to PDF files with the Microsoft Print to PDF printer).
+- `se_relations`: `center_plane` (one face of the moving part, or the plane midway between two of its faces, centred
+  between two faces or planes), `connect` (the start, end, middle or centre of an edge onto a point of another edge, a
+  planar face, a plane or a straight edge), `coordinate_system` (a coordinate system of a part onto one of another part
+  or of the assembly, by name) and `gear` (two gears in teeth or turns, or a gear and a rack in turns and mm; `flip`
+  turns the driven part the other way). Each result is measured. `lockRotation` frees (or locks) the rotation of an
+  axial or insert relation, which gears need: an axial relation made through the API locks it.
+- Acceptance script `A33` (center plane, connect, coordinate system, gear and rack relations).
 
 ### Changed
 
@@ -136,11 +143,19 @@ Relevant changes to this project are recorded here. The format follows
 - The acceptance runner compares texts by value in list filters, so a filter can write a space as `\u0020`
   (`[?name="Microsoft\u0020Print\u0020to\u0020PDF"]`).
 
+- `se_relations list` names point relations `connect`, as Solid Edge does, shows whether an axial relation locks the
+  rotation (`rotationLocked`) and the ratio of gear relations (a rack in mm).
+- The COM layer refuses `Relations3d.AddPlanarCam` and `AddPath` (`unsafe_member`): they leave Solid Edge 2026
+  unstable (RPC_E_SERVERFAULT).
 ### Fixed
 
 - `se_options set` with `null` on a text option no longer writes the text "null".
 - The generic layer describes the drawing views and blocks of a drawing with the draft interfaces, not with the part
   library's interfaces that share their IIDs.
+- An operation that Solid Edge cannot build and removes while creating it (for example a hole exactly as wide as the
+  bar) is reported as `feature_failed`, saying so, and its profile is removed. Before, the error was `object_deleted`
+  and the copy of the profile stayed in the part: undoing and cleaning up were skipped whenever Solid Edge deleted an
+  object during a call, as if Solid Edge had closed.
 - A drawing view converted to 2D (also by Solid Edge's own command) is listed without a model; parts lists and bend
   tables refuse it with `wrong_view` instead of an unexpected error.
 - `se_com_items` reads collections through their interop `Count` and `Item`: by name, an attribute set with an

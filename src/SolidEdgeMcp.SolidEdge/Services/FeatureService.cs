@@ -296,16 +296,19 @@ public static partial class FeatureService
         return (model, resolved);
     }
 
-    private static object Create(string what, Func<object> create) => Create(what, null, create);
+    private static object Create(string what, Func<object> create) => Create(what, null, create, sketch: false);
 
-    /// <summary>Creates the feature; if Solid Edge rejects it, deletes the profile copy and returns an actionable error.</summary>
-    private static object Create(string what, IncludedProfile? included, Func<object> create)
+    /// <summary>
+    /// Creates the feature; if Solid Edge rejects it, deletes the profile copy and returns an actionable error.
+    /// <paramref name="sketch"/>: the profile comes from a sketch of the person, which is kept for another try.
+    /// </summary>
+    private static object Create(string what, IncludedProfile? included, Func<object> create, bool sketch = true)
     {
         try
         {
             return create();
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsDisconnected(com))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsGone(com))
         {
             // Calls through IDispatch (Late) arrive wrapped in TargetInvocationException.
             if (included is not null)
@@ -313,10 +316,17 @@ public static partial class FeatureService
                 DeleteIncluded(included);
             }
 
-            throw new ToolException("feature_failed", $"Solid Edge rejected the {what}: {com.Message}",
-                "Check that the sketch is closed (se_sketch 'close'), the direction and extent, and that the geometry intersects the part. The sketch is kept: call the tool again with it.", ex);
+            string kept = sketch ? " The sketch is kept: call the tool again with it." : "";
+            throw ComErrors.IsObjectRemoved(com)
+                ? new ToolException("feature_failed", $"Solid Edge could not build the {what} and removed it.", NotBuiltHint + kept, ex)
+                : new ToolException("feature_failed", $"Solid Edge rejected the {what}: {com.Message}",
+                    (sketch ? "Check that the sketch is closed (se_sketch 'close'), the direction and extent, and that the geometry intersects the part."
+                        : "Check the elements, sizes and direction against the part (se_geometry).") + kept, ex);
         }
     }
+
+    /// <summary>What to check when Solid Edge removes an operation it cannot build while creating it.</summary>
+    internal const string NotBuiltHint = "Check the sizes against the part: Solid Edge cannot build an operation that would leave walls of zero thickness or meet the body only along a line (for example a hole exactly as wide as the bar).";
 
     /// <summary>Linked copy of the sketch profile for an operation (equivalent to the UI command "Select from Sketch").</summary>
     private static IncludedProfile Include(ModelDocument model, Profile sketchProfile)
@@ -326,7 +336,7 @@ public static partial class FeatureService
             Profile profile = model.ProfileSets.CreateIncludedProfile(sketchProfile);
             return new IncludedProfile(profile, Late.TryGet(profile, "Parent"));
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             throw new ToolException("sketch_not_usable", $"The sketch cannot be used for a feature: {ex.Message}",
                 "Close it first with se_sketch action 'close' (it must form closed loops).", ex);
@@ -435,7 +445,7 @@ public static partial class FeatureService
         {
             profile.Visible = false;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Affects only the presentation; the feature is already created and verified.
         }

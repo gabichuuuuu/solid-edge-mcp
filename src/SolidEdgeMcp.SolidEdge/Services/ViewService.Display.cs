@@ -97,7 +97,7 @@ public static partial class ViewService
             Apply(style, wanted);
             view.Update();
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             Restore(style, view, previous);
             throw new ToolException("value_rejected", $"Solid Edge rejected the background: {ComErrors.Unwrap(ex).Message.Trim()}",
@@ -356,7 +356,7 @@ public static partial class ViewService
             Apply(style, previous);
             view.Update();
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             // The error that brought here is the one reported.
         }

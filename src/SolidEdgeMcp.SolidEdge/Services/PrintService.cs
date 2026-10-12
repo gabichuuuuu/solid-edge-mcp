@@ -139,7 +139,7 @@ public static class PrintService
 
                     utility.PrintOut();
                 }
-                catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+                catch (COMException ex) when (!ComErrors.IsGone(ex))
                 {
                     throw new ToolException("print_failed", $"Solid Edge did not print: {ex.Message.Trim()}",
                         "Check the printer (se_print printers) and the drawing (se_drawing sheets).", ex);

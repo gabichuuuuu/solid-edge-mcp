@@ -104,7 +104,7 @@ public static class FrameService
                 ? frames.Add(file, paths.Length, ref pathArray, c)
                 : frames.Add(file, paths.Length, ref pathArray);
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             LeaveFrameEnvironment(context, environment);
             RemoveFramesSince(frames, before);
@@ -159,7 +159,7 @@ public static class FrameService
             Array pathArray = paths;
             pipe = pipes.Add(outside, paths.Length, ref pathArray, false, 0, pipeFile, elbow, tee, cross, coupling);
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             RemovePipesSince(pipes, before);
             RemoveSegments(assembly, made);
@@ -253,7 +253,7 @@ public static class FrameService
                 frame.GetGlobalEndCondition(out StructuralFrameEndConditionConstants value, out _);
                 condition = value;
             }
-            catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
             {
                 // Made again with Solid Edge's default.
             }
@@ -288,7 +288,7 @@ public static class FrameService
                 {
                     frame.Name = name;
                 }
-                catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+                catch (COMException ex) when (!ComErrors.IsGone(ex))
                 {
                     // Solid Edge keeps its own name for the frame made again.
                 }
@@ -310,7 +310,7 @@ public static class FrameService
             frame.GetFramePathObjects(out _, ref segments);
             return [.. segments.Cast<object>()];
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsGone(ex))
         {
             return [];
         }
@@ -324,7 +324,7 @@ public static class FrameService
             frame.CutLength(out double length, out _);
             cutLength = Geo.Mm(length);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Reported without it.
         }
@@ -335,7 +335,7 @@ public static class FrameService
             frame.GetGlobalEndCondition(out StructuralFrameEndConditionConstants value, out _);
             condition = value.ToString().Replace("se", "", StringComparison.Ordinal).ToLowerInvariant();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Reported without it.
         }
@@ -410,7 +410,7 @@ public static class FrameService
 
             return result;
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsGone(ex))
         {
             return null;
         }
@@ -428,7 +428,7 @@ public static class FrameService
             min = Geo.Mm(lo);
             max = Geo.Mm(hi);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Reported without it.
         }
@@ -458,7 +458,7 @@ public static class FrameService
                 return Geo.Mm(length);
             })];
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsGone(ex))
         {
             return null;
         }
@@ -474,7 +474,7 @@ public static class FrameService
             {
                 return o.IsStructuralFrameItem && assembly.StructuralFrames.GetStructuralFrameByOccurrence(o) is { } owner && owner.Name == name;
             }
-            catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
             {
                 return false;
             }
@@ -489,7 +489,7 @@ public static class FrameService
             pipe.GetPipeSegments(out _, ref occurrences);
             return [.. occurrences.OfType<Occurrence>()];
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return [];
         }
@@ -505,7 +505,7 @@ public static class FrameService
             pipe.GetPipeFittings(out _, ref occurrences, ref types);
             return [.. occurrences.OfType<Occurrence>()];
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsGone(ex))
         {
             return null;
         }
@@ -676,7 +676,7 @@ public static class FrameService
 
             select.Delete();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // The error being reported is the original one.
         }
@@ -704,7 +704,7 @@ public static class FrameService
         {
             frames.Delete(frame);
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // The error being reported is the original one.
         }
@@ -716,7 +716,7 @@ public static class FrameService
         {
             pipe.Delete();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // The error being reported is the original one.
         }

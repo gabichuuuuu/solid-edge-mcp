@@ -303,7 +303,7 @@ public static partial class AssemblyFeatureService
                     SetSide(feature, extent);
                 }
             }
-            catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsDisconnected(ex))
+            catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
             {
                 problem = ComErrors.Unwrap(ex).Message.Trim();
                 continue;
@@ -485,7 +485,7 @@ public static partial class AssemblyFeatureService
             };
             return [.. Late.Items((Faces)faces).OfType<SolidEdgeGeometry.Face>()];
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return [];
         }
@@ -512,7 +512,7 @@ public static partial class AssemblyFeatureService
         {
             return [.. Items<T>(collection())];
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return [];
         }
@@ -571,7 +571,7 @@ public static partial class AssemblyFeatureService
         {
             return [.. Late.Items((Faces)mirror.Faces[TopologyQuery.igQueryAll]).OfType<SolidEdgeGeometry.Face>()];
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             return [];
         }
@@ -645,7 +645,7 @@ public static partial class AssemblyFeatureService
                 _ => [],
             };
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException && !ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException && !ComErrors.IsGone(ex))
         {
             return [];
         }
@@ -680,7 +680,7 @@ public static partial class AssemblyFeatureService
         {
             profile.Visible = false;
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Affects only the presentation; the feature is already created and verified.
         }
