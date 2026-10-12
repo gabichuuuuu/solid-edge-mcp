@@ -61,7 +61,7 @@ for approval.
 
 **Tested for real**
 
-3481 calls and 1820 checks against real Solid Edge 2026, with values calculated by hand.
+3576 calls and 1848 checks against real Solid Edge 2026, with values calculated by hand.
 
 </td>
 </tr>
@@ -75,8 +75,8 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=0544482d">
-  <img src="docs/assets/progress.svg?v=f9eadc9a" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=28668d9d">
+  <img src="docs/assets/progress.svg?v=1b6f4fb3" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
@@ -267,7 +267,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps), offset from a face, lofted through sections, swept along a sketch or a 3D curve, stitched, and filling a closed chain of edges; list and delete. |
 | | `se_curve` | Construction curves: through 3D points, intersections of faces, surfaces and the body, sketches projected onto faces, crossings of two sketches, chains of edges, contours drawn on a face through points on it and sketches wrapped onto cylindrical or conical faces; list and delete. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature or a group; group features and dissolve a group; move a feature before or after another; roll the model back to a feature (new features go after it) and forward to its end. |
-| **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), gauges of a material library, tab, contour flange, flange, hem, corner break, flat pattern with cut size, changes of the angle and radius of existing bends, and conversion of a thin-walled part into sheet metal. |
+| **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), gauges of a material library, tab, contour flange, flange, hem, corner break, flat pattern with cut size, changes of the angle and radius of existing bends, a flange matched to a parallel plane (onto it, short of it or beyond it), and conversion of a thin-walled part into sheet metal. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
 | **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences; activate or inactivate them; make a subassembly from occurrences, move occurrences into a subassembly and disperse one. |
 | | `se_relations` | Planar (mate and flush), axial (rotation locked or free), insert, parallel, tangent, angle, center-plane, connect (points of edges onto points, faces, planes or edges), coordinate system and rigid set relations, each checked geometrically; gear relations between two gears or a gear and a rack, in teeth or turns; list and delete. |
@@ -386,8 +386,8 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 Results (unit tests and acceptance suite run on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 343/343.
-- Acceptance suite against real Solid Edge 2026: **3481 calls and 1820 checks** in `A01`–`A39`, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 346/346.
+- Acceptance suite against real Solid Edge 2026: **3576 calls and 1848 checks** in `A01`–`A40`, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the script). All of
   them pass.
 - Coverage by value: the 69 tools have correct calls, and `A10` runs every value of the action,
@@ -439,6 +439,7 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 | `A37` | Feature tree: a group of two holes (holes apart and a hole already in a group refused) suppressed and dissolved, holes moved (not before the synchronous box), the model rolled back to a hole, a variable-radius round added there and the model rolled forward; holes resized (a blind one keeps its depth) and a round resized (a variable-radius one refused); user-defined sets in synchronous modelling; the generic layer refusing `Rounds.AddBlend` and `ResizeHoles.Add` |
 | `A38` | Bodies: the design and construction bodies listed, an end-capped surface turned into a design body and subtracted from the block (the tool body stays), a design body turned back into a construction body, an open surface as the tool keeping either side, intersect (the common volume; refused when the bodies do not overlap), a construction body remade with `RecoveredBodies` through the generic layer, emboss thickened, with a clearance, on the other side and as a cut only; normal protrusions inside and outside a projected rectangle, a normal cutout, a clockwise outline closed on its first point and a rectangle wrapped on a cylinder; a saved part divided by a plane into two part files (refused before saving, with too few paths and when already divided), each piece opened and measured |
 | `A39` | Face relations: a box top kept 10 mm below another and edited to coplanar, two box tops made coplanar with a third, a side of a turned box made parallel and another perpendicular to the side of the block, a cylinder made tangent to the back face, a hole made concentric with a boss (it now runs through it), a fixed face, relations deleted by index and by a handle that follows the renumbering; refused cases (the target among the faces, planes that are not parallel, a negative distance, a tangent between planes, faces of ordered features, a boss concentric with another: the model and the earlier relation stay); live rules read, switched off, restored by Solid Edge (offset stays off) and put back with the values read before, also from sheet metal, which has no face relations. |
+| `A40` | Match face of sheet metal: the outer face of a 20 mm flange moved onto a plane 10 mm into the tab (-1000 mm3, the face at y = 10), 5 mm short of it and 5 mm beyond it, onto a plane 10 mm outside the tab (+1000 mm3), the inner face onto the plane (the outer one ends at y = 9) and 20 mm short of the end face of the tab given as the plane; refused without a face or a plane, with a bend face, with a plane that is not parallel and in a part, and the edge face of the flange left failed by Solid Edge and deleted |
 
 </details>
 
@@ -497,7 +498,7 @@ solid-edge-mcp/
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A39 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A40 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, update-progress.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md (coverage by function and route), assets/
@@ -508,7 +509,7 @@ solid-edge-mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A39`, listed under [Validation](#validation)) with volumes, measurements and expected
+calls (`A01`–`A40`, listed under [Validation](#validation)) with volumes, measurements and expected
 errors calculated by hand. Each script creates and closes its documents without saving:
 
 ```powershell

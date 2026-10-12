@@ -22,6 +22,7 @@ public enum SheetMetalAction
     BendAngle,
     BendRadius,
     Convert,
+    MatchFace,
 }
 
 public enum SheetMetalSide
@@ -111,16 +112,17 @@ public sealed class SheetMetalTools(ToolRunner runner)
     [McpServerTool(Name = "se_sheetmetal", Title = "Sheet metal", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Sheet metal (.psm): settings, base, edge features and flat pattern. Lengths in mm, angles in degrees; radius defaults to the document bend radius.
-        settings: thickness, bend radius, relief width/depth, neutral factor, gauge | set_settings: changes them | gauge: applies a material library gauge.
-        tab: closed sketch with ONE outline -> base tab with the document thickness (first feature) or an extra tab on the plane of a sheet face; direction = side of the thickness.
+        settings | set_settings (thickness, bend radius, relief, neutral factor) | gauge (a material library gauge).
+        tab: closed sketch with ONE outline -> base tab (first feature) or an extra tab on the plane of a sheet face; direction = side of the thickness.
         contour_flange: open sketch (se_sketch close with open=true) -> base contour flange (a tab plus one flange per further segment); width grows along the sketch normal; materialSide; radius.
         flange: one flange per straight edge on the sheet faces (se_geometry 'edges'); it rises from the face of the edge, away from the material (top edge -> up); length from that face, angle, side, radius.
         hem: one hem per edge (usually the free edge of a flange); hemType, length of the folded part, radius, side.
         break_corner: cornerType with 'size' on corner edges through the thickness.
-        flatten: creates or updates the flat pattern and returns the cut size (x, y); export it with se_export flatPattern=true.
-        bend_angle: faces = one bend face, fixedFace = a planar face that stays, angle = the new angle | bend_radius: faces = bend faces, radius = the new inside radius. Unbend is not offered (Solid Edge throws RPC_E_SERVERFAULT).
-        convert: thin-walled part copied into the .psm (se_part_feature copy_part) -> sheet metal; faces = the base face that stays flat, edges = the corner edges to rip; set the sheet thickness to the wall thickness first.
-        tab, contour_flange, flange, hem and break_corner are built in synchronous modeling (the only mode where the API solves them), then the document returns to ordered; flanges and hems need edges of synchronous features (tabs, flanges).
+        flatten: flat pattern and its cut size (x, y); export it with se_export flatPattern=true.
+        bend_angle: faces = one bend face, fixedFace = a planar face that stays, angle = the new angle | bend_radius: faces = bend faces, radius = the new inside radius.
+        convert: thin-walled part copied in (se_part_feature copy_part) -> sheet metal; faces = the base face that stays flat, edges = the corner edges to rip; set the thickness to the wall's first.
+        match_face: faces = the outer or inner face of a flange, plane = a plane or planar face parallel to it -> the flange moves onto it, or distance mm short (negative: beyond).
+        tab, contour_flange, flange, hem and break_corner are built in synchronous modeling (the only mode the API solves them in) and the document returns to ordered; flanges and hems need edges of those features.
         Sketch-based features: se_sheetmetal_form. Verified: a feature that fails or has no effect is an error and the call is undone.
         Example: {"action":"flange","edges":["edge:12","edge:15"],"length":20}.
         """)]
@@ -145,8 +147,10 @@ public sealed class SheetMetalTools(ToolRunner runner)
         [Description("set_settings: bend relief width in mm.")] double? reliefWidth = null,
         [Description("set_settings: bend relief depth in mm.")] double? reliefDepth = null,
         [Description("set_settings: neutral factor (0-1, e.g. 0.33).")] double? neutralFactor = null,
-        [Description("bend_angle: one bend face; bend_radius: bend faces (cylindrical faces of the bends, se_geometry faces of type cylinder); convert: the base face.")] string[]? faces = null,
+        [Description("bend_angle: one bend face; bend_radius: bend faces (cylindrical faces of the bends, se_geometry faces of type cylinder); convert: the base face; match_face: one face of a flange.")] string[]? faces = null,
         [Description("bend_angle: planar face that stays in place.")] string? fixedFace = null,
+        [Description("match_face: the plane the face goes to: index or handle from se_ref_plane, or a planar face (a plane is made on it).")] string? plane = null,
+        [Description("match_face: mm the face stops short of the plane, on the side it comes from (negative: beyond the plane).")] double distance = 0,
         [Description("gauge: gauge name as in the material library, e.g. '16 gage'.")] string? gauge = null,
         [Description("gauge: material library (se_material libraries); default: the first one that has the gauge.")] string? library = null,
         [Description("Document handle; default: the document of the sketch/edges, or the active one.")] string? document = null,
@@ -172,6 +176,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
             SheetMetalAction.BendAngle => runner.RunAsync(tool, name, c => FeatureService.BendAngle(c, document, faces, fixedFace, angle), cancellationToken),
             SheetMetalAction.BendRadius => runner.RunAsync(tool, name, c => FeatureService.BendRadius(c, document, faces, radius), cancellationToken),
             SheetMetalAction.Convert => runner.RunAsync(tool, name, c => FeatureService.ConvertToSheet(c, document, faces, edges), cancellationToken),
+            SheetMetalAction.MatchFace => runner.RunAsync(tool, name, c => FeatureService.MatchFace(c, document, faces, plane, distance), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

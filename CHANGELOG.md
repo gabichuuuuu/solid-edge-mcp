@@ -161,6 +161,9 @@ Relevant changes to this project are recorded here. The format follows
   `set_live_rules` (`rules` with `maintain`, or `values` to put back an earlier state) and `restore_live_rules`: the
   live rules of the Solid Edge session, read through any part or sheet metal document.
 - Acceptance script `A39` (face relations and live rules).
+- `se_sheetmetal match_face`: moves a flange so that its outer or inner face lies on a parallel reference plane or planar
+  face, or a distance short of it or beyond it (a Match Flange Face feature), checked by the position of the face.
+- Acceptance script `A40` (match face of sheet metal).
 
 ### Changed
 
