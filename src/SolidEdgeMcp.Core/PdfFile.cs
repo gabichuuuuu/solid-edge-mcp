@@ -6,15 +6,16 @@ namespace SolidEdgeMcp.Core;
 
 /// <summary>
 /// What a PDF file holds, read without a PDF library to check what Solid Edge wrote: the page count of its page tree, the
-/// names of embedded files and whether it has 3D annotations. Dictionaries are looked for in the file and inside its
-/// Flate-compressed streams (object streams), where Solid Edge 2026 keeps most of them.
+/// names of embedded files, whether it has 3D annotations and the page sizes. Dictionaries are looked for in the file and
+/// inside its Flate-compressed streams (object streams), where Solid Edge 2026 keeps most of them.
 /// </summary>
 public static partial class PdfFile
 {
     /// <summary>Largest stream that is decompressed, so a damaged or hostile file cannot exhaust memory.</summary>
     private const int MaxStream = 64 * 1024 * 1024;
 
-    public sealed record Info(int? Pages, IReadOnlyList<string> EmbeddedFiles, bool Has3D);
+    /// <summary>Contents of a PDF. <paramref name="PageSizes"/>: the distinct page sizes [width, height] in mm (MediaBox).</summary>
+    public sealed record Info(int? Pages, IReadOnlyList<string> EmbeddedFiles, bool Has3D, IReadOnlyList<double[]> PageSizes);
 
     /// <summary>Whether the file starts with the PDF header.</summary>
     public static bool IsPdf(string path)
@@ -33,8 +34,21 @@ public static partial class PdfFile
         int? pages = null;
         var files = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         bool has3D = false;
+        var sizes = new List<double[]>();
         foreach (string text in texts)
         {
+            foreach (Match match in MediaBox().Matches(text))
+            {
+                // Points (1/72 in) to mm, rounded to 0.1 mm.
+                double[] corners = new[] { "x0", "y0", "x1", "y1" }
+                    .Select(g => double.Parse(match.Groups[g].Value, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                double[] size = [Math.Round(Math.Abs(corners[2] - corners[0]) * 25.4 / 72, 1), Math.Round(Math.Abs(corners[3] - corners[1]) * 25.4 / 72, 1)];
+                if (!sizes.Any(s => s[0] == size[0] && s[1] == size[1]))
+                {
+                    sizes.Add(size);
+                }
+            }
+
             foreach (Match match in PagesCount().Matches(text))
             {
                 // The root of the page tree counts every page; intermediate nodes count fewer.
@@ -57,7 +71,7 @@ public static partial class PdfFile
             has3D |= ThreeD().IsMatch(text);
         }
 
-        return new Info(pages, [.. files], has3D);
+        return new Info(pages, [.. files], has3D, sizes);
     }
 
     /// <summary>Contents of the streams that decompress with zlib (FlateDecode); others are skipped.</summary>
@@ -201,4 +215,7 @@ public static partial class PdfFile
 
     [GeneratedRegex(@"/Subtype\s*/3D\b", RegexOptions.CultureInvariant)]
     private static partial Regex ThreeD();
+
+    [GeneratedRegex(@"/MediaBox\s*\[\s*(?<x0>-?\d+(?:\.\d+)?)\s+(?<y0>-?\d+(?:\.\d+)?)\s+(?<x1>-?\d+(?:\.\d+)?)\s+(?<y1>-?\d+(?:\.\d+)?)\s*\]", RegexOptions.CultureInvariant)]
+    private static partial Regex MediaBox();
 }

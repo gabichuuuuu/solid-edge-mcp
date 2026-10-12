@@ -238,6 +238,8 @@ static int[]? Rgb(string text) =>
 static bool Same(JsonElement a, JsonElement b)
 {
     if (a.ValueKind == JsonValueKind.Number && b.ValueKind == JsonValueKind.Number) return Math.Abs(a.GetDouble() - b.GetDouble()) < 1e-3;
+    // Strings by value: a filter can write a space as \u0020, since a check path has no spaces.
+    if (a.ValueKind == JsonValueKind.String && b.ValueKind == JsonValueKind.String) return a.GetString() == b.GetString();
     if (a.ValueKind == JsonValueKind.Array && b.ValueKind == JsonValueKind.Array)
     {
         var x = a.EnumerateArray().ToList(); var y = b.EnumerateArray().ToList();

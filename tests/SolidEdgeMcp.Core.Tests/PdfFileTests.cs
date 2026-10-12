@@ -37,6 +37,21 @@ public sealed class PdfFileTests
     }
 
     [Fact]
+    public void Inspect_reads_the_distinct_page_sizes_in_mm()
+    {
+        // A4 landscape twice (as Microsoft Print to PDF writes it) and A3 portrait inside an object stream.
+        byte[] pdf = Pdf(
+            "3 0 obj <</Type/Page/MediaBox [ 0.0 0.0 841.92004 595.32001 ]>> endobj\n4 0 obj <</Type/Page/MediaBox[0 0 841.92004 595.32001]>> endobj\n",
+            "<</Type/Page/MediaBox [0 0 841.92 1190.52]>>");
+
+        PdfFile.Info info = PdfFile.Inspect(pdf);
+
+        Assert.Collection(info.PageSizes,
+            size => Assert.Equal([297.0, 210.0], size),
+            size => Assert.Equal([297.0, 420.0], size));
+    }
+
+    [Fact]
     public void IsPdf_checks_the_header()
     {
         string folder = Directory.CreateTempSubdirectory("pdffile").FullName;

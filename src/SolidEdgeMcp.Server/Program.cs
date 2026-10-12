@@ -108,6 +108,7 @@ public static class Program
         typeof(LayerTools),
         typeof(AppTools),
         typeof(PublishTools),
+        typeof(PrintTools),
         typeof(SettingsTools),
         typeof(ProgramTools),
         typeof(StyleTools),

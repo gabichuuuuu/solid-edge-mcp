@@ -108,6 +108,13 @@ Relevant changes to this project are recorded here. The format follows
   hides or shows them, lists what changed and undoes it if Solid Edge refuses a component. Queries and zones can be
   saved in the assembly, `run`, `list`ed, renamed and deleted.
 - Acceptance script `A31` (component groups, queries and zones).
+- `se_print`: prints the sheets of a drawing as the Print command does. `printers` lists the Windows printers (default,
+  connection local, network or remote desktop, port, driver, state, whether they ask for a file name) and the print
+  settings of Solid Edge; `print` sends every working sheet or the chosen ones to a printer, or to files in a folder
+  (one PDF, PostScript or printer file per sheet, named `<document>_<sheet>`, checked for its pages and page size), with
+  paper size, orientation, scale or fit to the paper, colours as black and copies. The print settings of Solid Edge are
+  put back afterwards, and the result says when Windows has made the printer used its default printer.
+- Acceptance script `A32` (printing to PDF files with the Microsoft Print to PDF printer).
 
 ### Changed
 
@@ -124,6 +131,9 @@ Relevant changes to this project are recorded here. The format follows
 - The arguments are also checked inside the objects of a list (the criteria of `se_component_query`): an unknown field,
   a missing one or a value out of its enumeration is named with its position (`'criteria[0].property' must be one
   of: …`).
+- PDF checks read the page sizes (MediaBox, in mm) besides the page count, embedded files and 3D views.
+- The acceptance runner compares texts by value in list filters, so a filter can write a space as `\u0020`
+  (`[?name="Microsoft\u0020Print\u0020to\u0020PDF"]`).
 
 ### Fixed
 
