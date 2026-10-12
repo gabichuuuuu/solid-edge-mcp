@@ -476,6 +476,7 @@ public static partial class DrawingService
                 dimension = kind == "radius" ? dimensions.AddRadius(curve.Reference)
                     : curve.Shape == Shape.Circle ? dimensions.AddCircularDiameter(curve.Reference)
                     : dimensions.AddRadialDiameter(curve.Reference);
+                PlaceRadial(view, dimension, curve, graphics, at);
                 break;
             }
 
@@ -1713,6 +1714,55 @@ public static partial class DrawingService
         {
             track += DimensionStep / slope;
             dimension.TrackDistance = sign * track;
+        }
+    }
+
+    /// <summary>
+    /// Moves a diameter or radius dimension so that its text is outside the circle. Verified (r240-r243): a circular diameter
+    /// is laid along TrackAngle + 90° (sheet angle) with its text at TrackDistance from the centre (by default 7 mm, inside a
+    /// circle of radius 10), so it is turned towards <paramref name="position"/> or away from the centre of the view outline;
+    /// a radius (or radial diameter) ignores TrackAngle and TrackDistance, and TerminatorPosition puts its arrow and text outside.
+    /// </summary>
+    private static void PlaceRadial(DrawingView view, Dimension dimension, Graphic curve, List<Graphic> graphics, (double X, double Y)? position)
+    {
+        try
+        {
+            (double X, double Y) centre = ToSheet(view, curve.Centre);
+            double radius = Distance(centre, ToSheet(view, (curve.Centre.X + curve.Radius, curve.Centre.Y)));
+            if (dimension.DimensionType != DimTypeConstants.igDimTypeCDiameter)
+            {
+                Box range = RangeOf(dimension);
+                double reach = Math.Max(Math.Max(Math.Abs(range.X1 - centre.X), Math.Abs(range.X2 - centre.X)),
+                    Math.Max(Math.Abs(range.Y1 - centre.Y), Math.Abs(range.Y2 - centre.Y)));
+                if (reach < radius + 0.001)
+                {
+                    dimension.TerminatorPosition = true;
+                }
+
+                return;
+            }
+
+            double ux, uy, distance;
+            if (position is { } p && Distance(p, centre) > radius)
+            {
+                distance = Distance(p, centre);
+                (ux, uy) = ((p.X - centre.X) / distance, (p.Y - centre.Y) / distance);
+            }
+            else
+            {
+                Box outline = Outline(view, graphics);
+                (double vx, double vy) = (centre.X - outline.CentreX, centre.Y - outline.CentreY);
+                double length = Math.Sqrt(vx * vx + vy * vy);
+                (ux, uy) = length < 1e-6 ? (Math.Sqrt(0.5), Math.Sqrt(0.5)) : (vx / length, vy / length);
+                distance = radius + DimensionOffset;
+            }
+
+            dimension.TrackAngle = Math.Atan2(uy, ux) - Math.PI / 2;
+            dimension.TrackDistance = distance;
+        }
+        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        {
+            // Left where Solid Edge put it.
         }
     }
 

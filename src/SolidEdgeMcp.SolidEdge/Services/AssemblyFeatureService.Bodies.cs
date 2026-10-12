@@ -403,6 +403,15 @@ public static partial class AssemblyFeatureService
 
         string? status = StatusOf(feature);
         double volume = BodyVolume(feature);
+        // A busy Solid Edge can report the feature ok before its body exists (seen once in a long acceptance run): let it
+        // finish its pending work before deciding.
+        for (int i = 0; i < 5 && status is ("ok" or "warning") && volume <= 0; i++)
+        {
+            assembly.Application.DoIdle();
+            System.Threading.Thread.Sleep(200);
+            volume = BodyVolume(feature);
+        }
+
         if (status is not ("ok" or "warning") || volume <= 0)
         {
             Discard(feature);

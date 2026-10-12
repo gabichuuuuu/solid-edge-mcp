@@ -27,7 +27,7 @@ se_drawing {"action":"sheets"}
 ?= pd.projection first_angle
 se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"right"}
 @pi = se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"up_right"}
-# Dimensions on the top view (z=20): edge y=60 -> 100; edge x=100 -> 60; horizontal (0,30)-(50,30) -> 50; vertical (50,0)-(50,30) -> 30; diameter -> 10;
+# Dimensions on the top view (z=20): edge y=60 -> 100; edge x=100 -> 60; horizontal (0,30)-(50,30) -> 50; vertical (50,0)-(50,30) -> 30; diameter -> 10 (placed outside the circle);
 #   height on the bottom view -> 20; angle edge x=0 / edge y=60 -> 90; on the isometric view two perpendicular horizontal edges appear at 120° (t65.out). Errors: no edge passes through (50,45,20) (t51.out); angle between parallel edges (t65.out)
 @q1 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[50,60,20]}
 ?= q1.dimension.value 100
@@ -39,6 +39,10 @@ se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"r
 ?= q4.dimension.value 30
 @q5 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"diameter","points":[50,30,20]}
 ?= q5.dimension.value 10
+#   The diameter goes outside the circle, away from the view centre (the hole is at the centre: up and right, 45°): its
+#   extent runs from the far side of the circle (-3.5, -3.5) to the text beyond the radius, centred at (+7.6, +7.6) (r242 calibration).
+?= q5.dimension.at[0] 167.627 0.05
+?= q5.dimension.at[1] 297.627 0.05
 @q6 = se_drawing {"action":"dimension","view":"{{pd.view.handle}}","kind":"length","points":[0,0,10]}
 ?= q6.dimension.value 20
 @q7 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"angle","points":[0,30,20,50,60,20]}

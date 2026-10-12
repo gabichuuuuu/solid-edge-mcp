@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="870" height="318" viewBox="0 0 870 318" role="img" aria-labelledby="title desc">
-  <title id="title">Progress: 76 % of the functions work through the MCP</title>
-  <desc id="desc">One square per function. 112 of 147 Solid Edge functions in the coverage map work through the MCP, 35 fail in Solid Edge 2026 and 0 are not tested yet. By area: Application, documents and data 26 of 30; Sketches and reference planes 11 of 13; Part (ordered modeling) 23 of 30; Synchronous modeling and surfaces 9 of 13; Sheet metal 13 of 23; Assemblies 15 of 22; Drawings 15 of 16.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="870" height="346" viewBox="0 0 870 346" role="img" aria-labelledby="title desc">
+  <title id="title">Progress: 75 % of the functions work through the MCP</title>
+  <desc id="desc">One square per function. 112 of 148 Solid Edge functions in the coverage map work through the MCP, 35 fail in Solid Edge 2026 and 1 are not tested yet. By area: Application, documents and data 26 of 30; Sketches and reference planes 11 of 13; Part (ordered modeling) 23 of 30; Synchronous modeling and surfaces 9 of 13; Sheet metal 13 of 23; Assemblies 15 of 22; Drawings 15 of 16; New tools 0 of 1.</desc>
   <g font-family="Bahnschrift, 'DIN Alternate', 'DIN 1451', D-DIN, Barlow, 'Roboto Condensed', 'Arial Narrow', sans-serif">
-    <text x="0" y="40" font-size="36" font-weight="600" fill="#1f2328">76 %</text>
-    <text x="92" y="40" font-size="16" fill="#59636e">of the 147 Solid Edge functions in the coverage map work through the MCP</text>
+    <text x="0" y="40" font-size="36" font-weight="600" fill="#1f2328">75 %</text>
+    <text x="92" y="40" font-size="16" fill="#59636e">of the 148 Solid Edge functions in the coverage map work through the MCP</text>
     <text x="0" y="95" font-size="14" fill="#1f2328">Application, documents and data</text>
     <rect x="270" y="84" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="286" y="84" width="12" height="12" rx="2" fill="#0969da"/>
@@ -172,11 +172,15 @@
     <rect x="510" y="252" width="12" height="12" rx="2" fill="#bc4c00"/>
     <text x="812" y="263" font-size="13" text-anchor="end" fill="#59636e">15 / 16</text>
     <text x="870" y="263" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">93 %</text>
-    <rect x="0" y="295" width="12" height="12" rx="2" fill="#0969da"/>
-    <text x="20" y="306" font-size="13" fill="#59636e">Works through the MCP (112)</text>
-    <rect x="250" y="295" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <text x="270" y="306" font-size="13" fill="#59636e">Fails in Solid Edge 2026, documented (35)</text>
-    <rect x="590.5" y="295.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <text x="610" y="306" font-size="13" fill="#59636e">Not tested yet (0)</text>
+    <text x="0" y="291" font-size="14" fill="#1f2328">New tools</text>
+    <rect x="270.5" y="280.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <text x="812" y="291" font-size="13" text-anchor="end" fill="#59636e">0 / 1</text>
+    <text x="870" y="291" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">0 %</text>
+    <rect x="0" y="323" width="12" height="12" rx="2" fill="#0969da"/>
+    <text x="20" y="334" font-size="13" fill="#59636e">Works through the MCP (112)</text>
+    <rect x="250" y="323" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <text x="270" y="334" font-size="13" fill="#59636e">Fails in Solid Edge 2026, documented (35)</text>
+    <rect x="590.5" y="323.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <text x="610" y="334" font-size="13" fill="#59636e">Not tested yet (1)</text>
   </g>
 </svg>

@@ -173,6 +173,10 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- `se_drawing dimension`: a diameter is placed with its text outside the circle, away from the view centre or towards
+  `position` (it was inside circles over 14 mm on the sheet); a radius puts its arrow and text outside.
+- `se_assembly_feature fillet_weld`: a busy Solid Edge can report the weld ok before its body exists; the server now lets it
+  finish before deciding, instead of removing a good weld.
 - `se_sheetmetal flatten` on a sheet that cannot be laid flat (e.g. a copied part not yet converted) fails with
   `flatten_failed` and the next step (it was an internal E_INVALIDARG error).
 - `se_geometry summary` on a body converted to a mesh fails with `no_brep_body` (it said only E_FAIL).
