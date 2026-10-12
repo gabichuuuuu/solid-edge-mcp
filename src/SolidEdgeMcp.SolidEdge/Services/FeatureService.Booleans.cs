@@ -13,19 +13,20 @@ public sealed record BodySpec(string Action, string[]? Targets = null, string[]?
     string Side = "auto", double? Thickness = null, double Clearance = 0, bool Thicken = true, string[]? Paths = null);
 
 /// <summary>
-/// Operations between bodies (ordered modelling): Boolean subtract and intersect, emboss, and design bodies turned into
-/// construction bodies and back. A closed construction body turned into a design body is how a part gets two design
+/// Operations between bodies (ordered modelling): Boolean subtract, intersect and unite, emboss, and design bodies turned
+/// into construction bodies and back. A closed construction body turned into a design body is how a part gets two design
 /// bodies that overlap, which a split cannot give.
 /// </summary>
 public static partial class FeatureService
 {
-    public static readonly IReadOnlyList<string> BodyActions = ["list", "subtract", "intersect", "emboss", "to_construction", "to_design", "divide"];
+    public static readonly IReadOnlyList<string> BodyActions = ["list", "subtract", "intersect", "unite", "emboss", "to_construction", "to_design", "divide"];
 
     public static object BodyOperation(SeContext context, string? documentHandle, BodySpec spec) => spec.Action switch
     {
         "list" => ListBodies(context, documentHandle),
         "subtract" => SubtractBodies(context, documentHandle, spec),
         "intersect" => IntersectBodies(context, documentHandle, spec),
+        "unite" => UniteBodies(context, documentHandle, spec),
         "emboss" => Emboss(context, documentHandle, spec),
         "to_construction" => ToConstruction(context, documentHandle, spec.Bodies),
         "to_design" => ToDesign(context, documentHandle, spec.Bodies),
@@ -93,6 +94,40 @@ public static partial class FeatureService
         }
 
         return BodyResult(context, model, feature, before, after, switched, status);
+    }
+
+    /// <summary>
+    /// Adds closed construction bodies to one design body; they stay as construction bodies (the Boolean feature of the
+    /// Surfacing tab). Verified: BooleanFeatures.Add(n, tools, seBooleanUnite) on the model of the target, with the body of a
+    /// closed surface or the surface itself: a 100 x 60 x 20 block and a 40 x 20 x 30 closed surface that overlaps it by
+    /// 20 x 20 x 20 give 136000 mm³. Its subtract and intersect give what Subtracts and Intersects give; a reference plane as
+    /// the tool (seBooleanPlaneFront or Back) is refused with E_INVALIDARG whatever the PlaneSide.
+    /// </summary>
+    private static object UniteBodies(SeContext context, string? documentHandle, BodySpec spec)
+    {
+        (ModelDocument model, Model owner, object[] targets, Body[] tools, bool switched) = Operands(context, documentHandle, spec, "unite");
+        if (targets.Length != 1)
+        {
+            throw ToolException.InvalidArgument("unite adds the tools to one design body.", "Pass one design body in 'targets' (default: the first).");
+        }
+
+        IReadOnlyList<(Model Model, Body Body)> design = model.Bodies();
+        for (int i = 0; i < tools.Length; i++)
+        {
+            if (design.Any(d => Late.SameObject(d.Body, tools[i])))
+            {
+                throw ToolException.InvalidArgument($"'{spec.Tools![i]}' is a design body; unite takes construction bodies.",
+                    "To join design bodies into one, use se_part_feature unite.");
+            }
+        }
+
+        RequireClosed(context, spec.Tools!, tools, "unite");
+        double before = model.Volume();
+        object[] toolArray = [.. tools];
+        object feature = Create("unite", () => owner.BooleanFeatures.Add(toolArray.Length, toolArray, BooleanFeatureConstants.seBooleanUnite));
+        (double after, string? status) = Check(context, model, feature, before, 1, null, null,
+            hint: "The tools must be closed construction bodies (se_body list, kind 'solid') that reach outside the target.");
+        return BodyResult(context, model, feature, before, after, switched, status, construction: true);
     }
 
     /// <summary>

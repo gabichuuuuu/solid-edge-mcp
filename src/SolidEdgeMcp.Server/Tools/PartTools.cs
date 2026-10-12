@@ -91,6 +91,7 @@ public enum BodyAction
     List,
     Subtract,
     Intersect,
+    Unite,
     Emboss,
     ToConstruction,
     ToDesign,
@@ -294,24 +295,25 @@ public sealed class PartTools(ToolRunner runner)
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
             new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies, radius)), cancellationToken);
 
-    [McpServerTool(Name = "se_body", Title = "Bodies: list / subtract / intersect / emboss / construction and design", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_body", Title = "Bodies: list / subtract / intersect / unite / emboss / construction and design", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Design and construction bodies of a part (ordered modelling). Lengths in mm. Body handles come from action list; a surface (se_surface) or a face stands for the body it belongs to.
         list: design bodies (volume, box) and construction bodies (kind solid = closed, surface or curve) |
         subtract: 'tools' take material from 'targets' (design bodies, default the first): a closed tool removes what it overlaps (a tool design body stays); an open surface removes one side of it, 'side' normal (where the normal of its face points, se_geometry faces) or reverse |
         intersect: 'targets' keep only what they share with the closed 'tools', which are used up |
+        unite: closed construction 'tools' (a surface with endCaps, a closed stitched surface) are added to one target (default the first body) and stay as construction bodies |
         emboss: closed 'tools' pressed into one thin target (default the first body): with thicken (default) a wall of 'thickness' wraps each tool, 'clearance' away from it (side reverse: towards the other face of the target); thicken false only cuts the tools' shape out |
         to_construction: design 'bodies' become construction bodies (left out of mass properties and drawings) |
         to_design: closed construction 'bodies' (a surface with endCaps, a closed stitched surface, a body made construction) become design bodies; they may overlap the others, e.g. to subtract or intersect them |
         divide: a saved part without unsaved changes is cut by 'tools' = [one reference plane or surface] into part files 'paths' (one per piece, default <part>_1, _2...), each a linked copy of its region; the part is then saved.
-        Split and unite: se_part_feature.
+        Split, and unite design bodies: se_part_feature.
         {{VerifiedNote}}
         Example: {"action":"to_design","bodies":["surface:14"]}; {"action":"subtract","tools":["body:22"]}; {"action":"emboss","tools":["surface:9"],"thickness":2}.
         """)]
     public Task<CallToolResult> Body(
         BodyAction action,
-        [Description("subtract, intersect: design bodies to change (default: the first); emboss: the one thin target.")] string[]? targets = null,
-        [Description("subtract, intersect, emboss: body handles (action list), surfaces (se_surface) or faces.")] string[]? tools = null,
+        [Description("subtract, intersect, unite: design bodies to change (default: the first); emboss: the one thin target.")] string[]? targets = null,
+        [Description("subtract, intersect, unite, emboss: body handles (action list), surfaces (se_surface) or faces.")] string[]? tools = null,
         [Description("to_construction: design bodies; to_design: closed construction bodies or closed surfaces.")] string[]? bodies = null,
         [Description("subtract with an open surface: normal | reverse = the side of the surface that loses its material; emboss: reverse = towards the other face of the target.")] BodySide side = BodySide.Auto,
         [Description("emboss: wall thickness in mm.")] double? thickness = null,

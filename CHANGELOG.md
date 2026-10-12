@@ -6,6 +6,18 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_pmi`: the 3D (PMI) dimensions of a part or sheet metal document, the ones synchronous features carry (the height,
+  width and length of a box, the height and diameter of a cylinder). `list` gives their value, type, lock and status;
+  `set` drives the model to a new value with the measured end, the origin end or both ends moving, reads back the value
+  the model reaches and puts the old one back if Solid Edge does not reach it (`value_rejected`); `lock`, `unlock` and
+  `delete` (the model stays as it is); `display` and `set_display` show or hide the PMI dimensions and annotations.
+- `se_body unite`: closed construction bodies (end-capped surfaces, closed stitched surfaces) added to one design body;
+  the tools stay as construction bodies, and the result is checked by the volume and the bodies.
+- Acceptance script `A41` (PMI dimensions and unite). Coverage notes for the coincident, rigid and horizontal or
+  vertical face relations, Boolean features with a plane and placing new PMI dimensions, which the API does not allow.
+
 ## [0.2.0] - 2026-10-12
 
 This release reaches the program itself: through your MCP client you can read and change the settings, options,
