@@ -8,6 +8,14 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_sheetmetal convert`: turns a thin-walled part copied into a sheet metal document into sheet metal, with a base face
+  that stays flat and the corner edges to rip (a 100 x 60 x 40 box with 2 mm walls gives four bends and a flat pattern of
+  173.2 x 133.2 mm). The call goes through the typed interface: through IDispatch Solid Edge rejects the edge array.
+- `se_frame` reports the cut length of each member (`sectionCutLengths`, in member order), read through the typed
+  interface.
+- The generic layer (`se_com_invoke`) retries through the typed interface, with empty arrays and zeros for the omitted
+  typed arguments, a call that IDispatch rejects with DISP_E_TYPEMISMATCH (e.g. `ConvToSMs.Add` with only the face).
+
 - No installation detail is assumed where it can be read: view orientations run the interop command of the active
   environment (looked up by name), an automatic explode is checked by the components it moved instead of a status text
   in Solid Edge's language, and planes made normal to an edge or tangent to a face and the angle relation's measurement
@@ -160,6 +168,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- `se_sheetmetal flatten` on a sheet that cannot be laid flat (e.g. a copied part not yet converted) fails with
+  `flatten_failed` and the next step (it was an internal E_INVALIDARG error).
 - `se_geometry summary` on a body converted to a mesh fails with `no_brep_body` (it said only E_FAIL).
 - `se_assembly_feature list` in an assembly reopened from its file: Solid Edge can hand back the parts of a hole or
   cutout as dead objects; the parts are now found by the faces the feature leaves on them.

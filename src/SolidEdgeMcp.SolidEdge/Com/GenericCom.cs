@@ -353,13 +353,14 @@ public static class GenericCom
     /// Calls the method through the interop or, if an optional argument with a type (enumeration, number...) is missing, through
     /// IDispatch: reflection only accepts <see cref="Type.Missing"/> in VARIANT parameters, whereas
     /// IDispatch lets Solid Edge apply its default value. By-reference parameters are marked
-    /// to receive the output values in <paramref name="args"/>.
+    /// to receive the output values in <paramref name="args"/>. If IDispatch rejects the call with DISP_E_TYPEMISMATCH (it
+    /// happens with by-reference arrays, e.g. ConvToSMs.Add with only the face), it is retried through the interop with the
+    /// missing typed arguments set to empty arrays and zero.
     /// </summary>
     private static object? CallMethod(object target, MethodInfo method, object?[] args)
     {
         ParameterInfo[] parameters = method.GetParameters();
-        bool typedMissing = parameters.Where((p, i) => args[i] == Type.Missing
-            && (p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType) != typeof(object)).Any();
+        bool typedMissing = parameters.Where((p, i) => args[i] == Type.Missing && ElementType(p) != typeof(object)).Any();
         if (!typedMissing || !Marshal.IsComObject(target))
         {
             return method.Invoke(target, args);
@@ -371,9 +372,31 @@ public static class GenericCom
             modifier[i] = parameters[i].ParameterType.IsByRef;
         }
 
-        return target.GetType().InvokeMember(method.Name, BindingFlags.InvokeMethod, null, target, args, [modifier],
-            CultureInfo.InvariantCulture, null);
+        try
+        {
+            return target.GetType().InvokeMember(method.Name, BindingFlags.InvokeMethod, null, target, args, [modifier],
+                CultureInfo.InvariantCulture, null);
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException { ErrorCode: ComErrors.DispETypeMismatch })
+        {
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                Type type = ElementType(parameters[i]);
+                if (args[i] == Type.Missing && type != typeof(object))
+                {
+                    args[i] = type == typeof(Array) ? Array.Empty<object>()
+                        : type.IsArray ? Array.CreateInstance(type.GetElementType()!, 0)
+                        : type.IsValueType ? Activator.CreateInstance(type)
+                        : null;
+                }
+            }
+
+            return method.Invoke(target, args);
+        }
     }
+
+    private static Type ElementType(ParameterInfo parameter) =>
+        parameter.ParameterType.IsByRef ? parameter.ParameterType.GetElementType()! : parameter.ParameterType;
 
     private static object? InvokeDispatch(object target, string member, BindingFlags flags, object?[] args)
     {

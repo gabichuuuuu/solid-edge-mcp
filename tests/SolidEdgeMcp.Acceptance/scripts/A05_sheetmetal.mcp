@@ -166,4 +166,47 @@ se_documents {"action":"close","document":"{{d6.handle}}","saveChanges":false}
 ?= bd6.count 2
 ! [invalid_argument] se_drawing {"action":"bend_table"}
 se_documents {"action":"close","document":"{{g6.handle}}","saveChanges":false}
+# 7) Part to sheet metal. Thin box 100 x 60 x 40 with 2 mm walls and an open top (35712), copied into a sheet metal document with
+#    sheet thickness 2 and bend radius 1. Without rips the conversion changes nothing (error, deleted). With the outer bottom face as
+#    base and the four outer vertical corner edges ripped: 4 bends (8 cylindrical faces, radii 1 and 3) -> 34495.983 and a flat
+#    pattern of 173.215 x 133.215 (Solid Edge values; typed call, IDispatch rejects the edge array).
+@p7 = se_documents {"action":"new","kind":"part"}
+@k7 = se_sketch {"action":"create","plane":"xy","document":"{{p7.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k7.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k7.sketch}}"}
+se_extrude {"sketch":"{{k7.sketch}}","distance":40,"document":"{{p7.handle}}"}
+@t7 = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{p7.handle}}"}
+@s7 = se_shell {"thickness":2,"openFaces":["{{t7.items[0].handle}}"],"document":"{{p7.handle}}"}
+?= s7.volume 35712 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a05_thin.par","overwrite":true,"document":"{{p7.handle}}"}
+se_documents {"action":"close","document":"{{p7.handle}}","saveChanges":false}
+@d7 = se_documents {"action":"new","kind":"sheet_metal"}
+se_part_feature {"action":"copy_part","path":"{{work}}\\a05_thin.par","document":"{{d7.handle}}"}
+se_sheetmetal {"action":"set_settings","thickness":2,"bendRadius":1}
+@b7 = se_geometry {"action":"faces","direction":[0,0,-1]}
+! [feature_failed] se_sheetmetal {"action":"convert","faces":["{{b7.items[0].handle}}"]}
+! [invalid_argument] se_sheetmetal {"action":"convert"}
+#    Generic layer: ConvToSMs.Add with only the face is rejected by IDispatch (DISP_E_TYPEMISMATCH) and retried through the
+#    interop with an empty edge array: a conversion without bends, with a warning; it is deleted again.
+@b7 = se_geometry {"action":"faces","direction":[0,0,-1]}
+@ms7 = se_com_get {"target":"active_document","member":"Models"}
+@m7 = se_com_invoke {"target":"{{ms7.value.handle}}","method":"Item","arguments":[1]}
+@cs7 = se_com_get {"target":"{{m7.result.handle}}","member":"ConvToSMs"}
+@ca7 = se_com_invoke {"target":"{{cs7.value.handle}}","method":"Add","arguments":[{"handle":"{{b7.items[0].handle}}"}]}
+@cw7 = se_com_get {"target":"{{ca7.result.handle}}","member":"Status"}
+?= cw7.value igFeatureWarned
+se_com_invoke {"target":"{{ca7.result.handle}}","method":"Delete"}
+@b7 = se_geometry {"action":"faces","direction":[0,0,-1]}
+@e7 = se_geometry {"action":"edges","direction":[0,0,1]}
+?= e7.count 8
+@cv7 = se_sheetmetal {"action":"convert","faces":["{{b7.items[0].handle}}"],"edges":["{{e7.items[?end=[0,0,0]].handle}}","{{e7.items[?end=[100,0,0]].handle}}","{{e7.items[?end=[0,60,0]].handle}}","{{e7.items[?end=[100,60,0]].handle}}"]}
+?= cv7.bendFaces 8
+?= cv7.conversion.volume 34495.983 0.01
+?= cv7.conversion.feature.status ok
+@cy7 = se_geometry {"action":"faces","type":"cylinder"}
+?= cy7.count 8
+@fl7 = se_sheetmetal {"action":"flatten"}
+?= fl7.cutSize.x 173.215 0.01
+?= fl7.cutSize.y 133.215 0.01
+se_documents {"action":"close","document":"{{d7.handle}}","saveChanges":false}
 se_documents {"action":"list"}

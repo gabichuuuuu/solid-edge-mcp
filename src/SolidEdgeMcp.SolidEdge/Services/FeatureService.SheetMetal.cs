@@ -303,6 +303,57 @@ public static partial class FeatureService
     }
 
     /// <summary>
+    /// Converts a thin-walled part (copied into the sheet metal document with se_part_feature copy_part) into sheet metal: the
+    /// base face stays flat and the edges are ripped so that the walls can unfold. Verified with a 100 x 60 x 40 mm box with
+    /// 2 mm walls and an open top, sheet thickness 2: base = outer bottom face, edges = the four outer vertical corner edges
+    /// -> four bends and a 173.2 x 133.2 mm flat pattern. Without rips Solid Edge only reports a warning and makes no bend.
+    /// Called through the typed interface: through IDispatch the edge array is rejected (DISP_E_TYPEMISMATCH).
+    /// </summary>
+    public static object ConvertToSheet(SeContext context, string? documentHandle, string[]? faces, string[]? edges)
+    {
+        if (faces is not [string baseHandle])
+        {
+            throw ToolException.InvalidArgument("convert requires 'faces' with one base face: a planar face of the part that stays flat (e.g. the outer bottom face).",
+                "Get it with se_geometry action 'faces' (type plane, direction = its outward normal).");
+        }
+
+        ModelDocument model = ModelDocument.For(context, documentHandle, baseHandle);
+        RequireSheet(model);
+        Face baseFace = context.Handles.Resolve<Face>(baseHandle, "faces");
+        Array rips = (edges ?? []).Select(h => (object)context.Handles.Resolve<Edge>(h, "edges")).ToArray();
+        bool switched = model.EnsureOrdered();
+        Model target = model.RequireModel();
+        double before = model.Volume();
+        int bendsBefore = BendFaces(model);
+        object feature = Create("conversion to sheet metal", () => target.ConvToSMs.Add(baseFace, rips.Length, ref rips, Type.Missing, 0, 0));
+        const string nextStep = "List in 'edges' the corner edges to rip (where two walls meet, e.g. se_geometry 'edges' with direction = the wall height) and set the sheet thickness (se_sheetmetal set_settings) to the wall thickness.";
+        object result;
+        try
+        {
+            result = Verify(context, model, feature, before, 0, switched, changedOtherwise: () => BendFaces(model) > bendsBefore);
+        }
+        catch (ToolException ex) when (ex.Code == "feature_failed")
+        {
+            throw new ToolException(ex.Code, "The conversion changed nothing and was deleted.", nextStep, ex);
+        }
+
+        int bends = BendFaces(model);
+        if (bends <= bendsBefore)
+        {
+            TryDelete(feature);
+            context.ModelChanged(model.Document, "the model changed (conversion deleted)");
+            throw new ToolException("feature_failed", "The conversion made no bend and was deleted.", nextStep);
+        }
+
+        return new { conversion = result, bendFaces = bends - bendsBefore };
+    }
+
+    /// <summary>Cylindrical faces of the sheet (two per bend).</summary>
+    private static int BendFaces(ModelDocument model) => model.TryModel()?.Body is Body body
+        ? Late.Items(body.Faces[TopologyQuery.igQueryCylinder]).Count()
+        : 0;
+
+    /// <summary>
     /// Creates or updates the flat pattern and returns its cut size. FlatPatterns.Add requires faces, edges and vertices of the
     /// flat-pattern model body (with those of the design it gives E_INVALIDARG): its largest planar face and its
     /// longest straight edge are taken.
@@ -314,11 +365,13 @@ public static partial class FeatureService
         bool switched = model.EnsureOrdered();
         Model design = model.RequireModel();
         FlatPatternModels flatModels = sheet.FlatPatternModels;
-        FlatPatternModel flat = flatModels.Count > 0 ? flatModels.Item(1) : flatModels.Add(design);
-        FlatPatterns patterns = flat.FlatPatterns;
-        bool created = patterns.Count == 0;
+        FlatPatternModel? flat = null;
+        bool created = false;
         try
         {
+            flat = flatModels.Count > 0 ? flatModels.Item(1) : flatModels.Add(design);
+            FlatPatterns patterns = flat.FlatPatterns;
+            created = patterns.Count == 0;
             if (created)
             {
                 var body = (Body)flat.Body;
@@ -335,10 +388,11 @@ public static partial class FeatureService
 
             flat.UpdateCutSize();
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ex is COMException com ? !ComErrors.IsDisconnected(com) : ex is ArgumentException)
         {
+            // E_INVALIDARG arrives as ArgumentException: e.g. a part copied into the document that was not converted to sheet metal.
             throw new ToolException("flatten_failed", $"Solid Edge could not flatten the sheet: {ex.Message}",
-                "Check the feature tree (se_feature_tree) for failed features; formed features that cannot unfold make the flat pattern fail.", ex);
+                "Check the feature tree (se_feature_tree) for failed features; formed features that cannot unfold make the flat pattern fail, and a part copied with copy_part must first be converted (se_sheetmetal convert).", ex);
         }
 
         flat.GetCutSize(out double x, out double y);

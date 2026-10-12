@@ -1,6 +1,6 @@
 # A20: structural frames and pipes (se_frame). Library parts of the installation (Frames, Piping Route) are copied into the
 #   work folder by the server. Frames: a DIN square tube 20x20x1.6 along 100 mm (cut length 100); a 20x20 section of our own along
-#   two legs of 100 mm at a corner: two members of 110 mm, mitred (cut length 220), or butt1 (110 + 90 = 200); along a line of an
+#   two legs of 100 mm at a corner: two members of 110 mm, mitred (cut length 220, 110 per section), or butt1 (110 + 90 = 200, per section in member order); along a line of an
 #   assembly sketch (100). Pipes DIN 100 (outside diameter 114.3): a straight 500 mm pipe; two legs of 500 mm with a 90° butt elbow
 #   (two segments of 398 mm and the elbow); without an elbow the corner gets no fitting and the result warns.
 @lf = se_frame {"action":"library","filter":"SquareTubing 20x20"}
@@ -29,11 +29,15 @@ se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
 ! [invalid_argument] se_frame {"action":"frame","section":"DIN/Square Tubing/SquareTubing 20x20x1.6","points":[0,0,0,100,0,0],"name":"Rail","document":"{{a.handle}}"}
 @f2 = se_frame {"action":"frame","section":"{{work}}\\a20_section.par","points":[0,50,0,100,50,0,100,150,0],"document":"{{a.handle}}"}
 ?= f2.cutLength 220 0.001
+?= f2.sectionCutLengths[0] 110 0.001
+?= f2.sectionCutLengths[1] 110 0.001
 ?= f2.endCondition miterxy
 ?= f2.members[0].boundingBox.size[0] 110 0.001
 ?= f2.members[1].boundingBox.size[1] 110 0.001
 @f3 = se_frame {"action":"frame","section":"{{work}}\\a20_section.par","points":[200,50,0,300,50,0,300,150,0],"endCondition":"butt1","document":"{{a.handle}}"}
 ?= f3.cutLength 200 0.001
+?= f3.sectionCutLengths[0] 110 0.001
+?= f3.sectionCutLengths[1] 90 0.001
 ?= f3.endCondition butt1
 ?= f3.members[0].boundingBox.size[0] 110 0.001
 ?= f3.members[1].boundingBox.size[1] 90 0.001

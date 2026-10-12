@@ -345,6 +345,7 @@ public static class FrameService
             name = frame.Name,
             type = "frame",
             cutLength,
+            sectionCutLengths = SectionCutLengths(frame),
             endCondition = condition,
             members = Members(assembly, frame).Select(m => DescribeOccurrence(context, assembly, m)).ToArray(),
             note = "Each member is an occurrence of the section part; its extent is the boundingBox (the part file keeps its own length).",
@@ -438,6 +439,29 @@ public static class FrameService
             name = occurrence.Name,
             boundingBox = min is null ? null : new { min, max, size = max!.Zip(min, (a, b) => Geo.R(a - b)).ToArray() },
         };
+    }
+
+    /// <summary>
+    /// Cut length of each member section (mm), or null if Solid Edge does not give them. Verified through the typed interface
+    /// (IDispatch gives DISP_E_TYPEMISMATCH): two mitred members of 110 give [110, 110]; ReturnOccurrenceForGivenSectionID
+    /// returns no occurrence, so the lengths are not matched to the members.
+    /// </summary>
+    private static double[]? SectionCutLengths(StructuralFrame frame)
+    {
+        try
+        {
+            Array sections = Array.Empty<int>();
+            frame.GetSections(out _, ref sections);
+            return [.. sections.Cast<object>().Select(id =>
+            {
+                frame.SegmentCutLength(Convert.ToInt32(id, System.Globalization.CultureInfo.InvariantCulture), out double length, out _);
+                return Geo.Mm(length);
+            })];
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException or InvalidCastException && !ComErrors.IsDisconnected(ex))
+        {
+            return null;
+        }
     }
 
     /// <summary>Members of a frame: the occurrences Solid Edge maps back to it.</summary>

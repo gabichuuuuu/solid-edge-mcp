@@ -40,7 +40,7 @@ public sealed class FrameTools(ToolRunner runner, PathGuard guard)
     [Description("""
         Structural frames and pipes in an assembly, along a polyline of points (mm, assembly coordinates; one line segment per pair) or along 'lines' drawn with se_sketch line in the assembly.
         library (kind frames: section parts installed with Solid Edge, e.g. 'DIN/Square Tubing/SquareTubing 20x20x1.6'; kind pipes: pipes and fittings, e.g. 'DIN/Pipe/Pipe_100_mm'; filter; folder = a library folder of your own) |
-        list (frames with their cut length and members, pipes with their segments and fittings) |
+        list (frames with their total cut length, the cut length of each member (sectionCutLengths, in member order) and members, pipes with their segments and fittings) |
         frame (section = a library name or the absolute path of a part of your own; one member per segment, each an occurrence of the section; endCondition at the corners miter | butt1 | butt2 | none) |
         pipe (diameter = outside diameter mm, e.g. 114.3 for DIN 100; pipe part; elbow at corners, tee, cross, coupling) | delete (name of a frame or pipe, with its members or segments) |
         repair (an assembly whose frames were made before any assembly feature, outside se_frame, where Solid Edge refuses assembly features: makes its frames again so that they work).

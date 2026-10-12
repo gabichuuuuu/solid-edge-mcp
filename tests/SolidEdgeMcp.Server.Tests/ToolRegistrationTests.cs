@@ -157,6 +157,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sketch", """{"action":"chamfer","sketch":"sketch:2","elements":["line2d:3","line2d:4"],"setbacks":[5,10]}""")]
     [InlineData("se_sheetmetal", """{"action":"bend_angle","faces":["face:14"],"fixedFace":"face:19","angle":60}""")]
     [InlineData("se_sheetmetal", """{"action":"bend_radius","faces":["face:14","face:15"],"radius":3}""")]
+    [InlineData("se_sheetmetal", """{"action":"convert","faces":["face:3"],"edges":["edge:5","edge:6"]}""")]
     [InlineData("se_sheetmetal", """{"action":"gauge","gauge":"16 gage","library":"Materials"}""")]
     [InlineData("se_assembly_config", """{"action":"apply","name":"Without covers","document":"doc:3"}""")]
     [InlineData("se_assembly_config", """{"action":"explode","spread":50,"by":"subassembly"}""")]
