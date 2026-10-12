@@ -1,0 +1,28 @@
+# A36: broken-out sections (se_drawing_view broken_out): a block with a blind hole from below, cut 15 mm deep from the top inside a square outline, and the refused cases.
+# Block 100 x 60 x 20 (x 0..100, y 0..60, z 0..20) with a blind hole 10 x 10 deep from the bottom at (50,30): 120000 - pi x 5^2 x 10 = 119214.602
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@bot = se_geometry {"action":"faces","direction":[0,0,-1]}
+@h = se_hole {"plane":"{{bot.items[0].handle}}","centers":[50,30,0],"diameter":10,"extent":"finite","depth":10}
+?= h.volume 119214.602 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a36_block.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+@v = se_drawing {"action":"base_view","path":"{{work}}\\a36_block.par","orientation":"top","position":[150,200],"scale":1}
+# A square outline 30 x 30 around the hole, 15 mm deep from the top face: the view gains the outline and the cut
+@bo = se_drawing_view {"action":"broken_out","view":"{{v.view.handle}}","points":[35,15,20, 65,15,20, 65,45,20, 35,45,20],"depth":15}
+?= bo.brokenOut.sections 1
+?= bo.brokenOut.depth 15
+?= bo.brokenOut.corners 4
+?= bo.graphics.after.lines 8
+?= bo.graphics.before.lines 4
+@tg = se_com_get {"target":"{{v.view.handle}}","member":"IsBrokenOutSectionTarget"}
+?= tg.value true
+# Refused before anything is made: an outline away from the part, two points, no depth
+! [invalid_argument] se_drawing_view {"action":"broken_out","view":"{{v.view.handle}}","points":[300,300,20, 320,300,20, 320,320,20],"depth":15}
+! [invalid_argument] se_drawing_view {"action":"broken_out","view":"{{v.view.handle}}","points":[35,15,20, 65,15,20],"depth":15}
+! [invalid_argument] se_drawing_view {"action":"broken_out","view":"{{v.view.handle}}","points":[35,15,20, 65,15,20, 65,45,20]}
+@bos = se_com_get {"target":"{{v.view.handle}}","member":"BrokenOutSectionProfiles"}
+@bc = se_com_get {"target":"{{bos.value.handle}}","member":"Count"}
+?= bc.value 1
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

@@ -133,6 +133,9 @@ Relevant changes to this project are recorded here. The format follows
   position; `cell` and `rows` change them) and pictures (embedded or linked, sized by width or height with their
   proportions kept); `list` and `delete`. Everything written is read back.
 - Acceptance script `A35` (a revision table and a logo on a sheet).
+- `se_drawing_view broken_out`: a broken-out section through an outline of model points, cut to a depth from the front
+  of the part; the view is checked for the cut, and an outline away from the part is refused before anything is made.
+- Acceptance script `A36` (a broken-out section).
 
 ### Changed
 

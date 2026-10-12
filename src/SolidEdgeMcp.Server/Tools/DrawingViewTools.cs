@@ -16,6 +16,7 @@ public enum DrawingViewAction
     AddBreak,
     SetBroken,
     RemoveBreak,
+    BrokenOut,
     To2d,
 }
 
@@ -49,7 +50,8 @@ public sealed class DrawingViewTools(ToolRunner runner)
         from display; Solid Edge does not report member values, so the edges before and after show the effect; Defaults_*
         only apply to members added later) | breaks | add_break (direction of the break lines; from and to = their
         positions on the sheet in mm; shape, gap) | set_broken (broken = true shows the breaks, false the whole view) |
-        remove_break (index) | to2d (turns the view into plain 2D elements: it no longer follows the model).
+        remove_break (index) | broken_out (points = the corners of an outline as model points of the view, depth = mm from the front of the part: that area is cut away and shown hatched) |
+        to2d (turns the view into plain 2D elements: it no longer follows the model).
         Values: booleans, numbers in API units (metres), colours '#RRGGBB', enumerations by name or its end.
         Example: {"action":"set_display","view":"drawing_view:3","property":"ShowHiddenEdges","value":false}.
         """)]
@@ -66,6 +68,8 @@ public sealed class DrawingViewTools(ToolRunner runner)
         [Description("add_break: gap in mm left between the two halves on the sheet.")] double? gap = null,
         [Description("set_broken: true shows the breaks, false shows the whole view.")] bool? broken = null,
         [Description("remove_break: break number from breaks (1-based).")] int? index = null,
+        [Description("broken_out: corners of the outline [x1, y1, z1, ...] in mm, model points seen in the view (3 or more).")] double[]? points = null,
+        [Description("broken_out: depth of the cut in mm from the front of the part.")] double? depth = null,
         int offset = 0,
         int limit = 100,
         CancellationToken cancellationToken = default)
@@ -77,6 +81,7 @@ public sealed class DrawingViewTools(ToolRunner runner)
             DrawingViewAction.Display => runner.RunAsync(tool, act, c => DrawingService.ViewDisplay(c, view, offset, limit), cancellationToken),
             DrawingViewAction.SetDisplay => runner.RunAsync(tool, act, c => DrawingService.SetViewDisplay(c, view, property, value, member), cancellationToken),
             DrawingViewAction.Breaks => runner.RunAsync(tool, act, c => DrawingService.Breaks(c, view), cancellationToken),
+            DrawingViewAction.BrokenOut => runner.RunAsync(tool, act, c => DrawingService.AddBrokenOut(c, view, points, depth), cancellationToken),
             DrawingViewAction.AddBreak => runner.RunAsync(tool, act, c => DrawingService.AddBreak(c, view,
                 Snake(ToolRunner.RequireValue(direction, "direction", act)), ToolRunner.RequireValue(from, "from", act),
                 ToolRunner.RequireValue(to, "to", act), shape is { } s ? Snake(s) : null, gap), cancellationToken),

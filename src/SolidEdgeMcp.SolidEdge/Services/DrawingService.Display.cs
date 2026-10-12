@@ -179,6 +179,140 @@ public static partial class DrawingService
     /// Adds a pair of break lines and shows the view broken; checked by the view getting shorter. Verified in Solid Edge
     /// 2026: the positions are sheet coordinates, and the view shrinks by their distance minus the gap.
     /// </summary>
+    /// <summary>
+    /// Broken-out section of a view: the outline through model points (projected onto the view) cut to a depth (mm) from the
+    /// front of the part, showing what is inside, hatched. Verified in Solid Edge 2026: the profile is drawn in sheet
+    /// coordinates on the view's own BrokenOutSectionProfiles with the view as target (Validate reports lines without
+    /// relations as invalid, yet the cut is made); the profile has no Delete, but it stays selected after it is made, so a
+    /// failed one is deleted through the selection.
+    /// </summary>
+    public static object AddBrokenOut(SeContext context, string? viewHandle, double[]? points, double? depth)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        List<(double X, double Y, double Z)> model = Geo.Points3(points, "points", 3);
+        if (model.Count < 3)
+        {
+            throw ToolException.InvalidArgument("A broken-out section needs at least three model points: the corners of its outline as seen in the view.");
+        }
+
+        double cut = Units.MmToM(Units.RequirePositive(depth ?? throw ToolException.InvalidArgument("Action 'broken_out' requires 'depth' (mm from the front of the part)."), "depth"));
+        (double X, double Y)[] outline = [.. model.Select(p => ModelToSheet(view, p))];
+        // A section that cuts nothing is still made, and it can be neither deleted nor undone through the API (verified):
+        // an outline away from what the view draws is refused before anything is made.
+        Box drawn = Outline(view, Graphics(view));
+        if (outline.Max(p => p.X) <= drawn.X1 || outline.Min(p => p.X) >= drawn.X2 || outline.Max(p => p.Y) <= drawn.Y1 || outline.Min(p => p.Y) >= drawn.Y2)
+        {
+            throw ToolException.InvalidArgument("The outline does not overlap what the view shows of the part.",
+                "Give the corners of the outline as model points seen in this view (se_geometry lists the model's edges).");
+        }
+
+        Dictionary<string, int> before = GraphicCounts(view);
+        BrokenOutSectionProfiles profiles = view.BrokenOutSectionProfiles;
+        int count = profiles.Count;
+        int undoStart = UndoCount(draft);
+        BrokenOutSectionProfile profile = profiles.Add(view);
+        try
+        {
+            for (int i = 0; i < outline.Length; i++)
+            {
+                (double X, double Y) a = outline[i], b = outline[(i + 1) % outline.Length];
+                profile.Profile.Lines2d.AddBy2Points(a.X, a.Y, b.X, b.Y);
+            }
+
+            profile.Profile.EndEdit();
+            profile.Depth = cut;
+            view.Update();
+            Dictionary<string, int> after = GraphicCounts(view);
+            if (profiles.Count != count + 1 || !view.IsBrokenOutSectionTarget || after.OrderBy(k => k.Key).SequenceEqual(before.OrderBy(k => k.Key)))
+            {
+                throw new ToolException("view_failed", "The broken-out section changed nothing in the view: the outline must enclose part of it and the depth reach inside.",
+                    "Give the corners of the outline as model points of the view, and a depth that reaches what should be shown.");
+            }
+
+            // After the update Depth reads from the back of the part (15 from the front of a 20 mm part reads 5): the depth
+            // asked for is reported, and the cut is checked by what the view shows.
+            return new
+            {
+                view = DescribeView(context, draft, view),
+                brokenOut = new { corners = outline.Length, depth = Geo.Mm(cut), sections = profiles.Count },
+                graphics = new { before, after },
+            };
+        }
+        catch (Exception ex) when (ex is ToolException || (ComErrors.Unwrap(ex) is System.Runtime.InteropServices.COMException or ArgumentException && !ComErrors.IsGone(ex)))
+        {
+            // A section that cuts nothing is still made and not left selected: then it is undone.
+            bool removed = DeleteIfOnlySelected(draft, profile, profiles, count) || (UndoSince(draft, undoStart) && profiles.Count == count);
+            ToolException error = ex as ToolException
+                ?? new ToolException("view_failed", $"Solid Edge rejected the broken-out section: {ComErrors.Unwrap(ex).Message.Trim()}", null, ex);
+            if (!removed)
+            {
+                throw new ToolException(error.Code, error.Message + " The section could not be removed: undo it in Solid Edge.", error.NextStep, ex);
+            }
+
+            throw error;
+        }
+    }
+
+    /// <summary>Undoable transactions of a document, or -1 if it does not report them.</summary>
+    private static int UndoCount(object document)
+    {
+        try
+        {
+            return Convert.ToInt32(Late.Call(document, "UndoTransactionCount"), System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>Undoes only the transactions recorded after <paramref name="start"/>; returns whether it undid any.</summary>
+    private static bool UndoSince(object document, int start)
+    {
+        int count = UndoCount(document);
+        if (start < 0 || count <= start)
+        {
+            return false;
+        }
+
+        try
+        {
+            Late.Call(document, "Undo", count - start);
+            return true;
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Deletes what is selected only when that is the new broken-out profile alone (it stays selected once made).</summary>
+    private static bool DeleteIfOnlySelected(DraftDocument draft, BrokenOutSectionProfile profile, BrokenOutSectionProfiles profiles, int count)
+    {
+        try
+        {
+            object? selection = Late.TryGet(draft, "SelectSet");
+            if (selection is null || Late.Count(selection) != 1)
+            {
+                return profiles.Count == count;
+            }
+
+            object? selected = Late.Call(selection, "Item", 1);
+            if (selected is null || !(Late.SameObject(selected, profile) || Late.SameObject(selected, profile.Profile)))
+            {
+                return profiles.Count == count;
+            }
+
+            Late.Call(selection, "Delete");
+            return profiles.Count == count;
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
+        {
+            return false;
+        }
+    }
+
     public static object AddBreak(SeContext context, string? viewHandle, string direction, double from, double to, string? shape, double? gap)
     {
         DrawingView view = ResolveView(context, viewHandle);
