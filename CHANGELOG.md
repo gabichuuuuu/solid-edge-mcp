@@ -6,6 +6,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-13
+
 ### Added
 
 - `se_drawing family_table` (the family of parts members of the part in a view, with the values of the family
