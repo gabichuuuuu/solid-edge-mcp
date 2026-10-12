@@ -23,9 +23,10 @@ Claude Desktop, Codex or any other MCP client.**
 
 </div>
 
-It lets an AI assistant work in Solid Edge through COM with the breadth of a person: querying
-models, drawing sketches, creating part and sheet metal features, building assemblies, making
-drawings and exporting. It is general purpose: it does not depend on specific files, a specific
+It lets an AI assistant help you work in Solid Edge through COM: querying models, drawing
+sketches, creating part and sheet metal features, building assemblies, making drawings and
+exporting. You stay in control: tools that can change anything are flagged so your MCP client
+asks for your approval. It is general purpose: it does not depend on specific files, a specific
 machine or a specific workflow.
 
 <table>

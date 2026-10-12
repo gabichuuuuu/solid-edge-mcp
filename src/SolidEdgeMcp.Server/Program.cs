@@ -129,7 +129,7 @@ public static class Program
     }
 
     private const string ServerInstructions = """
-        Controls Solid Edge on this computer through its COM API, like a person at the keyboard.
+        Works in Solid Edge on this computer through its COM API at the person's request; the person stays in control and reviews the results.
         Units: tools take and return millimetres and degrees unless a description says otherwise; the generic se_com_* tools use the raw API units (metres, radians) and 1-based collections.
         Objects are returned as handles ("doc:3", "feature:12"); pass them back as given. Handles of a document expire when it is closed, undone or recomputed; face and edge handles also expire whenever the model changes.
         Part modelling (ordered): se_sketch create → draw → close → se_extrude / se_revolve; se_round / se_chamfer take edge handles from se_geometry. Every new feature is verified and removed if it fails.
