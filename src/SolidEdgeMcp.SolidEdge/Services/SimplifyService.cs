@@ -21,17 +21,20 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static class SimplifyService
 {
-    public static readonly IReadOnlyList<string> Actions = ["status", "create", "delete_holes", "delete_rounds", "delete_faces", "activate", "delete"];
+    public static readonly IReadOnlyList<string> Actions = ["status", "create", "delete_holes", "delete_rounds", "delete_faces", "delete_region", "activate", "delete"];
 
     private const int FaceCollection = 1;
+    private const int EdgeCollection = 2;
 
-    public static object Run(SeContext context, string? documentHandle, string action, double? diameter, string[]? faces, string? model, string? feature) => action switch
+    public static object Run(SeContext context, string? documentHandle, string action, double? diameter, string[]? faces, string? model, string? feature,
+        string[]? edges = null) => action switch
     {
         "status" => Status(context, Document(context, documentHandle, faces, feature)),
         "create" => Create(context, Document(context, documentHandle, faces, feature)),
         "delete_holes" => DeleteHoles(context, Document(context, documentHandle, faces, feature), diameter),
         "delete_rounds" => DeleteFaces(context, Document(context, documentHandle, faces, feature), faces, rounds: true),
         "delete_faces" => DeleteFaces(context, Document(context, documentHandle, faces, feature), faces, rounds: false),
+        "delete_region" => DeleteRegion(context, Document(context, documentHandle, faces, feature), faces, edges),
         "activate" => Activate(context, Document(context, documentHandle, faces, feature), model),
         "delete" => DeleteFeature(context, Document(context, documentHandle, faces, feature), feature),
         _ => throw ToolException.InvalidArgument($"Unknown action '{action}'.", $"Use one of: {string.Join(", ", Actions)}."),
@@ -148,6 +151,36 @@ public static class SimplifyService
         return Simplify(context, model, simplified, rounds ? "delete rounds" : "delete faces",
             () => rounds ? simplified.DeleteBlends.Add(set) : simplified.DeleteFaces.Add(set),
             rounds ? "Pass the faces of rounds of the simplified body." : "Pass faces whose removal leaves a closed body (e.g. the faces of a boss or a pocket).");
+    }
+
+    /// <summary>Removes the region of the simplified body bounded by a closed loop of edges, on the side of one face inside it.</summary>
+    private static object DeleteRegion(SeContext context, ModelDocument model, string[]? faceHandles, string[]? edgeHandles)
+    {
+        if (faceHandles is not [string faceHandle] || edgeHandles is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("delete_region requires 'edges' (the closed loop around the region) and one face inside it in 'faces', both of the simplified body.",
+                "Get the body with se_simplify status and its faces and edges with se_geometry, source = that body or a face of it.");
+        }
+
+        SimplifiedModel simplified = Require(model);
+        Body body = Late.Get(simplified, "Body") as Body ?? throw new ToolException("no_simplified_model", "The simplified model has no body to edit.");
+        Face face = context.Handles.Resolve<Face>(faceHandle, "faces");
+        SolidEdgeGeometry.Edge[] edges = edgeHandles.Select(h => context.Handles.Resolve<SolidEdgeGeometry.Edge>(h, "edges")).ToArray();
+        if (Late.Get(face, "Body") is not Body faceBody || faceBody.Tag != body.Tag
+            || edges.Any(e => Late.Get(e, "Body") is not Body edgeBody || edgeBody.Tag != body.Tag))
+        {
+            throw ToolException.InvalidArgument("The face and the edges must belong to the simplified body.",
+                "Get the body with se_simplify status and its faces and edges with se_geometry, source = that body (the design body is edited with se_part_feature delete_region).");
+        }
+
+        object set = Late.Call(body, "CreateCollection", EdgeCollection) ?? throw new ToolException("feature_failed", "Solid Edge did not create the edge collection.");
+        foreach (SolidEdgeGeometry.Edge edge in edges)
+        {
+            Late.Call(set, "Add", edge);
+        }
+
+        return Simplify(context, model, simplified, "delete region", () => simplified.DeleteRegions.Add(set, face),
+            "The edges must close a loop around the region, and the face must lie inside it.");
     }
 
     /// <summary>Adds a simplification and checks that the simplified body changed while the design body did not; otherwise deletes it.</summary>

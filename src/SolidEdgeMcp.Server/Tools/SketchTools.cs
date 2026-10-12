@@ -21,6 +21,7 @@ public enum SketchAction
     Arc,
     Ellipse,
     Spline,
+    Conic,
     Point,
     Fillet,
     Chamfer,
@@ -94,7 +95,7 @@ public sealed class SketchTools(ToolRunner runner)
     [Description("""
         2D sketches (profiles) for part features, in mm, in the sketch's own x/y coordinates. Drawing sheets take the same 2D geometry: pass a sheet handle (se_drawing sheets) or a drawing document handle (its active sheet) as 'sketch', with x/y in mm from the lower-left corner of the sheet; create, axis, close, project and delete apply only to model sketches.
         create (plane: 'xy', 'yz', 'xz' = the base plane through the origin with that orientation, in any template; '1'-'3' = the template's base planes in its order (default templates: XY/top, YZ/right, XZ/front); or a refplane / planar face handle; in an assembly the same or an assembly plane, for se_assembly_feature) returns the sketch handle and its frame (origin, xAxis, yAxis, normal in model coordinates): on a face the origin is not the model origin, so model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis |
-        line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners) | polyline (points [x1,y1,x2,y2,...]; closed, default true) | circle (center, radius) | arc (center, start, end; counter-clockwise) | ellipse (center, radius, minorRadius, angle) | spline (cubic through points, >= 3; closed, default false) | point (points [x,y]) |
+        line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners) | polyline (points [x1,y1,x2,y2,...]; closed, default true) | circle (center, radius) | arc (center, start, end; counter-clockwise) | ellipse (center, radius, minorRadius, angle) | spline (cubic through points, >= 3; closed, default false) | conic (points [start, end, control: where the end tangents meet], rho 0-1: 0.5 parabola) | point (points [x,y]) |
         fillet (elements = two elements meeting at a corner, radius; trims both) | chamfer (elements = two lines meeting at a corner, setbacks; trims both) | project (elements = model edge handles from se_geometry, linked into the sketch) |
         axis (element = line handle; revolution axis for se_revolve, set it before close; a side of the profile can be used: a copy becomes the axis) | close (validates closed loops, or one open chain with open=true for contour flanges, bend/jog lines and paths; required before a feature) | info (frame, counts and every element with its handle and geometry) | delete.
         Example: create {"plane":"1"} → rectangle {"sketch":"sketch:5","points":[0,0,100,50]} → close → se_extrude.
@@ -103,13 +104,14 @@ public sealed class SketchTools(ToolRunner runner)
         SketchAction action,
         [Description("Sketch handle (all actions except create), or a drawing sheet / drawing document handle for the drawing actions and info.")] string? sketch = null,
         [Description("For create: '1' XY, '2' YZ, '3' XZ, or a refplane / planar face handle.")] string? plane = null,
-        [Description("For line, rectangle, polyline, spline, point: flat list of coordinates in mm [x1,y1,x2,y2,...]; for fillet and chamfer: optional point [x,y] inside the corner (default for two lines: their common corner).")] double[]? points = null,
+        [Description("For line, rectangle, polyline, spline, conic, point: flat list of coordinates in mm [x1,y1,x2,y2,...]; for fillet and chamfer: optional point [x,y] inside the corner (default for two lines: their common corner).")] double[]? points = null,
         [Description("For circle, arc, ellipse: centre [x,y] in mm.")] double[]? center = null,
         [Description("For circle and fillet: radius in mm; for ellipse: semi-major axis in mm.")] double? radius = null,
         [Description("For arc: start point [x,y] in mm.")] double[]? start = null,
         [Description("For arc: end point [x,y] in mm.")] double[]? end = null,
         [Description("For ellipse: semi-minor axis in mm (radius is the semi-major axis).")] double? minorRadius = null,
         [Description("For ellipse: angle of the major axis from the sketch x axis, in degrees (default 0).")] double? angle = null,
+        [Description("For conic: shape between 0 and 1 (0.5 parabola, less an ellipse, more a hyperbola; default 0.5).")] double? rho = null,
         [Description("For axis: handle of a line of the sketch.")] string? element = null,
         [Description("For fillet and chamfer: the two sketch elements; for project: model edge handles.")] string[]? elements = null,
         [Description("For chamfer: one setback in mm from the corner (equal) or two (along the first and the second line).")] double[]? setbacks = null,
@@ -136,6 +138,7 @@ public sealed class SketchTools(ToolRunner runner)
             SketchAction.Arc => runner.RunAsync(tool, name, c => SketchService.Arc(c, handle, center, start, end), cancellationToken),
             SketchAction.Ellipse => runner.RunAsync(tool, name, c => SketchService.Ellipse(c, handle, center, radius, minorRadius, angle), cancellationToken),
             SketchAction.Spline => runner.RunAsync(tool, name, c => SketchService.Spline(c, handle, points, closed ?? false), cancellationToken),
+            SketchAction.Conic => runner.RunAsync(tool, name, c => SketchService.Conic(c, handle, points, rho), cancellationToken),
             SketchAction.Point => runner.RunAsync(tool, name, c => SketchService.Point(c, handle, points), cancellationToken),
             SketchAction.Fillet => runner.RunAsync(tool, name, c => SketchService.Fillet(c, handle, elements, radius, points), cancellationToken),
             SketchAction.Chamfer => runner.RunAsync(tool, name, c => SketchService.Chamfer(c, handle, elements, setbacks, points), cancellationToken),

@@ -21,6 +21,9 @@ public static partial class FeatureService
     // face collection made with Body.CreateCollection(seFaceCollection) and filled with Add.
     private const int FaceCollection = 1;
 
+    /// <summary>SolidEdgeGeometry.TopologyCollectionTypeConstants.seEdgeCollection.</summary>
+    private const int EdgeCollection = 2;
+
     /// <summary>Deletes faces and heals the solid: a hole face fills the hole, the side and top faces of a boss remove it.</summary>
     private static object DeleteFaces(SeContext context, string? documentHandle, PartFeatureSpec spec)
     {
@@ -30,6 +33,48 @@ public static partial class FeatureService
         object set = FaceSet(target, faces);
         object feature = Create("delete faces", () => target.DeleteFaces.Add(set));
         return Verify(context, model, feature, before, 0, switched);
+    }
+
+    /// <summary>
+    /// Deletes the region of the body bounded by a closed loop of edges, on the side of one face inside it, and heals the
+    /// solid. Verified: DeleteRegions.Add(edge collection of Body.CreateCollection(seEdgeCollection), side face) took a
+    /// 20 x 20 x 5 boss off a 100 x 60 x 20 block (122000 to 120000 mm³, 11 faces to 6).
+    /// </summary>
+    private static object DeleteRegion(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        if (spec.Faces is not { Length: 1 })
+        {
+            throw ToolException.InvalidArgument("delete_region takes one face in 'faces': a face inside the region to delete (it picks the side of the edges).");
+        }
+
+        if (spec.Edges is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("delete_region requires 'edges': the closed loop of edges that bounds the region (se_geometry edges, e.g. with source = a face).");
+        }
+
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "delete_region", "one face inside the region to delete");
+        Edge[] edges = spec.Edges.Select(h => context.Handles.Resolve<Edge>(h, "edges")).ToArray();
+        int tag = ((Body)target.Body).Tag;
+        for (int i = 0; i < edges.Length; i++)
+        {
+            if (Late.Get(edges[i], "Body") is not Body owner || owner.Tag != tag)
+            {
+                throw ToolException.InvalidArgument($"'{spec.Edges[i]}' is not an edge of the body of the face.", "Pass edges of the same design body.");
+            }
+        }
+
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        object set = Late.Call(target.Body, "CreateCollection", EdgeCollection)
+            ?? throw new ToolException("feature_failed", "Solid Edge did not create the edge collection.");
+        foreach (Edge edge in edges)
+        {
+            Late.Call(set, "Add", edge);
+        }
+
+        object feature = Create("delete region", () => target.DeleteRegions.Add(set, faces[0]));
+        return Verify(context, model, feature, before, 0, switched,
+            hint: "The edges must close a loop around the region (all of its boundary), and the face must lie inside the region.");
     }
 
     /// <summary>

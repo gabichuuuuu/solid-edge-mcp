@@ -1,0 +1,182 @@
+# A44: sensors (se_sensor), surface blends (se_surface blend), deleted regions (se_part_feature and se_simplify
+# delete_region) and conics (se_sketch conic).
+# Expected values are worked out by hand from the dimensions: a block 100 x 60 x 20 (120000 mm3, top face 6000 mm2, 20 mm
+# thick); a boss 20 x 20 x 5 on it (122000 mm3); two surfaces 100 x 30 crossing at the origin with a blend of R10 (a quarter
+# cylinder: 2 pi x 10 x 30 / 4 = 471.238898 mm2); a conic from (0,0) to (50,0) with the control point at (25,30) and rho
+# 0.5 peaks at 15 mm.
+# 1) Sensors of a part: a variable, a minimum distance and a face area; conditions met or not, changed, read again by hand
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_variables {"action":"add","name":"w","value":30,"units":"distance"}
+@v = se_sensor {"action":"add_variable","variable":"w","operator":"between","range":[20,50]}
+?= v.sensor.type variable
+?= v.sensor.variable w
+?= v.sensor.value 30 0.0001
+?= v.sensor.unit mm
+?= v.sensor.met true
+?~ v.sensor.description sensor
+se_variables {"action":"set","name":"w","value":60}
+@l1 = se_sensor {"action":"list"}
+?= l1.count 1
+?= l1.sensors[0].value 60 0.0001
+?= l1.sensors[0].met false
+?= l1.sensors[0].alert true
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@bot = se_geometry {"action":"faces","direction":[0,0,-1]}
+@fr = se_geometry {"action":"faces","direction":[0,-1,0]}
+@d = se_sensor {"action":"add_distance","elements":["{{top.items[0].handle}}","{{bot.items[0].handle}}"],"operator":"greater_than","threshold":15,"name":"Thickness"}
+?= d.sensor.type minimum_distance
+?= d.sensor.value 20 0.0001
+?= d.sensor.met true
+@a = se_sensor {"action":"add_area","faces":["{{top.items[0].handle}}"],"operator":"less_than","threshold":7000,"description":"Top area"}
+?= a.sensor.type surface_area
+?= a.sensor.value 6000 0.001
+?= a.sensor.unit mm2
+?~ a.sensor.description Top
+! [invalid_argument] se_sensor {"action":"add_area","faces":["{{top.items[0].handle}}","{{fr.items[0].handle}}"],"operator":"less_than","threshold":7000}
+@s = se_sensor {"action":"set","sensor":"Thickness","threshold":25}
+?= s.threshold 25 0.0001
+?= s.met false
+@s2 = se_sensor {"action":"set","sensor":"1","operator":"less_than","threshold":70}
+?= s2.operator less_than
+?= s2.met true
+@m = se_sensor {"action":"add_variable","variable":"w","operator":"greater_than","threshold":10,"update":"manual","name":"Manual"}
+se_variables {"action":"set","name":"w","value":5}
+@l2 = se_sensor {"action":"list"}
+?= l2.sensors[3].status out_of_date
+?= l2.sensors[3].value 60 0.0001
+@u = se_sensor {"action":"update","sensor":"Manual"}
+?= u.sensors[0].value 5 0.0001
+?= u.sensors[0].met false
+! [invalid_argument] se_sensor {"action":"add_variable","variable":"w","operator":"between","threshold":5}
+! [invalid_argument] se_sensor {"action":"add_variable","variable":"w","operator":"less_than","range":[1,2]}
+! [invalid_argument] se_sensor {"action":"add_variable","variable":"w","threshold":2}
+! [invalid_argument] se_sensor {"action":"add_variable","variable":"w","operator":"less_than","threshold":2,"name":"Thickness"}
+! [invalid_argument] se_sensor {"action":"set","sensor":"Thickness","description":" "}
+! [not_found] se_sensor {"action":"add_variable","variable":"nope","operator":"less_than","threshold":2}
+! [not_found] se_sensor {"action":"set","sensor":"9","threshold":1}
+! [unsafe_member] se_com_invoke {"target":"{{d.sensor.handle}}","method":"Delete"}
+! [unsafe_member] se_com_set {"target":"{{d.sensor.handle}}","member":"Description","value":""}
+# Saved and opened again: the sensors and the units of the variable sensor stay
+se_documents {"action":"save_as","path":"{{work}}\\a44_sensors.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+se_documents {"action":"open","path":"{{work}}\\a44_sensors.par"}
+@l3 = se_sensor {"action":"list"}
+?= l3.count 4
+?= l3.sensors[0].unit mm
+?= l3.sensors[0].variable w
+?= l3.sensors[2].value 6000 0.001
+se_documents {"action":"close","saveChanges":false}
+# 2) A clearance sensor between two blocks of an assembly follows a move: 30 mm, then 10 mm and flagged
+@b = se_documents {"action":"new","kind":"part"}
+@kb = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kb.sketch}}","points":[0,0,50,50]}
+se_sketch {"action":"close","sketch":"{{kb.sketch}}"}
+se_extrude {"sketch":"{{kb.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\a44_blk.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@asm = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a44_blk.par"}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\a44_blk.par","origin":[80,0,0]}
+@g = se_sensor {"action":"add_distance","elements":["{{o1.handle}}","{{o2.handle}}"],"operator":"greater_than","threshold":20,"name":"Clearance"}
+?= g.sensor.value 30 0.0001
+?= g.sensor.met true
+se_assembly {"action":"move","occurrence":"{{o2.handle}}","origin":[60,0,0]}
+@lg = se_sensor {"action":"list"}
+?= lg.sensors[0].value 10 0.0001
+?= lg.sensors[0].alert true
+se_documents {"action":"close","saveChanges":false}
+# 3) Surface blend: R10 in the corner the point picks (x > 0, y > 0), then R5 in the opposite one
+@ps = se_documents {"action":"new","kind":"part"}
+@ka = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{ka.sketch}}","points":[-50,0,50,0]}
+se_sketch {"action":"close","sketch":"{{ka.sketch}}","open":true}
+@sa = se_surface {"action":"extrude","sketch":"{{ka.sketch}}","depth":30}
+@kc = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kc.sketch}}","points":[0,-50,0,50]}
+se_sketch {"action":"close","sketch":"{{kc.sketch}}","open":true}
+@sb = se_surface {"action":"extrude","sketch":"{{kc.sketch}}","depth":30}
+@fa = se_geometry {"action":"faces","source":"{{sa.surface.handle}}"}
+@fb = se_geometry {"action":"faces","source":"{{sb.surface.handle}}"}
+! [invalid_argument] se_surface {"action":"blend","faces":["{{fa.items[0].handle}}","{{fa.items[0].handle}}"],"radius":10,"point":[10,10,15]}
+! [invalid_argument] se_surface {"action":"blend","faces":["{{fa.items[0].handle}}","{{fb.items[0].handle}}"],"radius":10,"point":[10,0,15]}
+! [invalid_argument] se_surface {"action":"blend","faces":["{{fa.items[0].handle}}","{{fb.items[0].handle}}"],"point":[10,10,15]}
+! [feature_failed] se_surface {"action":"blend","faces":["{{fa.items[0].handle}}","{{fb.items[0].handle}}"],"radius":80,"point":[10,10,15]}
+@fa2 = se_geometry {"action":"faces","source":"{{sa.surface.handle}}"}
+@fb2 = se_geometry {"action":"faces","source":"{{sb.surface.handle}}"}
+@bl = se_surface {"action":"blend","faces":["{{fa2.items[0].handle}}","{{fb2.items[0].handle}}"],"radius":10,"point":[10,10,15]}
+?= bl.blend.area 471.238898 0.001
+?= bl.blend.radius 10
+?= bl.sides[0] reverse
+?= bl.sides[1] normal
+@bf = se_geometry {"action":"faces","source":"{{bl.feature.handle}}"}
+?= bf.items[0].type cylinder
+?= bf.items[0].axisPoint[0] 10 0.0001
+?= bf.items[0].axisPoint[1] 10 0.0001
+se_documents {"action":"close","saveChanges":false}
+@pt = se_documents {"action":"new","kind":"part"}
+@kd = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kd.sketch}}","points":[-50,0,50,0]}
+se_sketch {"action":"close","sketch":"{{kd.sketch}}","open":true}
+@sc = se_surface {"action":"extrude","sketch":"{{kd.sketch}}","depth":30}
+@ke = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{ke.sketch}}","points":[0,-50,0,50]}
+se_sketch {"action":"close","sketch":"{{ke.sketch}}","open":true}
+@sd = se_surface {"action":"extrude","sketch":"{{ke.sketch}}","depth":30}
+@fc = se_geometry {"action":"faces","source":"{{sc.surface.handle}}"}
+@fd = se_geometry {"action":"faces","source":"{{sd.surface.handle}}"}
+@bl2 = se_surface {"action":"blend","faces":["{{fd.items[0].handle}}","{{fc.items[0].handle}}"],"radius":5,"point":[-20,-30,15]}
+?= bl2.blend.area 235.619449 0.001
+@bf2 = se_geometry {"action":"faces","source":"{{bl2.feature.handle}}"}
+?= bf2.items[0].axisPoint[0] -5 0.0001
+?= bf2.items[0].axisPoint[1] -5 0.0001
+se_documents {"action":"close","saveChanges":false}
+# 4) Deleted regions: a boss bounded by its base loop, on the design body and on the simplified model
+@pr = se_documents {"action":"new","kind":"part"}
+@kf = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kf.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kf.sketch}}"}
+se_extrude {"sketch":"{{kf.sketch}}","distance":20}
+@r20 = se_ref_plane {"action":"offset","plane":"xy","distance":20}
+@kg = se_sketch {"action":"create","plane":"{{r20.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{kg.sketch}}","points":[40,20,60,40]}
+se_sketch {"action":"close","sketch":"{{kg.sketch}}"}
+se_extrude {"sketch":"{{kg.sketch}}","distance":5}
+@s0 = se_simplify {"action":"create"}
+?= s0.volume 122000 0.01
+@sf = se_geometry {"action":"faces","source":"{{s0.body}}"}
+@se = se_geometry {"action":"edges","source":"{{sf.items[?area=5600].handle}}"}
+@tp = se_geometry {"action":"faces","direction":[0,0,1]}
+! [invalid_argument] se_simplify {"action":"delete_region","edges":["{{se.items[0].handle}}"],"faces":["{{tp.items[?area=400].handle}}"]}
+@sr = se_simplify {"action":"delete_region","edges":["{{se.items[0].handle}}","{{se.items[1].handle}}","{{se.items[2].handle}}","{{se.items[3].handle}}"],"faces":["{{sf.items[?area=400].handle}}"]}
+?= sr.feature.type DeleteRegion
+?= sr.volume 120000 0.01
+?= sr.faces 6
+?= sr.designChanged false
+se_simplify {"action":"activate","model":"design"}
+@tp2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@de = se_geometry {"action":"edges","source":"{{tp2.items[?area=5600].handle}}"}
+! [invalid_argument] se_part_feature {"action":"delete_region","faces":["{{tp2.items[?area=400].handle}}"]}
+! [invalid_argument] se_part_feature {"action":"delete_region","edges":["{{de.items[0].handle}}"],"faces":["{{tp2.items[?area=400].handle}}","{{tp2.items[?area=5600].handle}}"]}
+@dr = se_part_feature {"action":"delete_region","edges":["{{de.items[0].handle}}","{{de.items[1].handle}}","{{de.items[2].handle}}","{{de.items[3].handle}}"],"faces":["{{tp2.items[?area=400].handle}}"]}
+?= dr.feature.type DeleteRegion
+?= dr.volume 120000 0.01
+?= dr.volumeChange -2000 0.01
+se_documents {"action":"close","saveChanges":false}
+# 5) A conic closed with a line and extruded 10 mm: 15 mm high
+@pc = se_documents {"action":"new","kind":"part"}
+@kh = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kh.sketch}}","points":[0,0,50,0]}
+! [invalid_argument] se_sketch {"action":"conic","sketch":"{{kh.sketch}}","points":[0,0,50,0,25,30],"rho":1.5}
+@cn = se_sketch {"action":"conic","sketch":"{{kh.sketch}}","points":[0,0,50,0,25,30]}
+?= cn.geometry.rho 0.5
+se_sketch {"action":"close","sketch":"{{kh.sketch}}"}
+se_extrude {"sketch":"{{kh.sketch}}","distance":10}
+@gc = se_geometry {"action":"summary"}
+?= gc.boundingBox.size[0] 50 0.0001
+?= gc.boundingBox.size[1] 15 0.0001
+?= gc.volume 5002.291415 0.01
+se_documents {"action":"close","saveChanges":false}

@@ -6,6 +6,28 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_sensor`: sensors of parts, sheet metal and assemblies. `add_variable` watches a variable or dimension,
+  `add_distance` the minimum distance between two faces, edges or vertices (in an assembly also occurrences: a clearance
+  that follows their moves) and `add_area` the area of a face, each with a condition (greater or less than, equal, not
+  equal, between, not between); `list` gives each value and whether it meets its condition, `set` changes the
+  condition, name, description, display and update mode, and `update` reads manual sensors again. Sensors are not
+  deleted: deleting one through the API breaks every sensor of the document.
+- `se_surface blend`: a constant radius blend between two construction surfaces, in the corner a point picks; the
+  surfaces are trimmed to it.
+- `se_part_feature delete_region` and `se_simplify delete_region`: the region bounded by a closed loop of edges, on the
+  side of a face inside it, removed from the design body or the simplified model.
+- `se_sketch conic`: a conic from a start to an end point, with the point where its end tangents meet and rho for its
+  shape (0.5 a parabola).
+- Acceptance script `A44` (sensors, surface blends, deleted regions, conics). Coverage notes for decals and stitch welds
+  in a part document, which the API does not make.
+
+### Fixed
+
+- The generic layer refuses `Sensor.Delete` (it breaks every sensor of the document, also in the saved file) and sensors
+  with an empty description (the document then fails to save).
+
 ## [0.4.0] - 2026-10-13
 
 This release adds the simplified model of a part, fillet welds in part documents, copies of construction geometry and

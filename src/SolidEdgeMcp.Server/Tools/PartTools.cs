@@ -66,6 +66,7 @@ public enum PartFeatureAction
     DeleteFaces,
     DeleteHoles,
     DeleteRounds,
+    DeleteRegion,
     OffsetFaces,
     ReplaceFaces,
     RedefineFaces,
@@ -147,6 +148,7 @@ public enum SurfaceAction
     Extend,
     Intersect,
     Bluesurf,
+    Blend,
     Delete,
 }
 
@@ -280,7 +282,7 @@ public sealed class PartTools(ToolRunner runner)
         thicken: faces, thickness; side |
         mirror_body: mirrored copy of the body about 'plane' (the original stays).
         split: a reference plane ('plane') cuts the body (or 'bodies') into design bodies | unite: joins 'bodies' into one (default: all). Other body operations: se_body.
-        Direct edits (also imported parts): delete_faces (the solid heals) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | offset_faces (distance along the normal: positive adds) | replace_faces (onto replaceWith: a plane, surface or face) | redefine_faces (adjacent faces merged into one B-spline face) | resize_holes (faces of holes get diameter) | resize_rounds (faces of rounds get radius).
+        Direct edits (also imported parts): delete_faces (the solid heals) | delete_holes (diameter: every hole up to it) | delete_rounds (faces of rounds) | delete_region (edges = the closed loop around a region, faces = [one face inside it]: removed and healed) | offset_faces (distance along the normal: positive adds) | replace_faces (onto replaceWith: a plane, surface or face) | redefine_faces (adjacent faces merged into one B-spline face) | resize_holes (faces of holes get diameter) | resize_rounds (faces of rounds get radius).
         normal_protrusion | normal_cutout: 'edges' of closed curves on faces (se_curve project or wrap) raised or recessed by 'distance'; side auto = inside them, reverse = outside.
         slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends (path extended by half the width) or squareEnds; through, or depth; optional counterbore |
         web_network: sketch = open lines on a plane across a shelled part; thickness; each line a wall grown to the next face, or depth |
@@ -305,7 +307,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("resize_rounds: new radius in mm.")] double? radius = null,
         [Description("slot, lip: width in mm.")] double? width = null,
         [Description("lip: height in mm.")] double? height = null,
-        [Description("lip: edge handles of the rim; normal_protrusion, normal_cutout: the edges of the curves (se_geometry edges with source = the curve).")] string[]? edges = null,
+        [Description("delete_region: the closed loop of edges around the region; lip: edge handles of the rim; normal_protrusion, normal_cutout: the edges of the curves (se_geometry edges with source = the curve).")] string[]? edges = null,
         [Description("slot: square ends instead of rounded.")] bool squareEnds = false,
         [Description("slot: counterbore at the top of the slot, [total width, depth] in mm (wider than the slot).")] double[]? counterbore = null,
         [Description("scale_body, copy_part: one factor or three (x, y, z), e.g. [2] or [1, 1, 0.5].")] double[]? scale = null,
@@ -449,7 +451,8 @@ public sealed class PartTools(ToolRunner runner)
         trim ('surfaces' = one surface; 'tools' = surfaces, faces of surfaces, curves or edges that cross it, not planes; 'point' [x,y,z] mm on the region to remove) |
         extend ('edges' = free edges of one surface; 'distance' mm; extension natural | linear | reflective) |
         intersect ('surfaces' that together enclose a volume, e.g. a tube and two caps: one solid construction body, the pieces outside trimmed away) |
-        bluesurf ('edges' = one edge per section, in order, e.g. of curves; optional 'guides' = edges; endCaps) | delete ('name').
+        bluesurf ('edges' = one edge per section, in order, e.g. of curves; optional 'guides' = edges; endCaps) |
+        blend ('faces' = one face of each of two surfaces; 'radius' mm; 'point' [x,y,z] mm in the corner where the blend goes; the surfaces are trimmed to it) | delete ('name').
         Each surface is checked by its status and its faces (copy: the same area; trim: less; extend: more), and deleted if Solid Edge does not make it.
         Example: {"action":"extrude","sketch":"sketch:5","depth":20}; {"action":"offset","faces":["face:12"],"distance":5}.
         """)]
@@ -461,7 +464,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("revolve: angle in degrees (default 360).")] double angle = 360,
         FeatureDirection direction = FeatureDirection.Normal,
         [Description("extrude, revolve, loft, sweep, bluesurf: close the ends of closed profiles.")] bool endCaps = false,
-        [Description("offset: one face handle; copy: face handles.")] string[]? faces = null,
+        [Description("offset: one face handle; copy: face handles; blend: one face of each of two surfaces.")] string[]? faces = null,
         [Description("offset: distance in mm along the face normal (negative = into the material); extend: distance in mm.")] double? distance = null,
         [Description("loft, sweep: section sketch handles, in order.")] string[]? sketches = null,
         [Description("sweep: path = sketch handle or curve handle (se_curve).")] string? path = null,
@@ -470,7 +473,8 @@ public sealed class PartTools(ToolRunner runner)
         [Description("stitch: gap tolerance in mm (default: Solid Edge's); intersect: tolerance in mm (default 0.01).")] double? tolerance = null,
         [Description("bounded: edge handles of a closed chain; extend: free edges of one surface; bluesurf: one edge per section, in order (se_geometry edges).")] string[]? edges = null,
         [Description("trim: surfaces, faces of surfaces, curves or edges that cross the surface.")] string[]? tools = null,
-        [Description("trim: [x, y, z] in mm, a point on the region of the surface to remove.")] double[]? point = null,
+        [Description("trim: [x, y, z] in mm, a point on the region of the surface to remove; blend: a point in the corner where the blend goes.")] double[]? point = null,
+        [Description("blend: radius in mm.")] double? radius = null,
         [Description("extend: natural (default) | linear | reflective.")] SurfaceExtension extension = SurfaceExtension.Natural,
         [Description("bluesurf: guide edge handles.")] string[]? guides = null,
         [Description("delete: surface name (action 'list').")] string? name = null,
@@ -494,6 +498,7 @@ public sealed class PartTools(ToolRunner runner)
             SurfaceAction.Extend => runner.RunAsync(tool, act, c => FeatureService.ExtendSurface(c, document, edges, distance, Snake(extension)), cancellationToken),
             SurfaceAction.Intersect => runner.RunAsync(tool, act, c => FeatureService.IntersectSurfaces(c, document, surfaces, tolerance), cancellationToken),
             SurfaceAction.Bluesurf => runner.RunAsync(tool, act, c => FeatureService.BlueSurf(c, document, edges, guides, endCaps), cancellationToken),
+            SurfaceAction.Blend => runner.RunAsync(tool, act, c => FeatureService.BlendSurfaces(c, document, faces, radius, point), cancellationToken),
             SurfaceAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteSurface(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

@@ -114,6 +114,11 @@ public static class GenericCom
             case PropertyInfo { CanWrite: true } property:
                 object?[] indexArgs = BindArguments(context, property.Name, property.GetIndexParameters(), index);
                 object? converted = ComValues.FromJson(context, value, property.PropertyType, member, fileProperty);
+                if (type?.Name == "Sensor" && property.Name == "Description" && converted is string text && string.IsNullOrWhiteSpace(text))
+                {
+                    throw EmptySensorDescription();
+                }
+
                 property.SetValue(obj, converted, indexArgs.Length == 0 ? null : indexArgs);
                 return ComValues.ToJson(context, property.CanRead ? property.GetValue(obj, indexArgs.Length == 0 ? null : indexArgs) : null, OwnerOf(context, obj, target));
             case PropertyInfo:
@@ -143,7 +148,8 @@ public static class GenericCom
         ["Relations3d.AddPlanarCam"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the faces of the cam and the follower as assembly references)", null),
         ["Relations3d.AddPath"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with an edge, a circular edge or a vertex as the follower)", null),
         ["Rounds.AddBlend"] = ("closed Solid Edge (with one face set and two radii) and otherwise leaves the blend failed", "Round the edge the faces share with se_round."),
-        ["ResizeHoles.Add"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT) when ThreadHoleData is not a HoleData", "Use se_part_feature resize_holes."),
+        ["Sensor.Delete"] = ("breaks every sensor of the document, also in the saved file (each later call on Sensors fails with 0x80040225)", "Keep the sensor and change its condition with se_sensor set."),
+        ["ResizeHoles.Add"] =("leaves Solid Edge unstable (RPC_E_SERVERFAULT) when ThreadHoleData is not a HoleData", "Use se_part_feature resize_holes."),
     };
 
     private static void RefuseUnsafe(Type? type, string member)
@@ -161,6 +167,17 @@ public static class GenericCom
     /// </summary>
     private static void RefuseUnsafeArguments(Type? type, string member, object?[] args)
     {
+        int description = type?.Name != "Sensors" ? -1 : member.ToUpperInvariant() switch
+        {
+            "ADDVARIABLESENSOR" => 2,
+            "ADDMINIMUMDISTANCESENSOR" or "ADDSURFACEAREASENSOR" => 3,
+            _ => -1,
+        };
+        if (description >= 0 && args.Length > description && args[description] is string text && string.IsNullOrWhiteSpace(text))
+        {
+            throw EmptySensorDescription();
+        }
+
         if (type?.Name == "SplitCurves"
             && (member.Equals("Add", StringComparison.OrdinalIgnoreCase) || member.Equals("AreCurvesValid", StringComparison.OrdinalIgnoreCase))
             && args.Length > 1 && args[1] is Array curves && (curves.Length > 1 || curves.Cast<object?>().Any(c => c is not SolidEdgeGeometry.Edge)))
@@ -170,6 +187,11 @@ public static class GenericCom
                 "Pass one edge of the curve per call (se_geometry edges with source = the curve), or use se_curve split.");
         }
     }
+
+    /// <summary>Verified in Solid Edge 2026: a sensor with an empty description makes the document fail to save (DISP_E_EXCEPTION).</summary>
+    private static ToolException EmptySensorDescription() => new("unsafe_member",
+        "A sensor with an empty description makes the document fail to save in Solid Edge 2026 (SaveAs: DISP_E_EXCEPTION, leaving a broken file), so it is not called.",
+        "Give the sensor a description, or use se_sensor.");
 
     /// <summary>
     /// Checks a numeric Item/ItemEx index against the collection's Count. Verified in Solid Edge 2026: ModelMembers.Item

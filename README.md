@@ -12,10 +12,10 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![72 tools](https://img.shields.io/badge/tools-72-2F6FEB)
+![73 tools](https://img.shields.io/badge/tools-73-2F6FEB)
 
 ![Version 0.4.0](https://img.shields.io/badge/version-0.4.0-2F6FEB)
-[![Progress: 63 % of functions work through the MCP](https://img.shields.io/badge/progress-63%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 64 % of functions work through the MCP](https://img.shields.io/badge/progress-64%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -34,7 +34,7 @@ machine or a specific workflow.
 
 **Broad coverage**
 
-Parts, sheet metal, assemblies, drawings and export with 72 tools, plus the whole API through a
+Parts, sheet metal, assemblies, drawings and export with 73 tools, plus the whole API through a
 generic COM layer.
 
 </td>
@@ -74,8 +74,8 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=a22664b2">
-  <img src="docs/assets/progress.svg?v=49b7abb4" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=7ca2cd14">
+  <img src="docs/assets/progress.svg?v=855ad39c" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
@@ -202,13 +202,13 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-72 tools, grouped by area.
+73 tools, grouped by area.
 
 | Area | Tools |
 |---|---|
 | **Server and session** | `se_server_info` `se_session` |
 | **Documents and data** | `se_documents` `se_properties` `se_variables` `se_part_family` `se_material` `se_appearance` `se_layer` `se_links` |
-| **Query** | `se_feature_tree` `se_geometry` `se_measure` `se_physical` `se_selection` |
+| **Query** | `se_feature_tree` `se_geometry` `se_measure` `se_physical` `se_selection` `se_sensor` |
 | **View and application** | `se_view` `se_section_view` `se_options` `se_ui` `se_app` `se_customize` `se_styles` |
 | **Sketches** | `se_sketch` `se_sketch_constraint` `se_sketch_edit` `se_region` `se_ref_plane` |
 | **Part** | `se_extrude` `se_revolve` `se_hole` `se_round` `se_chamfer` `se_pattern` `se_shell` `se_draft` `se_loft_sweep` `se_part_feature` `se_body` `se_face_relation` `se_face_split` `se_pmi` `se_primitive` `se_surface` `se_curve` `se_feature_edit` `se_simplify` |
@@ -238,6 +238,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_measure` | Minimum distance and angle between faces, edges, planes or occurrences, also in assemblies. |
 | | `se_physical` | Volume, area, mass, center of gravity and inertia of a part (with the given density or the material's) or of an assembly (with the material of each part). |
 | | `se_selection` | Read, replace, extend or clear the active selection. |
+| | `se_sensor` | Sensors of parts, sheet metal and assemblies: watch a variable, the minimum distance between two faces, edges or occurrences (a clearance between parts that follows their moves) or the area of a face, with a condition (greater or less than, equal, between); list their values and whether each one meets its condition, change them and read manual ones again. |
 | **View and application** | `se_view` | Capture the view as an image (optionally with the colours at its corners, edges and centre), framing (on drawings, the whole sheet with the title block), orientation, display mode and named views (list, save the current one, apply, delete); the view style of a model window and its background (solid, gradient or image); the camera (eye, target, up, perspective and field of view), zoom and rotation. Does not change the model. |
 | | `se_section_view` | 3D section views of parts, sheet metal and assemblies (View > Section) from a sketch profile: the part that stays (inside or outside of a closed profile, either side of an open line), depth and direction along the sketch normal, caption, fasteners cut or not; show, hide, what is drawn, the cutting plane and its opacity; delete, reporting the unused reference planes that Solid Edge deletes with it. Does not change the model. |
 | | `se_options` | Every Solid Edge option by page of the Options dialog (general, save, file locations, colours, helpers, assembly, drawing, units, simulation…) and document units: list, read and change them (returns the previous value); save all of them to a snapshot file and restore it. The preferences a drawing saves (projection angle, drawing view defaults, grid, the line style of each kind of edge…). |
@@ -245,7 +246,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_app` | Solid Edge as a program: version, edition, language and folders; the Add-In Manager (load and unload add-ins); default template of each document type; the recent files list. |
 | | `se_customize` | The Customize dialog: ribbon themes (create from the default one, activate, rename, button size and labels, remove), tabs, groups and commands of a theme, and keyboard shortcuts of each environment. |
 | | `se_styles` | Styles of a document: dimension, text, character, line, fill, hatch, dash, drawing view, table and frame styles of drawings, and view and face styles of models. List them, read every property, change one (read back, with the previous value; colours as #RRGGBB and enumerations by name), create one from another, activate, delete, and import them from another drawing. |
-| **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, points, corner fillet and chamfer, edge projection, revolve axis and validated close; list the elements and relations of a sketch. The same 2D geometry is drawn on drawing sheets (2D drafting). |
+| **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, conics, points, corner fillet and chamfer, edge projection, revolve axis and validated close; list the elements and relations of a sketch. The same 2D geometry is drawn on drawing sheets (2D drafting). |
 | | `se_sketch_constraint` | Geometric relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions that move the geometry, in sketches and on drawing sheets. |
 | | `se_sketch_edit` | Move, rotate, scale and mirror elements (in place, keeping the relations among them, or as connected copies), trim, extend, split, corner, offset a chain, construction geometry, rectangular and circular patterns and delete, in sketches and on drawing sheets; each result measured. |
 | | `se_region` | Closed regions of drawing sheets and sketches: fills and hatching (round a point among the elements or by the corners of a polygon) with fill style, colour, angle and spacing; list, restyle and delete them; area properties (area, perimeter, centroid, second moments, principal axes, radii of gyration and section moduli), minus holes. The point is proved to be inside a closed loop before Solid Edge looks for the region. |
@@ -259,16 +260,16 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_shell` | Shell with a common wall thickness and optional open faces. |
 | | `se_draft` | Face draft relative to a neutral plane. |
 | | `se_loft_sweep` | Loft, sweep (along a sketch or a 3D curve) and helix, as a boss or a cut. |
-| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, offset faces, replace faces with a plane or a surface, merge adjacent faces into one B-spline face, and resize holes and rounds; slots along an open path, web networks and lips in shelled parts, normal protrusions and cutouts (the region inside or outside closed curves projected or wrapped onto faces, raised or recessed, e.g. a logo), scaling of the body, copies of saved parts (scaled or mirrored), splitting a body by a plane into design bodies and uniting them again (`se_geometry` and `se_physical` measure every body), and fillet weld beads between faces of the part, with equal or unequal legs. |
+| | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, offset faces, replace faces with a plane or a surface, merge adjacent faces into one B-spline face, delete a region bounded by a loop of edges, and resize holes and rounds; slots along an open path, web networks and lips in shelled parts, normal protrusions and cutouts (the region inside or outside closed curves projected or wrapped onto faces, raised or recessed, e.g. a logo), scaling of the body, copies of saved parts (scaled or mirrored), splitting a body by a plane into design bodies and uniting them again (`se_geometry` and `se_physical` measure every body), and fillet weld beads between faces of the part, with equal or unequal legs. |
 | | `se_body` | Bodies of a part: list the design and construction bodies; subtract and intersect design bodies (with a closed body as the tool, or an open surface that keeps the side its normal points to or the other one); unite closed construction bodies (end-capped surfaces) with a design body, the tools staying as construction bodies; emboss closed bodies into another (thickened or as a cut only, with a clearance, on either side); turn design bodies into construction bodies and closed construction bodies (end-capped surfaces) into design bodies; divide a saved part into one part file per piece by a reference plane or a surface. Each result is checked by the volume and the bodies. |
 | | `se_face_relation` | 3D relations between faces of a part, as the Relate commands of synchronous modelling: coplanar, offset at a distance, parallel, perpendicular, tangent and concentric (the faces move and the target stays; each relation is checked on the geometry, and one that Solid Edge cannot meet is deleted), and fixed faces; list relations, edit the distance of an offset and delete relations; read and set the live rules of the session, restore their defaults and put them back. |
 | | `se_face_split` | Faces of the body split into more faces without changing its volume (to draft, colour or relate part of a face): by reference planes, surfaces or curves that cross them, along the silhouette seen from a plane (a sphere at its equator), or by a line at a distance from an edge of the face. Each split is checked by the faces and the volume, and the new faces are returned. |
 | | `se_pmi` | 3D (PMI) dimensions of a part or sheet metal document, the ones synchronous features carry (the height, width and length of a box, the height and diameter of a cylinder): list them with their value, type, lock and status; drive the model to a new value with the measured end, the origin end or both ends moving (the value the model reaches is read back, and the old one is put back if Solid Edge does not reach it); lock and unlock them; delete them (the model stays as it is); show or hide the PMI dimensions and annotations in the window. |
 | | `se_primitive` | Box (optionally turned about the plane normal), cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
-| | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps), offset from a face, lofted through sections, swept along a sketch or a 3D curve, stitched, filling a closed chain of edges, copied from faces, and BlueSurf through section edges with guides; trim a surface where surfaces or curves cross it, extend it from its edges (natural, linear or reflective), and close surfaces that enclose a volume into a solid construction body; list and delete. Each result is checked by its area or volume. |
+| | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps), offset from a face, lofted through sections, swept along a sketch or a 3D curve, stitched, filling a closed chain of edges, copied from faces, and BlueSurf through section edges with guides; trim a surface where surfaces or curves cross it, extend it from its edges (natural, linear or reflective), close surfaces that enclose a volume into a solid construction body, and blend two surfaces with a constant radius (trimmed to it); list and delete. Each result is checked by its area or volume. |
 | | `se_curve` | Construction curves: through 3D points, intersections of faces, surfaces and the body, sketches projected onto faces, crossings of two sketches, chains of edges, contours drawn on a face through points on it, sketches wrapped onto cylindrical or conical faces, and isoclines (where the face normal makes an angle with a plane, e.g. a silhouette); split a curve where planes or other curves cross it (its length is checked); list and delete. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature or a group; group features and dissolve a group; move a feature before or after another; roll the model back to a feature (new features go after it) and forward to its end. |
-| | `se_simplify` | The simplified model of a part or sheet metal part, which assemblies can show instead of the design body: make it, delete holes up to a diameter, rounds and chosen faces from it (each change checked on its body, the design body untouched), switch between the design and the simplified model, list and delete its features. |
+| | `se_simplify` | The simplified model of a part or sheet metal part, which assemblies can show instead of the design body: make it, delete holes up to a diameter, rounds, chosen faces and regions bounded by edges from it (each change checked on its body, the design body untouched), switch between the design and the simplified model, list and delete its features. |
 | **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), gauges of a material library, tab, contour flange, flange, hem, corner break, flat pattern with cut size, changes of the angle and radius of existing bends, a flange matched to a parallel plane (onto it, short of it or beyond it), and conversion of a thin-walled part into sheet metal. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
 | **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences; activate or inactivate them; make a subassembly from occurrences, move occurrences into a subassembly and disperse one. |
@@ -317,7 +318,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 72 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 73 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -332,7 +333,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 72 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 73 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -389,10 +390,10 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 377/377.
-- Acceptance suite against real Solid Edge 2026: **3953 calls and 2055 checks** in `A01`–`A43`, with expected
+- Acceptance suite against real Solid Edge 2026: **4068 calls and 2110 checks** in `A01`–`A44`, with expected
   values computed from formulas (or Solid Edge reference values when there is no simple formula, noted in the script). All of
   them pass.
-- Coverage by value: the 72 tools have correct calls, and `A10` runs every value of the action,
+- Coverage by value: the 73 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -445,6 +446,7 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 | `A41` | PMI dimensions and unite: a closed construction body added to a block (+16000 mm3, the body reaching x = 120 and z = 30), two at once (144000 mm3) and one inside the block refused (the volume stays), refused with an open surface, a design body or no tools; the three dimensions of a synchronous box listed (20, 60 and 100, driven), the width set to 80 by name, the length to 120 by index with the origin end moving and to 140 by handle with both ends moving and left locked; a height Solid Edge cannot reach rejected (the model keeps 20), lock and unlock, the dimensions hidden and shown, refused calls, the height deleted (the model stays); the diameter of a cylinder set from 40 to 50 with both sides moving; refused in a drawing |
 | `A42` | Surface, curve and face edits: the top and front of a block copied as one surface (8000 mm2), the top split by a plane (3000 + 3000), a line 10 mm from the bottom's front edge (1000 + 5000) and the same line asked for on the front face, which Solid Edge first puts on the bottom (redone on the front: 1500 + 500), the front split by a surface and the back by a curve, the volume unchanged; a wall trimmed by another wall (1000 left) and by a curve (500), extended natural, linear and reflective (+800, +300, +450), a tube and two planes closed into a solid (60000 mm3), BlueSurf through two lines with and without a guide (6324.555 mm2), a circle refused as a section; isoclines of a sphere at 30 degrees (circles at z = 10 and -10, 108.828 long) and its parting split into two halves; a curve split by a plane, by a crossing curve, by two planes at once on different edges and by a curve and an edge of another curve at once (its length stays 100), the curve itself and a curve along it refused, a curved curve split by another; the top of a block and the round along its edge merged into one B-spline face (6285.4 mm2, 7 faces to 6), a second merge with the front face whose fit changes the volume, reported and deleted, and the same merge on the second body of a split part (1885.6 mm2), whose round is also resized and deleted and whose top is offset and replaced by a plane; refused cases, and the generic layer refusing `SplitCurves` with a curve or several edges instead of one edge |
 | `A43` | Welds, copies and simplified models: a fillet weld of leg 5 between a plate and a rib (a bead body of 1250 mm3) and of legs 5 and 8 (2000 mm3, 100 x 5 x 8), refused without target faces or a leg and between faces that do not meet; a wall surface mirrored about YZ (x = −10) and copied along a curve (x = 30 and 50), refused in a rectangular pattern; a block copied three times along a 400 mm curve (360000 mm3), refused with features, mixed handles or another type; the 3D print mesh of a block with two holes within 0.2 % of its volume; the holes of both halves of a split block deleted (two features, 120000 mm3, then refused); a simplified model without its round (118429.2 mm3) and its hole (120000 mm3) while the design body stays, switched to the design model and back, a feature deleted, its hole face deleted (120000 mm3 again), refused before it exists, twice and with a face of the design body. |
+| `A44` | Sensors, surface blends, deleted regions and conics: a variable sensor between 20 and 50 (30 met, 60 flagged), a thickness sensor between the top and bottom faces (20 mm, changed to more than 25: flagged) and a face area sensor (6000 mm2), a manual sensor out of date until read again, refusals of bad conditions, names and deletions, and the sensors and their units kept after saving and opening the part; a clearance sensor between two blocks of an assembly that follows a move (30 mm, then 10 mm and flagged); a blend of R10 between two crossing surfaces in the corner a point picks (a quarter cylinder of 471.24 mm2 at x = y = 10) and of R5 in the opposite corner (235.62 mm2), refused on one surface, with the point on a face and with a radius that does not fit; a 20 x 20 x 5 boss removed by the loop of edges at its base from the simplified model (122000 to 120000 mm3, design body unchanged) and from the design body; a conic of rho 0.5 closed with a line (15 mm high, 5002.29 mm3). |
 
 </details>
 
@@ -500,13 +502,13 @@ one in `C:\Program Files\dotnet`.
 ```text
 solid-edge-mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (72 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (73 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A43 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A44 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, update-progress.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md (coverage by function and route), assets/
@@ -517,7 +519,7 @@ solid-edge-mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A43`, listed under [Validation](#validation)) with expected volumes, measurements
+calls (`A01`–`A44`, listed under [Validation](#validation)) with expected volumes, measurements
 and errors written in advance. Each script creates and closes its documents without saving:
 
 ```powershell

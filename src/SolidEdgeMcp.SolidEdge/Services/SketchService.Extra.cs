@@ -54,6 +54,31 @@ public static partial class SketchService
         return new { element = context.RegisterBeside(curve, "bspline2d", sketch), geometry = Describe2d(curve) };
     }
 
+    /// <summary>
+    /// A conic from the start to the end point whose end tangents meet at the control point; rho (between 0 and 1) sets the
+    /// shape: 0.5 a parabola, less an ellipse, more a hyperbola. Verified: (0,0) to (50,0) with the control point at (25,30)
+    /// and rho 0.5 peaks at 15 mm and closes a profile with the line under it (extruded 10 mm: 5002.29 mm³).
+    /// </summary>
+    public static object Conic(SeContext context, string sketch, double[]? points, double? rho)
+    {
+        Canvas2d canvas = ResolveCanvas(context, sketch);
+        Profile profile = canvas.Profile ?? throw ToolException.InvalidArgument("conic draws in model sketches only (drawing sheets have no conics).");
+        List<(double X, double Y)> p = Geo.Points2(points, "points", 3);
+        if (p.Count != 3)
+        {
+            throw ToolException.InvalidArgument("'points' for conic: [xStart, yStart, xEnd, yEnd, xControl, yControl] in mm (the control point is where the end tangents meet).");
+        }
+
+        double r = rho ?? 0.5;
+        if (!(r > 0 && r < 1))
+        {
+            throw ToolException.InvalidArgument("'rho' must be between 0 and 1: 0.5 is a parabola, less an ellipse, more a hyperbola.");
+        }
+
+        Conic2d conic = profile.Conics2d.AddByThreePointsAndRhoValue(p[0].X, p[0].Y, p[1].X, p[1].Y, p[2].X, p[2].Y, r);
+        return new { element = context.RegisterBeside(conic, "conic2d", sketch), geometry = new { type = "conic", rho = r } };
+    }
+
     public static object Point(SeContext context, string sketch, double[]? points)
     {
         Canvas2d canvas = ResolveCanvas(context, sketch);

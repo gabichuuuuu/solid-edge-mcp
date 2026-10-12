@@ -224,6 +224,71 @@ public static partial class FeatureService
         return CheckedSurface(context, model, surface, "bluesurf", switched, [], []);
     }
 
+    /// <summary>
+    /// A constant radius blend between two construction surfaces, on the side of each face where <paramref name="point"/> (mm)
+    /// lies; the surfaces are trimmed back to it. Rounds.AddSurfaceBlend on the construction model of the first surface:
+    /// igLeft puts the blend on the side opposite the face normal and igRight on the normal side (two planes crossing at the
+    /// origin with normals -Y and +X: the four combinations give a quarter cylinder of R10 in each quadrant, 471.24 mm² for a
+    /// height of 30).
+    /// </summary>
+    public static object BlendSurfaces(SeContext context, string? documentHandle, string[]? faces, double? radius, double[]? point)
+    {
+        if (faces is not [string firstHandle, string secondHandle])
+        {
+            throw ToolException.InvalidArgument("blend takes two faces in 'faces': one face of each surface (se_geometry faces with source = the surface).");
+        }
+
+        double r = Units.MmToM(Units.RequirePositive(radius ?? throw ToolException.InvalidArgument("blend requires 'radius' (mm)."), "radius"));
+        double[] p = PointArgument(point, "point", "blend needs 'point' [x, y, z] in mm: a point in the corner between the two faces where the blend goes.");
+        ModelDocument model = ModelDocument.For(context, documentHandle, firstHandle);
+        Face first = context.Handles.Resolve<Face>(firstHandle, "faces");
+        Face second = context.Handles.Resolve<Face>(secondHandle, "faces");
+        (ConstructionModel owner, Body body) = ConstructionOf(model, first, firstHandle, "faces");
+        (_, Body other) = ConstructionOf(model, second, secondHandle, "faces");
+        if (other.Tag == body.Tag)
+        {
+            throw ToolException.InvalidArgument("Both faces belong to the same surface: blend joins two surfaces.", "Pass one face of each surface.");
+        }
+
+        FeaturePropertyConstants firstSide = SideOf(first, p, firstHandle);
+        FeaturePropertyConstants secondSide = SideOf(second, p, secondHandle);
+        bool switched = model.EnsureOrdered();
+        object blend = Create("surface blend", () => owner.Rounds.AddSurfaceBlend(first, firstSide, second, secondSide, r, true, true));
+        context.ModelChanged(model.Document, "the model changed (surface blend)");
+        string? status = StatusOf(blend);
+        Face[] blendFaces = FacesOf(blend);
+        if (status is not ("ok" or "warning") || blendFaces.Length == 0)
+        {
+            TryDeleteSurface(blend);
+            throw new ToolException("feature_failed", $"Solid Edge did not make the surface blend (status {status ?? "unknown"}); it was deleted.",
+                "The radius must fit between the faces, and the point must lie in the corner they make, off both faces.");
+        }
+
+        return new
+        {
+            feature = Describe(context, model, blend),
+            blend = new
+            {
+                faces = blendFaces.Select(f => new { handle = context.Register(f, "face", model.Document), area = Geo.Mm2(f.Area) }).ToArray(),
+                area = Geo.Mm2(blendFaces.Sum(f => f.Area)),
+                radius = Geo.Mm(r),
+            },
+            sides = new[] { firstSide == FeaturePropertyConstants.igRight ? "normal" : "reverse", secondSide == FeaturePropertyConstants.igRight ? "normal" : "reverse" },
+            warnings = Warnings(switched, status == "warning"),
+        };
+    }
+
+    /// <summary>igRight when the point lies on the side the face normal points to, igLeft on the other side.</summary>
+    private static FeaturePropertyConstants SideOf(Face face, double[] point, string handle)
+    {
+        (double[] nearest, double[] normal) = NearestOnFace(face, point);
+        double[] offset = [point[0] - nearest[0], point[1] - nearest[1], point[2] - nearest[2]];
+        double along = offset[0] * normal[0] + offset[1] * normal[1] + offset[2] * normal[2];
+        return Math.Abs(along) <= 1e-6
+            ? throw ToolException.InvalidArgument($"'point' lies on (or beside) the face '{handle}'.", "Give a point off both faces, in the corner where the blend goes.")
+            : along > 0 ? FeaturePropertyConstants.igRight : FeaturePropertyConstants.igLeft;
+    }
+
     /// <summary>The construction model of a construction surface or curve, of a face or edge of one, or of a construction body.</summary>
     private static (ConstructionModel Model, Body Body) ConstructionOf(ModelDocument model, object item, string handle, string argumentName)
     {
@@ -334,6 +399,13 @@ public static partial class FeatureService
     /// <summary>Distance (m) from the point to the face and the face normal at the nearest point.</summary>
     private static (double Distance, double[] Normal) OnFace(Face face, double[] point)
     {
+        (double[] nearest, double[] normal) = NearestOnFace(face, point);
+        return (Geo.Distance(point, nearest), normal);
+    }
+
+    /// <summary>The nearest point of the face's surface (m) and the face normal there.</summary>
+    private static (double[] Point, double[] Normal) NearestOnFace(Face face, double[] point)
+    {
         Array points = point.ToArray();
         Array guess = new double[2];
         Array deviations = new double[1];
@@ -344,7 +416,7 @@ public static partial class FeatureService
         face.GetPointAtParam(1, ref parameters, ref back);
         Array normal = new double[3];
         face.GetNormal(1, ref parameters, ref normal);
-        return (Geo.Distance(point, [.. Geo.Doubles(back)]), [.. Geo.Doubles(normal)]);
+        return ([.. Geo.Doubles(back)], [.. Geo.Doubles(normal)]);
     }
 
     private static double[] VertexPoint(Vertex vertex)
