@@ -33,6 +33,10 @@ Relevant changes to this project are recorded here. The format follows
   parts), also in a part split into several bodies; the answer gives the new face and warns when the fitted face
   changes the volume by more than 0.01 %.
 - Acceptance script `A42` (surface and curve edits, face splits, merged faces).
+- License notices: a `NOTICE` file with the copyright, the section 7 permission for the Solid Edge interop, the
+  commercial license and the trademarks; the copyright and license header in every C# and PowerShell file (the build
+  checks it for C#); the contributor license agreement (`CLA.md`) and an issue template to ask for a commercial
+  license. The license is still AGPL-3.0-only.
 
 ### Changed
 

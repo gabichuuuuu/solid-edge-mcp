@@ -1,0 +1,33 @@
+solid-edge-mcp
+Copyright (c) 2026 Gabriel Spoleto Couto
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+General Public License as published by the Free Software Foundation, version 3 only (AGPL-3.0-only). The full
+text is in the LICENSE file.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+License for more details.
+
+Additional permission under GNU AGPL version 3 section 7
+
+If you modify this program, or any covered work, by linking or combining it with Siemens Solid Edge or with
+interop assemblies generated from its type libraries (or a modified version of them), containing parts covered
+by the terms of the Solid Edge license, the licensors of this program grant you additional permission to convey
+the resulting work.
+
+Commercial license
+
+To use this program in a closed-source product or service, or under other terms than the AGPL, a separate
+commercial license is available from the author. Open an issue in the repository with the "Commercial license"
+template, without confidential details, and you will get a private contact:
+https://github.com/gabichuuuuu/solid-edge-mcp/issues/new/choose
+
+Contributions are accepted under the contributor license agreement in CLA.md.
+
+Trademarks
+
+Solid Edge is a trademark or registered trademark of Siemens Industry Software Inc. or its subsidiaries or
+affiliates. Siemens is a registered trademark of Siemens Trademark GmbH & Co. KG. This project is independent and
+is not affiliated with, sponsored by or endorsed by Siemens. The Solid Edge interop assemblies and API dumps are
+generated locally from each user's own Solid Edge installation and are not part of this program.

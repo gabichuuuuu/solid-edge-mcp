@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Gabriel Spoleto Couto
+# SPDX-License-Identifier: AGPL-3.0-only
+
 <#
 .SYNOPSIS
     Dumps the interfaces, members and enumerations of the generated interop as text.

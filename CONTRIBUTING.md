@@ -8,8 +8,9 @@ writing code.
 - **Open an issue first**, with the bug report or feature request template. For a bug, include the
   tool call, the error and the measurable result you expected (volume, bounding box, exported file).
 - **Contributor license agreement.** To keep the AGPL and the commercial license possible, pull
-  requests are merged only from contributors who agree to a contributor license agreement (CLA) that
-  allows the author to relicense their contribution. You will be asked for it before the merge.
+  requests are merged only from contributors who agree to the [contributor license agreement](CLA.md)
+  (CLA), which lets the author relicense their contribution; you keep its copyright. To agree, write in
+  the pull request: "I have read the Contributor License Agreement in CLA.md and I agree to its terms."
 - **Security problems** are not reported in public issues: see [SECURITY.md](SECURITY.md).
 
 ## Development set-up
@@ -41,5 +42,12 @@ installation and are derived from Siemens software: never commit them.
   the alternative) and an entry under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md). Then run
   `scripts\update-progress.ps1`, which rewrites the progress section, chart and badge.
 - Commits follow [Conventional Commits](https://www.conventionalcommits.org/), in English.
+- Every C# and PowerShell file starts with the copyright and license header (the build checks it for
+  C#):
+
+  ```csharp
+  // Copyright (c) 2026 Gabriel Spoleto Couto
+  // SPDX-License-Identifier: AGPL-3.0-only
+  ```
 
 By taking part you agree to follow the [code of conduct](CODE_OF_CONDUCT.md).

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Gabriel Spoleto Couto
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // MCP acceptance client: runs call scripts against the server in a single session and checks the results.
 // Usage: SolidEdgeMcp.Acceptance <server exe> <script> [server arguments...] (normally from run.ps1)
 // Script, one command per line:

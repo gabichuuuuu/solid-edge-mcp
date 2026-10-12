@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Gabriel Spoleto Couto
+// SPDX-License-Identifier: AGPL-3.0-only
+
 using System.Globalization;
 using System.Text.Json;
 using SolidEdgeFrameworkSupport;

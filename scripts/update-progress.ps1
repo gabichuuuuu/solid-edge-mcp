@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Gabriel Spoleto Couto
+# SPDX-License-Identifier: AGPL-3.0-only
+
 <#
 .SYNOPSIS
     Keeps the generated parts of the documentation up to date: the progress section of docs/COVERAGE.md,

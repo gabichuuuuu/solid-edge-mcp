@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Gabriel Spoleto Couto
+// SPDX-License-Identifier: AGPL-3.0-only
+
 namespace SolidEdgeMcp.Core;
 
 /// <summary>Folders owned by the server under <c>%LocalAppData%\SolidEdgeMcp</c>.</summary>

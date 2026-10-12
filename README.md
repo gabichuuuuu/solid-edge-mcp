@@ -509,7 +509,7 @@ solid-edge-mcp/
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md (coverage by function and route), assets/
 ├── lib/interop/  reference/       generated on each machine, not versioned
-└── CHANGELOG.md  LICENSE
+└── CHANGELOG.md  LICENSE  NOTICE  CLA.md
 ```
 
 ### Acceptance suite
@@ -574,15 +574,18 @@ a modified version over a network, you must release the complete source code und
 covered work, by linking or combining it with Siemens Solid Edge or with interop assemblies
 generated from its type libraries (or a modified version of them), containing parts covered by the
 terms of the Solid Edge license, the licensors of this program grant you additional permission to
-convey the resulting work.
+convey the resulting work. This permission is also in the [NOTICE](NOTICE) file, and every source file
+carries the copyright and license header.
 
 **Commercial license.** To use it in a closed-source product or service, or under other terms than
-the AGPL, a separate commercial license is available from the author: contact
-[@gabichuuuuu](https://github.com/gabichuuuuu) on GitHub.
+the AGPL, a separate commercial license is available from the author: open an issue with the
+[Commercial license](https://github.com/gabichuuuuu/solid-edge-mcp/issues/new/choose) template, without
+confidential details, and you will get a private contact.
 
 **Contributions.** To keep both licenses possible, pull requests are accepted only from
-contributors who agree to a contributor license agreement (CLA) that allows the author to
-relicense their contribution. Open an issue before submitting one; see [CONTRIBUTING.md](CONTRIBUTING.md).
+contributors who agree to the [contributor license agreement](CLA.md) (CLA), which lets the author
+relicense their contribution; you keep the copyright of your work. Open an issue before submitting
+one; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Versions published before the change to the AGPL (2026-10-11) remain available under the MIT
 License.

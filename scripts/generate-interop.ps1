@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Gabriel Spoleto Couto
+# SPDX-License-Identifier: AGPL-3.0-only
+
 <#
 .SYNOPSIS
     Generates the Solid Edge interop assemblies from the installed type libraries.

@@ -27,4 +27,5 @@
 
 - [ ] No interop, API dumps, `publish/`, `policy.json`, logs or secrets
 - [ ] Conventional commits in English
-- [ ] I agree to the contributor license agreement (CLA) described in the README "License" section
+- [ ] New source files start with the copyright and license header
+- [ ] I have read the Contributor License Agreement in CLA.md and I agree to its terms

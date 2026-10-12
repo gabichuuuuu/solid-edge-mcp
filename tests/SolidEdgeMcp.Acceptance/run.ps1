@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Gabriel Spoleto Couto
+# SPDX-License-Identifier: AGPL-3.0-only
+
 # Runs the acceptance scripts against the built server and real Solid Edge, one after another.
 # Usage (from the root, after dotnet build SolidEdgeMcp.slnx): .\tests\SolidEdgeMcp.Acceptance\run.ps1 [A01 A03 ...]
 # Creates and closes its own documents without saving; the files go to the work folder
