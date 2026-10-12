@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title desc">
+  <title id="title">solid_edge_mcp</title>
+  <desc id="desc">Isometric line drawing of a dimensioned block with a through hole, next to the project name and tagline.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 1.5L10 5L0 8.5z" fill="#9198a1"/>
+    </marker>
+    <clipPath id="hole">
+      <ellipse cx="267.3" cy="150" rx="24.5" ry="14.1"/>
+    </clipPath>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1279" height="319" rx="6" fill="none" stroke="#3d444d"/>
+  <line x1="440" y1="48" x2="440" y2="272" stroke="#3d444d"/>
+
+  <!-- Coordinate triad -->
+  <g stroke="#f0f6fc" stroke-width="1.5" stroke-linecap="round">
+    <line x1="80" y1="262" x2="80" y2="232"/>
+    <line x1="80" y1="262" x2="106" y2="277"/>
+    <line x1="80" y1="262" x2="54" y2="277"/>
+  </g>
+  <g fill="#9198a1" font-family="Bahnschrift, 'DIN Alternate', 'DIN 1451', D-DIN, Barlow, 'Roboto Condensed', 'Arial Narrow', sans-serif" font-size="12">
+    <text x="76" y="226">Z</text>
+    <text x="110" y="289">X</text>
+    <text x="42" y="289">Y</text>
+  </g>
+
+  <!-- Isometric block 130 x 90 x 55 with a through hole -->
+  <g stroke="#9198a1" stroke-width="1.2" stroke-dasharray="6 4" fill="none">
+    <line x1="250" y1="150" x2="250" y2="95"/>
+    <line x1="250" y1="150" x2="362.6" y2="215"/>
+    <line x1="250" y1="150" x2="172.1" y2="195"/>
+  </g>
+  <g stroke="#f0f6fc" stroke-width="1.6" stroke-linejoin="round" fill="none">
+    <path d="M250 95L362.6 160L284.6 205L172.1 140Z"/>
+    <path d="M362.6 160L362.6 215L284.6 260L284.6 205"/>
+    <path d="M172.1 140L172.1 195L284.6 260"/>
+    <ellipse cx="267.3" cy="150" rx="24.5" ry="14.1"/>
+  </g>
+  <ellipse cx="267.3" cy="172" rx="24.5" ry="14.1" fill="none" stroke="#9198a1" stroke-width="1.2" clip-path="url(#hole)"/>
+  <g stroke="#9198a1" stroke-width="1" stroke-dasharray="12 3 2 3" fill="none">
+    <line x1="230.9" y1="129" x2="303.7" y2="171"/>
+    <line x1="303.7" y1="129" x2="230.9" y2="171"/>
+  </g>
+
+  <!-- Dimension of the 130 mm edge -->
+  <g stroke="#9198a1" stroke-width="1" fill="none">
+    <line x1="170.4" y1="196" x2="150.4" y2="207.5"/>
+    <line x1="282.9" y1="261" x2="262.9" y2="272.5"/>
+    <line x1="155.6" y1="204.5" x2="268.1" y2="269.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  </g>
+  <text x="0" y="0" transform="translate(203 250) rotate(30)" fill="#9198a1" font-family="Bahnschrift, 'DIN Alternate', 'DIN 1451', D-DIN, Barlow, 'Roboto Condensed', 'Arial Narrow', sans-serif" font-size="14" text-anchor="middle">130</text>
+
+  <!-- Dimension of the 55 mm height -->
+  <g stroke="#9198a1" stroke-width="1" fill="none">
+    <line x1="365" y1="161.4" x2="385" y2="172.9"/>
+    <line x1="365" y1="216.4" x2="385" y2="227.9"/>
+    <line x1="380" y1="170" x2="380" y2="225" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  </g>
+  <text x="0" y="0" transform="translate(397 198) rotate(-90)" fill="#9198a1" font-family="Bahnschrift, 'DIN Alternate', 'DIN 1451', D-DIN, Barlow, 'Roboto Condensed', 'Arial Narrow', sans-serif" font-size="14" text-anchor="middle">55</text>
+
+  <!-- Name and tagline -->
+  <g font-family="Bahnschrift, 'DIN Alternate', 'DIN 1451', D-DIN, Barlow, 'Roboto Condensed', 'Arial Narrow', sans-serif">
+    <text x="488" y="106" fill="#9198a1" font-size="18">MCP server for Solid Edge</text>
+    <text x="486" y="170" fill="#f0f6fc" font-size="60" font-weight="600">solid_edge_mcp</text>
+    <text x="488" y="212" fill="#f0f6fc" font-size="22">Model, assemble and draft in Solid Edge from any MCP client.</text>
+    <text x="488" y="246" fill="#9198a1" font-size="17">Parts · Sheet metal · Assemblies · Drawings · Export</text>
+  </g>
+</svg>

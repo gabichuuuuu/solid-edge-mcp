@@ -23,6 +23,11 @@ damages the document in Solid Edge 2026 (do not use).
 <!-- progress:start -->
 ## Progress
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/progress-dark.svg">
+  <img src="assets/progress.svg" alt="Progress by area: one square per function" width="100%">
+</picture>
+
 **76 % working** (112 of 147 functions work through the MCP, ✔): 35 do not work in Solid Edge 2026
 and are documented, with an alternative when there is one (✘), and 0 are still to be tested (·).
 Every function, tested or not, can also be reached through the generic COM layer and `se_command`.

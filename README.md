@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="docs/assets/banner.svg" alt="solid_edge_mcp: model, assemble and draft in Solid Edge from any MCP client" width="100%">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+  <img src="docs/assets/banner.svg" alt="solid_edge_mcp: model, assemble and draft in Solid Edge from any MCP client" width="100%">
+</picture>
 
 **Unofficial local [MCP](https://modelcontextprotocol.io) server to operate Solid Edge from Claude Code,
 Claude Desktop, Codex or any other MCP client.**
@@ -13,8 +16,6 @@ Claude Desktop, Codex or any other MCP client.**
 
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 [![Progress: 76 % of functions work through the MCP](https://img.shields.io/badge/progress-76%25-yellow)](docs/COVERAGE.md#progress)
-[![Last commit](https://img.shields.io/github/last-commit/gabichuuuuu/solid_edge_mcp)](https://github.com/gabichuuuuu/solid_edge_mcp/commits/main)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/gabichuuuuu/solid_edge_mcp)](https://github.com/gabichuuuuu/solid_edge_mcp/commits/main)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md)
@@ -30,7 +31,7 @@ machine or a specific workflow.
 <tr>
 <td width="50%" valign="top">
 
-**🧩 Broad coverage**
+**Broad coverage**
 
 Parts, sheet metal, assemblies, drawings and export with 54 tools, plus the whole API through a
 generic COM layer.
@@ -38,7 +39,7 @@ generic COM layer.
 </td>
 <td width="50%" valign="top">
 
-**📏 Verified changes**
+**Verified changes**
 
 Each modeling operation is measured. If it fails or has no effect, it is undone and the error
 explains why and what to do next.
@@ -48,7 +49,7 @@ explains why and what to do next.
 <tr>
 <td width="50%" valign="top">
 
-**🔒 Safe by default**
+**Safe by default**
 
 Files only inside allowed folders. Tools that can change anything are flagged so the client asks
 for approval.
@@ -56,7 +57,7 @@ for approval.
 </td>
 <td width="50%" valign="top">
 
-**🧪 Tested for real**
+**Tested for real**
 
 2077 calls and 947 checks against real Solid Edge 2026, with values calculated by hand.
 
@@ -68,6 +69,17 @@ for approval.
 > **Alpha** version (0.1.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
 > works and has been validated end to end with Claude Code and Codex, but the tools and their
 > parameters may still change.
+
+## Progress
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg">
+  <img src="docs/assets/progress.svg" alt="Progress by area: one square per Solid Edge function" width="100%">
+</picture>
+
+Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
+in Solid Edge 2026 itself (documented, with an alternative when there is one) or it is not tested yet.
+`scripts/update-progress.ps1` redraws the chart from the coverage tables.
 
 ## What you can ask for
 
