@@ -124,6 +124,8 @@ public sealed class ToolRegistrationTests
     [InlineData("se_assembly", """{"action":"explode_subassembly","occurrence":"occurrence:2"}""", "'action' must be one of:")]
     [InlineData("se_links", """{"action":"where_used","path":"C:\\x\\a.par","folders":"C:\\x"}""", "'folders'")]
     [InlineData("se_links", """{"action":"rename","from":"a.par","to":"C:\\x\\b.par"}""", "'action' must be one of:")]
+    [InlineData("se_region", """{"action":"hatch","sketch":"sheet:2","elements":["line2d:3"]}""", "'action' must be one of:")]
+    [InlineData("se_region", """{"action":"area","sketch":"sheet:2","elements":"line2d:3"}""", "'elements'")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -189,6 +191,12 @@ public sealed class ToolRegistrationTests
     [InlineData("se_links", """{"action":"list","recursive":true,"document":"doc:3"}""")]
     [InlineData("se_links", """{"action":"replace","from":"bracket.par","to":"C:\\x\\bracket_v2.par"}""")]
     [InlineData("se_links", """{"action":"break","from":"C:\\x\\block.par"}""")]
+    [InlineData("se_region", """{"action":"fill","sketch":"sheet:2","elements":["line2d:3","line2d:4","line2d:5","line2d:6"],"point":[55,55],"style":"ANSI31(Iron)","color":"#FF0000","angle":30,"spacing":4}""")]
+    [InlineData("se_region", """{"action":"fill","sketch":"doc:1","points":[0,0,60,0,60,40]}""")]
+    [InlineData("se_region", """{"action":"fills","sketch":"sketch:5"}""")]
+    [InlineData("se_region", """{"action":"style","fill":"fill:9","style":"Normal"}""")]
+    [InlineData("se_region", """{"action":"delete","fill":"fill:9"}""")]
+    [InlineData("se_region", """{"action":"area","sketch":"sheet:2","elements":["line2d:3","line2d:4","line2d:5","line2d:6"],"point":[55,55],"holes":["circle2d:7","arc2d:8","arc2d:9"]}""")]
     [InlineData("se_links", """{"action":"where_used","path":"C:\\x\\a.par","folders":["C:\\x","C:\\y"],"subfolders":true,"indirect":true}""")]
     [InlineData("se_links", """{"action":"top_level","files":["C:\\x\\a.asm","C:\\x\\b.asm"]}""")]
     [InlineData("se_links", """{"action":"search","folder":"C:\\x","filter":"*.par;*.asm","text":"bracket","subfolders":true,"offset":0,"limit":20}""")]

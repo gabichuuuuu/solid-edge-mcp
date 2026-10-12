@@ -43,6 +43,10 @@ public static partial class SketchService
 
         public Dimensions Dimensions => (Dimensions)(Profile is { } p ? p.Dimensions : Sheet!.Dimensions);
 
+        public Boundaries2d Boundaries2d => Profile?.Boundaries2d ?? Sheet!.Boundaries2d;
+
+        public AreaPropertiesCollection AreaPropertiesCollection => Profile?.AreaPropertiesCollection ?? Sheet!.AreaPropertiesCollection;
+
         public string Name => Profile is { } p ? NameOf(p) : Sheet!.Name;
 
         public static Canvas2d Of(Profile profile) => new(profile, null);

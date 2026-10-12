@@ -94,6 +94,15 @@ public static class ComErrors
                 "Use se_com_describe on the object to list its members.", ex);
         }
 
+        // The interop layer cannot convert some values that Solid Edge returns (verified in Solid Edge 2026:
+        // Query.Criteria). Solid Edge keeps running and the object stays usable.
+        if (ex is InvalidOleVariantTypeException or SafeArrayTypeMismatchException or SafeArrayRankMismatchException or MarshalDirectiveException)
+        {
+            return new ToolException("unreadable_value",
+                $"'{operation}': Solid Edge returned a value that .NET cannot convert ({ex.GetType().Name}: {ex.Message.Trim()}).",
+                "Read the related members or methods instead (se_com_describe lists them); the object itself is still usable.", ex);
+        }
+
         // .NET converts some COM HRESULTs into other exceptions (E_NOTIMPL, E_INVALIDARG, E_POINTER,
         // E_NOINTERFACE). NotImplementedException never leaves this code; the others are only treated as COM
         // errors when they come from a reflection call (wrapped in TargetInvocationException).

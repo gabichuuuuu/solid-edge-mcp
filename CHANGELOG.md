@@ -62,6 +62,15 @@ Relevant changes to this project are recorded here. The format follows
 - Acceptance script `A25` (assembly structure, links, where used, document search, physical properties of assemblies
   and attribute sets through the generic layer). The acceptance runner gives each run an id (`{{run}}`) for files that
   must not exist yet.
+- `se_region`: closed regions of drawing sheets and sketches, as the Fill and Area commands do. `fill` round a point
+  among the elements (a line across a region splits it and the point chooses the side; the point may be omitted when
+  the elements form one closed loop) or by the corners of a polygon, with fill style, colour, angle and spacing;
+  `fills`, `style` and `delete`. `area`: area, perimeter, centroid, second moments about the centroid, principal
+  moments and angle, radii of gyration and elastic section moduli, minus `holes`. The point is proved to be inside a
+  closed loop of the elements before Solid Edge looks for the region (`point_outside`, `no_closed_region`): a point
+  outside every region brings Solid Edge 2026 down. A closed loop inside the region (an island), which Solid Edge
+  fills instead of the region, is refused with `region_with_island`.
+- Acceptance script `A26` (fills and area properties).
 
 ### Changed
 
@@ -90,6 +99,8 @@ Relevant changes to this project are recorded here. The format follows
 - Arguments for file types, filters and search text (`file_types`, `varFileFilterOrText`…) are no longer taken as
   paths (`'*.par'` was refused by the path policy); file names such as `TextureFileName` still are.
 - `se_assembly list` with `recursive` and `se_bom` with `flat` no longer fail on a subassembly without components.
+- A value that .NET cannot convert (`Query.Criteria` gives an invalid OLE variant) fails with `unreadable_value`
+  instead of an unexpected internal error.
 
 ## [0.1.0] - 2026-10-12
 

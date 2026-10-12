@@ -1,0 +1,158 @@
+# A26: closed regions (se_region): fills by elements and by points, the side of a split region, refused points (outside,
+# on an element, no loop, island), fill styles, the list and delete, and area properties with holes against values by hand.
+# Every document is new and is closed without saving.
+@d = se_documents {"action":"new","kind":"draft"}
+@sh = se_drawing {"action":"sheets"}
+# A: 60 x 40 rectangle, one loop, no point: area 2400, perimeter 200, centroid (80, 70)
+@ra = se_sketch {"action":"rectangle","sketch":"{{sh.sheets[0].handle}}","points":[50,50,110,90]}
+@fa = se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{ra.elements[0]}}","{{ra.elements[1]}}","{{ra.elements[2]}}","{{ra.elements[3]}}"]}
+?= fa.area 2400
+?= fa.perimeter 200
+?= fa.centroid[0] 80
+?= fa.centroid[1] 70
+?= fa.elements 4
+# Style, colour, angle and spacing; a style name that does not exist gets the closest names
+@fs = se_region {"action":"style","fill":"{{fa.fill}}","style":"ANSI31(Iron)","color":"#FF0000","angle":30,"spacing":4}
+?= fs.style ANSI31(Iron)
+?= fs.color #FF0000
+?= fs.angle 30
+?= fs.spacing 4
+! [not_found] se_region {"action":"style","fill":"{{fa.fill}}","style":"ANSI31"}
+! [invalid_argument] se_region {"action":"style","fill":"{{fa.fill}}"}
+# C: a rectangle split by a line across it: the point chooses the side (1200 each, centroids 165 and 195)
+@rc = se_sketch {"action":"rectangle","sketch":"{{sh.sheets[0].handle}}","points":[150,50,210,90]}
+@lc = se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[180,50,180,90]}
+@fl = se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{rc.elements[0]}}","{{rc.elements[1]}}","{{rc.elements[2]}}","{{rc.elements[3]}}","{{lc.element}}"],"point":[160,60]}
+?= fl.area 1200
+?= fl.centroid[0] 165
+@fr = se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{rc.elements[0]}}","{{rc.elements[1]}}","{{rc.elements[2]}}","{{rc.elements[3]}}","{{lc.element}}"],"point":[200,60]}
+?= fr.area 1200
+?= fr.centroid[0] 195
+! [invalid_argument] se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{rc.elements[0]}}","{{rc.elements[1]}}","{{rc.elements[2]}}","{{rc.elements[3]}}","{{lc.element}}"]}
+# D: right triangle (250,50) (310,50) (250,90). A point inside its range but outside it brought Solid Edge down: refused first
+@t = se_sketch {"action":"polyline","sketch":"{{sh.sheets[0].handle}}","points":[250,50,310,50,250,90]}
+! [point_outside] se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{t.elements[0]}}","{{t.elements[1]}}","{{t.elements[2]}}"],"point":[305,85]}
+! [invalid_argument] se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{t.elements[0]}}","{{t.elements[1]}}","{{t.elements[2]}}"],"point":[280,50]}
+# Its area properties as Solid Edge gives them: Ix 106666.667, Iy 240000, Ixy -80000, principal 277470.0 / 69196.67 at 64.9028°
+@ta = se_region {"action":"area","sketch":"{{sh.sheets[0].handle}}","elements":["{{t.elements[0]}}","{{t.elements[1]}}","{{t.elements[2]}}"],"point":[260,60]}
+?= ta.area 1200
+?= ta.perimeter 172.111026
+?= ta.centroid[0] 270
+?= ta.centroid[1] 63.333333
+?= ta.inertia.ix 106666.667
+?= ta.inertia.iy 240000
+?= ta.inertia.ixy -80000
+?= ta.principal.max 277469.996 0.01
+?= ta.principal.min 69196.671 0.01
+?= ta.principal.angle 64.902786
+# E: an open chain (three sides) is no region
+@o = se_sketch {"action":"polyline","sketch":"{{sh.sheets[0].handle}}","points":[350,50,410,50,410,90,350,90],"closed":false}
+! [no_closed_region] se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{o.elements[0]}}","{{o.elements[1]}}","{{o.elements[2]}}"],"point":[380,70]}
+# F: a circle inside the rectangle is an island: Solid Edge would fill the circle, so the fill is refused and removed
+@rg = se_sketch {"action":"rectangle","sketch":"{{sh.sheets[0].handle}}","points":[50,150,110,190]}
+@cg = se_sketch {"action":"circle","sketch":"{{sh.sheets[0].handle}}","center":[80,170],"radius":10}
+@n0 = se_region {"action":"fills","sketch":"{{sh.sheets[0].handle}}"}
+?= n0.count 3
+! [region_with_island] se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{rg.elements[0]}}","{{rg.elements[1]}}","{{rg.elements[2]}}","{{rg.elements[3]}}","{{cg.element}}"],"point":[55,155]}
+# G: the same region with the circle as a hole: A = 2400 - 100π, Ix = 60·40³/12 - π·10⁴/4, Iy = 40·60³/12 - π·10⁴/4
+@ga = se_region {"action":"area","sketch":"{{sh.sheets[0].handle}}","elements":["{{rg.elements[0]}}","{{rg.elements[1]}}","{{rg.elements[2]}}","{{rg.elements[3]}}"],"point":[55,155],"holes":["{{cg.element}}"]}
+?= ga.area 2085.840735
+?= ga.perimeter 262.831853
+?= ga.centroid[0] 80
+?= ga.centroid[1] 170
+?= ga.inertia.ix 312146.018 0.01
+?= ga.inertia.iy 712146.018 0.01
+?= ga.inertia.ixy 0 0.01
+?= ga.inertia.polar 1024292.037 0.01
+?= ga.principal.max 712146.018 0.01
+?= ga.principal.angle 90
+?= ga.radiusOfGyration.x 12.233151
+?= ga.radiusOfGyration.y 18.477532
+?= ga.sectionModulus.x 15607.301 0.01
+?= ga.sectionModulus.y 23738.201 0.01
+?= ga.holes 1
+@n1 = se_region {"action":"fills","sketch":"{{sh.sheets[0].handle}}"}
+?= n1.count 3
+@apc = se_com_get {"target":"{{sh.sheets[0].handle}}","member":"AreaPropertiesCollection"}
+@apn = se_com_get {"target":"{{apc.value.handle}}","member":"Count"}
+?= apn.value 0
+# I: an off-centre square hole drawn as a chain, against the polygon integrals by hand (Green's theorem):
+# A 2300, centroid (180.652174, 170.217391), Ix 316557.971, Iy 695688.406, Ixy -7826.087, principal 695849.885 at 88.81796°
+@ri = se_sketch {"action":"rectangle","sketch":"{{sh.sheets[0].handle}}","points":[150,150,210,190]}
+@hi = se_sketch {"action":"rectangle","sketch":"{{sh.sheets[0].handle}}","points":[160,160,170,170]}
+@ia = se_region {"action":"area","sketch":"{{sh.sheets[0].handle}}","elements":["{{ri.elements[0]}}","{{ri.elements[1]}}","{{ri.elements[2]}}","{{ri.elements[3]}}"],"point":[200,180],"holes":["{{hi.elements[0]}}","{{hi.elements[1]}}","{{hi.elements[2]}}","{{hi.elements[3]}}"]}
+?= ia.area 2300
+?= ia.perimeter 240
+?= ia.centroid[0] 180.652174
+?= ia.centroid[1] 170.217391
+?= ia.inertia.ix 316557.971 0.01
+?= ia.inertia.iy 695688.406 0.01
+?= ia.inertia.ixy -7826.087 0.01
+?= ia.principal.max 695849.885 0.01
+?= ia.principal.min 316396.492 0.01
+?= ia.principal.angle 88.81796
+?= ia.sectionModulus.x 15657.706 0.01
+?= ia.sectionModulus.y 22696.217 0.01
+! [invalid_argument] se_region {"action":"area","sketch":"{{sh.sheets[0].handle}}","elements":["{{ri.elements[0]}}","{{ri.elements[1]}}","{{ri.elements[2]}}","{{ri.elements[3]}}"],"point":[200,180],"holes":["{{hi.elements[0]}}","{{hi.elements[1]}}","{{hi.elements[2]}}"]}
+! [invalid_argument] se_region {"action":"area","sketch":"{{sh.sheets[0].handle}}","elements":["{{ra.elements[0]}}","{{ra.elements[1]}}","{{ra.elements[2]}}","{{ra.elements[3]}}"],"point":[55,55],"holes":["{{cg.element}}"]}
+# J: a polygon by points: triangle 60 x 40 = 1200, centroid (80, 263.333)
+@fj = se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","points":[50,250,110,250,80,290]}
+?= fj.area 1200
+?= fj.centroid[0] 80
+?= fj.centroid[1] 263.333333
+! [invalid_argument] se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","points":[50,250,110,250,170,250]}
+# K: a rectangle with a rounded corner (r 5): 2400 - (25 - 25π/4) = 2394.634954; a slot of two lines and two half circles
+@rk = se_sketch {"action":"rectangle","sketch":"{{sh.sheets[0].handle}}","points":[150,250,210,290]}
+@fk = se_sketch {"action":"fillet","sketch":"{{sh.sheets[0].handle}}","elements":["{{rk.elements[0]}}","{{rk.elements[1]}}"],"radius":5}
+@kk = se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{rk.elements[0]}}","{{rk.elements[1]}}","{{rk.elements[2]}}","{{rk.elements[3]}}","{{fk.element}}"]}
+?= kk.area 2394.634954
+@s1 = se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[50,320,90,320]}
+@s2 = se_sketch {"action":"arc","sketch":"{{sh.sheets[0].handle}}","center":[90,330],"start":[90,320],"end":[90,340]}
+@s3 = se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[90,340,50,340]}
+@s4 = se_sketch {"action":"arc","sketch":"{{sh.sheets[0].handle}}","center":[50,330],"start":[50,340],"end":[50,320]}
+@sa = se_region {"action":"area","sketch":"{{sh.sheets[0].handle}}","elements":["{{s1.element}}","{{s2.element}}","{{s3.element}}","{{s4.element}}"]}
+?= sa.area 1114.159265
+?= sa.centroid[0] 70
+?= sa.centroid[1] 330
+# L: an ellipse 20 x 10 at 30°: A = 200π; the axis of the maximum (π·20³·10/4 = 62831.853) is the minor axis, at 120° = -60°
+@e = se_sketch {"action":"ellipse","sketch":"{{sh.sheets[0].handle}}","center":[300,330],"radius":20,"minorRadius":10,"angle":30}
+@ea = se_region {"action":"area","sketch":"{{sh.sheets[0].handle}}","elements":["{{e.element}}"]}
+?= ea.area 628.318531
+?= ea.inertia.ix 27488.936 0.01
+?= ea.inertia.iy 51050.881 0.01
+?= ea.inertia.ixy 20405.243 0.01
+?= ea.principal.max 62831.853 0.01
+?= ea.principal.min 15707.963 0.01
+?= ea.principal.angle -60
+# M: a closed spline is a loop by itself
+@sp = se_sketch {"action":"spline","sketch":"{{sh.sheets[0].handle}}","points":[350,300,380,320,410,300,380,280],"closed":true}
+@fp = se_region {"action":"fill","sketch":"{{sh.sheets[0].handle}}","elements":["{{sp.element}}"],"point":[380,300]}
+?= fp.elements 1
+# List and delete
+@n2 = se_region {"action":"fills","sketch":"{{sh.sheets[0].handle}}"}
+?= n2.count 6
+?= n2.fills[0].style ANSI31(Iron)
+se_region {"action":"delete","fill":"{{fr.fill}}"}
+@n3 = se_region {"action":"fills","sketch":"{{d.handle}}"}
+?= n3.count 5
+! [handle_expired] se_region {"action":"style","fill":"{{fr.fill}}","style":"Normal"}
+! [point_outside] se_region {"action":"area","sketch":"{{sh.sheets[0].handle}}","elements":["{{ra.elements[0]}}","{{ra.elements[1]}}","{{ra.elements[2]}}","{{ra.elements[3]}}"],"point":[5000,5000]}
+se_view {"action":"capture","path":"{{work}}\\a26_regions.png"}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# N: a part sketch: the area of a 60 x 40 rectangle with a centred hole r 10 (2085.840735) and a fill
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"xy"}
+@kr = se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,60,40]}
+@kc = se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[30,20],"radius":10}
+@ka = se_region {"action":"area","sketch":"{{k.sketch}}","elements":["{{kr.elements[0]}}","{{kr.elements[1]}}","{{kr.elements[2]}}","{{kr.elements[3]}}"],"holes":["{{kc.element}}"]}
+?= ka.area 2085.840735
+?= ka.centroid[0] 30
+?= ka.centroid[1] 20
+?= ka.inertia.ix 312146.018 0.01
+@kf = se_region {"action":"fill","sketch":"{{k.sketch}}","elements":["{{kc.element}}"]}
+?= kf.area 314.159265
+# An element of another sketch is refused
+@k2 = se_sketch {"action":"create","plane":"xz"}
+@k2c = se_sketch {"action":"circle","sketch":"{{k2.sketch}}","center":[0,0],"radius":5}
+! [invalid_argument] se_region {"action":"fill","sketch":"{{k.sketch}}","elements":["{{k2c.element}}"]}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

@@ -16,6 +16,9 @@ internal static class Geo
     /// <summary>Rounded mm³; adding 0.0 turns -0 into 0.</summary>
     public static double Mm3(double cubicMetres) => Math.Round(Units.M3ToMm3(cubicMetres), 6) + 0.0;
 
+    /// <summary>Second moment of area in mm⁴ (from m⁴), rounded; adding 0.0 turns -0 into 0.</summary>
+    public static double Mm4(double metres4) => Math.Round(metres4 * 1e12, 6) + 0.0;
+
     public static double[] Mm(Array values) => Doubles(values).Select(Mm).ToArray();
 
     public static double[] Plain(Array values) => Doubles(values).Select(R).ToArray();
