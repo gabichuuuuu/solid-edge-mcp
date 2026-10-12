@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title desc">
-  <title id="title">solid_edge_mcp</title>
+  <title id="title">solid-edge-mcp</title>
   <desc id="desc">Isometric line drawing of a dimensioned block with a through hole, next to the project name and tagline.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -62,7 +62,7 @@
   <!-- Name and tagline -->
   <g font-family="Bahnschrift, 'DIN Alternate', 'DIN 1451', D-DIN, Barlow, 'Roboto Condensed', 'Arial Narrow', sans-serif">
     <text x="488" y="106" fill="#9198a1" font-size="18">MCP server for Siemens Solid Edge</text>
-    <text x="486" y="170" fill="#f0f6fc" font-size="60" font-weight="600">solid_edge_mcp</text>
+    <text x="486" y="170" fill="#f0f6fc" font-size="60" font-weight="600">solid-edge-mcp</text>
     <text x="488" y="212" fill="#f0f6fc" font-size="22">Model, assemble and draft from any MCP client.</text>
     <text x="488" y="246" fill="#9198a1" font-size="17">Parts · Sheet metal · Assemblies · Drawings · Export</text>
   </g>

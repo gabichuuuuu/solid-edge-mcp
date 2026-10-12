@@ -1,4 +1,4 @@
-// Example policy for solid_edge_mcp. Copy this file to a path of your own (for example
+// Example policy for solid-edge-mcp. Copy this file to a path of your own (for example
 // %LocalAppData%\SolidEdgeMcp\policy.json, which is loaded without arguments) and adjust the folders.
 // Comments and trailing commas are allowed; an unknown property is an error.
 {

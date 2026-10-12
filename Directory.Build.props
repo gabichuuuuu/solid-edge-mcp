@@ -17,10 +17,10 @@
     <SatelliteResourceLanguages>en;es</SatelliteResourceLanguages>
     <InteropDir>$(MSBuildThisFileDirectory)lib\interop\</InteropDir>
     <Authors>Gabriel Spoleto Couto</Authors>
-    <Product>solid_edge_mcp</Product>
+    <Product>solid-edge-mcp</Product>
     <Copyright>Copyright (c) 2026 Gabriel Spoleto Couto</Copyright>
     <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/gabichuuuuu/solid_edge_mcp</RepositoryUrl>
+    <RepositoryUrl>https://github.com/gabichuuuuu/solid-edge-mcp</RepositoryUrl>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 </Project>

@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
-  <img src="docs/assets/banner.svg" alt="solid_edge_mcp: MCP server for Siemens Solid Edge. Model, assemble and draft from any MCP client" width="100%">
+  <img src="docs/assets/banner.svg" alt="solid-edge-mcp: MCP server for Siemens Solid Edge. Model, assemble and draft from any MCP client" width="100%">
 </picture>
 
 **Unofficial local [MCP](https://modelcontextprotocol.io) server to operate Siemens Solid Edge from Claude Code,
@@ -114,8 +114,8 @@ copies it when it starts `Edge.exe`.
 ### Install
 
 ```powershell
-git clone https://github.com/gabichuuuuu/solid_edge_mcp.git
-cd solid_edge_mcp
+git clone https://github.com/gabichuuuuu/solid-edge-mcp.git
+cd solid-edge-mcp
 
 # 1. Interop from the type libraries of your Solid Edge (not distributed; goes to lib\interop)
 .\scripts\generate-interop.ps1
@@ -480,7 +480,7 @@ one in `C:\Program Files\dotnet`.
 ### Repository structure
 
 ```text
-solid_edge_mcp/
+solid-edge-mcp/
 ├── src/
 │   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (66 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/

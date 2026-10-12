@@ -126,6 +126,9 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Changed
 
+- The project is now named `solid-edge-mcp` and the repository moved to `github.com/gabichuuuuu/solid-edge-mcp`; the old
+  URL redirects. Update existing clones with
+  `git remote set-url origin https://github.com/gabichuuuuu/solid-edge-mcp.git`.
 - A folder or file option can only point into the allowed folders, the Solid Edge installation or back to the value it
   had before the server changed it (`path_not_allowed` otherwise).
 - `se_com_invoke` and `se_com_get` refuse the members that close Solid Edge 2026 or leave it unstable

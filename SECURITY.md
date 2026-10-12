@@ -8,7 +8,7 @@ release or the latest commit of `main`.
 ## Reporting a vulnerability
 
 Do not open a public issue. Report it privately through GitHub:
-[Security → Report a vulnerability](https://github.com/gabichuuuuu/solid_edge_mcp/security/advisories/new).
+[Security → Report a vulnerability](https://github.com/gabichuuuuu/solid-edge-mcp/security/advisories/new).
 
 Include the version or commit, the Solid Edge version, the MCP client, the steps or the tool calls
 that reproduce it and what an attacker could do with it. The project has a single maintainer, who
