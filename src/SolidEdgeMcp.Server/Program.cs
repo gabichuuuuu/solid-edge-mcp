@@ -103,6 +103,7 @@ public static class Program
         typeof(AppTools),
         typeof(SettingsTools),
         typeof(ProgramTools),
+        typeof(StyleTools),
         typeof(ComTools),
     ];
 

@@ -25,6 +25,7 @@ public enum OptionScope
 {
     Application,
     Document,
+    Drawing,
 }
 
 public enum UiAction
@@ -64,17 +65,17 @@ public sealed class SettingsTools(ToolRunner runner)
     [McpServerTool(Name = "se_options", Title = "Solid Edge options and units", Destructive = true, OpenWorld = false)]
     [Description("""
         Solid Edge options (every setting of the Solid Edge Options dialog: general, save, file locations, start-up, interface and colour theme, display, colours, helpers and grids, sketching, assembly, drawing, PDF, standards, units, simulation, performance, data management) and document units.
-        categories (the pages, with their number of options) | list (scope application|document, category, filter = text in the name) | get (name) |
+        categories (the pages, with their number of options) | list (scope application|document|drawing, category, filter = text in the name) | get (name) |
         set (name, value of the same type as the current one; colours '#RRGGBB'; coded options such as ColorTheme also take their name: light|medium|dark|framed; folder and file options must point into the allowed folders or the Solid Edge installation, and one without a value (such as Macros) cannot be emptied again; returns the previous value) |
         snapshot (saves every option of the scope to a .json file, default in the work folder) | restore (path of a snapshot; puts back every option that differs, including changes made since; dryRun = true only lists them; run it as the snapshot was made, with or without a document open) |
         units (display units of the document: type, unit, precision) | set_units (unitType e.g. distance|angle|mass|area|volume, unit e.g. millimeter|inch|degree|kilogram, precision index).
-        Application options belong to the person and persist between sessions: change them only when asked, preferably after a snapshot. Document options (scope document) depend on the type (part, sheet metal, assembly, draft, weldment) and are in SI units (m, rad, kg/m3).
+        Application options belong to the person and persist between sessions: change them only when asked, preferably after a snapshot. Document options (scope document) depend on the type (part, sheet metal, assembly, draft, weldment) and are in SI units (m, rad, kg/m3); scope drawing holds what a draft saves (DVProjectionAngle, drawing view defaults, grid, DVEdgeStyleName[HiddenEdge]...).
         Units only change what Solid Edge displays: the se_* tools always use mm, degrees and kg.
         Example: {"action":"list","category":"save"}; {"action":"set","name":"ColorTheme","value":"dark"}.
         """)]
     public Task<CallToolResult> Options(
         OptionAction action,
-        [Description("application (default) or document.")] OptionScope scope = OptionScope.Application,
+        [Description("application (default), document, or drawing (preferences saved in a draft).")] OptionScope scope = OptionScope.Application,
         [Description("Option name as listed (prefix such as seApplicationGlobal optional).")] string? name = null,
         [Description("For set: new value (bool, number, text; colours '#RRGGBB').")] JsonElement? value = null,
         [Description("For list: text contained in the option name.")] string? filter = null,

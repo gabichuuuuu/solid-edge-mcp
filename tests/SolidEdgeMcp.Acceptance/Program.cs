@@ -6,6 +6,7 @@
 //   ! [code] tool {json}                 call that must fail (with that error code, if given)
 //   ?= path value [tolerance]            checks a number (absolute tolerance, default 1e-3) or a text
 //   ?~ path text                         checks that the value contains the text
+//   ?# path #RRGGBB [tolerance]          checks a colour, each channel within the tolerance (default 12)
 //   !list | !schemas                     summary or schemas of the tools
 // {{var.field[0].sub}} is replaced by the stored value; {{work}} is the work folder (SE_MCP_WORK or
 // %LocalAppData%\SolidEdgeMcp\work\acceptance), already escaped for JSON; {{esc:var.path}} escapes a stored
@@ -62,7 +63,7 @@ foreach (string raw in File.ReadAllLines(script))
             continue;
         }
 
-        if (line.StartsWith("?=", StringComparison.Ordinal) || line.StartsWith("?~", StringComparison.Ordinal))
+        if (line.StartsWith("?=", StringComparison.Ordinal) || line.StartsWith("?~", StringComparison.Ordinal) || line.StartsWith("?#", StringComparison.Ordinal))
         {
             checks++;
             // The expected value also accepts {{var.path}} (e.g. the same handle as another call).
@@ -80,6 +81,12 @@ foreach (string raw in File.ReadAllLines(script))
             {
                 expected = line[2..].Trim()[parts[0].Length..].Trim();
                 pass = actual.Contains(expected, StringComparison.OrdinalIgnoreCase);
+            }
+            else if (line[1] == '#')
+            {
+                // Colours as Solid Edge renders them (#FF0000 shows as #F80004): each channel within the tolerance (default 12).
+                int tolerance = parts.Length > 2 ? int.Parse(parts[2], CultureInfo.InvariantCulture) : 12;
+                pass = Rgb(actual) is { } a && Rgb(expected) is { } e && a.Zip(e, (x, y) => Math.Abs(x - y)).Max() <= tolerance;
             }
             else if (double.TryParse(expected, NumberStyles.Float, CultureInfo.InvariantCulture, out double want)
                 && double.TryParse(actual, NumberStyles.Float, CultureInfo.InvariantCulture, out double got))
@@ -220,6 +227,11 @@ static string Resolve(Dictionary<string, JsonElement> vars, string path)
 
     return current.ValueKind == JsonValueKind.String ? current.GetString()! : current.GetRawText();
 }
+
+static int[]? Rgb(string text) =>
+    text.Length == 7 && text[0] == '#' && int.TryParse(text.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb)
+        ? [(rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF]
+        : null;
 
 static bool Same(JsonElement a, JsonElement b)
 {

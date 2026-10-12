@@ -113,6 +113,9 @@ public sealed class ToolRegistrationTests
     [InlineData("se_assembly_feature", """{"action":"hole","plane":"1","centers":[0,0,0],"diameter":8,"extent":"to_next","occurrences":["occurrence:2"]}""", "'extent' must be one of:")]
     [InlineData("se_part_family", """{"action":"create_member","name":"Short"}""", "'action' must be one of:")]
     [InlineData("se_part_family", """{"action":"add_member","name":"Short","values":"60"}""", "'values'")]
+    [InlineData("se_styles", """{"action":"list","type":"color"}""", "'type' must be one of:")]
+    [InlineData("se_view", """{"action":"background","kind":"environment"}""", "'kind' must be one of:")]
+    [InlineData("se_view", """{"action":"background","kind":"gradient","colors":["#000000"],"gradient":"radial"}""", "'gradient' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -250,6 +253,13 @@ public sealed class ToolRegistrationTests
     [InlineData("se_annotation", """{"action":"feature_control_frame","characteristic":"position","tolerance":"⌀0.2","datums":["A"],"rows":["⌀0.05|A"],"composite":true,"position":[300,150]}""")]
     [InlineData("se_layer", """{"action":"set","name":"Construction","shown":false,"locatable":false}""")]
     [InlineData("se_layer", """{"action":"assign","name":"Notes","objects":["text_box:4","dimension:5"],"sheet":"Sheet1"}""")]
+    [InlineData("se_styles", """{"action":"set","type":"dimension","name":"ISO (mm)","property":"Height","value":0.005}""")]
+    [InlineData("se_styles", """{"action":"import","type":"drawing_view","from":"doc:2","replace":true}""")]
+    [InlineData("se_styles", """{"action":"list","type":"face","filter":"Blue","offset":0,"limit":10}""")]
+    [InlineData("se_view", """{"action":"background","kind":"gradient","colors":["#203040","#FFFFFF"],"gradient":"vertical"}""")]
+    [InlineData("se_view", """{"action":"set_camera","eye":[0,0,500],"target":[0,0,0],"up":[0,1,0],"perspective":true,"angle":30,"fit":false}""")]
+    [InlineData("se_view", """{"action":"rotate","angle":-30,"axis":[1,0,0]}""")]
+    [InlineData("se_view", """{"action":"capture","samples":true,"width":320,"height":240}""")]
     public void Valid_arguments_pass(string toolName, string json)
     {
         using ServiceProvider provider = BuildProvider();

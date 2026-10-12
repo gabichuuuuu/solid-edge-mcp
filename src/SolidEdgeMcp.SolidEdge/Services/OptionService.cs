@@ -14,15 +14,20 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// Get/SetGlobalParameter, and document units (UnitsOfMeasure). Application options belong to the user and
 /// persist between sessions: each change returns the previous value so it can be restored.
 /// </summary>
-public static class OptionService
+public static partial class OptionService
 {
-    public static readonly IReadOnlyList<string> Scopes = ["application", "document"];
+    public static readonly IReadOnlyList<string> Scopes = ["application", "document", "drawing"];
 
     /// <summary>Enumeration of parameters of the scope, the object that serves them, and prefixes removed from the name.</summary>
     private sealed record Catalog(Type Enum, object Target, string Owner, string[] Prefixes);
 
     public static object List(SeContext context, string scope, string? documentHandle, string? filter, string? category, int offset, int limit)
     {
+        if (scope == "drawing")
+        {
+            return DrawingList(context, documentHandle, filter, offset, limit);
+        }
+
         Catalog catalog = CatalogOf(context, scope, documentHandle);
         if (!string.IsNullOrWhiteSpace(category) && catalog.Owner == "application" && !OptionCategories.Exists(category))
         {
@@ -76,6 +81,12 @@ public static class OptionService
     /// </summary>
     public static object Snapshot(SeContext context, string scope, string? documentHandle, string? path)
     {
+        if (scope == "drawing")
+        {
+            throw new ToolException("not_supported", "Drawing options are saved with the drawing and are not kept in snapshots.",
+                "Each set returns the previous value to put it back; or close the drawing without saving.");
+        }
+
         Catalog catalog = CatalogOf(context, scope, documentHandle);
         string target = path is null
             ? IOPath.Combine(context.AppPaths.Work, "options",
@@ -246,6 +257,11 @@ public static class OptionService
 
     public static object Get(SeContext context, string scope, string? documentHandle, string name)
     {
+        if (scope == "drawing")
+        {
+            return DrawingGet(context, documentHandle, name);
+        }
+
         Catalog catalog = CatalogOf(context, scope, documentHandle);
         (string Name, int Value) entry = Find(catalog, name);
         return Read(catalog, entry.Name, entry.Value);
@@ -254,6 +270,11 @@ public static class OptionService
     /// <summary>Changes an option using the type of its current value and checks that Solid Edge accepted it.</summary>
     public static object Set(SeContext context, string scope, string? documentHandle, string name, JsonElement value)
     {
+        if (scope == "drawing")
+        {
+            return DrawingSet(context, documentHandle, name, value);
+        }
+
         Catalog catalog = CatalogOf(context, scope, documentHandle);
         (string Name, int Value) entry = Find(catalog, name);
         object? previous = ReadRaw(catalog, entry.Value, out string? readError);

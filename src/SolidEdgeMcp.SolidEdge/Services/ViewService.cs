@@ -6,10 +6,11 @@ using SolidEdgeMcp.SolidEdge.Session;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
-public sealed record CapturedImage(byte[] Data, string MimeType, string? SavedTo, int Width, int Height, string Document);
+public sealed record CapturedImage(byte[] Data, string MimeType, string? SavedTo, int Width, int Height, string Document,
+    IReadOnlyDictionary<string, string>? Samples = null);
 
 /// <summary>View: fit, orient, display mode and image capture.</summary>
-public static class ViewService
+public static partial class ViewService
 {
     /// <summary>
     /// Standard view commands by the name of their interop constant (&lt;Environment&gt;View&lt;Name&gt;, e.g. PartViewISOView),
@@ -38,7 +39,7 @@ public static class ViewService
         switch (window)
         {
             case Window model:
-                model.View.Fit();
+                FitView(model.View);
                 break;
             case SolidEdgeDraft.SheetWindow sheet:
                 FitSheet(sheet);
@@ -64,8 +65,12 @@ public static class ViewService
         using var shown = new ShownWindow(context.Application, window);
         window.Activate();
         int command = CommandService.IdOf(Late.TryGetString(context.Application, "ActiveEnvironment"), "View" + view.Name) ?? view.Id;
+        Camera before = CameraOf(window.View);
         context.Application.StartCommand((SolidEdgeCommandConstants)command);
-        window.View.Fit();
+
+        // Verified in Solid Edge 2026: the orientation command fits a perspective camera by narrowing its field of view
+        // (40° to 5.1°), so the previous angle is put back.
+        FitView(window.View, before.Perspective ? before.Scale : null);
         return new { orientation, document = document.Name };
     }
 
@@ -253,6 +258,10 @@ public static class ViewService
     private static Window ModelWindow(SolidEdgeDocument document) => FirstWindow(document) as Window
         ?? throw new ToolException("not_supported", "Named views apply to 3D documents (part, sheet metal, assembly).");
 
+    /// <summary>View of the first window of a 3D document; null when it has no window or it is a drawing sheet.</summary>
+    internal static SolidEdgeFramework.View? ModelView(SolidEdgeDocument document) =>
+        document.Windows.Count > 0 && document.Windows.Item(1) is Window window ? window.View : null;
+
     private static void TryRemove(NamedViews views, string name)
     {
         try
@@ -265,7 +274,12 @@ public static class ViewService
         }
     }
 
-    public static CapturedImage Capture(SeContext context, string? handle, int width, int height, string? savePath, bool fit = true)
+    /// <summary>
+    /// Image of the window. With samples, also the colours of its corners, edges and centre, read from a second small BMP
+    /// of the same view (to check backgrounds and colours without looking at the image).
+    /// </summary>
+    public static CapturedImage Capture(SeContext context, string? handle, int width, int height, string? savePath, bool fit = true,
+        bool samples = false)
     {
         int maxWidth = context.Policy.Limits.MaxImageWidth;
         int maxHeight = context.Policy.Limits.MaxImageHeight;
@@ -297,9 +311,14 @@ public static class ViewService
         }
 
         object target = FirstWindow(document);
+        Dictionary<string, string>? colours = null;
         using (new ShownWindow(context.Application, target))
         {
             Save(target, file, width, height, fit);
+            if (samples)
+            {
+                colours = Sample(context, target, width, height);
+            }
         }
 
         if (!File.Exists(file))
@@ -319,7 +338,26 @@ public static class ViewService
             ".bmp" => "image/bmp",
             _ => "image/png",
         };
-        return new CapturedImage(data, mime, keep, width, height, document.Name);
+        return new CapturedImage(data, mime, keep, width, height, document.Name, colours);
+    }
+
+    /// <summary>The same view, without fitting again, as a BMP 160 pixels wide with the proportions of the capture.</summary>
+    private static Dictionary<string, string> Sample(SeContext context, object target, int width, int height)
+    {
+        const int sampleWidth = 160;
+        int sampleHeight = Math.Max(16, (int)Math.Round(sampleWidth * (double)height / width));
+        string folder = Path.Combine(context.AppPaths.Work, "captures");
+        Directory.CreateDirectory(folder);
+        string file = Path.Combine(folder, $"samples-{Guid.NewGuid():N}.bmp");
+        try
+        {
+            Save(target, file, sampleWidth, sampleHeight, fit: false);
+            return File.Exists(file) ? Pixels(File.ReadAllBytes(file)) : throw new ToolException("capture_failed", "Solid Edge did not write the sample image.");
+        }
+        finally
+        {
+            TryDelete(file);
+        }
     }
 
     private static void Save(object target, string file, int width, int height, bool fit)
@@ -329,7 +367,7 @@ public static class ViewService
             case Window window:
                 if (fit)
                 {
-                    window.View.Fit();
+                    FitView(window.View);
                 }
 
                 window.View.SaveAsImage(file, width, height, Type.Missing, Type.Missing, Type.Missing, SeImageQualityType.seImageQualityHigh);

@@ -22,12 +22,28 @@ Relevant changes to this project are recorded here. The format follows
   - `se_ui display` and `set_display`: colour theme, status bar, edge bar, start screen, recent files shown, language,
     and position and size of the main window.
   - `se_command check`: whether this installation knows a command, its licence includes it and it can run now.
-- Acceptance script `A21` (program settings), which puts back every setting it changes.
+  - `se_styles`: styles of a document (dimension, text, character, line, fill, hatch, dash, drawing view, table and
+    frame styles of drawings; view and face styles of models). `types`, `list`, `get` every property, `set` one (read
+    back, with the previous value; colours as `#RRGGBB`, enumerations by name or by a unique ending such as `bold`),
+    `add` from another style, `activate`, `remove` (the active one is refused) and `import` from another drawing.
+  - `se_view`: `style` (the view style of a model window), `background` (solid, gradient or an image of the
+    installation or an allowed folder; returns the previous one to put it back), `camera`, `set_camera` (eye, target,
+    up, perspective and field of view), `zoom` and `rotate`; `capture` with `samples` returns the colours at the
+    corners, edges and centre of the image.
+  - `se_options` scope `drawing`: the preferences a drawing saves (projection angle, drawing view defaults, grid, the
+    line style of each kind of edge, `DVEdgeStyleName[HiddenEdge]`…); style names are checked against the drawing.
+- Acceptance scripts `A21` (program settings), which puts back every setting it changes, and `A22` (styles, drawing
+  preferences, view style, background and camera). The acceptance runner checks colours with a tolerance (`?#`).
 
 ### Changed
 
 - A folder or file option can only point into the allowed folders, the Solid Edge installation or back to the value it
   had before the server changed it (`path_not_allowed` otherwise).
+- `se_com_invoke` and `se_com_get` refuse the members that close Solid Edge 2026 or leave it unstable
+  (`RadialMenu.DumpPallets`, `SavePallets`, `ViewStyle.BeginPropertyBuffer`, `FlushPropertyBuffer`) with
+  `unsafe_member`.
+- `se_view fit`, `orient` and `capture` keep the field of view of a perspective camera (the fit of Solid Edge and its
+  orientation commands narrow it).
 
 ### Fixed
 

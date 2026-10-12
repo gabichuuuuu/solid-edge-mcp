@@ -82,6 +82,7 @@ public static class GenericCom
                 break;
             case MethodInfo method:
                 // Some "Item" or "GetX" members are read as methods.
+                RefuseUnsafe(type, method.Name);
                 indexArgs = BindArguments(context, method.Name, method.GetParameters(), index);
                 result = CallMethod(value, method, indexArgs);
                 break;
@@ -123,11 +124,33 @@ public static class GenericCom
         }
     }
 
+    /// <summary>
+    /// Methods verified to bring Solid Edge 2026 down or leave it unstable: refused, because Solid Edge may hold the
+    /// person's unsaved work.
+    /// </summary>
+    private static readonly Dictionary<string, string> Unsafe = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["RadialMenu.DumpPallets"] = "closes Solid Edge (access violation in control.dll)",
+        ["RadialMenu.SavePallets"] = "closes Solid Edge (access violation in control.dll)",
+        ["ViewStyle.BeginPropertyBuffer"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT)",
+        ["ViewStyle.FlushPropertyBuffer"] = "leaves Solid Edge unstable (RPC_E_SERVERFAULT)",
+    };
+
+    private static void RefuseUnsafe(Type? type, string member)
+    {
+        if (type is not null && Unsafe.TryGetValue($"{type.Name}.{member.Trim()}", out string? effect))
+        {
+            throw new ToolException("unsafe_member", $"{type.Name}.{member.Trim()} {effect} in Solid Edge 2026, so it is not called.",
+                "Do it in the Solid Edge interface instead.");
+        }
+    }
+
     public static object Invoke(SeContext context, string? target, string method, JsonElement? arguments)
     {
         object obj = ResolveTarget(context, target);
         SolidEdgeFramework.SolidEdgeDocument? owner = OwnerOf(context, obj, target);
         Type? type = InteropCatalog.FindInterface(obj);
+        RefuseUnsafe(type, method);
         MemberInfo? info = type is null ? null : InteropCatalog.FindMember(type, method);
         switch (info)
         {
