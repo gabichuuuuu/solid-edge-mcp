@@ -50,7 +50,7 @@ public sealed class SensorTools(ToolRunner runner)
     [Description("""
         Sensors of a part, sheet metal or assembly document: a watched value and a condition; Solid Edge flags the sensor when the value leaves it. Lengths in mm, areas in mm2, a variable in its own units.
         list (index, name, type, value, unit, operator, threshold or range, met, alert, status, display, update, handle) |
-        add_variable (variable = name from se_variables) | add_distance (elements = two faces, edges or vertices; in an assembly also occurrences or faces from se_geometry with source = an occurrence) | add_area (faces) |
+        add_variable (variable = name from se_variables) | add_distance (elements = two faces, edges or vertices; in an assembly also occurrences or faces from se_geometry with source = an occurrence; not in sheet metal, where Solid Edge cannot make it) | add_area (faces) |
         update (manual sensors: read the value again; one 'sensor' or all) | set (sensor: change operator, threshold, range, displayRange, name, description, display, update).
         Condition: operator greater_than | less_than | equal_to | not_equal_to with 'threshold', or between | not_between with 'range' [min, max]. met = the value meets it; alert = Solid Edge flags the sensor (met false).
         Sensors are not deleted here: deleting one through the API breaks every sensor of the document, also in the saved file.

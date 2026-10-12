@@ -31,6 +31,9 @@ public sealed record SensorSpec(string Action, string? Sensor = null, string? Na
 /// description defaults to the name.</item>
 /// <item>AddSurfaceAreaSensor takes one face (a list: type mismatch), makes the sensor and then fails with DISP_E_BADCALLEE
 /// handing the face back; its SensorType is 4, which SensorTypeConstants lacks.</item>
+/// <item>Sheet metal parts have SheetMetalSensors (Item typed as object): variable and area sensors work there, but
+/// AddMinimumDistanceSensor fails with E_INVALIDARG (faces or edges) after leaving an empty sensor that makes SaveAs fail, so
+/// it is refused before the call.</item>
 /// <item>A sensor does not tell which variable it watches, so the variable and its units are kept in an attribute set of
 /// the sensor; sensors made elsewhere report a variable value in database units.</item>
 /// </list>
@@ -80,7 +83,36 @@ public static class SensorService
         return related is null ? context.GetDocument(null) : context.DocumentOf(related);
     }
 
-    private static Sensors SensorsOf(SolidEdgeDocument document)
+    /// <summary>
+    /// The sensors of a part or an assembly (Sensors) or of a sheet metal part (SheetMetalSensors, a separate interface with the
+    /// same methods and Item typed as object).
+    /// </summary>
+    private sealed class SensorSet(Sensors? sensors, SheetMetalSensors? sheetMetal)
+    {
+        public bool IsSheetMetal => sheetMetal is not null;
+
+        public int Count => sensors?.Count ?? sheetMetal!.Count;
+
+        public object Item(int index) => sensors is not null ? sensors.Item(index) : sheetMetal!.Item(index);
+
+        public object AddVariableSensor(object variable, string name, string description, double lower, double upper, double minimum, double maximum,
+            SensorOperatorConstants op, SensorDisplayTypeConstants display, SensorUpdateMechanismConstants update) => sensors is not null
+            ? sensors.AddVariableSensor(variable, name, description, lower, upper, minimum, maximum, op, display, update)
+            : sheetMetal!.AddVariableSensor(variable, name, description, lower, upper, minimum, maximum, op, display, update);
+
+        public object AddMinimumDistanceSensor(object first, object second, string name, string description, double lower, double upper, double minimum,
+            double maximum, SensorOperatorConstants op, SensorDisplayTypeConstants display, SensorUpdateMechanismConstants update) => sensors is not null
+            ? sensors.AddMinimumDistanceSensor(first, second, name, description, lower, upper, minimum, maximum, op, display, update)
+            : sheetMetal!.AddMinimumDistanceSensor(first, second, name, description, lower, upper, minimum, maximum, op, display, update);
+
+        public object AddSurfaceAreaSensor(SurfaceAreaSensorAreaTypeConstants areaType, SurfaceAreaSensorSelectionTypeConstants selection, string name,
+            string description, double lower, double upper, double minimum, double maximum, SensorOperatorConstants op, SensorDisplayTypeConstants display,
+            SensorUpdateMechanismConstants update, ref object element) => sensors is not null
+            ? sensors.AddSurfaceAreaSensor(areaType, selection, name, description, lower, upper, minimum, maximum, op, display, update, ref element)
+            : sheetMetal!.AddSurfaceAreaSensor(areaType, selection, name, description, lower, upper, minimum, maximum, op, display, update, ref element);
+    }
+
+    private static SensorSet SensorsOf(SolidEdgeDocument document)
     {
         object? sensors;
         try
@@ -92,15 +124,20 @@ public static class SensorService
             sensors = null;
         }
 
-        return sensors as Sensors ?? throw new ToolException("wrong_document_type",
+        return sensors switch
+        {
+            Sensors part => new SensorSet(part, null),
+            SheetMetalSensors sheetMetal => new SensorSet(null, sheetMetal),
+            _ => throw new ToolException("wrong_document_type",
             $"'{SeContext.SafeName(document)}' is a {DocumentKinds.Describe(document)}: sensors belong to part, sheet metal and assembly documents.",
-            "Activate or pass a part, sheet metal or assembly document.");
+            "Activate or pass a part, sheet metal or assembly document."),
+        };
     }
 
     /// <summary>The sensors of the document, read once (Count fails if a sensor was ever deleted through the API).</summary>
     private static List<Sensor> Read(SolidEdgeDocument document)
     {
-        Sensors sensors = SensorsOf(document);
+        SensorSet sensors = SensorsOf(document);
         try
         {
             int count = sensors.Count;
@@ -145,7 +182,7 @@ public static class SensorService
         int units = VariableService.UnitsOf(variable);
         Condition condition = NewCondition(spec, units);
         (double lower, double upper) = DisplayRange(spec, units, condition);
-        Sensors sensors = SensorsOf(document);
+        SensorSet sensors = SensorsOf(document);
         string name = NameFor(document, spec.Name, variableName);
         object created = Add(document, "variable", () => sensors.AddVariableSensor(variable, name, DescriptionOf(spec, name), lower, upper,
             condition.Minimum, condition.Maximum, condition.Operator, DisplayOf(spec.Display), UpdateOf(spec.Update)));
@@ -160,12 +197,19 @@ public static class SensorService
                 "Get faces with se_geometry faces (in an assembly with source = an occurrence) and occurrences with se_assembly list.");
         }
 
+        if (SensorsOf(document).IsSheetMetal)
+        {
+            throw new ToolException("not_supported",
+                $"Solid Edge 2026 does not make minimum distance sensors in a sheet metal part ('{SeContext.SafeName(document)}'): the call fails and leaves an empty sensor that stops the document from saving, and sensors cannot be deleted.",
+                "Watch the distance with a variable sensor (se_variables add a formula or a dimension, then add_variable), or in an assembly that holds the part.");
+        }
+
         object first = context.Handles.Resolve(spec.Elements[0], "elements");
         object second = context.Handles.Resolve(spec.Elements[1], "elements");
         int units = (int)UnitTypeConstants.igUnitDistance;
         Condition condition = NewCondition(spec, units);
         (double lower, double upper) = DisplayRange(spec, units, condition);
-        Sensors sensors = SensorsOf(document);
+        SensorSet sensors = SensorsOf(document);
         string name = NameFor(document, spec.Name, "Distance");
         object created = Add(document, "minimum distance", () => sensors.AddMinimumDistanceSensor(first, second, name, DescriptionOf(spec, name), lower, upper,
             condition.Minimum, condition.Maximum, condition.Operator, DisplayOf(spec.Display), UpdateOf(spec.Update)));
@@ -184,7 +228,7 @@ public static class SensorService
         int units = (int)UnitTypeConstants.igUnitArea;
         Condition condition = NewCondition(spec, units);
         (double lower, double upper) = DisplayRange(spec, units, condition);
-        Sensors sensors = SensorsOf(document);
+        SensorSet sensors = SensorsOf(document);
         string name = NameFor(document, spec.Name, "Area");
         object created = Add(document, "surface area", () =>
         {
@@ -214,7 +258,7 @@ public static class SensorService
         {
             throw Broken(document, ex);
         }
-        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        catch (Exception ex) when (ex is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             throw new ToolException("feature_failed", $"Solid Edge did not make the {what} sensor: {ex.Message}",
                 "Check the elements (faces, edges, occurrences of this document) and the threshold.", ex);

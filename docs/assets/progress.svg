@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="870" height="410" viewBox="0 0 870 410" role="img" aria-labelledby="title desc">
   <title id="title">Progress: 64 % of the functions work through the MCP</title>
-  <desc id="desc">One square per function. 200 of 312 Solid Edge functions in the coverage map work through the MCP, 54 fail in Solid Edge 2026 and 58 are not tested yet. By area: Application, documents and data 38 of 59; Sketches and reference planes 17 of 25; Part (ordered modeling) 38 of 59; Synchronous modeling and surfaces 20 of 29; Sheet metal 14 of 27; Assemblies 21 of 44; Drawings 30 of 43; Program configuration 22 of 26.</desc>
+  <desc id="desc">One square per function. 201 of 313 Solid Edge functions in the coverage map work through the MCP, 54 fail in Solid Edge 2026 and 58 are not tested yet. By area: Application, documents and data 39 of 60; Sketches and reference planes 17 of 25; Part (ordered modeling) 38 of 59; Synchronous modeling and surfaces 20 of 29; Sheet metal 14 of 27; Assemblies 21 of 44; Drawings 30 of 43; Program configuration 22 of 26.</desc>
   <g font-family="Bahnschrift, 'DIN Alternate', 'DIN 1451', D-DIN, Barlow, 'Roboto Condensed', 'Arial Narrow', sans-serif">
     <text x="0" y="40" font-size="36" font-weight="600" fill="#1f2328">64 %</text>
-    <text x="92" y="40" font-size="16" fill="#59636e">of the 312 Solid Edge functions in the coverage map work through the MCP</text>
+    <text x="92" y="40" font-size="16" fill="#59636e">of the 313 Solid Edge functions in the coverage map work through the MCP</text>
     <text x="0" y="95" font-size="14" fill="#1f2328">Application, documents and data</text>
     <rect x="270" y="84" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="286" y="84" width="12" height="12" rx="2" fill="#0969da"/>
@@ -43,7 +43,7 @@
     <rect x="350" y="100" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="366" y="100" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="382" y="100" width="12" height="12" rx="2" fill="#0969da"/>
-    <rect x="398" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="398" y="100" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="414" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="430" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="446" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
@@ -51,7 +51,7 @@
     <rect x="478" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="494" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="510" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <rect x="526.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <rect x="526" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="542.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
     <rect x="558.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
     <rect x="574.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
@@ -64,8 +64,9 @@
     <rect x="686.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
     <rect x="702.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
     <rect x="718.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <text x="812" y="95" font-size="13" text-anchor="end" fill="#59636e">38 / 59</text>
-    <text x="870" y="95" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">64 %</text>
+    <rect x="734.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <text x="812" y="95" font-size="13" text-anchor="end" fill="#59636e">39 / 60</text>
+    <text x="870" y="95" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">65 %</text>
     <text x="0" y="139" font-size="14" fill="#1f2328">Sketches and reference planes</text>
     <rect x="270" y="128" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="286" y="128" width="12" height="12" rx="2" fill="#0969da"/>
@@ -341,7 +342,7 @@
     <text x="812" y="355" font-size="13" text-anchor="end" fill="#59636e">22 / 26</text>
     <text x="870" y="355" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">84 %</text>
     <rect x="0" y="387" width="12" height="12" rx="2" fill="#0969da"/>
-    <text x="20" y="398" font-size="13" fill="#59636e">Works through the MCP (200)</text>
+    <text x="20" y="398" font-size="13" fill="#59636e">Works through the MCP (201)</text>
     <rect x="250" y="387" width="12" height="12" rx="2" fill="#bc4c00"/>
     <text x="270" y="398" font-size="13" fill="#59636e">Fails in Solid Edge 2026, documented (54)</text>
     <rect x="590.5" y="387.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>

@@ -6,6 +6,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `se_sensor` works in sheet metal parts, whose sensors Solid Edge keeps in a collection of their own: variable and
+  area sensors are made there, and a minimum distance sensor is refused before the call (Solid Edge fails on it and
+  leaves an empty sensor that stops the document from saving). The generic layer refuses that call too.
+
 ## [0.5.0] - 2026-10-13
 
 This release adds sensors to watch values of parts and assemblies (a variable, a clearance between parts, the area

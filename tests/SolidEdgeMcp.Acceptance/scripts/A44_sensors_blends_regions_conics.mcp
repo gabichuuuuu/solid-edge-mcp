@@ -70,6 +70,29 @@ se_documents {"action":"open","path":"{{work}}\\a44_sensors.par"}
 ?= l3.sensors[0].variable w
 ?= l3.sensors[2].value 6000 0.001
 se_documents {"action":"close","saveChanges":false}
+# Sheet metal: variable and area sensors (the part keeps saving); a distance sensor is refused before the call
+@sm = se_documents {"action":"new","kind":"sheet_metal"}
+@ks = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ks.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ks.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{ks.sketch}}"}
+se_variables {"action":"add","name":"w","value":30,"units":"distance"}
+@sv = se_sensor {"action":"add_variable","variable":"w","operator":"greater_than","threshold":10}
+?= sv.sensor.value 30 0.0001
+@st = se_geometry {"action":"faces","direction":[0,0,1]}
+@sbt = se_geometry {"action":"faces","direction":[0,0,-1]}
+@sa = se_sensor {"action":"add_area","faces":["{{st.items[0].handle}}"],"operator":"between","range":[5000,7000]}
+?= sa.sensor.value 6000 0.001
+?= sa.sensor.met true
+! [not_supported] se_sensor {"action":"add_distance","elements":["{{st.items[0].handle}}","{{sbt.items[0].handle}}"],"operator":"less_than","threshold":2}
+se_documents {"action":"save_as","path":"{{work}}\\a44_sensors.psm","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+se_documents {"action":"open","path":"{{work}}\\a44_sensors.psm"}
+@sl = se_sensor {"action":"list"}
+?= sl.count 2
+?= sl.sensors[0].unit mm
+?= sl.sensors[1].value 6000 0.001
+se_documents {"action":"close","saveChanges":false}
 # 2) A clearance sensor between two blocks of an assembly follows a move: 30 mm, then 10 mm and flagged
 @b = se_documents {"action":"new","kind":"part"}
 @kb = se_sketch {"action":"create","plane":"1"}
