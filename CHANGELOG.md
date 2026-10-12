@@ -6,6 +6,13 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-13
+
+This release adds the simplified model of a part, fillet welds in part documents, copies of construction geometry and
+of the whole part, and the 3D print mesh; deleting holes now works on every body of a split part. 72 tools in all,
+validated against Solid Edge Community Edition 2026 with 3953 calls and 2055 checks. As before, it is source only: the
+interop is generated from your own Solid Edge installation, so no binaries are published.
+
 ### Added
 
 - `se_simplify`: the simplified model of a part or sheet metal part, the lighter copy of the design body that
