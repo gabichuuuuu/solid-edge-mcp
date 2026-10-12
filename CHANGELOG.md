@@ -6,6 +6,13 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-13
+
+This release adds sensors to watch values of parts and assemblies (a variable, a clearance between parts, the area
+of a face) with a condition, blends between surfaces, deleted regions on the design body and the simplified model, and
+conics in sketches. 73 tools in all. As before, it is source only: the interop is generated from your own Solid Edge
+installation, so no binaries are published.
+
 ### Added
 
 - `se_sensor`: sensors of parts, sheet metal and assemblies. `add_variable` watches a variable or dimension,
