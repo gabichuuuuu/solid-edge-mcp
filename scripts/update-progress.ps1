@@ -1,70 +1,46 @@
 <#
 .SYNOPSIS
-    Writes the coverage progress (docs/COVERAGE.md tables) into that file, the README badge and the
-    progress chart (docs/assets/progress.svg and progress-dark.svg).
+    Keeps the generated parts of the documentation up to date: the progress section of docs/COVERAGE.md,
+    the README progress badge, tool count and version, and the progress chart (docs/assets/progress.svg
+    and progress-dark.svg).
 
 .DESCRIPTION
     Counts the rows of every table in docs/COVERAGE.md by the first character of their last cell:
     ✔ works through the MCP, ✘ does not work in Solid Edge (documented, with an alternative when there
     is one), · available in the API but not tested yet. The progress is the share of rows that work
     (✔): ✘ and · rows count as not working yet, so 100 % means that every function in the tables
-    works through the MCP. The summary goes between the progress markers of docs/COVERAGE.md, the
-    "progress" badge of README.md is updated and the progress chart is redrawn (one square per
-    function and one row per area, in a light and a dark version).
-    Run it after editing docs/COVERAGE.md. With -Check it changes nothing and fails when the files
-    are out of date.
+    works through the MCP.
+    Tools declared in src (McpServerTool Name = "se_...") that docs/COVERAGE.md does not mention yet
+    are listed in its "New tools" section as · rows, so a new tool counts as pending until its rows
+    are written; the README tool count follows the code and its version follows the <Version> of
+    src/SolidEdgeMcp.Server/SolidEdgeMcp.Server.csproj.
+    Without switches it rewrites the files of the working tree. -Check changes nothing and fails when
+    they are out of date. -Staged, meant for a local pre-commit hook, updates the staged versions
+    from the staged tables and code (so every commit is consistent) and then the working tree.
 
 .EXAMPLE
     .\scripts\update-progress.ps1
 .EXAMPLE
     .\scripts\update-progress.ps1 -Check
+.EXAMPLE
+    pwsh -NoProfile -File scripts/update-progress.ps1 -Staged   # in .git/hooks/pre-commit
 #>
 [CmdletBinding()]
-param([switch]$Check)
+param([switch]$Check, [switch]$Staged)
 
 $ErrorActionPreference = 'Stop'
-$root = Split-Path $PSScriptRoot -Parent
-$coveragePath = Join-Path $root 'docs/COVERAGE.md'
-$readmePath = Join-Path $root 'README.md'
+$repo = Split-Path $PSScriptRoot -Parent
 $utf8 = [Text.UTF8Encoding]::new($false)
-$coverage = [IO.File]::ReadAllText($coveragePath, $utf8)
-$readme = [IO.File]::ReadAllText($readmePath, $utf8)
 $startMarker = '<!-- progress:start -->'
 $endMarker = '<!-- progress:end -->'
-$start = $coverage.IndexOf($startMarker)
-$end = $coverage.IndexOf($endMarker)
-if ($start -lt 0 -or $end -lt $start) {
-    throw "docs/COVERAGE.md has no '$startMarker' ... '$endMarker' block."
+$newStart = '<!-- new-tools:start -->'
+$newEnd = '<!-- new-tools:end -->'
+
+function Read-Text([string]$path) {
+    if (Test-Path $path) { [IO.File]::ReadAllText($path, $utf8) } else { '' }
 }
 
-# Rows by section ("## " headers) outside the progress block; header and separator rows are skipped.
-$areas = [ordered]@{}
-$area = $null
-$tables = $coverage.Substring(0, $start) + $coverage.Substring($end + $endMarker.Length)
-foreach ($line in ($tables -split "`n")) {
-    if ($line -match '^## (.+)$') {
-        $area = $Matches[1].Trim()
-        continue
-    }
-
-    if ($null -eq $area -or $line -notmatch '^\|' -or $line -match '^\|\s*(Function|-)') {
-        continue
-    }
-
-    $status = (($line.TrimEnd().TrimEnd('|')) -split '\|')[-1].Trim()
-    $kind = switch -Regex ($status) {
-        '^✔' { 'done'; break }
-        '^✘' { 'not_viable'; break }
-        '^·' { 'pending'; break }
-        default { throw "Unknown status '$status' in: $line" }
-    }
-
-    if (-not $areas.Contains($area)) {
-        $areas[$area] = @{ done = 0; not_viable = 0; pending = 0 }
-    }
-
-    $areas[$area][$kind]++
-}
+function Same([string]$a, [string]$b) { ($a -replace "`r`n", "`n") -ceq ($b -replace "`r`n", "`n") }
 
 function Percent([int]$working, [int]$total) {
     if ($total -eq 0) { return 0 }
@@ -72,61 +48,16 @@ function Percent([int]$working, [int]$total) {
     return [math]::Floor(100 * $working / $total)
 }
 
-$done = ($areas.Values | ForEach-Object { $_.done } | Measure-Object -Sum).Sum
-$notViable = ($areas.Values | ForEach-Object { $_.not_viable } | Measure-Object -Sum).Sum
-$pending = ($areas.Values | ForEach-Object { $_.pending } | Measure-Object -Sum).Sum
-$total = $done + $notViable + $pending
-$percent = Percent $done $total
-
-$lines = @(
-    $startMarker
-    '## Progress'
-    ''
-    '<picture>'
-    '  <source media="(prefers-color-scheme: dark)" srcset="assets/progress-dark.svg">'
-    '  <img src="assets/progress.svg" alt="Progress by area: one square per function" width="100%">'
-    '</picture>'
-    ''
-    "**$percent % working** ($done of $total functions work through the MCP, ✔): $notViable do not work in Solid Edge 2026"
-    "and are documented, with an alternative when there is one (✘), and $pending are still to be tested (·)."
-    'Every function, tested or not, can also be reached through the generic COM layer and `se_command`.'
-    ''
-    '| Area | ✔ | ✘ | · | Working |'
-    '|---|---|---|---|---|'
-)
-foreach ($name in $areas.Keys) {
-    $a = $areas[$name]
-    $lines += "| $name | $($a.done) | $($a.not_viable) | $($a.pending) | $(Percent $a.done ($a.done + $a.not_viable + $a.pending)) % |"
-}
-
-$lines += "| **Total** | **$done** | **$notViable** | **$pending** | **$percent %** |"
-$lines += ''
-$lines += 'Generated by `scripts/update-progress.ps1` from the tables below.'
-$lines += $endMarker
-# Keeps the line endings of the checkout (CRLF with core.autocrlf on Windows).
-$newline = if ($coverage.Contains("`r`n")) { "`r`n" } else { "`n" }
-$block = $lines -join $newline
-$newCoverage = $coverage.Substring(0, $start) + $block + $coverage.Substring($end + $endMarker.Length)
-
-$color = if ($percent -ge 100) { 'brightgreen' } elseif ($percent -ge 80) { 'yellowgreen' } else { 'yellow' }
-$badge = "[![Progress: $percent % of functions work through the MCP](https://img.shields.io/badge/progress-$percent%25-$color)](docs/COVERAGE.md#progress)"
-# The shields.io badge line that links to the progress section, whatever its text (LF or CRLF checkout).
-$badgePattern = '(?m)^\[!\[[^\]]*\]\(https://img\.shields\.io/badge/[^)]*\)\]\(docs/COVERAGE\.md#progress\)(?=\r?$)'
-if ($readme -notmatch $badgePattern) {
-    throw 'README.md has no progress badge line (linked to docs/COVERAGE.md#progress) to update.'
-}
-
-$newReadme = [regex]::Replace($readme, $badgePattern, $badge)
+function Esc([string]$text) { [Security.SecurityElement]::Escape($text) }
 
 # Progress chart: one square per function, one row per area, in a light and a dark version (the
 # README picks one with prefers-color-scheme). Transparent background, GitHub's own colors; blue and
 # orange stay apart for color-blind readers and the legend and the numbers carry the meaning too.
+# Reads $areas, $done, $notViable, $pending, $total and $percent from the caller.
 $themes = [ordered]@{
     light = @{ ink = '#1f2328'; muted = '#59636e'; done = '#0969da'; not_viable = '#bc4c00'; pending = '#d1d9e0' }
     dark = @{ ink = '#f0f6fc'; muted = '#9198a1'; done = '#4493f8'; not_viable = '#db6d28'; pending = '#3d444d' }
 }
-
-function Esc([string]$text) { [Security.SecurityElement]::Escape($text) }
 
 function Chart($c) {
     $square = 12
@@ -195,32 +126,210 @@ function Chart($c) {
     ($svg -join "`n") + "`n"
 }
 
-$charts = [ordered]@{}
-foreach ($theme in $themes.Keys) {
-    $file = if ($theme -eq 'light') { 'progress.svg' } else { "progress-$theme.svg" }
-    $path = Join-Path $root "docs/assets/$file"
-    $charts[$path] = Chart $themes[$theme]
-}
+# Computes every generated file of the checkout in $root: returns the new contents by relative path,
+# the numbers and the tools that README.md does not describe.
+function Get-Progress([string]$root) {
+    $coverage = Read-Text (Join-Path $root 'docs/COVERAGE.md')
+    $readme = Read-Text (Join-Path $root 'README.md')
+    # Keeps the line endings of the checkout (CRLF with core.autocrlf on Windows).
+    $newline = if ($coverage.Contains("`r`n")) { "`r`n" } else { "`n" }
 
-function Same([string]$a, [string]$b) { ($a -replace "`r`n", "`n") -ceq ($b -replace "`r`n", "`n") }
-
-if ($Check) {
-    $stale = -not (Same $newCoverage $coverage) -or -not (Same $newReadme $readme)
-    foreach ($path in $charts.Keys) {
-        $old = if (Test-Path $path) { [IO.File]::ReadAllText($path, $utf8) } else { '' }
-        if (-not (Same $charts[$path] $old)) { $stale = $true }
+    $tools = @(Get-ChildItem (Join-Path $root 'src') -Recurse -Filter '*.cs' -File |
+            Select-String -Pattern 'McpServerTool\(\s*Name\s*=\s*"(se_[a-z0-9_]+)"' -AllMatches |
+            ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    if ($tools.Count -eq 0) {
+        throw 'No [McpServerTool(Name = "se_...")] found under src.'
     }
 
-    if ($stale) {
-        Write-Error 'The progress is out of date: run scripts/update-progress.ps1.'
+    # "New tools" section, always at the end: the tools that the rest of the file does not mention.
+    $base = $coverage
+    $s = $coverage.IndexOf($newStart)
+    if ($s -ge 0) {
+        $base = $coverage.Substring(0, $s).TrimEnd() + $newline
+    }
+
+    $unlisted = @($tools | Where-Object { $base -notmatch "(?<![A-Za-z0-9_])$([regex]::Escape($_))(?![A-Za-z0-9_])" })
+    if ($unlisted.Count -gt 0) {
+        $section = @(
+            $newStart
+            '## New tools'
+            ''
+            'Declared in the code but not yet described in the tables above. `scripts/update-progress.ps1` lists'
+            'them here, as not tested, until their rows are written.'
+            ''
+            '| Function | Route | Status |'
+            '|---|---|---|'
+        )
+        $section += $unlisted | ForEach-Object { "| ``$_``, to be described | ``$_`` | · |" }
+        $section += $newEnd
+        $coverage = $base.TrimEnd() + $newline + $newline + ($section -join $newline) + $newline
+    }
+    elseif ($s -ge 0) {
+        $coverage = $base
+    }
+
+    $start = $coverage.IndexOf($startMarker)
+    $end = $coverage.IndexOf($endMarker)
+    if ($start -lt 0 -or $end -lt $start) {
+        throw "docs/COVERAGE.md has no '$startMarker' ... '$endMarker' block."
+    }
+
+    # Rows by section ("## " headers) outside the progress block; header and separator rows are skipped.
+    $areas = [ordered]@{}
+    $area = $null
+    $tables = $coverage.Substring(0, $start) + $coverage.Substring($end + $endMarker.Length)
+    foreach ($line in ($tables -split "`n")) {
+        if ($line -match '^## (.+)$') {
+            $area = $Matches[1].Trim()
+            continue
+        }
+
+        if ($null -eq $area -or $line -notmatch '^\|' -or $line -match '^\|\s*(Function|-)') {
+            continue
+        }
+
+        $status = (($line.TrimEnd().TrimEnd('|')) -split '\|')[-1].Trim()
+        $kind = switch -Regex ($status) {
+            '^✔' { 'done'; break }
+            '^✘' { 'not_viable'; break }
+            '^·' { 'pending'; break }
+            default { throw "Unknown status '$status' in: $line" }
+        }
+
+        if (-not $areas.Contains($area)) {
+            $areas[$area] = @{ done = 0; not_viable = 0; pending = 0 }
+        }
+
+        $areas[$area][$kind]++
+    }
+
+    $done = ($areas.Values | ForEach-Object { $_.done } | Measure-Object -Sum).Sum
+    $notViable = ($areas.Values | ForEach-Object { $_.not_viable } | Measure-Object -Sum).Sum
+    $pending = ($areas.Values | ForEach-Object { $_.pending } | Measure-Object -Sum).Sum
+    $total = $done + $notViable + $pending
+    $percent = Percent $done $total
+
+    $lines = @(
+        $startMarker
+        '## Progress'
+        ''
+        '<picture>'
+        '  <source media="(prefers-color-scheme: dark)" srcset="assets/progress-dark.svg">'
+        '  <img src="assets/progress.svg" alt="Progress by area: one square per function" width="100%">'
+        '</picture>'
+        ''
+        "**$percent % working** ($done of $total functions work through the MCP, ✔): $notViable do not work in Solid Edge 2026"
+        "and are documented, with an alternative when there is one (✘), and $pending are still to be tested (·)."
+        'Every function, tested or not, can also be reached through the generic COM layer and `se_command`.'
+        ''
+        '| Area | ✔ | ✘ | · | Working |'
+        '|---|---|---|---|---|'
+    )
+    foreach ($name in $areas.Keys) {
+        $a = $areas[$name]
+        $lines += "| $name | $($a.done) | $($a.not_viable) | $($a.pending) | $(Percent $a.done ($a.done + $a.not_viable + $a.pending)) % |"
+    }
+
+    $lines += "| **Total** | **$done** | **$notViable** | **$pending** | **$percent %** |"
+    $lines += ''
+    $lines += 'Generated by `scripts/update-progress.ps1` from the tables below.'
+    $lines += $endMarker
+    $newCoverage = $coverage.Substring(0, $start) + ($lines -join $newline) + $coverage.Substring($end + $endMarker.Length)
+
+    $color = if ($percent -ge 100) { 'brightgreen' } elseif ($percent -ge 80) { 'yellowgreen' } else { 'yellow' }
+    $badge = "[![Progress: $percent % of functions work through the MCP](https://img.shields.io/badge/progress-$percent%25-$color)](docs/COVERAGE.md#progress)"
+    # The shields.io badge line that links to the progress section, whatever its text (LF or CRLF checkout).
+    $badgePattern = '(?m)^\[!\[[^\]]*\]\(https://img\.shields\.io/badge/[^)]*\)\]\(docs/COVERAGE\.md#progress\)(?=\r?$)'
+    if ($readme -notmatch $badgePattern) {
+        throw 'README.md has no progress badge line (linked to docs/COVERAGE.md#progress) to update.'
+    }
+
+    $newReadme = [regex]::Replace($readme, $badgePattern, $badge)
+    # Tool count: the tools badge and every "N tools" / "N se_* tools" of the README.
+    $newReadme = [regex]::Replace($newReadme, '(?<=img\.shields\.io/badge/tools-)\d+(?=-)', "$($tools.Count)")
+    $newReadme = [regex]::Replace($newReadme, '(?<![\w.,])\d+(?= (se_\* )?tools\b)', "$($tools.Count)")
+    # Version: the <Version> of the server project, in the version badge and in "version (x.y.z)" /
+    # "Alpha (x.y.z)" of the README.
+    $project = Read-Text (Join-Path $root 'src/SolidEdgeMcp.Server/SolidEdgeMcp.Server.csproj')
+    if ($project -notmatch '<Version>([^<]+)</Version>') {
+        throw 'src/SolidEdgeMcp.Server/SolidEdgeMcp.Server.csproj has no <Version>.'
+    }
+
+    $version = $Matches[1].Trim()
+    $newReadme = [regex]::Replace($newReadme, '(?<=!\[Version )[^\]]+(?=\])', $version)
+    $newReadme = [regex]::Replace($newReadme, '(?<=img\.shields\.io/badge/version-)[^-]+(?:--[^-]+)*(?=-)', $version.Replace('-', '--'))
+    $newReadme = [regex]::Replace($newReadme, '(?<=\b(?:version|Alpha) \()\d+\.\d+\.\d+[^)]*(?=\))', $version)
+
+    $files = [ordered]@{
+        'docs/COVERAGE.md' = $newCoverage
+        'README.md' = $newReadme
+    }
+    foreach ($theme in $themes.Keys) {
+        $file = if ($theme -eq 'light') { 'docs/assets/progress.svg' } else { "docs/assets/progress-$theme.svg" }
+        $files[$file] = Chart $themes[$theme]
+    }
+
+    [pscustomobject]@{
+        Files = $files
+        Summary = "$percent % working: $done ✔, $notViable ✘, $pending · of $total functions; $($tools.Count) tools; version $version"
+        Undescribed = @($tools | Where-Object { $readme -notmatch "``$([regex]::Escape($_))``" })
+        Unlisted = $unlisted
+    }
+}
+
+# Writes the files whose content changed; returns their relative paths.
+function Write-Files([string]$root, $files) {
+    foreach ($rel in $files.Keys) {
+        $path = Join-Path $root $rel
+        if (-not (Same (Read-Text $path) $files[$rel])) {
+            [IO.File]::WriteAllText($path, $files[$rel], $utf8)
+            $rel
+        }
+    }
+}
+
+function Invoke-Git {
+    $output = & git -C $repo @args
+    if ($LASTEXITCODE -ne 0) { throw "git $($args -join ' ') failed ($LASTEXITCODE)." }
+    $output
+}
+
+if ($Check) {
+    $result = Get-Progress $repo
+    $stale = @($result.Files.Keys | Where-Object { -not (Same (Read-Text (Join-Path $repo $_)) $result.Files[$_]) })
+    if ($stale.Count -gt 0) {
+        Write-Error "The progress is out of date ($($stale -join ', ')): run scripts/update-progress.ps1."
         exit 1
     }
 
-    Write-Output "Progress up to date: $percent % working ($done ✔, $notViable ✘, $pending ·)."
+    Write-Output "Progress up to date: $($result.Summary)."
     exit 0
 }
 
-[IO.File]::WriteAllText($coveragePath, $newCoverage, $utf8)
-[IO.File]::WriteAllText($readmePath, $newReadme, $utf8)
-foreach ($path in $charts.Keys) { [IO.File]::WriteAllText($path, $charts[$path], $utf8) }
-Write-Output "$percent % working: $done ✔, $notViable ✘, $pending · of $total functions."
+if ($Staged) {
+    # The staged files go to a temporary folder, are regenerated there and staged again, so the commit
+    # holds a progress that matches its own tables and code, whatever else is unstaged.
+    $temp = Join-Path ([IO.Path]::GetTempPath()) "se-progress-$([guid]::NewGuid().ToString('N'))"
+    try {
+        $paths = @(Invoke-Git ls-files -- README.md docs/COVERAGE.md docs/assets src | Where-Object {
+                $_ -in @('README.md', 'docs/COVERAGE.md') -or $_ -like 'docs/assets/progress*.svg' -or ($_ -like 'src/*' -and ($_ -like '*.cs' -or $_ -like '*.csproj'))
+            })
+        Invoke-Git checkout-index "--prefix=$(($temp -replace '\\', '/'))/" -- @paths | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $temp 'docs/assets') | Out-Null
+        $result = Get-Progress $temp
+        foreach ($rel in @(Write-Files $temp $result.Files)) {
+            $sha = Invoke-Git hash-object -w "--path=$rel" -- (Join-Path $temp $rel)
+            Invoke-Git update-index --add --cacheinfo "100644,$sha,$rel" | Out-Null
+            Write-Output "Staged $rel."
+        }
+    }
+    finally {
+        if (Test-Path $temp) { Remove-Item -Recurse -Force $temp }
+    }
+}
+
+$result = Get-Progress $repo
+Write-Files $repo $result.Files | ForEach-Object { Write-Output "Updated $_." }
+foreach ($tool in $result.Unlisted) { Write-Warning "$tool is not described in docs/COVERAGE.md yet: listed under 'New tools' as not tested." }
+foreach ($tool in $result.Undescribed) { Write-Warning "$tool is not described in README.md." }
+Write-Output "$($result.Summary)."

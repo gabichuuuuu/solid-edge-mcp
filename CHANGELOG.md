@@ -165,6 +165,10 @@ Relevant changes to this project are recorded here. The format follows
   script also draws the progress chart (`docs/assets/progress.svg`, one square per function and one row per area, in
   a light and a dark version), shown in the README and in `docs/COVERAGE.md`.
 - The banner is a plain line drawing in DIN lettering, in a light and a dark version, and the README has no emoji.
+- The generated documentation follows the code: `scripts/update-progress.ps1` also writes the README tool count and
+  version (from the `<Version>` of the server project, also shown as a badge) and lists the tools that
+  `docs/COVERAGE.md` does not mention yet under "New tools" as not tested. With `-Staged`, from a
+  pre-commit hook, it regenerates them from what each commit contains.
 - The internal development notes and AI assistant instructions are no longer published.
 - Code comments, scripts and documentation are in English, including the project notes
   (`AGENTS.md`, `STATUS.md`, `PLAN.md`). `ESTADO.md` and `docs/COBERTURA.md` were renamed to
