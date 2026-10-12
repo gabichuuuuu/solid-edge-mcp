@@ -32,17 +32,73 @@ public static partial class FeatureService
         return Verify(context, model, feature, before, 0, switched);
     }
 
-    /// <summary>Deletes every hole (hole features and cylindrical or conical cuts) up to a diameter.</summary>
+    /// <summary>
+    /// Deletes every hole (hole features and cylindrical or conical cuts) up to a diameter, on every design body: a split part
+    /// has one model per body and DeleteHoles of a model only fills the holes of its own body. A model where nothing changed
+    /// keeps no feature.
+    /// </summary>
     private static object DeleteHoles(SeContext context, string? documentHandle, PartFeatureSpec spec)
     {
         double diameter = Units.MmToM(Units.RequirePositive(spec.Diameter ?? throw ToolException.InvalidArgument(
             "delete_holes requires 'diameter': the largest hole diameter to delete (mm)."), "diameter"));
         ModelDocument model = ModelDocument.Get(context, documentHandle);
         bool switched = model.EnsureOrdered();
-        Model target = model.RequireModel();
+        model.RequireModel();
+        IReadOnlyList<(Model Model, Body Body)> bodies = model.Bodies();
+        if (bodies.Count <= 1)
+        {
+            double single = model.Volume();
+            Model target = model.RequireModel();
+            object feature = Create("delete holes", () => target.DeleteHoles.Add(HoleTypeToDeleteConstants.seHoleTypeToDeleteAll, diameter));
+            return Verify(context, model, feature, single, 1, switched);
+        }
+
+        // Volumes first: once a model changes, the Body objects read before from the other models fail (E_FAIL).
         double before = model.Volume();
-        object feature = Create("delete holes", () => target.DeleteHoles.Add(HoleTypeToDeleteConstants.seHoleTypeToDeleteAll, diameter));
-        return Verify(context, model, feature, before, 1, switched);
+        (Model Model, double Volume)[] targets = [.. bodies.Select(b => (b.Model, b.Body.Volume))];
+        var made = new List<object>();
+        bool warned = false;
+        foreach ((Model target, double bodyBefore) in targets)
+        {
+            object feature;
+            try
+            {
+                feature = Create("delete holes", () => target.DeleteHoles.Add(HoleTypeToDeleteConstants.seHoleTypeToDeleteAll, diameter));
+            }
+            catch (ToolException)
+            {
+                continue;
+            }
+
+            context.ModelChanged(model.Document, "the model changed (delete holes)");
+            string? status = StatusOf(feature);
+            double bodyAfter = Late.TryGet(target, "Body") is Body after ? after.Volume : bodyBefore;
+            if (status == "failed" || bodyAfter - bodyBefore <= VolumeTolerance)
+            {
+                TryDelete(feature);
+                continue;
+            }
+
+            warned |= status == "warning";
+            made.Add(feature);
+        }
+
+        context.ModelChanged(model.Document, "the model changed (delete holes)");
+        if (made.Count == 0)
+        {
+            throw new ToolException("feature_failed", $"No design body has holes up to {Geo.Mm(diameter)} mm: nothing was deleted.",
+                "Check the hole diameters (se_geometry faces, type cylinder) and pass a larger 'diameter'.");
+        }
+
+        double volume = model.Volume();
+        return new
+        {
+            feature = Describe(context, model, made[0]),
+            features = made.Count > 1 ? made.Select(f => Describe(context, model, f)).ToList() : null,
+            volume = Geo.Mm3(volume),
+            volumeChange = Geo.Mm3(volume - before),
+            warnings = Warnings(switched, warned),
+        };
     }
 
     /// <summary>Deletes rounds and fillets given by their faces; a round on an outer edge restores the sharp edge.</summary>

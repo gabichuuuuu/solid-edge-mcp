@@ -6,6 +6,26 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_simplify`: the simplified model of a part or sheet metal part, the lighter copy of the design body that
+  assemblies can show instead. `create` makes it; `delete_holes` (up to a diameter), `delete_rounds` and `delete_faces`
+  remove detail from it while the design body stays as it is; `activate` switches between the design and the simplified
+  model; `status` lists its body and features and `delete` removes one of them. Each change is checked by the
+  simplified body and deleted if nothing changed.
+- `se_part_feature fillet_weld`: a fillet weld bead in a part document between base faces and the target faces that
+  meet them, with equal or unequal legs; the bead is a new design body.
+- `se_pattern` with construction geometry: mirror copies and copies along a curve of construction bodies or their
+  faces, each copy a new construction body. `part: true` copies the whole part along a curve.
+- `se_print mesh`: the mesh of the 3D Print command (triangles, points, edges, mesh area and volume) with the model
+  volume and their deviation, for part, sheet metal, weldment and assembly documents.
+- Acceptance script `A43` (welds, construction and part patterns, mesh, simplified models). Coverage notes for solid
+  sweeps and label welds in a part document, which the API does not make.
+
+### Fixed
+
+- `se_part_feature delete_holes` fills the holes of every design body of a split part, instead of the first body only.
+
 ## [0.3.0] - 2026-10-12
 
 This release adds the tools for editing imported and complex parts: 3D (PMI) dimensions that you can read and

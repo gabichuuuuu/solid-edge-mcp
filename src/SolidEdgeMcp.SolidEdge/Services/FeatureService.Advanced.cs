@@ -41,7 +41,8 @@ public sealed record PatternSpec(
     double[]? Center = null,
     string? Curve = null,
     double? Spacing = null,
-    bool Reverse = false);
+    bool Reverse = false,
+    bool Part = false);
 
 public static partial class FeatureService
 {
@@ -175,9 +176,27 @@ public static partial class FeatureService
     /// <summary>Rectangular, circular or along-a-curve pattern of features, or mirror about a plane.</summary>
     public static object Pattern(SeContext context, string? documentHandle, PatternSpec spec)
     {
+        if (spec.Part)
+        {
+            return PartPattern(context, documentHandle, spec);
+        }
+
         if (spec.Features is not { Length: > 0 })
         {
-            throw ToolException.InvalidArgument("'features' must list at least one feature handle.", "Get them from se_feature_tree or from the tool that created them.");
+            throw ToolException.InvalidArgument("'features' must list at least one feature handle, or construction geometry (surfaces, curves, construction bodies).",
+                "Get them from se_feature_tree, se_surface list, se_curve list or se_body list; part: true copies the whole part.");
+        }
+
+        object[] items = spec.Features.Select(h => context.Handles.Resolve(h, "features")).ToArray();
+        bool[] construction = items.Select(IsConstructionGeometry).ToArray();
+        if (construction.Any(c => c))
+        {
+            if (!construction.All(c => c))
+            {
+                throw ToolException.InvalidArgument("'features' mixes features with construction geometry.", "Copy features and construction geometry in separate calls.");
+            }
+
+            return ConstructionPattern(context, documentHandle, spec, items);
         }
 
         if (spec.Type != "curve" && string.IsNullOrWhiteSpace(spec.Plane))
@@ -252,24 +271,9 @@ public static partial class FeatureService
     /// </summary>
     private static object CurvePattern(SeContext context, Model target, object[] features, PatternSpec spec)
     {
-        if (string.IsNullOrWhiteSpace(spec.Curve))
-        {
-            throw ToolException.InvalidArgument("Type 'curve' requires 'curve': the edge to follow.", "Get one with se_geometry action 'edges' (also the edge of a se_curve).");
-        }
-
-        if (spec.Count < 2)
-        {
-            throw ToolException.InvalidArgument("'count' must be at least 2 for a pattern along a curve.");
-        }
-
-        double spacing = Units.MmToM(Units.RequirePositive(spec.Spacing ?? throw ToolException.InvalidArgument("Type 'curve' requires 'spacing' (mm) between occurrences, measured along the curve."), "spacing"));
-        SolidEdgeGeometry.Edge edge = context.Handles.Resolve<SolidEdgeGeometry.Edge>(spec.Curve, "curve");
-        object anchor = Late.Get(edge, "StartVertex") ?? throw ToolException.InvalidArgument(
-            $"The edge '{spec.Curve}' has no start point (a closed edge such as a full circle).", "Use an open edge.");
+        (Array curves, object anchor, PatternCurveAnchorSideConstants side, double spacing) = CurveArguments(context, spec);
         Array featureArray = features;
-        Array curves = new object[] { edge };
         Array none = Array.Empty<object>();
-        PatternCurveAnchorSideConstants side = spec.Reverse ? PatternCurveAnchorSideConstants.sePatternCurveLeftSide : PatternCurveAnchorSideConstants.sePatternCurveRightSide;
         return Create("pattern along a curve", () => target.Patterns.AddByCurve(features.Length, ref featureArray, PatternTypeConstants.seSmartPattern,
             1, ref curves, anchor, side, 0.0, OffsetType.sePatternFixedOffset, spec.Count, spacing,
             0, ref none, null, PatternCurveAnchorSideConstants.sePatternCurveLeftSide, 0.0, OffsetType.sePatternFitOffset, 1, 0.0,

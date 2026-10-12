@@ -80,6 +80,7 @@ public enum PartFeatureAction
     Lip,
     ScaleBody,
     CopyPart,
+    FilletWeld,
 }
 
 public enum PartFeatureSide
@@ -196,12 +197,13 @@ public sealed class PartTools(ToolRunner runner)
         circular: 'count' occurrences around the normal of 'plane' through 'center' [x,y,z] (mm, model coordinates, default origin), spread over 'angle' degrees (360 = full circle) |
         mirror: symmetric copy about 'plane' |
         curve: 'count' occurrences every 'spacing' mm along an open edge ('curve', from se_geometry edges or a se_curve), from the original towards the edge end ('reverse': towards its start; se_geometry shows each edge's start and end).
-        features: handles from se_feature_tree or from the tool that created them.
+        features: handles from se_feature_tree or from the tool that created them; or construction geometry (se_surface, se_curve, construction bodies from se_body list, or their faces), copied as new construction bodies with mirror or curve.
+        part: true (curve only, no features): copies the whole part, every design body, along the curve.
         {{VerifiedNote}}
         """)]
     public Task<CallToolResult> Pattern(
-        [Description("Feature handles to copy.")] string[] features,
         PatternType type,
+        [Description("Feature handles to copy, or construction geometry (surfaces, curves, construction bodies, faces of them: mirror and curve only). Not used with part.")] string[]? features = null,
         [Description("Layout plane (rectangular/circular, normally the features' sketch plane) or mirror plane: '1'-'3', refplane or planar face handle. Not used by curve.")] string? plane = null,
         [Description("Rectangular: occurrences along x (default 1).")] int countX = 1,
         [Description("Rectangular: occurrences along y (default 1).")] int countY = 1,
@@ -213,10 +215,11 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Curve: handle of the open edge to follow.")] string? curve = null,
         [Description("Curve: distance between occurrences in mm, measured along the edge.")] double? spacing = null,
         [Description("Curve: copies towards the start of the edge instead of its end.")] bool reverse = false,
+        [Description("Curve: copy the whole part (every design body) instead of features.")] bool part = false,
         [Description("Document handle; default: the features' document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_pattern", Snake(type), c => FeatureService.Pattern(c, document,
-            new PatternSpec(features, Snake(type), plane, countX, countY, spacingX, spacingY, count, angle, center, curve, spacing, reverse)), cancellationToken);
+            new PatternSpec(features, Snake(type), plane, countX, countY, spacingX, spacingY, count, angle, center, curve, spacing, reverse, part)), cancellationToken);
 
     [McpServerTool(Name = "se_shell", Title = "Shell (thin wall)", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -270,7 +273,7 @@ public sealed class PartTools(ToolRunner runner)
         runner.RunAsync("se_loft_sweep", Snake(action), c => FeatureService.LoftSweep(c, document,
             new SweepSpec(Snake(action), Snake(operation), sketches, path, origins, axis, pitch, turns, height, Snake(hand))), cancellationToken);
 
-    [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part / fillet weld", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Other part features (ordered modelling). Lengths in mm.
         rib: sketch = an open chain (se_sketch close, open: true) across the part, grown in its plane to the part; thickness; side; depth |
@@ -284,13 +287,14 @@ public sealed class PartTools(ToolRunner runner)
         lip: edges = a chain of rim edges (e.g. outer edges of the open face of a shelled part), width, height: a strip on the rim, flush with its side |
         scale_body: scale = one factor or three (x, y, z) about the part origin (the first body of a split part).
         copy_part: path = a saved .par/.psm copied into this part (base body of an empty part, or united with the body); optional scale and mirror plane.
+        fillet_weld (part documents): a weld bead body between 'faces' (base) and 'targetFaces' meeting them along an edge; leg mm on the base faces, leg2 on the targets (default leg).
         Threads: se_hole tapped (cosmetic) or a helix cut with se_loft_sweep.
         {{VerifiedNote}}
         Example: {"action":"rib","sketch":"sketch:6","thickness":6}; {"action":"scale_body","scale":[2]}.
         """)]
     public Task<CallToolResult> PartFeature(
         PartFeatureAction action,
-        [Description("thicken, delete_faces, delete_rounds, offset_faces, replace_faces, redefine_faces (two or more that touch), resize_holes, resize_rounds: face handles; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
+        [Description("thicken, delete_faces, delete_rounds, offset_faces, replace_faces, redefine_faces (two or more that touch), resize_holes, resize_rounds: face handles; fillet_weld: the base faces; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
         [Description("rib, slot, web_network: open sketch handle.")] string? sketch = null,
         [Description("rib, thicken, web_network: thickness in mm.")] double? thickness = null,
         [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse; normal_protrusion, normal_cutout: auto = inside the curves | reverse = outside.")] PartFeatureSide side = PartFeatureSide.Auto,
@@ -308,10 +312,14 @@ public sealed class PartTools(ToolRunner runner)
         [Description("copy_part: absolute path of the saved part file to copy (allowed folders).")] string? path = null,
         [Description("replace_faces: what the faces become: a reference plane ('1'-'3' or refplane handle), a construction surface (se_surface handle) or a face of one.")] string? replaceWith = null,
         [Description("split: bodies to cut (default: the first); unite: bodies to join into one (default: all). Body handles from se_geometry summary.")] string[]? bodies = null,
+        [Description("fillet_weld: target face handles, meeting the base faces along an edge.")] string[]? targetFaces = null,
+        [Description("fillet_weld: leg in mm on the base faces.")] double? leg = null,
+        [Description("fillet_weld: leg in mm on the target faces (default leg).")] double? leg2 = null,
         [Description("Document handle; default: the document of the faces, sketch or plane.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
-            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies, radius)), cancellationToken);
+            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies, radius,
+                targetFaces, leg, leg2)), cancellationToken);
 
     [McpServerTool(Name = "se_body", Title = "Bodies: list / subtract / intersect / unite / emboss / construction and design", Destructive = false, OpenWorld = false)]
     [Description($$"""

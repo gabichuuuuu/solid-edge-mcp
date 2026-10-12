@@ -14,6 +14,7 @@ public enum PrintAction
 {
     Printers,
     Print,
+    Mesh,
 }
 
 public enum PrintPaper
@@ -41,7 +42,7 @@ public enum PrintOrientation
 [McpServerToolType]
 public sealed class PrintTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_print", Title = "Print drawings", Destructive = false, OpenWorld = true)]
+    [McpServerTool(Name = "se_print", Title = "Print drawings / 3D print mesh", Destructive = false, OpenWorld = true)]
     [Description("""
         Prints the sheets of a drawing as the Print command of Solid Edge does: on a printer of this Windows user, or to files.
         printers: the Windows printers (default, connection local | network | remote_desktop, port, driver, asksForFile, state) and the current print settings of Solid Edge |
@@ -50,7 +51,8 @@ public sealed class PrintTools(ToolRunner runner)
         scale = scale of the sheet on the paper (1 = full size), default: fit to the paper; black = colors as black; overwrite).
         Without 'folder' the sheets go to the printer and use paper. A printer that asks for a file name (asksForFile, e.g. Microsoft Print to PDF) prints only with 'folder'.
         The settings of Solid Edge's Print command are put back afterwards. Solid Edge records the print date in the drawing (it is then marked as modified), and Windows may make the printer used its default printer: the result says so.
-        Example: {"action":"print","printer":"Microsoft Print to PDF","folder":"C:\\Work\\prints","paper":"a3"}.
+        mesh (3D printing; part, sheet metal, weldment or assembly): the mesh Solid Edge's 3D Print command makes: triangles, points, mesh area (mm2) and volume (mm3) against the model volume, angle tolerance. The file itself: se_export .stl or .3mf.
+        Example: {"action":"print","printer":"Microsoft Print to PDF","folder":"C:\\Work\\prints","paper":"a3"}; {"action":"mesh"}.
         """)]
     public Task<CallToolResult> Print(
         PrintAction action,
@@ -63,7 +65,7 @@ public sealed class PrintTools(ToolRunner runner)
         [Description("print: scale of the sheet on the paper (1 = full size, 0.5 = half size); default: fit to the paper.")] double? scale = null,
         [Description("print: print the colors as black.")] bool black = false,
         [Description("print with folder: replace files that already exist.")] bool overwrite = false,
-        [Description("Drawing document handle; default: the active document.")] string? document = null,
+        [Description("Document handle (print: a drawing; mesh: a part, sheet metal, weldment or assembly); default: the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_print";
@@ -73,6 +75,7 @@ public sealed class PrintTools(ToolRunner runner)
             PrintAction.Printers => runner.RunAsync(tool, act, PrintService.Printers, cancellationToken),
             PrintAction.Print => runner.RunAsync(tool, act, c => PrintService.Print(c, document, sheets, printer, folder, copies, Snake(paper),
                 Snake(orientation), scale, black, overwrite), cancellationToken, timeout: TimeSpan.FromMinutes(5)),
+            PrintAction.Mesh => runner.RunAsync(tool, act, c => Print3dService.Mesh(c, document), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }
