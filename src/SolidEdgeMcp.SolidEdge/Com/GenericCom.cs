@@ -165,7 +165,7 @@ public static class GenericCom
         int count;
         try
         {
-            count = Late.Count(collection);
+            count = CollectionCount(collection, type);
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
         {
@@ -228,12 +228,13 @@ public static class GenericCom
                 ?? throw new ToolException("not_a_collection", $"'{member}' is not an object.");
         }
 
-        int count = Convert.ToInt32(InvokeByName(collection, "Count", BindingFlags.GetProperty, []), CultureInfo.InvariantCulture);
+        Type? type = InteropCatalog.FindInterface(collection);
+        int count = CollectionCount(collection, type);
         int take = Math.Clamp(limit, 1, context.MaxListItems);
         var items = new List<object?>();
         for (int i = Math.Max(0, offset) + 1; i <= count && items.Count < take; i++)
         {
-            object? item = InvokeByName(collection, "Item", BindingFlags.InvokeMethod, [i]);
+            object? item = CollectionItem(collection, type, i);
             string? name = null;
             if (item is not null && Marshal.IsComObject(item))
             {
@@ -245,6 +246,24 @@ public static class GenericCom
 
         return new { count, offset, items };
     }
+
+    /// <summary>
+    /// Count and Item through the interop interface when it declares them, by name otherwise. By name, a collection with
+    /// named members answers with them first: an AttributeSet with an attribute called "Count" returns that attribute.
+    /// </summary>
+    private static int CollectionCount(object collection, Type? type) =>
+        Convert.ToInt32(type is not null && InteropCatalog.FindMember(type, "Count") is PropertyInfo { CanRead: true } count
+                && count.GetIndexParameters().Length == 0
+            ? count.GetValue(collection)
+            : InvokeByName(collection, "Count", BindingFlags.GetProperty, []), CultureInfo.InvariantCulture);
+
+    private static object? CollectionItem(object collection, Type? type, int index) =>
+        (type is null ? null : InteropCatalog.FindMember(type, "Item")) switch
+        {
+            MethodInfo method when method.GetParameters().Length == 1 => method.Invoke(collection, [index]),
+            PropertyInfo property when property.GetIndexParameters().Length == 1 => property.GetValue(collection, [index]),
+            _ => InvokeByName(collection, "Item", BindingFlags.InvokeMethod, [index]),
+        };
 
     /// <summary>
     /// Searches the enumerations. The same enumeration appears in several libraries: it is grouped by
@@ -419,8 +438,19 @@ public static class GenericCom
     private static object? CallMethod(object target, MethodInfo method, object?[] args)
     {
         ParameterInfo[] parameters = method.GetParameters();
+        bool outArrays = false;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].IsOut && ElementType(parameters[i]) == typeof(Array))
+            {
+                // A typed call ignores what an output argument holds; a call through IDispatch needs an array there (below).
+                outArrays = true;
+                args[i] = args[i] is null || args[i] == Type.Missing ? Array.Empty<object>() : args[i];
+            }
+        }
+
         bool typedMissing = parameters.Where((p, i) => args[i] == Type.Missing && ElementType(p) != typeof(object)).Any();
-        if (!typedMissing || !Marshal.IsComObject(target))
+        if (!typedMissing && !outArrays || !Marshal.IsComObject(target))
         {
             return method.Invoke(target, args);
         }
@@ -433,24 +463,40 @@ public static class GenericCom
 
         try
         {
+            return typedMissing
+                ? target.GetType().InvokeMember(method.Name, BindingFlags.InvokeMethod, null, target, args, [modifier],
+                    CultureInfo.InvariantCulture, null)
+                : method.Invoke(target, args);
+        }
+        catch (Exception ex) when (typedMissing && ComErrors.Unwrap(ex) is COMException { ErrorCode: ComErrors.DispETypeMismatch })
+        {
+            FillMissing(parameters, args);
+            return method.Invoke(target, args);
+        }
+        catch (Exception ex) when (outArrays && ComErrors.Unwrap(ex) is NullReferenceException)
+        {
+            // E_POINTER (raised by .NET as NullReferenceException): the method writes into an output array that must already
+            // exist, which only a call through IDispatch passes by reference. Verified: GetTopLevelAssemblyFileNames and
+            // FindSEDocumentsContainingText with an empty array of variants.
+            FillMissing(parameters, args);
             return target.GetType().InvokeMember(method.Name, BindingFlags.InvokeMethod, null, target, args, [modifier],
                 CultureInfo.InvariantCulture, null);
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException { ErrorCode: ComErrors.DispETypeMismatch })
-        {
-            for (int i = 0; i < parameters.Length; i++)
-            {
-                Type type = ElementType(parameters[i]);
-                if (args[i] == Type.Missing && type != typeof(object))
-                {
-                    args[i] = type == typeof(Array) ? Array.Empty<object>()
-                        : type.IsArray ? Array.CreateInstance(type.GetElementType()!, 0)
-                        : type.IsValueType ? Activator.CreateInstance(type)
-                        : null;
-                }
-            }
+    }
 
-            return method.Invoke(target, args);
+    /// <summary>Gives each omitted typed argument an empty value (an empty array, zero or null).</summary>
+    private static void FillMissing(ParameterInfo[] parameters, object?[] args)
+    {
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            Type type = ElementType(parameters[i]);
+            if (args[i] == Type.Missing && type != typeof(object))
+            {
+                args[i] = type == typeof(Array) ? Array.Empty<object>()
+                    : type.IsArray ? Array.CreateInstance(type.GetElementType()!, 0)
+                    : type.IsValueType ? Activator.CreateInstance(type)
+                    : null;
+            }
         }
     }
 

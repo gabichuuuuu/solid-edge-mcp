@@ -10,7 +10,8 @@
 //   !list | !schemas                     summary or schemas of the tools
 // {{var.field[0].sub}} is replaced by the stored value; {{work}} is the work folder (SE_MCP_WORK or
 // %LocalAppData%\SolidEdgeMcp\work\acceptance), already escaped for JSON; {{esc:var.path}} escapes a stored
-// text for a JSON string (such as a path read from another call).
+// text for a JSON string (such as a path read from another call); {{run}} is an id of this run, for files that
+// must not exist yet (they stay in the work folder).
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -34,6 +35,7 @@ await using McpClient client = await McpClient.CreateAsync(transport);
 var vars = new Dictionary<string, JsonElement>
 {
     ["work"] = JsonDocument.Parse(JsonSerializer.Serialize(work.Replace("\\", "\\\\", StringComparison.Ordinal))).RootElement.Clone(),
+    ["run"] = JsonDocument.Parse(JsonSerializer.Serialize(DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture))).RootElement.Clone(),
 };
 int calls = 0, failures = 0, checks = 0;
 var failed = new List<string>();

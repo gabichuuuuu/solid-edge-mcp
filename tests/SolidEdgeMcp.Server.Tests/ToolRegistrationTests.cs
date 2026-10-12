@@ -120,6 +120,10 @@ public sealed class ToolRegistrationTests
     [InlineData("se_drawing_view", """{"action":"add_break","view":"drawing_view:2","direction":"vertical","from":120,"to":160,"shape":"zigzag"}""", "'shape' must be one of:")]
     [InlineData("se_documents", """{"action":"import","path":"C:\\x\\a.stp","kind":"surface"}""", "'kind' must be one of:")]
     [InlineData("se_sketch_edit", """{"action":"stretch","sketch":"sketch:1","elements":["line2d:2"]}""", "'action' must be one of:")]
+    [InlineData("se_assembly", """{"action":"bundle","occurrences":"occurrence:2","path":"C:\\x\\sub.asm"}""", "'occurrences'")]
+    [InlineData("se_assembly", """{"action":"explode_subassembly","occurrence":"occurrence:2"}""", "'action' must be one of:")]
+    [InlineData("se_links", """{"action":"where_used","path":"C:\\x\\a.par","folders":"C:\\x"}""", "'folders'")]
+    [InlineData("se_links", """{"action":"rename","from":"a.par","to":"C:\\x\\b.par"}""", "'action' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -177,6 +181,17 @@ public sealed class ToolRegistrationTests
     [InlineData("se_sheetmetal", """{"action":"convert","faces":["face:3"],"edges":["edge:5","edge:6"]}""")]
     [InlineData("se_sheetmetal", """{"action":"gauge","gauge":"16 gage","library":"Materials"}""")]
     [InlineData("se_assembly_config", """{"action":"apply","name":"Without covers","document":"doc:3"}""")]
+    [InlineData("se_assembly", """{"action":"activate","all":true,"document":"doc:3"}""")]
+    [InlineData("se_assembly", """{"action":"inactivate","occurrence":"occurrence:4"}""")]
+    [InlineData("se_assembly", """{"action":"bundle","occurrences":["occurrence:2","occurrence:3"],"path":"C:\\x\\sub.asm","template":"C:\\x\\iso.asm"}""")]
+    [InlineData("se_assembly", """{"action":"transfer","occurrences":["occurrence:2"],"subassembly":"occurrence:5"}""")]
+    [InlineData("se_assembly", """{"action":"disperse","occurrence":"occurrence:5","all":true}""")]
+    [InlineData("se_links", """{"action":"list","recursive":true,"document":"doc:3"}""")]
+    [InlineData("se_links", """{"action":"replace","from":"bracket.par","to":"C:\\x\\bracket_v2.par"}""")]
+    [InlineData("se_links", """{"action":"break","from":"C:\\x\\block.par"}""")]
+    [InlineData("se_links", """{"action":"where_used","path":"C:\\x\\a.par","folders":["C:\\x","C:\\y"],"subfolders":true,"indirect":true}""")]
+    [InlineData("se_links", """{"action":"top_level","files":["C:\\x\\a.asm","C:\\x\\b.asm"]}""")]
+    [InlineData("se_links", """{"action":"search","folder":"C:\\x","filter":"*.par;*.asm","text":"bracket","subfolders":true,"offset":0,"limit":20}""")]
     [InlineData("se_assembly_config", """{"action":"explode","spread":50,"by":"subassembly"}""")]
     [InlineData("se_frame", """{"action":"library","kind":"pipes","filter":"Elbow","offset":0,"limit":20}""")]
     [InlineData("se_frame", """{"action":"list","document":"doc:3"}""")]

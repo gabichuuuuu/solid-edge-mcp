@@ -12,11 +12,11 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![59 tools](https://img.shields.io/badge/tools-59-2F6FEB)
+![60 tools](https://img.shields.io/badge/tools-60-2F6FEB)
 
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-2F6FEB)
-[![Progress: 53 % of functions work through the MCP](https://img.shields.io/badge/progress-53%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 54 % of functions work through the MCP](https://img.shields.io/badge/progress-54%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -34,7 +34,7 @@ machine or a specific workflow.
 
 **Broad coverage**
 
-Parts, sheet metal, assemblies, drawings and export with 59 tools, plus the whole API through a
+Parts, sheet metal, assemblies, drawings and export with 60 tools, plus the whole API through a
 generic COM layer.
 
 </td>
@@ -60,7 +60,7 @@ for approval.
 
 **Tested for real**
 
-2439 calls and 1168 checks against real Solid Edge 2026, with values calculated by hand.
+2542 calls and 1220 checks against real Solid Edge 2026, with values calculated by hand.
 
 </td>
 </tr>
@@ -201,12 +201,12 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-59 tools, grouped by area.
+60 tools, grouped by area.
 
 | Area | Tools |
 |---|---|
 | **Server and session** | `se_server_info` `se_session` |
-| **Documents and data** | `se_documents` `se_properties` `se_variables` `se_part_family` `se_material` `se_appearance` `se_layer` |
+| **Documents and data** | `se_documents` `se_properties` `se_variables` `se_part_family` `se_material` `se_appearance` `se_layer` `se_links` |
 | **Query** | `se_feature_tree` `se_geometry` `se_measure` `se_physical` `se_selection` |
 | **View and application** | `se_view` `se_options` `se_ui` `se_app` `se_customize` `se_styles` |
 | **Sketches** | `se_sketch` `se_sketch_constraint` `se_sketch_edit` `se_ref_plane` |
@@ -231,10 +231,11 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_material` | Material libraries: current material, properties and assignment (updates density and mass). |
 | | `se_appearance` | Colours (face styles): list, create and delete styles; colour the body, faces, features or assembly components by style or #RRGGBB with opacity, read them back and remove them. |
 | | `se_layer` | Layers of models and drawing sheets: list, create, activate, show or hide, make selectable or not, delete empty ones and move sketch geometry, drawing views, dimensions and annotations between them. |
+| | `se_links` | Links between files: what a document refers to (components, drawing models, copied parts) and whether they are found, replace a referenced file, break copied parts, where a file is used (directly or up to the top), top-level assemblies and the document search of File > Open (title, subject, date). |
 | **Query** | `se_feature_tree` | Features in order with their status, the modeling mode and the volume. |
 | | `se_geometry` | Summary, faces and edges with handles and filters; in assemblies, per occurrence and in assembly coordinates. |
 | | `se_measure` | Minimum distance and angle between faces, edges, planes or occurrences, also in assemblies. |
-| | `se_physical` | Volume, area, mass, center of gravity and inertia, with the given density or the material's. |
+| | `se_physical` | Volume, area, mass, center of gravity and inertia of a part (with the given density or the material's) or of an assembly (with the material of each part). |
 | | `se_selection` | Read, replace, extend or clear the active selection. |
 | **View and application** | `se_view` | Capture the view as an image (optionally with the colours at its corners, edges and centre), framing (on drawings, the whole sheet with the title block), orientation, display mode and named views (list, save the current one, apply, delete); the view style of a model window and its background (solid, gradient or image); the camera (eye, target, up, perspective and field of view), zoom and rotation. Does not change the model. |
 | | `se_options` | Every Solid Edge option by page of the Options dialog (general, save, file locations, colours, helpers, assembly, drawing, units, simulation…) and document units: list, read and change them (returns the previous value); save all of them to a snapshot file and restore it. The preferences a drawing saves (projection angle, drawing view defaults, grid, the line style of each kind of edge…). |
@@ -262,7 +263,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature. |
 | **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), gauges of a material library, tab, contour flange, flange, hem, corner break, flat pattern with cut size, changes of the angle and radius of existing bends, and conversion of a thin-walled part into sheet metal. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
-| **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences. |
+| **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences; activate or inactivate them; make a subassembly from occurrences, move occurrences into a subassembly and disperse one. |
 | | `se_relations` | Planar (mate and flush), axial, insert, parallel, tangent, angle and rigid set relations, checked geometrically; list and delete. |
 | | `se_assembly_pattern` | Component patterns that follow a part pattern (e.g. a pin repeated on every hole of a hole pattern): list, create, delete and dissolve. |
 | | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them; automatic exploded views with the exploded placement of each component. |
@@ -303,7 +304,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 59 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 60 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -318,7 +319,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 59 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 60 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -374,11 +375,11 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 Results (unit tests and acceptance suite run on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 63/63 and `SolidEdgeMcp.Server.Tests` 198/198.
-- Acceptance suite against real Solid Edge 2026: **2439 calls and 1168 checks** in `A01`–`A24`, with values
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 63/63 and `SolidEdgeMcp.Server.Tests` 226/226.
+- Acceptance suite against real Solid Edge 2026: **2542 calls and 1220 checks** in `A01`–`A25`, with values
   calculated by hand (or Solid Edge reference values when there is no simple formula, noted in the script). All of
   them pass.
-- Coverage by value: the 59 tools have correct calls, and `A10` runs every value of the action,
+- Coverage by value: the 60 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -412,6 +413,7 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 | `A22` | Document styles (drawing and model), the preferences a drawing saves, the view style and background of a window checked by the colours of a capture, and the camera: perspective, zoom and rotation |
 | `A23` | Display of drawing views (hidden edges, shading, members of an assembly view), break lines, conversion to 2D, and import of STEP, IGES, Parasolid, STL and DXF files |
 | `A24` | Sketch editing: move, rotate, scale and mirror (related sets and copies), trim, extend, split, corner, offset, construction, patterns and delete, also on a drawing sheet |
+| `A25` | Assembly structure (activate, inactivate, bundle, transfer, disperse), links (list, replace, break), where used, top-level assemblies, document search, physical properties of assemblies and attribute sets |
 
 </details>
 
@@ -459,13 +461,13 @@ one in `C:\Program Files\dotnet`.
 ```text
 solid_edge_mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (59 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (60 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A24 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A25 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, update-progress.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md (coverage by function and route), assets/
@@ -476,7 +478,7 @@ solid_edge_mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A24`, listed under [Validation](#validation)) with volumes, measurements and expected
+calls (`A01`–`A25`, listed under [Validation](#validation)) with volumes, measurements and expected
 errors calculated by hand. Each script creates and closes its documents without saving:
 
 ```powershell

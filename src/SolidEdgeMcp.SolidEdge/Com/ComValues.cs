@@ -164,10 +164,14 @@ public static partial class ComValues
         throw ToolException.InvalidArgument($"'{argumentName}': parameters of type {type.FullName} are not supported by the generic layer.");
     }
 
-    /// <summary>Does the parameter or property receive a file or folder name?</summary>
+    /// <summary>
+    /// Does the parameter or property receive a file or folder name? File types, filters and search text (file_types,
+    /// varFileFilterOrText) do not; an absolute path given to them is still checked (<see cref="PathGuard.LooksLikePath"/>).
+    /// </summary>
     public static bool IsFileMember(string memberName, string parameterName) =>
-        StrongFileParameter().IsMatch(parameterName)
-        || (WeakFileParameter().IsMatch(parameterName) && FileMember().IsMatch(memberName));
+        !NotFileParameter().IsMatch(parameterName)
+        && (StrongFileParameter().IsMatch(parameterName)
+            || (WeakFileParameter().IsMatch(parameterName) && FileMember().IsMatch(memberName)));
 
     private static object? FromObject(SeContext context, JsonElement json, Type type, string argumentName, bool fileArgument)
     {
@@ -279,4 +283,8 @@ public static partial class ComValues
 
     [GeneratedRegex("^name$|newname|output|destination|location", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex WeakFileParameter();
+
+    // At the end only: TextureFileName is a file, FileType and varFileFilterOrText are not.
+    [GeneratedRegex("(types?|filters?|text|extensions?|context)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NotFileParameter();
 }

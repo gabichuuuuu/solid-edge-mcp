@@ -69,9 +69,9 @@ public sealed class InspectTools(ToolRunner runner)
         };
 
     [McpServerTool(Name = "se_physical", Title = "Physical properties", ReadOnly = true, OpenWorld = false)]
-    [Description("Volume (mm3), area (mm2) and centre of volume of the part; with a density (argument in kg/m3, or the document material) also mass (kg), centre of gravity (mm), inertia about the global axes through the origin (kg*mm2; products of inertia as +integral of xy dm) and principal moments about the centre of gravity.")]
+    [Description("Volume (mm3), area (mm2) and centre of volume of the part; with a density (argument in kg/m3, or the document material) also mass (kg), centre of gravity (mm), inertia about the global axes through the origin (kg*mm2; products of inertia as +integral of xy dm) and principal moments about the centre of gravity. An assembly is measured with the material of each part (no 'density'; area is not given); mass and inertia only when every part has a density (else 'partsWithoutDensity').")]
     public Task<CallToolResult> Physical(
-        [Description("Density in kg/m3 (e.g. 7850 for steel); default: the document's material density.")] double? density = null,
+        [Description("Part: density in kg/m3 (e.g. 7850 for steel); default: the document's material density.")] double? density = null,
         [Description("Document handle; default: active document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_physical", "compute", c => InspectService.Physical(c, document, density), cancellationToken);

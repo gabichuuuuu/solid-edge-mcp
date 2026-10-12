@@ -14,7 +14,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// materials. Solid Edge grounds each occurrence inserted through the API; to position it with relations
 /// that grounding must be removed, which se_relations does for the part being moved.
 /// </summary>
-public static class AssemblyService
+public static partial class AssemblyService
 {
     internal static AssemblyDocument Assembly(SeContext context, string? documentHandle) =>
         context.GetDocument<AssemblyDocument>(documentHandle, "assembly");
@@ -482,14 +482,16 @@ public static class AssemblyService
             ["grounded"] = grounded.Contains(occurrence.OccurrenceID),
             ["status"] = StatusName(occurrence),
             ["visible"] = occurrence.Visible,
+            ["active"] = IsActive(occurrence),
         };
     }
 
     internal static IEnumerable<T> Items<T>(object collection) => Late.Items(collection).OfType<T>();
 
-    private static void AddSubOccurrences(SubOccurrences children, string parent, List<object> rows)
+    private static void AddSubOccurrences(SubOccurrences? children, string parent, List<object> rows)
     {
-        foreach (SubOccurrence child in Items<SubOccurrence>(children))
+        // An empty subassembly has no SubOccurrences collection (null).
+        foreach (SubOccurrence child in children is null ? [] : Items<SubOccurrence>(children))
         {
             string path = $"{parent}/{child.Name}";
             rows.Add(new { name = path, file = child.SubOccurrenceFileName, kind = child.Subassembly ? "assembly" : KindOf(child.SubOccurrenceFileName), visible = child.Visible, nested = true });
@@ -500,9 +502,9 @@ public static class AssemblyService
         }
     }
 
-    private static void AddFlat(SubOccurrences children, int multiplier, Dictionary<string, BomLine> lines)
+    private static void AddFlat(SubOccurrences? children, int multiplier, Dictionary<string, BomLine> lines)
     {
-        foreach (SubOccurrence child in Items<SubOccurrence>(children))
+        foreach (SubOccurrence child in children is null ? [] : Items<SubOccurrence>(children))
         {
             if (child.Subassembly)
             {

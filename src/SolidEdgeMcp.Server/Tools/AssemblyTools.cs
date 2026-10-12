@@ -22,6 +22,11 @@ public enum AssemblyAction
     Suppress,
     Unsuppress,
     Delete,
+    Activate,
+    Inactivate,
+    Bundle,
+    Transfer,
+    Disperse,
 }
 
 public enum RelationAction
@@ -98,23 +103,30 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         list (recursive: also the parts inside subassemblies) | insert (path of a saved .par/.psm/.asm, optional origin [x,y,z] and angles [ax,ay,az]; grounded by default) |
         move (delta [dx,dy,dz], or absolute origin and/or angles) | rotate (axis [x1,y1,z1, x2,y2,z2] through two points, angle) |
         ground | unground | replace (path; all = every occurrence of the same file) | show | hide |
-        suppress (unloads it but keeps it in the assembly; returns a 'suppressed' handle) | unsuppress (that handle) | delete (removes the occurrence, not its file).
+        suppress (unloads it but keeps it in the assembly; returns a 'suppressed' handle) | unsuppress (that handle) | delete (removes the occurrence, not its file) |
+        activate (loads the part for editing; all = every component) | inactivate (a part occurrence of a saved assembly: lighter, still visible and measurable) |
+        bundle (occurrences → a new subassembly saved at path (.asm, must not exist; template optional), keeping their positions) |
+        transfer (occurrences → into the existing subassembly occurrence 'subassembly') | disperse (subassembly occurrence: its components move up into the assembly; all = every occurrence of that subassembly).
+        bundle/transfer change the subassembly file, which is saved when the assembly is saved; the moved occurrences get new handles (se_assembly list).
         move/rotate are checked: an occurrence held by its relations is left where it was and reported. se_relations frees (ungrounds) the occurrence it positions.
         Faces for relations: se_geometry with 'source' = the occurrence handle.
-        Example: {"action":"insert","path":"D:\\CAD\\pin.par","origin":[50,30,0],"ground":false}.
+        Example: {"action":"insert","path":"D:\\CAD\\pin.par","origin":[50,30,0],"ground":false}; {"action":"bundle","occurrences":["occurrence:3","occurrence:4"],"path":"D:\\CAD\\base.asm"}.
         """)]
     public Task<CallToolResult> Assembly(
         AssemblyAction action,
-        [Description("Occurrence handle (move, rotate, ground, unground, replace, show, hide, suppress, delete); 'suppressed' handle for unsuppress.")] string? occurrence = null,
-        [Description("insert/replace: absolute path of the part or assembly file (allowed folders).")] string? path = null,
+        [Description("Occurrence handle (move, rotate, ground, unground, replace, show, hide, suppress, delete, activate, inactivate, disperse); 'suppressed' handle for unsuppress.")] string? occurrence = null,
+        [Description("insert/replace: absolute path of the part or assembly file (allowed folders); bundle: the new subassembly file (.asm).")] string? path = null,
         [Description("insert/move: position [x,y,z] in mm.")] double[]? origin = null,
         [Description("insert/move: rotation angles [ax,ay,az] in degrees about the assembly X, Y, Z axes.")] double[]? angles = null,
         [Description("move: relative displacement [dx,dy,dz] in mm.")] double[]? delta = null,
         [Description("rotate: axis through two points [x1,y1,z1, x2,y2,z2] in mm.")] double[]? axis = null,
         [Description("rotate: angle in degrees (right hand about the axis direction).")] double? angle = null,
         [Description("insert: fix the occurrence where it is placed (default true).")] bool ground = true,
-        [Description("replace: replace every occurrence of the same file.")] bool all = false,
+        [Description("replace: every occurrence of the same file; activate: every component; disperse: every occurrence of the subassembly.")] bool all = false,
         [Description("list: include the parts of subassemblies.")] bool recursive = false,
+        [Description("bundle, transfer: occurrence handles to move into the subassembly.")] string[]? occurrences = null,
+        [Description("transfer: the subassembly occurrence to move them into.")] string? subassembly = null,
+        [Description("bundle: assembly template for the new subassembly (default: Solid Edge's default assembly template).")] string? template = null,
         int offset = 0,
         int limit = 100,
         [Description("Assembly document handle; default: the occurrence's assembly or the active document.")] string? document = null,
@@ -139,6 +151,12 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyAction.Suppress => runner.RunAsync(tool, name, c => AssemblyService.Suppress(c, occurrence), cancellationToken),
             AssemblyAction.Unsuppress => runner.RunAsync(tool, name, c => AssemblyService.Unsuppress(c, occurrence), cancellationToken),
             AssemblyAction.Delete => runner.RunAsync(tool, name, c => AssemblyService.Delete(c, occurrence), cancellationToken),
+            AssemblyAction.Activate => runner.RunAsync(tool, name, c => AssemblyService.Activate(c, document, occurrence, true, all), cancellationToken),
+            AssemblyAction.Inactivate => runner.RunAsync(tool, name, c => AssemblyService.Activate(c, document, occurrence, false, false), cancellationToken),
+            AssemblyAction.Bundle => runner.RunAsync(tool, name, c => AssemblyService.Bundle(c, occurrences,
+                ToolRunner.Require(path, "path", "bundle"), template), cancellationToken, precheck: precheck),
+            AssemblyAction.Transfer => runner.RunAsync(tool, name, c => AssemblyService.Transfer(c, occurrences, subassembly), cancellationToken),
+            AssemblyAction.Disperse => runner.RunAsync(tool, name, c => AssemblyService.Disperse(c, occurrence, all), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

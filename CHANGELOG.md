@@ -48,6 +48,20 @@ Relevant changes to this project are recorded here. The format follows
   document made from a template (default part, or draft for DXF and DWG); returns the volume or the 2D elements, and
   closes the document when nothing was translated (`import_empty`).
 - Acceptance scripts `A23` (view display, break lines, conversion to 2D and import) and `A24` (sketch editing).
+- `se_assembly`: `activate` and `inactivate` components (in a saved assembly; `all` activates every one), `bundle` (a new
+  subassembly saved from the chosen occurrences, inserted at the origin and holding them at the same positions),
+  `transfer` (occurrences into an existing subassembly) and `disperse` (the components of a subassembly up into the
+  assembly; `all` = every occurrence of it). `list` tells whether each occurrence is active.
+- `se_links`: the links between files, as Info > Links, Replace and Where Used do. `list` (component files of an
+  assembly with their quantities, models of a drawing with their views and whether they are up to date, copied parts of
+  a part; missing files flagged), `replace` a referenced file (every occurrence of it, the model of a drawing with its
+  views updated, the source of copied parts; read back), `break` copied parts, `where_used` (directly or up to the
+  top), `top_level` and `search` (Solid Edge documents of a folder with title, subject and date; text filter).
+- `se_physical` measures assemblies: volume and centre of volume of all their parts, and mass, centre of gravity and
+  inertia when every part has a density (otherwise `partsWithoutDensity` lists the parts to give a material).
+- Acceptance script `A25` (assembly structure, links, where used, document search, physical properties of assemblies
+  and attribute sets through the generic layer). The acceptance runner gives each run an id (`{{run}}`) for files that
+  must not exist yet.
 
 ### Changed
 
@@ -69,6 +83,13 @@ Relevant changes to this project are recorded here. The format follows
   library's interfaces that share their IIDs.
 - A drawing view converted to 2D (also by Solid Edge's own command) is listed without a model; parts lists and bend
   tables refuse it with `wrong_view` instead of an unexpected error.
+- `se_com_items` reads collections through their interop `Count` and `Item`: by name, an attribute set with an
+  attribute called `Count` answered with that attribute and the call failed.
+- `se_com_invoke` gives Solid Edge the output arrays (`out Array`) it expects to find already made, through IDispatch
+  (`GetTopLevelAssemblyFileNames` failed with E_POINTER).
+- Arguments for file types, filters and search text (`file_types`, `varFileFilterOrText`…) are no longer taken as
+  paths (`'*.par'` was refused by the path policy); file names such as `TextureFileName` still are.
+- `se_assembly list` with `recursive` and `se_bom` with `flat` no longer fail on a subassembly without components.
 
 ## [0.1.0] - 2026-10-12
 

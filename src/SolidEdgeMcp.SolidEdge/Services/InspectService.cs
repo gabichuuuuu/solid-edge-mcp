@@ -229,6 +229,11 @@ public static class InspectService
     /// </summary>
     public static object Physical(SeContext context, string? documentHandle, double? density)
     {
+        if (context.GetDocument(documentHandle) is AssemblyDocument assembly)
+        {
+            return AssemblyPhysical(context, assembly, density);
+        }
+
         ModelDocument model = ModelDocument.Get(context, documentHandle);
         Model target = model.RequireModel();
         if (density is not null)
@@ -293,6 +298,64 @@ public static class InspectService
                 : several ? $"{bodies.Count} bodies: the properties are those of all of them together ('bodies' gives the volume of each)." : null,
         };
     }
+    /// <summary>
+    /// Physical properties of an assembly (Inspect > Physical Properties): each part with the density of its material;
+    /// occurrences excluded from physical properties are left out. Verified in Solid Edge 2026 against an independent
+    /// calculation: GlobalMoments come as xx, xy, xz, yy, yz, zz (products as +integral of xy dm), area as -1 (not computed),
+    /// and a part without density counts with 1 kg/m3, so the mass is only given when every part has one.
+    /// </summary>
+    private static object AssemblyPhysical(SeContext context, AssemblyDocument assembly, double? density)
+    {
+        if (density is not null)
+        {
+            throw ToolException.InvalidArgument("'density' applies to a part: an assembly uses the density of each part's material.",
+                "Assign materials to the parts (se_material apply), then measure the assembly.");
+        }
+
+        SolidEdgeAssembly.PhysicalProperties properties = assembly.PhysicalProperties;
+        // UpdateV2 recomputes them and lists the parts without density; typed, its output array gives E_POINTER, so it goes
+        // through IDispatch with an empty array of strings (as GetTopLevelAssemblyFileNames).
+        object?[] update = Late.CallByRef(properties, "UpdateV2", [Array.Empty<string>()], 0);
+        List<string> withoutDensity = update[0] is Array files ? [.. files.OfType<string>().Where(f => f.Length > 0)] : [];
+        Array cog = new double[3];
+        Array cov = new double[3];
+        Array global = new double[6];
+        Array axis1 = new double[3];
+        Array axis2 = new double[3];
+        Array axis3 = new double[3];
+        Array principal = new double[3];
+        Array radii = new double[3];
+        properties.GetAssemblyPhysicalProperties(out double mass, out double volume, out double area, ref cog, ref cov, ref global,
+            ref axis1, ref axis2, ref axis3, ref principal, ref radii, out bool sick, out bool _);
+        if (sick || volume <= 0)
+        {
+            throw new ToolException("physical_properties_failed", volume <= 0
+                    ? "The assembly has no solid to measure."
+                    : "Solid Edge could not compute the physical properties of the assembly reliably.",
+                "Check that its parts load and have solids (se_assembly list, se_geometry summary with 'source').");
+        }
+
+        bool hasDensity = withoutDensity.Count == 0;
+        double[] g = [.. Geo.Doubles(global).Select(v => Math.Round(Units.KgM2ToKgMm2(v), 6))];
+        return new
+        {
+            document = context.DocumentHandle((SolidEdgeDocument)assembly),
+            volume = Geo.Mm3(volume),
+            area = area >= 0 ? Geo.Mm2(area) : (double?)null,
+            centerOfVolume = Geo.Doubles(cov).Select(Geo.Mm).ToArray(),
+            mass = hasDensity ? Math.Round(mass, 9) : (double?)null,
+            centerOfGravity = hasDensity ? Geo.Doubles(cog).Select(Geo.Mm).ToArray() : null,
+            inertiaAboutOrigin = hasDensity ? new { ixx = g[0], iyy = g[3], izz = g[5], ixy = g[1], ixz = g[2], iyz = g[4] } : null,
+            principalMomentsAboutCog = hasDensity ? Geo.Doubles(principal).Select(v => Math.Round(Units.KgM2ToKgMm2(v), 6)).ToArray() : null,
+            principalAxes = hasDensity ? Geo.Doubles(axis1).Concat(Geo.Doubles(axis2)).Concat(Geo.Doubles(axis3)).Select(Geo.R).ToArray() : null,
+            radiiOfGyration = hasDensity ? Geo.Doubles(radii).Select(Geo.Mm).ToArray() : null,
+            partsWithoutDensity = withoutDensity,
+            units = new { length = "mm", area = "mm2", volume = "mm3", mass = "kg", inertia = "kg*mm2" },
+            note = hasDensity ? null
+                : "Some parts have no density (partsWithoutDensity), so mass and inertia are not given: assign them a material (se_material apply).",
+        };
+    }
+
     private sealed record PhysicalResult(double Volume, double Area, double Mass, double[] CenterOfGravity, double[] CenterOfVolume,
         double[] Global, double[] Principal, double[] Axes, double[] Radii, double Achieved);
 
