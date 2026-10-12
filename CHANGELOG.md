@@ -6,6 +6,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-13
+
 ### Added
 
 - `se_annotation corner`: corner annotations (edge conditions, ISO 13715) on the edge a model point picks, with one
