@@ -19,7 +19,7 @@ Claude Desktop, Codex or any other MCP client.**
 [![Progress: 44 % of functions work through the MCP](https://img.shields.io/badge/progress-44%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
-[Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md)
+[Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -362,6 +362,8 @@ Logs go to `%LocalAppData%\SolidEdgeMcp\logs` (one UTF-8 file per day; each oper
   the allowed folders, and between a path check and its use another process could change a link
   inside an allowed folder.
 
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
 ## Validation
 
 Results (unit tests and acceptance suite run on 2026-10-11):
@@ -523,7 +525,7 @@ the AGPL, a separate commercial license is available from the author: contact
 
 **Contributions.** To keep both licenses possible, pull requests are accepted only from
 contributors who agree to a contributor license agreement (CLA) that allows the author to
-relicense their contribution. Open an issue before submitting one.
+relicense their contribution. Open an issue before submitting one; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Versions published before the change to the AGPL (2026-10-11) remain available under the MIT
 License.

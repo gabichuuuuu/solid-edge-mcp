@@ -10,7 +10,7 @@
     </clipPath>
   </defs>
 
-  <rect x="0.5" y="0.5" width="1279" height="319" rx="6" fill="none" stroke="#d1d9e0"/>
+  <rect x="0.5" y="0.5" width="1279" height="319" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
   <line x1="440" y1="48" x2="440" y2="272" stroke="#d1d9e0"/>
 
   <!-- Coordinate triad -->

@@ -6,6 +6,11 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-12
+
+First published release (alpha), validated against Solid Edge Community Edition 2026. It is source only: the
+interop is generated from your own Solid Edge installation, so no binaries are published.
+
 ### Added
 
 - `se_sheetmetal convert`: turns a thin-walled part copied into a sheet metal document into sheet metal, with a base face
@@ -173,6 +178,10 @@ Relevant changes to this project are recorded here. The format follows
   the ones already reviewed: 107 functions not tried yet were added as `·` (among them a new "Program configuration"
   area for the Options dialog settings, add-ins, customization and license), so the progress measures the whole
   program: 112 of 254 functions work (44 %).
+- The README header names Siemens Solid Edge, and the banner has its own background (light or dark grey) so that it
+  stands out from the page in both GitHub themes. `docs/assets/social-preview.png` is the image for link previews.
+- Contributing guide, code of conduct and security policy (`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`);
+  vulnerabilities are reported privately through GitHub.
 - The internal development notes and AI assistant instructions are no longer published.
 - Code comments, scripts and documentation are in English, including the project notes
   (`AGENTS.md`, `STATUS.md`, `PLAN.md`). `ESTADO.md` and `docs/COBERTURA.md` were renamed to
@@ -214,7 +223,7 @@ Relevant changes to this project are recorded here. The format follows
 - `se_sketch`: the end of a spline was reported as its second point; it is now the last one, with
   the number of nodes.
 
-## [0.1.0-alpha] - unreleased
+## [0.1.0-alpha] - not released
 
 First alpha version, developed in a private repository. Validated against Solid Edge Community
 Edition 2026.
