@@ -34,6 +34,20 @@ Relevant changes to this project are recorded here. The format follows
     line style of each kind of edge, `DVEdgeStyleName[HiddenEdge]`…); style names are checked against the drawing.
 - Acceptance scripts `A21` (program settings), which puts back every setting it changes, and `A22` (styles, drawing
   preferences, view style, background and camera). The acceptance runner checks colours with a tolerance (`?#`).
+- `se_sketch_edit`: edits the 2D elements of a sketch or a drawing sheet, as the sketch editing commands do. `move`,
+  `rotate`, `scale` and `mirror` in place or as copies (`copy`); elements tied by relations move as a set and keep the
+  relations among them (a quarter turn makes horizontal lines vertical), and copies stay connected like the originals;
+  an element held by relations to elements left out (or by a driving dimension it would change) is refused with
+  `held_by_relations`. `trim`, `extend`, `split`, `corner`, `offset` of a connected chain, `construction`,
+  `pattern_rectangular`, `pattern_circular` and `delete`. Each result is measured and a failed edit is put back.
+- `se_drawing_view`: the display of a drawing view as in its Properties dialog (`display`, `set_display`: view
+  properties and the properties of each model member of an assembly view, such as hidden and tangent edges, hiding a
+  part or showing it as reference, checked by the edges drawn before and after), break lines (`add_break`, `breaks`,
+  `set_broken`, `remove_break`) and conversion of a view to 2D (`to2d`).
+- `se_documents import`: opens a STEP, IGES, Parasolid, JT, SAT, STL, OBJ, 3MF, DXF or DWG file as a new, unsaved
+  document made from a template (default part, or draft for DXF and DWG); returns the volume or the 2D elements, and
+  closes the document when nothing was translated (`import_empty`).
+- Acceptance scripts `A23` (view display, break lines, conversion to 2D and import) and `A24` (sketch editing).
 
 ### Changed
 
@@ -44,10 +58,17 @@ Relevant changes to this project are recorded here. The format follows
   `unsafe_member`.
 - `se_view fit`, `orient` and `capture` keep the field of view of a perspective camera (the fit of Solid Edge and its
   orientation commands narrow it).
+- `se_com_get` and `se_com_invoke` check a numeric `Item`/`ItemEx` index against the collection's `Count` and refuse
+  one out of range with `index_out_of_range` (`ModelMembers.Item` beyond the end crashes Solid Edge 2026 with
+  `RPC_E_SERVERFAULT`).
 
 ### Fixed
 
 - `se_options set` with `null` on a text option no longer writes the text "null".
+- The generic layer describes the drawing views and blocks of a drawing with the draft interfaces, not with the part
+  library's interfaces that share their IIDs.
+- A drawing view converted to 2D (also by Solid Edge's own command) is listed without a model; parts lists and bend
+  tables refuse it with `wrong_view` instead of an unexpected error.
 
 ## [0.1.0] - 2026-10-12
 

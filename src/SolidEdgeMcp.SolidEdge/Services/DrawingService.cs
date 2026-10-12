@@ -562,7 +562,7 @@ public static partial class DrawingService
     {
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
-        if (view.ModelLink is not ModelLink link || link.ModelType != ModelLinkTypeConstants.igAssemblyLink)
+        if (LinkOf(view) is not { } link || link.ModelType != ModelLinkTypeConstants.igAssemblyLink)
         {
             throw new ToolException("wrong_view", "A parts list needs a view of an assembly.", "Pass a drawing view created from an .asm file.");
         }
@@ -593,7 +593,7 @@ public static partial class DrawingService
     {
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
-        if (view.ModelLink is not ModelLink link || link.ModelType != ModelLinkTypeConstants.igPartLink)
+        if (LinkOf(view) is not { } link || link.ModelType != ModelLinkTypeConstants.igPartLink)
         {
             throw new ToolException("wrong_view", "A bend table needs a view of a sheet metal part.", "Use the flat pattern view (se_drawing base_view flat=true) of the part.");
         }
@@ -777,19 +777,7 @@ public static partial class DrawingService
     private static object DescribeView(SeContext context, DraftDocument draft, DrawingView view)
     {
         Box box = BoxOf(view);
-        string? model = null;
-        try
-        {
-            if (view.ModelLink is ModelLink link)
-            {
-                model = System.IO.Path.GetFileName(link.FileName);
-            }
-        }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
-        {
-            // View without a model (2D drawing).
-        }
-
+        string? model = LinkOf(view) is { } link ? System.IO.Path.GetFileName(link.FileName) : null;
         return new
         {
             handle = context.Register(view, "drawing_view", Document(draft)),
@@ -910,7 +898,23 @@ public static partial class DrawingService
             view.ViewOrientation(out _, out _, out _, out _, out _, out _, out ViewOrientationConstants orientation);
             return Orientations.FirstOrDefault(pair => pair.Value == orientation).Key ?? "custom";
         }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
+        catch (Exception ex) when (ComErrors.IsCallFailure(ex))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Model shown by a view, or null for a view without one. Verified in Solid Edge 2026: a view turned into 2D (Drop)
+    /// rejects ModelLink with E_INVALIDARG and ViewOrientation with E_POINTER.
+    /// </summary>
+    private static ModelLink? LinkOf(DrawingView view)
+    {
+        try
+        {
+            return view.ModelLink as ModelLink;
+        }
+        catch (Exception ex) when (ComErrors.IsCallFailure(ex))
         {
             return null;
         }

@@ -1,0 +1,98 @@
+# A23: display of drawing views (se_drawing_view: edge census, hidden edges, shading, member display in an assembly view,
+# break lines, conversion to 2D) and import of neutral files (se_documents import: STEP, IGES, Parasolid, STL, DXF).
+# Block 100x60x20 with a through hole Ø10 at (50,30): 120000 - pi*5²*20 = 118429.204; assembly of two blocks 40 mm apart.
+# Everything happens in temporary documents closed without saving.
+@b = se_documents {"action":"new","kind":"part"}
+@bs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{bs.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{bs.sketch}}"}
+se_extrude {"sketch":"{{bs.sketch}}","distance":20}
+@bt = se_geometry {"action":"faces","direction":[0,0,1]}
+@bh = se_hole {"plane":"{{bt.items[0].handle}}","centers":[50,30,20],"diameter":10}
+?= bh.volume 118429.204 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a23_blk.par","overwrite":true}
+se_export {"path":"{{work}}\\a23_blk.stp","overwrite":true}
+se_export {"path":"{{work}}\\a23_blk.igs","overwrite":true}
+se_export {"path":"{{work}}\\a23_blk.x_t","overwrite":true}
+se_export {"path":"{{work}}\\a23_blk.stl","overwrite":true}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a23_blk.par","origin":[0,0,0]}
+se_assembly {"action":"insert","path":"{{work}}\\a23_blk.par","origin":[0,0,40]}
+se_documents {"action":"save_as","path":"{{work}}\\a23_asm.asm","overwrite":true}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# Front view of the block at 2:1: 4 visible edges and the 2 hidden silhouettes of the hole, whatever the template's default
+@d = se_documents {"action":"new","kind":"draft"}
+@p = se_drawing {"action":"base_view","path":"{{work}}\\a23_blk.par","orientation":"front","scale":2,"position":[150,330]}
+@hs = se_drawing_view {"action":"set_display","view":"{{p.view.handle}}","property":"ShowHiddenEdges","value":true}
+?= hs.edges.after.Visible 4
+?= hs.edges.after.Hidden 2
+@pd = se_drawing_view {"action":"display","view":"{{p.view.handle}}"}
+?= pd.members[0].type part
+?= pd.edges.Hidden 2
+?= pd.graphics.lines 6
+@h = se_drawing_view {"action":"set_display","view":"{{p.view.handle}}","property":"ShowHiddenEdges","value":false}
+?= h.changed true
+?= h.edges.after.Visible 4
+@h2 = se_drawing_view {"action":"set_display","view":"{{p.view.handle}}","property":"ShowHiddenEdges","value":true}
+?= h2.edges.after.Hidden 2
+@sh = se_drawing_view {"action":"set_display","view":"{{p.view.handle}}","property":"Shading","value":true}
+?= sh.value true
+! [not_found] se_drawing_view {"action":"set_display","view":"{{p.view.handle}}","property":"ShowHidenEdges","value":true}
+# Assembly view: per-member display (hide one block, show another as reference); a member that does not exist
+@v = se_drawing {"action":"base_view","path":"{{work}}\\a23_asm.asm","orientation":"front","scale":2,"position":[150,170]}
+@vd = se_drawing_view {"action":"display","view":"{{v.view.handle}}"}
+?= vd.members[0].type assembly
+?= vd.members[1].name a23_blk.par:1
+@vh = se_drawing_view {"action":"set_display","view":"{{v.view.handle}}","property":"DisplayType","value":"hide_part","member":"a23_blk.par:1"}
+?= vh.changed true
+@vr = se_drawing_view {"action":"set_display","view":"{{v.view.handle}}","property":"DisplayAsReference","value":true,"member":"a23_blk.par:2"}
+?= vr.value true
+! [not_found] se_drawing_view {"action":"set_display","view":"{{v.view.handle}}","property":"ShowTangentEdges","value":true,"member":"99"}
+@mm = se_com_get {"target":"{{v.view.handle}}","member":"ModelMembers"}
+! [index_out_of_range] se_com_invoke {"target":"{{mm.value.handle}}","method":"Item","arguments":[99]}
+# Break lines: a vertical break of 80 mm with a gap of 10 shortens the 212.7 mm view to 142.7; breaks outside the view fail
+@k = se_drawing_view {"action":"add_break","view":"{{p.view.handle}}","direction":"vertical","from":110,"to":190,"shape":"long_break","gap":10}
+?= k.size.after[0] 142.7
+@kl = se_drawing_view {"action":"breaks","view":"{{p.view.handle}}"}
+?= kl.broken true
+! [view_failed] se_drawing_view {"action":"add_break","view":"{{p.view.handle}}","direction":"horizontal","from":10,"to":20}
+# Showing the whole view gives back its width, showing the breaks shortens it again; the break is then removed
+@ku = se_drawing_view {"action":"set_broken","view":"{{p.view.handle}}","broken":false}
+?= ku.size.after[0] {{k.size.before[0]}}
+@kb = se_drawing_view {"action":"set_broken","view":"{{p.view.handle}}","broken":true}
+?= kb.size.after[0] 142.7
+se_drawing_view {"action":"set_broken","view":"{{p.view.handle}}","broken":false}
+@kr = se_drawing_view {"action":"remove_break","view":"{{p.view.handle}}","index":1}
+?= kr.remaining 0
+! [not_found] se_drawing_view {"action":"remove_break","view":"{{p.view.handle}}","index":1}
+# Conversion to 2D: the view becomes a user view, which cannot be converted again
+@t = se_drawing_view {"action":"to2d","view":"{{p.view.handle}}"}
+?= t.view.type user
+! [not_supported] se_drawing_view {"action":"to2d","view":"{{p.view.handle}}"}
+se_export {"path":"{{work}}\\a23_draft.dxf","overwrite":true}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# Import: STEP, IGES and Parasolid give the block's volume; STL a faceted body of the same size; DXF a drawing with its lines
+@i1 = se_documents {"action":"import","path":"{{work}}\\a23_blk.stp"}
+?= i1.volume 118429.204 0.5
+?= i1.document.kind part
+@i2 = se_documents {"action":"import","path":"{{work}}\\a23_blk.igs"}
+?= i2.volume 118429.204 0.5
+@i3 = se_documents {"action":"import","path":"{{work}}\\a23_blk.x_t","kind":"part"}
+?= i3.volume 118429.204 0.5
+@i4 = se_documents {"action":"import","path":"{{work}}\\a23_blk.stl"}
+@g4 = se_geometry {"action":"summary"}
+?= g4.boundingBox.size[0] 100 0.01
+?= g4.boundingBox.size[2] 20 0.01
+@i5 = se_documents {"action":"import","path":"{{work}}\\a23_draft.dxf"}
+?= i5.document.kind draft
+@x1 = se_com_get {"target":"active_document","member":"ActiveSheet"}
+@x2 = se_com_get {"target":"{{x1.value.handle}}","member":"Lines2d"}
+@x3 = se_com_get {"target":"{{x2.value.handle}}","member":"Count"}
+! [invalid_argument] se_documents {"action":"import","path":"{{work}}\\a23_blk.par"}
+! se_documents {"action":"import","path":"{{work}}\\a23_missing.stp"}
+se_documents {"action":"close","document":"{{i1.document.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{i2.document.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{i3.document.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{i4.document.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{i5.document.handle}}","saveChanges":false}

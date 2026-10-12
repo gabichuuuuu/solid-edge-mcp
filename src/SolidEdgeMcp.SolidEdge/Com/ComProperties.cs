@@ -57,12 +57,29 @@ public static class ComProperties
     /// <summary>Sets a property and reads it back; the value must stay as given (a colour, enumeration or number within 1e-9).</summary>
     public static (object? Previous, object? Value) Set(SeContext context, object target, PropertyInfo property, JsonElement value, string owner)
     {
+        object? previous = TryRead(target, property);
+        object? written = Write(context, target, property, value, owner);
+        object? current = Read(target, property);
+        if (!Same(current, written))
+        {
+            throw new ToolException("value_rejected", $"Solid Edge kept '{property.Name}' of {owner} at {JsonSerializer.Serialize(current)} instead of {value.GetRawText()}.",
+                "The value may be out of range, or the property may depend on another one.");
+        }
+
+        return (previous, current);
+    }
+
+    /// <summary>
+    /// Converts and sets a property without reading it back, for objects that do not report what was set (the caller
+    /// measures the effect); returns the value written, formatted like a read.
+    /// </summary>
+    public static object? Write(SeContext context, object target, PropertyInfo property, JsonElement value, string owner)
+    {
         if (!property.CanWrite)
         {
             throw new ToolException("read_only_property", $"'{property.Name}' of {owner} is read-only.");
         }
 
-        object? previous = TryRead(target, property);
         object? converted = Convert(context, property, value);
         try
         {
@@ -74,14 +91,7 @@ public static class ComProperties
                 "Check the type and range of the current value (action 'get').", ex);
         }
 
-        object? current = Read(target, property);
-        if (!Same(current, Format(property, converted)))
-        {
-            throw new ToolException("value_rejected", $"Solid Edge kept '{property.Name}' of {owner} at {JsonSerializer.Serialize(current)} instead of {value.GetRawText()}.",
-                "The value may be out of range, or the property may depend on another one.");
-        }
-
-        return (previous, current);
+        return Format(property, converted);
     }
 
     public static object? TryRead(object target, PropertyInfo property)

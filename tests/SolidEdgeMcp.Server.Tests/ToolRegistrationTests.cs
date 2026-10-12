@@ -116,6 +116,10 @@ public sealed class ToolRegistrationTests
     [InlineData("se_styles", """{"action":"list","type":"color"}""", "'type' must be one of:")]
     [InlineData("se_view", """{"action":"background","kind":"environment"}""", "'kind' must be one of:")]
     [InlineData("se_view", """{"action":"background","kind":"gradient","colors":["#000000"],"gradient":"radial"}""", "'gradient' must be one of:")]
+    [InlineData("se_drawing_view", """{"action":"add_break","view":"drawing_view:2","direction":"diagonal","from":120,"to":160}""", "'direction' must be one of:")]
+    [InlineData("se_drawing_view", """{"action":"add_break","view":"drawing_view:2","direction":"vertical","from":120,"to":160,"shape":"zigzag"}""", "'shape' must be one of:")]
+    [InlineData("se_documents", """{"action":"import","path":"C:\\x\\a.stp","kind":"surface"}""", "'kind' must be one of:")]
+    [InlineData("se_sketch_edit", """{"action":"stretch","sketch":"sketch:1","elements":["line2d:2"]}""", "'action' must be one of:")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -135,6 +139,16 @@ public sealed class ToolRegistrationTests
     [InlineData("se_round", """{"edges":["edge:1","edge:2"],"radius":2.5}""")]
     [InlineData("se_com_set", """{"target":"app","member":"Visible","value":true}""")]
     [InlineData("se_documents", """{"action":"list","document":null}""")]
+    [InlineData("se_documents", """{"action":"import","path":"C:\\x\\a.stp","kind":"part","template":"C:\\x\\iso.par"}""")]
+    [InlineData("se_drawing_view", """{"action":"set_display","view":"drawing_view:2","property":"ShowHiddenEdges","value":true,"member":"1"}""")]
+    [InlineData("se_drawing_view", """{"action":"add_break","view":"drawing_view:2","direction":"horizontal","from":120,"to":160,"shape":"short_curved_break","gap":5}""")]
+    [InlineData("se_drawing_view", """{"action":"set_broken","view":"drawing_view:2","broken":false}""")]
+    [InlineData("se_drawing_view", """{"action":"to2d","view":"drawing_view:2"}""")]
+    [InlineData("se_sketch_edit", """{"action":"mirror","sketch":"sketch:1","elements":["line2d:2","arc2d:3"],"line":[0,0,0,10],"copy":false}""")]
+    [InlineData("se_sketch_edit", """{"action":"trim","sketch":"sketch:1","element":"line2d:2","at":[0,30],"bounds":["line2d:3"]}""")]
+    [InlineData("se_sketch_edit", """{"action":"pattern_rectangular","sketch":"sketch:1","elements":["circle2d:4"],"count":3,"rows":2,"spacing":[20,-15],"angle":30}""")]
+    [InlineData("se_sketch_edit", """{"action":"pattern_circular","sketch":"sketch:1","elements":["circle2d:4"],"center":[0,0],"count":6,"angle":-90}""")]
+    [InlineData("se_sketch_edit", """{"action":"corner","sketch":"sketch:1","elements":["line2d:2","line2d:3"],"keep":[10,0,50,30]}""")]
     [InlineData("se_sheetmetal", """{"action":"hem","edges":["edge:1"],"hemType":"s_flange","length":10,"side":"bend_outside"}""")]
     [InlineData("se_sheetmetal", """{"action":"tab","sketch":"sketch:1","direction":"reverse"}""")]
     [InlineData("se_documents", """{"action":"new","kind":"weldment"}""")]

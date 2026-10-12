@@ -41,6 +41,18 @@ public static class ComErrors
     public static bool IsDisconnected(int hr) =>
         hr is RpcEDisconnected or RpcEServerDied or RpcEServerDiedDne or RpcSServerUnavailable or RpcSCallFailed or CoEObjNotConnected;
 
+    /// <summary>
+    /// Was a single direct COM call rejected while Solid Edge keeps running? .NET raises some HRESULTs as other exceptions
+    /// (E_INVALIDARG as ArgumentException, E_POINTER as NullReferenceException, E_NOINTERFACE as InvalidCastException), so
+    /// only wrap one COM call with it.
+    /// </summary>
+    public static bool IsCallFailure(Exception ex) => ex switch
+    {
+        COMException com => !IsDisconnected(com.HResult),
+        ArgumentException or NullReferenceException or InvalidCastException or NotImplementedException => true,
+        _ => false,
+    };
+
     public static Exception Unwrap(Exception ex)
     {
         while (ex is TargetInvocationException { InnerException: { } inner })

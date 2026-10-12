@@ -78,12 +78,14 @@ public static class GenericCom
         {
             case PropertyInfo property:
                 indexArgs = BindArguments(context, property.Name, property.GetIndexParameters(), index);
+                CheckIndex(value, type, property.Name, indexArgs);
                 result = property.GetValue(value, indexArgs.Length == 0 ? null : indexArgs);
                 break;
             case MethodInfo method:
                 // Some "Item" or "GetX" members are read as methods.
                 RefuseUnsafe(type, method.Name);
                 indexArgs = BindArguments(context, method.Name, method.GetParameters(), index);
+                CheckIndex(value, type, method.Name, indexArgs);
                 result = CallMethod(value, method, indexArgs);
                 break;
             case null when type is not null:
@@ -145,6 +147,39 @@ public static class GenericCom
         }
     }
 
+    /// <summary>
+    /// Checks a numeric Item/ItemEx index against the collection's Count. Verified in Solid Edge 2026: ModelMembers.Item
+    /// beyond Count fails with RPC_E_SERVERFAULT, which leaves Solid Edge unstable.
+    /// </summary>
+    private static void CheckIndex(object collection, Type? type, string member, object?[] args)
+    {
+        if (type is null || args.Length == 0
+            || !(member.Equals("Item", StringComparison.OrdinalIgnoreCase) || member.Equals("ItemEx", StringComparison.OrdinalIgnoreCase))
+            || args[0] is null or string or bool || args[0] is not IConvertible number
+            || InteropCatalog.FindMember(type, "Count") is not PropertyInfo { CanRead: true })
+        {
+            return;
+        }
+
+        double index = number.ToDouble(CultureInfo.InvariantCulture);
+        int count;
+        try
+        {
+            count = Late.Count(collection);
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsDisconnected(ex))
+        {
+            return;
+        }
+
+        if (index != Math.Floor(index) || index < 1 || index > count)
+        {
+            throw new ToolException("index_out_of_range",
+                $"{type.Name} has {count} item(s), so there is no item {index.ToString(CultureInfo.InvariantCulture)}.",
+                "Collections in Solid Edge start at 1.");
+        }
+    }
+
     public static object Invoke(SeContext context, string? target, string method, JsonElement? arguments)
     {
         object obj = ResolveTarget(context, target);
@@ -157,6 +192,7 @@ public static class GenericCom
             case MethodInfo methodInfo:
                 ParameterInfo[] parameters = methodInfo.GetParameters();
                 object?[] args = BindArguments(context, methodInfo.Name, parameters, arguments);
+                CheckIndex(obj, type, methodInfo.Name, args);
                 object? result = CallMethod(obj, methodInfo, args);
                 var outputs = new Dictionary<string, object?>();
                 for (int i = 0; i < parameters.Length; i++)

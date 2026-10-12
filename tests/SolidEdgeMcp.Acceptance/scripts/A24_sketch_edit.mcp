@@ -1,0 +1,138 @@
+# A24: editing of sketch and sheet geometry (se_sketch_edit): move, rotate, scale and mirror of free and related elements
+# (in place, with the relations among them kept, or as related copies), trim, extend, split, corner, offset, construction,
+# rectangular and circular patterns and delete. Every result is checked by its coordinates. Temporary documents closed
+# without saving.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+# A free circle: move, rotate about the origin, scale and a mirrored copy (the default for mirror)
+@c = se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[100,0],"radius":10}
+@mv = se_sketch_edit {"action":"move","sketch":"{{k.sketch}}","elements":["{{c.element}}"],"delta":[50,20]}
+?= mv.elements[0].geometry.center[0] 150
+?= mv.elements[0].geometry.center[1] 20
+@ro = se_sketch_edit {"action":"rotate","sketch":"{{k.sketch}}","elements":["{{c.element}}"],"center":[0,0],"angle":90}
+?= ro.elements[0].geometry.center[0] -20
+?= ro.elements[0].geometry.center[1] 150
+@sc = se_sketch_edit {"action":"scale","sketch":"{{k.sketch}}","elements":["{{c.element}}"],"center":[0,0],"factor":2}
+?= sc.elements[0].geometry.center[1] 300
+?= sc.elements[0].geometry.radius 20
+@mi = se_sketch_edit {"action":"mirror","sketch":"{{k.sketch}}","elements":["{{c.element}}"],"line":[0,0,0,10]}
+?= mi.copies[0].geometry.center[0] 40
+# A rectangle (connected, horizontal and vertical lines) edited in place as a set: the relations are kept, a quarter turn
+# makes the horizontal lines vertical
+@r = se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,60,40,90]}
+@rm = se_sketch_edit {"action":"move","sketch":"{{k.sketch}}","elements":{{r.elements}},"delta":[5,5]}
+?= rm.elements[0].geometry.start[0] 5
+?= rm.elements[2].geometry.start[1] 95
+?= rm.relations.horizontal 2
+@rt = se_sketch_edit {"action":"rotate","sketch":"{{k.sketch}}","elements":{{r.elements}},"center":[25,80],"angle":180}
+?= rt.elements[0].geometry.start[0] 45
+?= rt.elements[0].geometry.start[1] 95
+@rs = se_sketch_edit {"action":"scale","sketch":"{{k.sketch}}","elements":{{r.elements}},"center":[25,80],"factor":2}
+?= rs.elements[0].geometry.length 80
+@rq = se_sketch_edit {"action":"mirror","sketch":"{{k.sketch}}","elements":{{r.elements}},"line":[25,0,25,10],"copy":false}
+?= rq.elements[0].geometry.start[0] -15
+@rn = se_sketch_edit {"action":"rotate","sketch":"{{k.sketch}}","elements":{{r.elements}},"center":[0,0],"angle":90}
+?= rn.relations.vertical 2
+?= rn.elements[0].geometry.start[0] -110
+@rl = se_sketch_constraint {"action":"list","sketch":"{{k.sketch}}"}
+?= rl.relationCount 8
+?= rl.relations[4].type vertical
+# A related set cannot be edited without the elements it is tied to, nor turned off the axes it is held to
+! [held_by_relations] se_sketch_edit {"action":"move","sketch":"{{k.sketch}}","elements":["{{r.elements[0]}}"],"delta":[0,10]}
+! [held_by_relations] se_sketch_edit {"action":"rotate","sketch":"{{k.sketch}}","elements":{{r.elements}},"center":[0,0],"angle":30}
+# Related copies: a copy turned 30 degrees keeps its connections; a quarter turn keeps horizontal / vertical too
+@rc = se_sketch_edit {"action":"rotate","sketch":"{{k.sketch}}","elements":{{r.elements}},"center":[0,0],"angle":30,"copy":true}
+?= rc.relations.connect 4
+@rq2 = se_sketch_edit {"action":"rotate","sketch":"{{k.sketch}}","elements":{{r.elements}},"center":[0,0],"angle":90,"copy":true}
+?= rq2.relations.connect 4
+?= rq2.relations.horizontal 2
+# Parallel lines, a perpendicular corner and a tangent arc turned 37 degrees in place, the relation made again
+@pa1 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[200,0,240,10]}
+@pa2 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[200,20,240,30]}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"parallel","elements":["{{pa1.element}}","{{pa2.element}}"]}
+@par = se_sketch_edit {"action":"rotate","sketch":"{{k.sketch}}","elements":["{{pa1.element}}","{{pa2.element}}"],"center":[0,0],"angle":37}
+?= par.relations.parallel 1
+@pe1 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[300,0,340,10]}
+@pe2 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[300,0,290,40]}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"connect","elements":["{{pe1.element}}","{{pe2.element}}"],"keypoints":[0,0]}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"perpendicular","elements":["{{pe1.element}}","{{pe2.element}}"]}
+@pem = se_sketch_edit {"action":"move","sketch":"{{k.sketch}}","elements":["{{pe1.element}}","{{pe2.element}}"],"delta":[5,5]}
+?= pem.elements[1].geometry.end[1] 45
+?= pem.relations.perpendicular 1
+@ta = se_sketch {"action":"arc","sketch":"{{k.sketch}}","center":[600,0],"start":[610,0],"end":[600,10]}
+@tl = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[610,0,610,-30]}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"tangent","elements":["{{ta.element}}","{{tl.element}}"]}
+@tr = se_sketch_edit {"action":"rotate","sketch":"{{k.sketch}}","elements":["{{ta.element}}","{{tl.element}}"],"center":[0,0],"angle":37}
+?= tr.relations.tangent 1
+?= tr.elements[0].geometry.radius 10
+# An arc tied by a connection, mirrored as a related copy; mirrored in place it would swap its ends
+@a = se_sketch {"action":"arc","sketch":"{{k.sketch}}","center":[100,100],"start":[110,100],"end":[100,110]}
+@al = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[110,100,110,80]}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"connect","elements":["{{a.element}}","{{al.element}}"],"keypoints":[1,0]}
+@am = se_sketch_edit {"action":"mirror","sketch":"{{k.sketch}}","elements":["{{a.element}}","{{al.element}}"],"line":[90,0,90,10]}
+?= am.relations.connect 1
+! [held_by_relations] se_sketch_edit {"action":"mirror","sketch":"{{k.sketch}}","elements":["{{a.element}}","{{al.element}}"],"line":[90,0,90,10],"copy":false}
+# Dimensions: a dimensioned line moves but does not scale; a fixed line does not move, its copy does
+@ld = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[0,-200,40,-200]}
+se_sketch_constraint {"action":"dimension","sketch":"{{k.sketch}}","dimension":"length","elements":["{{ld.element}}"],"value":40}
+! [held_by_relations] se_sketch_edit {"action":"scale","sketch":"{{k.sketch}}","elements":["{{ld.element}}"],"center":[0,-200],"factor":2}
+@lm = se_sketch_edit {"action":"move","sketch":"{{k.sketch}}","elements":["{{ld.element}}"],"delta":[10,5]}
+?= lm.elements[0].geometry.start[0] 10
+?= lm.elements[0].geometry.length 40
+@lf = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[0,-300,20,-300]}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"fix","elements":["{{lf.element}}"]}
+! [held_by_relations] se_sketch_edit {"action":"move","sketch":"{{k.sketch}}","elements":["{{lf.element}}"],"delta":[10,0]}
+@fc = se_sketch_edit {"action":"move","sketch":"{{k.sketch}}","elements":["{{lf.element}}"],"delta":[0,10],"copy":true}
+?= fc.copies[0].geometry.start[1] -290
+# Trim, extend, split and corner
+@l1 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[0,-50,0,50]}
+@l2 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[-50,0,50,0]}
+@tm = se_sketch_edit {"action":"trim","sketch":"{{k.sketch}}","element":"{{l1.element}}","at":[0,30],"bounds":["{{l2.element}}"]}
+?= tm.elements[0].geometry.end[1] 0
+@l3 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[60,0,80,0]}
+@l4 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[100,-10,100,10]}
+@ex = se_sketch_edit {"action":"extend","sketch":"{{k.sketch}}","element":"{{l3.element}}","at":[80,0],"bounds":["{{l4.element}}"]}
+?= ex.elements[0].geometry.length 40
+@sp = se_sketch_edit {"action":"split","sketch":"{{k.sketch}}","element":"{{l2.element}}","at":[25,0]}
+?= sp.created[0].geometry.length 25
+! [invalid_argument] se_sketch_edit {"action":"split","sketch":"{{k.sketch}}","element":"{{c.element}}","at":[0,0]}
+@l6 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[200,-100,260,-100]}
+@l7 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[250,-120,250,-60]}
+@co = se_sketch_edit {"action":"corner","sketch":"{{k.sketch}}","elements":["{{l6.element}}","{{l7.element}}"],"keep":[210,-100,250,-70]}
+?= co.elements[0].geometry.length 50
+?= co.elements[1].geometry.length 40
+# A circle trimmed by a line becomes an arc with a new handle
+@cc = se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[0,-100],"radius":20}
+@t1 = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[-30,-100,30,-100]}
+@tc = se_sketch_edit {"action":"trim","sketch":"{{k.sketch}}","element":"{{cc.element}}","at":[0,-80],"bounds":["{{t1.element}}"]}
+?= tc.removed[0] {{cc.element}}
+?= tc.created[0].geometry.type arc
+# Construction geometry, offset of a chain (4 lines, each 10 mm longer outside) and patterns
+@cn = se_sketch_edit {"action":"construction","sketch":"{{k.sketch}}","elements":["{{l4.element}}"]}
+@cq = se_com_invoke {"target":"{{k.sketch}}","method":"IsConstructionElement","arguments":[{"handle":"{{l4.element}}"}]}
+?= cq.result true
+@r2 = se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[200,200,260,240]}
+@of = se_sketch_edit {"action":"offset","sketch":"{{k.sketch}}","at":[230,200],"side":[230,190],"distance":5}
+?= of.chain 4
+?= of.created[0].geometry.length 70
+@c7 = se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[300,300],"radius":3}
+@pr = se_sketch_edit {"action":"pattern_rectangular","sketch":"{{k.sketch}}","elements":["{{c7.element}}"],"count":3,"rows":2,"spacing":[20,-15]}
+?= pr.occurrences 6
+?= pr.created[4].geometry.center[1] 285
+@c8 = se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[400,30],"radius":3}
+@pc = se_sketch_edit {"action":"pattern_circular","sketch":"{{k.sketch}}","elements":["{{c8.element}}"],"center":[400,0],"count":6}
+?= pc.occurrences 6
+@c9 = se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[500,30],"radius":3}
+@pa = se_sketch_edit {"action":"pattern_circular","sketch":"{{k.sketch}}","elements":["{{c9.element}}"],"center":[500,0],"count":4,"angle":-90}
+?= pa.created[2].geometry.center[0] 530
+! [invalid_argument] se_sketch_edit {"action":"pattern_circular","sketch":"{{k.sketch}}","elements":["{{c9.element}}"],"center":[500,30],"count":4}
+@de = se_sketch_edit {"action":"delete","sketch":"{{k.sketch}}","elements":["{{l3.element}}"]}
+?= de.deleted[0] {{l3.element}}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# On a drawing sheet: move works, construction does not exist
+@d = se_documents {"action":"new","kind":"draft"}
+@sl = se_sketch {"action":"line","sketch":"{{d.handle}}","points":[50,50,100,50]}
+@sm = se_sketch_edit {"action":"move","sketch":"{{d.handle}}","elements":["{{sl.element}}"],"delta":[10,5]}
+?= sm.elements[0].geometry.start[0] 60
+! [not_supported] se_sketch_edit {"action":"construction","sketch":"{{d.handle}}","elements":["{{sl.element}}"]}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

@@ -19,8 +19,19 @@ public static class InteropCatalog
     /// <summary>Interop type that describes the object, based on its COM type information.</summary>
     public static Type? FindInterface(object comObject)
     {
-        (Guid guid, string _)? info = GetTypeInfoIdentity(comObject);
-        return info is null ? null : FindInterface(info.Value.guid);
+        (Guid guid, string name)? info = GetTypeInfoIdentity(comObject);
+        if (info is null)
+        {
+            return null;
+        }
+
+        // The part library declares the draft's DrawingViews and block interfaces again under its own names
+        // (SketchDrawingViews, SketchBlocks...) with the same IIDs, so the library named by the type information decides.
+        Type? type = FindInterface(info.Value.guid);
+        return type is not null && !info.Value.name.StartsWith(type.Namespace + ".", StringComparison.Ordinal)
+            && FindByName(info.Value.name) is { } named && named.GUID == info.Value.guid
+                ? named
+                : type;
     }
 
     public static Type? FindInterface(Guid iid) =>

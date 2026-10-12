@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
@@ -143,6 +144,63 @@ public static class DocumentService
 
         var document = (SolidEdgeDocument)context.Application.Documents.Open(checkedPath);
         return Describe(context, document, document);
+    }
+
+    /// <summary>Document kind each format of other CAD systems is translated into when no kind is given.</summary>
+    private static readonly Dictionary<string, string> ForeignFormats = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".stp"] = "part", [".step"] = "part", [".igs"] = "part", [".iges"] = "part", [".x_t"] = "part", [".x_b"] = "part",
+        [".jt"] = "part", [".sat"] = "part", [".stl"] = "part", [".obj"] = "part", [".3mf"] = "part",
+        [".dxf"] = "draft", [".dwg"] = "draft",
+    };
+
+    /// <summary>
+    /// Opens a file of another CAD system as a new, unsaved Solid Edge document made from a template of the given kind
+    /// (Documents.OpenWithTemplate, as File > Open with a template chosen in the import options).
+    /// </summary>
+    public static object Import(SeContext context, string path, string? kind, string? template)
+    {
+        string source = context.Paths.Check(path);
+        if (!File.Exists(source))
+        {
+            throw ToolException.NotFound($"The file does not exist: '{source}'.");
+        }
+
+        string extension = System.IO.Path.GetExtension(source);
+        if (NativeExtensions.Values.Any(e => e.Contains(extension, StringComparer.OrdinalIgnoreCase)))
+        {
+            throw ToolException.InvalidArgument($"'{System.IO.Path.GetFileName(source)}' is already a Solid Edge document.", "Use action 'open'.");
+        }
+
+        string target = kind ?? (ForeignFormats.TryGetValue(extension, out string? byFormat) ? byFormat
+            : throw ToolException.InvalidArgument($"'{extension}' is not a CAD format this server translates.",
+                $"Use one of {string.Join(", ", ForeignFormats.Keys)}, or pass 'kind' to try another one."));
+        (_, DocumentTypeConstants type) = DocumentKinds.ForNew(target);
+        string templatePath = !string.IsNullOrWhiteSpace(template)
+            ? CheckTemplate(context, template, type)
+            : DefaultTemplate(context, type) is { } byDefault && File.Exists(byDefault) ? byDefault
+            : throw new ToolException("template_missing", $"Solid Edge has no default {target.Replace('_', ' ')} template.",
+                "Pass 'template' (se_documents templates lists them).");
+        // Verified in Solid Edge 2026 with STEP, IGES, Parasolid, STL and DXF files: no dialog, a new unsaved document.
+        var document = (SolidEdgeDocument)context.Application.Documents.OpenWithTemplate(source, templatePath);
+        double? volume = document is SolidEdgePart.PartDocument or SolidEdgePart.SheetMetalDocument ? ModelDocument.From(document).Volume() : null;
+        Dictionary<string, int>? elements = document is SolidEdgeDraft.DraftDocument draft ? DrawingService.SheetElements(draft.ActiveSheet) : null;
+        if (volume is <= 0 || elements?.GetValueOrDefault("total") == 0)
+        {
+            TryClose(document);
+            throw new ToolException("import_empty", $"Solid Edge translated no geometry from '{System.IO.Path.GetFileName(source)}', so the empty document was closed.",
+                "Check the file in the program that wrote it, or pass another 'kind' or 'template'.");
+        }
+
+        return new
+        {
+            document = Describe(context, document, document),
+            source,
+            template = templatePath,
+            volume = volume is { } v ? Geo.Mm3(v) : (double?)null,
+            elements,
+            note = "Not saved yet: save_as writes it as a Solid Edge file.",
+        };
     }
 
     public static DocumentInfo Save(SeContext context, string? handle)
@@ -377,6 +435,19 @@ public static class DocumentService
         }
 
         return null;
+    }
+
+    /// <summary>Closes a document this call created, without saving; a failure leaves it open for the person.</summary>
+    private static void TryClose(SolidEdgeDocument document)
+    {
+        try
+        {
+            document.Close(false);
+        }
+        catch (Exception ex) when (ComErrors.IsCallFailure(ex))
+        {
+            // The error that stopped the import is the one reported.
+        }
     }
 
     private static SolidEdgeDocument? TryActive(SeContext context)

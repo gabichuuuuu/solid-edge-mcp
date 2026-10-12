@@ -153,9 +153,9 @@ public static partial class SketchService
             try
             {
                 // The Geometry2d output parameter comes back empty (verified): the new elements are searched for in the collections.
-                int[] before = ElementCounts(profile);
+                int[] before = ElementCounts(Canvas2d.Of(profile));
                 profile.IncludeEdge(edge, out _);
-                foreach (object geometry in NewElements(profile, before))
+                foreach (object geometry in NewElements(Canvas2d.Of(profile), before))
                 {
                     created.Add(new { edge = handle, element = context.RegisterBeside(geometry, KindOf(geometry), sketch), geometry = Describe2d(geometry) });
                 }
@@ -657,17 +657,17 @@ public static partial class SketchService
         private static double Mod(double angle) => ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     }
 
-    private static readonly Func<Profile, object>[] ElementCollections =
-        [p => p.Lines2d, p => p.Arcs2d, p => p.Circles2d, p => p.Ellipses2d, p => p.EllipticalArcs2d, p => p.BSplineCurves2d, p => p.Points2d];
+    private static readonly Func<Canvas2d, object>[] ElementCollections =
+        [c => c.Lines2d, c => c.Arcs2d, c => c.Circles2d, c => c.Ellipses2d, c => c.EllipticalArcs2d, c => c.BSplineCurves2d, c => c.Points2d];
 
-    private static int[] ElementCounts(Profile profile) => ElementCollections.Select(c => Late.Count(c(profile))).ToArray();
+    private static int[] ElementCounts(Canvas2d canvas) => ElementCollections.Select(c => Late.Count(c(canvas))).ToArray();
 
     /// <summary>2D elements added to the sketch since <paramref name="before"/> (the collections grow at the end).</summary>
-    private static IEnumerable<object> NewElements(Profile profile, int[] before)
+    private static IEnumerable<object> NewElements(Canvas2d canvas, int[] before)
     {
         for (int i = 0; i < ElementCollections.Length; i++)
         {
-            object collection = ElementCollections[i](profile);
+            object collection = ElementCollections[i](canvas);
             int count = Late.Count(collection);
             for (int j = before[i] + 1; j <= count; j++)
             {
