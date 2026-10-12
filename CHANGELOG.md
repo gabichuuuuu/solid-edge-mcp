@@ -160,6 +160,9 @@ Relevant changes to this project are recorded here. The format follows
   descriptions, and a test checks the limit for every tool and the server instructions.
 - README redesigned: banner, highlights, a compact tool overview and collapsible sections for the
   full tool table, the clients other than Claude Code and the acceptance scripts.
+- The coverage progress (`scripts/update-progress.ps1`, README badge and `docs/COVERAGE.md`) is the share of
+  functions that work through the MCP (✔); functions that fail in Solid Edge (✘) no longer count as done. The
+  README badges are in two rows (platform and status) and add the last commit and the monthly commit activity.
 - The internal development notes and AI assistant instructions are no longer published.
 - Code comments, scripts and documentation are in English, including the project notes
   (`AGENTS.md`, `STATUS.md`, `PLAN.md`). `ESTADO.md` and `docs/COBERTURA.md` were renamed to

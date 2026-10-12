@@ -5,9 +5,10 @@
 .DESCRIPTION
     Counts the rows of every table in docs/COVERAGE.md by the first character of their last cell:
     ✔ works through the MCP, ✘ does not work in Solid Edge (documented, with an alternative when there
-    is one), · available in the API but not tested yet. A row is reviewed when it is ✔ or ✘; 100 %
-    means that no row is left to test. The summary goes between the progress markers of
-    docs/COVERAGE.md and the "functions reviewed" badge of README.md is updated.
+    is one), · available in the API but not tested yet. The progress is the share of rows that work
+    (✔): ✘ and · rows count as not working yet, so 100 % means that every function in the tables
+    works through the MCP. The summary goes between the progress markers of docs/COVERAGE.md and the
+    "progress" badge of README.md is updated.
     Run it after editing docs/COVERAGE.md. With -Check it changes nothing and fails when the files
     are out of date.
 
@@ -63,32 +64,32 @@ foreach ($line in ($tables -split "`n")) {
     $areas[$area][$kind]++
 }
 
-function Percent([int]$reviewed, [int]$total) {
+function Percent([int]$working, [int]$total) {
     if ($total -eq 0) { return 0 }
-    # Rounded down, so that 100 % only appears when nothing is left.
-    return [math]::Floor(100 * $reviewed / $total)
+    # Rounded down, so that 100 % only appears when every function works.
+    return [math]::Floor(100 * $working / $total)
 }
 
 $done = ($areas.Values | ForEach-Object { $_.done } | Measure-Object -Sum).Sum
 $notViable = ($areas.Values | ForEach-Object { $_.not_viable } | Measure-Object -Sum).Sum
 $pending = ($areas.Values | ForEach-Object { $_.pending } | Measure-Object -Sum).Sum
 $total = $done + $notViable + $pending
-$percent = Percent ($done + $notViable) $total
+$percent = Percent $done $total
 
 $lines = @(
     $startMarker
     '## Progress'
     ''
-    "**$percent % reviewed** ($($done + $notViable) of $total functions): $done work through the MCP (✔), $notViable do not work in"
-    "Solid Edge 2026 and are documented, with an alternative when there is one (✘), and $pending are still to be tested (·)."
+    "**$percent % working** ($done of $total functions work through the MCP, ✔): $notViable do not work in Solid Edge 2026"
+    "and are documented, with an alternative when there is one (✘), and $pending are still to be tested (·)."
     'Every function, tested or not, can also be reached through the generic COM layer and `se_command`.'
     ''
-    '| Area | ✔ | ✘ | · | Reviewed |'
+    '| Area | ✔ | ✘ | · | Working |'
     '|---|---|---|---|---|'
 )
 foreach ($name in $areas.Keys) {
     $a = $areas[$name]
-    $lines += "| $name | $($a.done) | $($a.not_viable) | $($a.pending) | $(Percent ($a.done + $a.not_viable) ($a.done + $a.not_viable + $a.pending)) % |"
+    $lines += "| $name | $($a.done) | $($a.not_viable) | $($a.pending) | $(Percent $a.done ($a.done + $a.not_viable + $a.pending)) % |"
 }
 
 $lines += "| **Total** | **$done** | **$notViable** | **$pending** | **$percent %** |"
@@ -99,10 +100,11 @@ $block = $lines -join "`n"
 $newCoverage = $coverage.Substring(0, $start) + $block + $coverage.Substring($end + $endMarker.Length)
 
 $color = if ($percent -ge 100) { 'brightgreen' } elseif ($percent -ge 80) { 'yellowgreen' } else { 'yellow' }
-$badge = "[![Functions reviewed: $percent %](https://img.shields.io/badge/functions%20reviewed-$percent%25-$color)](docs/COVERAGE.md#progress)"
-$badgePattern = '(?m)^\[!\[Functions reviewed: [^\]]*\]\([^)]*\)\]\(docs/COVERAGE\.md#progress\)$'
+$badge = "[![Progress: $percent % of functions work through the MCP](https://img.shields.io/badge/progress-$percent%25-$color)](docs/COVERAGE.md#progress)"
+# Any badge line that links to the progress section, whatever its text (LF or CRLF checkout).
+$badgePattern = '(?m)^\[!\[[^\]]*\]\([^)]*\)\]\(docs/COVERAGE\.md#progress\)(?=\r?$)'
 if ($readme -notmatch $badgePattern) {
-    throw 'README.md has no "Functions reviewed" badge line to update.'
+    throw 'README.md has no progress badge line (linked to docs/COVERAGE.md#progress) to update.'
 }
 
 $newReadme = [regex]::Replace($readme, $badgePattern, $badge)
@@ -113,10 +115,10 @@ if ($Check) {
         exit 1
     }
 
-    Write-Output "Progress up to date: $percent % reviewed ($done ✔, $notViable ✘, $pending ·)."
+    Write-Output "Progress up to date: $percent % working ($done ✔, $notViable ✘, $pending ·)."
     exit 0
 }
 
 [IO.File]::WriteAllText($coveragePath, $newCoverage, $utf8)
 [IO.File]::WriteAllText($readmePath, $newReadme, $utf8)
-Write-Output "$percent % reviewed: $done ✔, $notViable ✘, $pending · of $total functions."
+Write-Output "$percent % working: $done ✔, $notViable ✘, $pending · of $total functions."

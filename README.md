@@ -10,8 +10,11 @@ Claude Desktop, Codex or any other MCP client.**
 ![Solid Edge 2026](https://img.shields.io/badge/Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![54 tools](https://img.shields.io/badge/tools-54-2F6FEB)
+
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
-[![Functions reviewed: 100 %](https://img.shields.io/badge/functions%20reviewed-100%25-brightgreen)](docs/COVERAGE.md#progress)
+[![Progress: 76 % of functions work through the MCP](https://img.shields.io/badge/progress-76%25-yellow)](docs/COVERAGE.md#progress)
+[![Last commit](https://img.shields.io/github/last-commit/gabichuuuuu/solid_edge_mcp)](https://github.com/gabichuuuuu/solid_edge_mcp/commits/main)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/gabichuuuuu/solid_edge_mcp)](https://github.com/gabichuuuuu/solid_edge_mcp/commits/main)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md)
