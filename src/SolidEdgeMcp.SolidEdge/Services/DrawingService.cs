@@ -81,13 +81,14 @@ public static partial class DrawingService
         return new
         {
             document = DocumentHandle(context, draft),
+            section = IsBackground(draft.ActiveSheet) ? "background" : "working",
             sheets = WorkingSheets(draft).Select(sheet => DescribeSheet(context, draft, sheet, active)).ToList(),
-            backgrounds = BackgroundSheets(draft).Select(sheet => new { name = sheet.Name, size = SizeMm(sheet) }).ToList(),
+            backgrounds = BackgroundSheets(draft).Select(sheet => DescribeSheet(context, draft, sheet, active)).ToList(),
         };
     }
 
     public static object AddSheet(SeContext context, string? documentHandle, string? name, string? paper, bool portrait,
-        double? width, double? height, string? background)
+        double? width, double? height, string? background, bool? showBackground = null)
     {
         DraftDocument draft = Draft(context, documentHandle);
         if (name is not null)
@@ -98,13 +99,14 @@ public static partial class DrawingService
         Sheet sheet = name is null
             ? draft.Sheets.AddSheet(SectionType: SheetSectionTypeConstants.igWorkingSection)
             : draft.Sheets.AddSheet(name, SheetSectionTypeConstants.igWorkingSection);
-        ApplySetup(draft, sheet, paper, portrait, width, height, background);
+        ApplySetup(draft, sheet, paper, portrait, width, height, background, showBackground);
         sheet.Activate();
         return DescribeSheet(context, draft, sheet, sheet.Name);
     }
 
+    /// <summary>Renames, resizes or changes the background of a working sheet, or renames or resizes a background sheet.</summary>
     public static object SetupSheet(SeContext context, string? documentHandle, string? sheetRef, string? name, string? paper, bool portrait,
-        double? width, double? height, string? background)
+        double? width, double? height, string? background, bool? showBackground = null)
     {
         DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
@@ -114,10 +116,14 @@ public static partial class DrawingService
             sheet.Name = name;
         }
 
-        ApplySetup(draft, sheet, paper, portrait, width, height, background);
+        ApplySetup(draft, sheet, paper, portrait, width, height, background, showBackground);
         return DescribeSheet(context, draft, sheet, draft.ActiveSheet.Name);
     }
 
+    /// <summary>
+    /// Shows a sheet. Activating a background sheet switches the window to the background sheets, as the Background command
+    /// does (verified: ActiveSectionType becomes igBackgroundSection); activating a working sheet switches back.
+    /// </summary>
     public static object ActivateSheet(SeContext context, string? documentHandle, string? sheetRef)
     {
         DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
@@ -135,7 +141,16 @@ public static partial class DrawingService
         }
 
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
-        if (WorkingSheets(draft).Count() <= 1)
+        if (IsBackground(sheet))
+        {
+            // Verified: Solid Edge deletes a background in use and leaves its sheets without one.
+            if (UsersOf(draft, sheet) is { Count: > 0 } users)
+            {
+                throw new ToolException("background_in_use", $"The background sheet '{sheet.Name}' is used by {string.Join(", ", users)}.",
+                    "Give those sheets another background first (setup_sheet with 'background').");
+            }
+        }
+        else if (WorkingSheets(draft).Count() <= 1)
         {
             throw new ToolException("last_sheet", "A drawing needs at least one sheet.", "Add another sheet first.");
         }
@@ -736,25 +751,33 @@ public static partial class DrawingService
 
     private static object DescribeSheet(SeContext context, DraftDocument draft, Sheet sheet, string activeName)
     {
-        string? background = null;
-        try
+        string handle = context.Register(sheet, "sheet", Document(draft));
+        bool active = string.Equals(sheet.Name, activeName, StringComparison.Ordinal);
+        if (IsBackground(sheet))
         {
-            background = sheet.Background?.Name;
-        }
-        catch (COMException ex) when (!ComErrors.IsDisconnected(ex))
-        {
-            // Sheet without background.
+            return new
+            {
+                handle,
+                name = sheet.Name,
+                kind = "background",
+                active,
+                size = SizeMm(sheet),
+                paper = PaperName(sheet.SheetSetup.SheetSizeOption),
+                objects = Late.Count(sheet.DrawingObjects),
+                usedBy = UsersOf(draft, sheet),
+            };
         }
 
         return new
         {
-            handle = context.Register(sheet, "sheet", Document(draft)),
+            handle,
             name = sheet.Name,
             number = sheet.Number,
-            active = string.Equals(sheet.Name, activeName, StringComparison.Ordinal),
+            active,
             size = SizeMm(sheet),
             paper = PaperName(sheet.SheetSetup.SheetSizeOption),
-            background,
+            background = BackgroundOf(sheet)?.Name,
+            backgroundShown = sheet.BackgroundVisible,
             views = sheet.DrawingViews.Count,
         };
     }
@@ -981,6 +1004,7 @@ public static partial class DrawingService
         }
 
         return WorkingSheets(draft).FirstOrDefault(s => string.Equals(s.Name, sheet, StringComparison.OrdinalIgnoreCase))
+            ?? BackgroundSheets(draft).FirstOrDefault(s => string.Equals(s.Name, sheet, StringComparison.OrdinalIgnoreCase))
             ?? throw ToolException.NotFound($"There is no sheet '{sheet}' in '{SeContext.SafeName(Document(draft))}'.", "Action 'sheets' lists them.");
     }
 
@@ -1003,9 +1027,9 @@ public static partial class DrawingService
             throw ToolException.InvalidArgument("'name' cannot be empty.");
         }
 
-        if (WorkingSheets(draft).Any(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase)))
+        if (WorkingSheets(draft).Concat(BackgroundSheets(draft)).Any(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new ToolException("name_in_use", $"There is already a sheet named '{name}'.", "Choose another name.");
+            throw new ToolException("name_in_use", $"There is already a sheet or background sheet named '{name}'.", "Choose another name.");
         }
     }
 
@@ -1060,8 +1084,16 @@ public static partial class DrawingService
         return draft.ModelLinks.Add(file);
     }
 
-    private static void ApplySetup(DraftDocument draft, Sheet sheet, string? paper, bool portrait, double? width, double? height, string? background)
+    private static void ApplySetup(DraftDocument draft, Sheet sheet, string? paper, bool portrait, double? width, double? height, string? background,
+        bool? showBackground)
     {
+        bool isBackground = IsBackground(sheet);
+        if (isBackground && (background is not null || showBackground is not null))
+        {
+            throw ToolException.InvalidArgument($"'{sheet.Name}' is a background sheet: it has no background of its own.",
+                "Use 'background' and 'showBackground' with a working sheet.");
+        }
+
         SheetSetup setup = sheet.SheetSetup;
         bool resized = false;
         if (paper is not null)
@@ -1090,7 +1122,7 @@ public static partial class DrawingService
             back = BackgroundSheets(draft).FirstOrDefault(b => string.Equals(b.Name, background, StringComparison.OrdinalIgnoreCase))
                 ?? throw ToolException.NotFound($"There is no background sheet '{background}'.", "Action 'sheets' lists the backgrounds of the template.");
         }
-        else if (resized)
+        else if (resized && !isBackground)
         {
             // The background (frame and title block) of the same paper size, if the template has one.
             back = BackgroundSheets(draft).FirstOrDefault(b =>
@@ -1100,6 +1132,15 @@ public static partial class DrawingService
         if (back is not null)
         {
             sheet.Background = back;
+        }
+
+        if (showBackground is { } shown)
+        {
+            sheet.BackgroundVisible = shown;
+            if (sheet.BackgroundVisible != shown)
+            {
+                throw new ToolException("setup_failed", $"Solid Edge kept the background of '{sheet.Name}' {(shown ? "hidden" : "shown")}.");
+            }
         }
     }
 

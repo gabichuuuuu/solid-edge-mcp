@@ -71,6 +71,18 @@ Relevant changes to this project are recorded here. The format follows
   outside every region brings Solid Edge 2026 down. A closed loop inside the region (an island), which Solid Edge
   fills instead of the region, is refused with `region_with_island`.
 - Acceptance script `A26` (fills and area properties).
+- `se_drawing` background sheets (the frame and title block): `sheets` lists them with their content and the sheets
+  that use them, and tells whether the working or the background view is open; `add_sheet` and `setup_sheet` take
+  `showBackground`, and `setup_sheet` renames or resizes a background sheet; `add_background` (paper or custom size);
+  `replace_background` copies a background of another drawing (`replaceBlocks` with its blocks), compares the content
+  before and after and warns about a frame made for another paper size; `delete_sheet` refuses a background in use;
+  `activate_sheet` opens the background view. `se_sketch` and `se_annotation` draw and write on a background sheet.
+- `se_section_view`: 3D section views of parts, sheet metal and assemblies (View > Section) from a sketch profile:
+  `keep` (inside or outside of a closed profile, left or right of an open line), `depth` and `direction` along the
+  sketch normal, caption, fasteners cut or not, what is drawn and the cutting plane; `list`, `show`, `hide`, `edit`
+  and `delete` (Solid Edge deletes the profile and the unused reference planes too, without undo: the result lists
+  those planes).
+- Acceptance scripts `A27` (background sheets) and `A28` (3D section views, checked by the colours of a capture).
 
 ### Changed
 

@@ -1,0 +1,156 @@
+# A28: 3D section views (se_section_view): the part that stays (inside and outside of a closed profile, either side of an
+# open line), the extent along the sketch normal (front, back, a depth, symmetric), show, hide, edit, delete with the unused
+# reference planes that Solid Edge deletes too, an assembly, and refused arguments. Block 40 x 20 x 10 at x 10..50 seen from
+# the top on a white background: the image centre is the model point (30, 0), so its colour tells whether the cut kept it.
+# The front plane has the sketch frame normal -y; the planes 5 mm away from it lie at y = -5, so the centre is behind them.
+# Every document is new and is closed without saving, except the block a28_block.par used by the assembly.
+@p = se_documents {"action":"new","kind":"part"}
+se_view {"action":"background","kind":"solid","colors":["#FFFFFF"]}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[10,-10,50,10]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":10}
+se_view {"action":"orient","orientation":"top"}
+@c0 = se_view {"action":"capture","width":400,"height":300,"samples":true}
+@l0 = se_section_view {"action":"list"}
+?= l0.count 0
+# A closed profile on the front plane over x > 35: inside keeps x 35..50, so the centre is cut away
+@ka = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{ka.sketch}}","points":[35,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{ka.sketch}}"}
+@a = se_section_view {"action":"add","sketch":"{{ka.sketch}}","caption":"RightPart"}
+?= a.section.caption RightPart
+?= a.section.shown true
+?= a.count 1
+@ca = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# ca.samples.center #FFFFFF
+# Hide (the whole block again) and show; edit what is drawn and the cutting plane
+@h = se_section_view {"action":"hide","section":"RightPart"}
+?= h.shown false
+@ch = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# ch.samples.center {{c0.samples.center}}
+@s = se_section_view {"action":"show","section":"{{a.section.handle}}"}
+?= s.shown true
+@ed = se_section_view {"action":"edit","section":"{{a.section.name}}","caption":"A-A","display":"only_cut_faces","opacity":0.5,"showPlane":true}
+?= ed.caption A-A
+?= ed.display only_cut_faces
+?= ed.opacity 0.5
+?= ed.showPlane true
+# A new section view repeats the display and the plane visibility last set in the document (not the opacity)
+@kq = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{kq.sketch}}","points":[0,-5,20,15]}
+se_sketch {"action":"close","sketch":"{{kq.sketch}}"}
+@q = se_section_view {"action":"add","sketch":"{{kq.sketch}}"}
+?= q.count 2
+?= q.section.display only_cut_faces
+?= q.section.showPlane true
+se_section_view {"action":"delete","section":"{{q.section.handle}}"}
+! [invalid_argument] se_section_view {"action":"edit","section":"A-A","opacity":2}
+! [invalid_argument] se_section_view {"action":"edit","section":"A-A"}
+@l1 = se_section_view {"action":"list"}
+?= l1.sections[0].caption A-A
+# Delete: the profile sketch goes with it; no reference plane is unused
+@d = se_section_view {"action":"delete","section":"A-A"}
+?= d.count 0
+! [not_found] se_section_view {"action":"delete","section":"A-A"}
+! se_section_view {"action":"show","section":"{{a.section.handle}}"}
+# Outside keeps x 10..35: the centre stays. add sets the look, and the next section views repeat it
+@kb = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{kb.sketch}}","points":[35,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{kb.sketch}}"}
+@b = se_section_view {"action":"add","sketch":"{{kb.sketch}}","keep":"outside","display":"cut_faces_and_cut_bodies","showPlane":false,"opacity":0.2}
+?= b.section.display cut_faces_and_cut_bodies
+?= b.section.showPlane false
+?= b.section.opacity 0.2
+@cb = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# cb.samples.center {{c0.samples.center}}
+se_section_view {"action":"delete","section":"{{b.section.handle}}"}
+# An open line x = 35 drawn upwards: right keeps x > 35 (the centre goes), left keeps x < 35
+@kr = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"line","sketch":"{{kr.sketch}}","points":[35,-5,35,15]}
+se_sketch {"action":"close","sketch":"{{kr.sketch}}","open":true}
+@skr = se_section_view {"action":"add","sketch":"{{kr.sketch}}","keep":"right"}
+@ckr = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# ckr.samples.center #FFFFFF
+se_section_view {"action":"delete","section":"{{skr.section.handle}}"}
+@kl = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"line","sketch":"{{kl.sketch}}","points":[35,-5,35,15]}
+se_sketch {"action":"close","sketch":"{{kl.sketch}}","open":true}
+@skl = se_section_view {"action":"add","sketch":"{{kl.sketch}}","keep":"left"}
+@ckl = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# ckl.samples.center {{c0.samples.center}}
+se_section_view {"action":"delete","section":"{{skl.section.handle}}"}
+# Extents: a profile over the whole block on a plane at y = -5, keep outside = cut away what the extent covers.
+# back (behind the sketch, towards the centre) cuts the centre; front does not; 8 mm back reaches y = 3; symmetric 6 mm
+# spans y -8..-2 (3 mm to each side), symmetric 12 mm spans -11..1.
+@px1 = se_ref_plane {"action":"offset","plane":"3","distance":5}
+@kx1 = se_sketch {"action":"create","plane":"{{px1.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{kx1.sketch}}","points":[0,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{kx1.sketch}}"}
+@x1 = se_section_view {"action":"add","sketch":"{{kx1.sketch}}","keep":"outside","direction":"back"}
+@cx1 = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# cx1.samples.center #FFFFFF
+@dx1 = se_section_view {"action":"delete","section":"{{x1.section.handle}}"}
+# The plane of the profile was used only by it: Solid Edge deletes it too, and the result says so
+?= dx1.removedPlanes[0].rootPoint[1] -5
+?~ dx1.warning reference plane
+@px2 = se_ref_plane {"action":"offset","plane":"3","distance":5}
+@kx2 = se_sketch {"action":"create","plane":"{{px2.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{kx2.sketch}}","points":[0,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{kx2.sketch}}"}
+@x2 = se_section_view {"action":"add","sketch":"{{kx2.sketch}}","keep":"outside","direction":"front"}
+@cx2 = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# cx2.samples.center {{c0.samples.center}}
+@dx2 = se_section_view {"action":"delete","section":"{{x2.section.handle}}"}
+@px3 = se_ref_plane {"action":"offset","plane":"3","distance":5}
+@kx3 = se_sketch {"action":"create","plane":"{{px3.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{kx3.sketch}}","points":[0,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{kx3.sketch}}"}
+@x3 = se_section_view {"action":"add","sketch":"{{kx3.sketch}}","keep":"outside","direction":"back","depth":8}
+@cx3 = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# cx3.samples.center #FFFFFF
+@dx3 = se_section_view {"action":"delete","section":"{{x3.section.handle}}"}
+@px4 = se_ref_plane {"action":"offset","plane":"3","distance":5}
+@kx4 = se_sketch {"action":"create","plane":"{{px4.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{kx4.sketch}}","points":[0,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{kx4.sketch}}"}
+@x4 = se_section_view {"action":"add","sketch":"{{kx4.sketch}}","keep":"outside","depth":6}
+@cx4 = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# cx4.samples.center {{c0.samples.center}}
+@dx4 = se_section_view {"action":"delete","section":"{{x4.section.handle}}"}
+@px5 = se_ref_plane {"action":"offset","plane":"3","distance":5}
+@kx5 = se_sketch {"action":"create","plane":"{{px5.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{kx5.sketch}}","points":[0,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{kx5.sketch}}"}
+@x5 = se_section_view {"action":"add","sketch":"{{kx5.sketch}}","keep":"outside","depth":12}
+@cx5 = se_view {"action":"capture","width":400,"height":300,"fit":false,"samples":true}
+?# cx5.samples.center #FFFFFF
+@dx5 = se_section_view {"action":"delete","section":"{{x5.section.handle}}"}
+# Refused arguments
+! [invalid_argument] se_section_view {"action":"add"}
+@kz = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{kz.sketch}}","points":[35,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{kz.sketch}}"}
+! [invalid_argument] se_section_view {"action":"add","sketch":"{{kz.sketch}}","depth":-5}
+! [invalid_argument] se_section_view {"action":"add","sketch":"{{kz.sketch}}","opacity":1.5}
+@lz = se_section_view {"action":"list"}
+?= lz.count 0
+se_documents {"action":"save_as","path":"{{work}}\\a28_block.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@dr = se_documents {"action":"new","kind":"draft"}
+! [not_supported] se_section_view {"action":"list","document":"{{dr.handle}}"}
+se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}
+# An assembly: a section of the placed block through an assembly sketch
+@as = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a28_block.par"}
+@ks = se_sketch {"action":"create","plane":"3","document":"{{as.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{ks.sketch}}","points":[35,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{ks.sketch}}"}
+@sa = se_section_view {"action":"add","sketch":"{{ks.sketch}}","cutHardware":true}
+?= sa.section.shown true
+?= sa.section.cutHardware true
+@la = se_section_view {"action":"list"}
+?= la.count 1
+@da = se_section_view {"action":"delete","section":"{{sa.section.name}}"}
+?= da.count 0
+se_documents {"action":"close","document":"{{as.handle}}","saveChanges":false}

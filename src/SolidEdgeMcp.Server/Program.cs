@@ -88,6 +88,7 @@ public static class Program
         typeof(SessionTools),
         typeof(DocumentTools),
         typeof(ViewTools),
+        typeof(SectionViewTools),
         typeof(DataTools),
         typeof(InspectTools),
         typeof(SketchTools),

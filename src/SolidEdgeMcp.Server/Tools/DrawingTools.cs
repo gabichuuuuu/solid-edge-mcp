@@ -14,6 +14,8 @@ public enum DrawingAction
     SetupSheet,
     ActivateSheet,
     DeleteSheet,
+    AddBackground,
+    ReplaceBackground,
     Views,
     BaseView,
     ProjectedView,
@@ -103,9 +105,9 @@ public sealed class DrawingTools(ToolRunner runner)
     [McpServerTool(Name = "se_drawing", Title = "Drawings (draft)", Destructive = true, OpenWorld = false)]
     [Description("""
         Drawings of a draft document (create it with se_documents new kind=draft). Sheet positions in mm from the lower-left corner of the sheet (a view position is its centre); model points in mm (part or assembly coordinates).
-        Sheets: sheets (also lists the template backgrounds) | add_sheet (name, paper + portrait or width/height; the matching background is applied) | setup_sheet (rename, resize, background) | activate_sheet | delete_sheet.
-        Views: views | base_view (path of a saved .par/.psm/.asm, or model = handle of an open saved model; orientation; scale, default the largest standard scale that fits; flat = sheet metal flat pattern) | projected_view (view + direction; diagonals give a pictorial view) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | move_view (position or delta) | scale_view | delete_view. Without position, derived views go beside their source view.
-        Dimensions: dimension (view + kind + points = model points that pick what to measure, like clicking the edges; see 'points') | retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet).
+        Sheets: sheets (also background sheets = frame and title block; draw on them with se_sketch/se_annotation) | add_sheet (name, paper + portrait or width/height; applies the background of that size) | setup_sheet (rename, resize, background, showBackground) | activate_sheet (a background opens the background view) | delete_sheet | add_background | replace_background (copy a background of the .dft 'path' onto a background sheet).
+        Views: views | base_view (path of a saved .par/.psm/.asm or model = an open saved model handle; orientation; scale, default the largest standard one that fits; flat = flat pattern) | projected_view (view + direction; diagonals give a pictorial view) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | move_view (position or delta) | scale_view | delete_view. Without position, derived views go beside their source view.
+        Dimensions: dimension (view + kind + points = model points that pick what to measure, like clicking edges) | retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet).
         Tables: parts_list (assembly view; balloons) | bend_table (view of a sheet metal part, usually its flat pattern: one row per bend) | update (views and title block text; force = full update).
         Blocks: blocks (definitions and their occurrences on every sheet) | create_block (name + elements + position = block origin) | place_block (name + position; scale, angle) | import_block (path of a saved .dft) | delete_block (name: the block and its occurrences).
         Title block: set the draft's properties with se_properties, then 'update'. Export: se_export of the draft to .pdf/.dxf/.dwg. See it: se_view capture.
@@ -113,9 +115,9 @@ public sealed class DrawingTools(ToolRunner runner)
         """)]
     public Task<CallToolResult> Drawing(
         DrawingAction action,
-        [Description("Sheet handle or name (default: the active sheet).")] string? sheet = null,
+        [Description("Sheet handle or name (default: the active sheet); background sheets too.")] string? sheet = null,
         [Description("Drawing view handle: the source of a projected/auxiliary/section/detail view, or the view to move, scale, delete, dimension, list or update.")] string? view = null,
-        [Description("base_view: absolute path of the saved model file; import_block: a saved .dft drawing, which becomes a block named after the file (the blocks it contains are copied too). Allowed folders only.")] string? path = null,
+        [Description("base_view: absolute path of the saved model file; import_block: a saved .dft drawing, which becomes a block named after the file (the blocks it contains are copied too); replace_background: a saved .dft (also in the template folder) whose background is copied. Allowed folders only.")] string? path = null,
         [Description("base_view: handle of an open, saved model document instead of 'path'.")] string? model = null,
         [Description("base_view: view orientation (default front; top for a flat pattern). top_front_right is the usual isometric.")] DrawingOrientation? orientation = null,
         [Description("projected_view: side of the source view where the new view goes. The side of the model it shows follows the drawing's projection angle (in the result): first_angle (ISO E) puts the left view to the right of the front view and the top view below it; third_angle puts the right view to the right and the top view above.")] FoldDirection? direction = null,
@@ -130,12 +132,14 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("dimension (distance): aligned (true distance, default), horizontal or vertical on the sheet.")] MeasureDirection measure = MeasureDirection.Aligned,
         [Description("section_view: look from the other side of the cutting line.")] bool flip = false,
         [Description("base_view: flat pattern of a sheet metal part.")] bool flat = false,
-        [Description("add_sheet/setup_sheet: sheet name (setup_sheet renames); create_block/place_block/delete_block: block name.")] string? name = null,
-        [Description("add_sheet/setup_sheet: standard paper size (landscape unless portrait).")] PaperSize? paper = null,
-        [Description("add_sheet/setup_sheet: portrait paper.")] bool portrait = false,
-        [Description("add_sheet/setup_sheet: custom sheet width in mm (with height).")] double? width = null,
-        [Description("add_sheet/setup_sheet: custom sheet height in mm (with width).")] double? height = null,
-        [Description("add_sheet/setup_sheet: background sheet name (frame and title block) from 'sheets'.")] string? background = null,
+        [Description("add_sheet/add_background/setup_sheet: sheet name (setup_sheet renames); create_block/place_block/delete_block: block name.")] string? name = null,
+        [Description("add_sheet/add_background/setup_sheet: standard paper size (landscape unless portrait).")] PaperSize? paper = null,
+        [Description("add_sheet/add_background/setup_sheet: portrait paper.")] bool portrait = false,
+        [Description("add_sheet/add_background/setup_sheet: custom sheet width in mm (with height).")] double? width = null,
+        [Description("add_sheet/add_background/setup_sheet: custom sheet height in mm (with width).")] double? height = null,
+        [Description("add_sheet/setup_sheet: background sheet name (frame and title block) from 'sheets'; replace_background: the background of the 'path' drawing to copy (default: the same name as the one replaced).")] string? background = null,
+        [Description("add_sheet/setup_sheet: show (true) or hide (false) the background of the sheet.")] bool? showBackground = null,
+        [Description("replace_background: also replace the blocks of the same name with those of the 'path' drawing.")] bool replaceBlocks = false,
         [Description("parts_list: add balloons to the view (default true).")] bool balloons = true,
         [Description("parts_list, bend_table: saved table setting name (default: the document default).")] string? style = null,
         [Description("update: full (forced) update of every view.")] bool force = false,
@@ -153,10 +157,12 @@ public sealed class DrawingTools(ToolRunner runner)
         return action switch
         {
             DrawingAction.Sheets => runner.RunAsync(tool, act, c => DrawingService.Sheets(c, document), cancellationToken),
-            DrawingAction.AddSheet => runner.RunAsync(tool, act, c => DrawingService.AddSheet(c, document, name, size, portrait, width, height, background), cancellationToken),
-            DrawingAction.SetupSheet => runner.RunAsync(tool, act, c => DrawingService.SetupSheet(c, document, sheet, name, size, portrait, width, height, background), cancellationToken),
+            DrawingAction.AddSheet => runner.RunAsync(tool, act, c => DrawingService.AddSheet(c, document, name, size, portrait, width, height, background, showBackground), cancellationToken),
+            DrawingAction.SetupSheet => runner.RunAsync(tool, act, c => DrawingService.SetupSheet(c, document, sheet, name, size, portrait, width, height, background, showBackground), cancellationToken),
             DrawingAction.ActivateSheet => runner.RunAsync(tool, act, c => DrawingService.ActivateSheet(c, document, sheet), cancellationToken),
             DrawingAction.DeleteSheet => runner.RunAsync(tool, act, c => DrawingService.DeleteSheet(c, document, sheet), cancellationToken),
+            DrawingAction.AddBackground => runner.RunAsync(tool, act, c => DrawingService.AddBackground(c, document, name, size, portrait, width, height), cancellationToken),
+            DrawingAction.ReplaceBackground => runner.RunAsync(tool, act, c => DrawingService.ReplaceBackground(c, document, sheet, path, background, replaceBlocks), cancellationToken),
             DrawingAction.Views => runner.RunAsync(tool, act, c => DrawingService.Views(c, document, sheet), cancellationToken),
             DrawingAction.BaseView => runner.RunAsync(tool, act, c => DrawingService.BaseView(c, document, sheet, path, model, orient, scale, position, flat), cancellationToken),
             DrawingAction.ProjectedView => runner.RunAsync(tool, act, c => DrawingService.ProjectedView(c, view,

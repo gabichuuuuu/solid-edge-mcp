@@ -126,6 +126,9 @@ public sealed class ToolRegistrationTests
     [InlineData("se_links", """{"action":"rename","from":"a.par","to":"C:\\x\\b.par"}""", "'action' must be one of:")]
     [InlineData("se_region", """{"action":"hatch","sketch":"sheet:2","elements":["line2d:3"]}""", "'action' must be one of:")]
     [InlineData("se_region", """{"action":"area","sketch":"sheet:2","elements":"line2d:3"}""", "'elements'")]
+    [InlineData("se_section_view", """{"action":"add","sketch":"sketch:3","keep":"above"}""", "'keep' must be one of:")]
+    [InlineData("se_section_view", """{"action":"edit","section":"Section 1","display":"hatched"}""", "'display' must be one of:")]
+    [InlineData("se_drawing", """{"action":"replace_background","path":"C:\\x\\a.dft","replaceBlocks":"yes"}""", "'replaceBlocks'")]
     public void Invalid_arguments_get_an_actionable_message(string toolName, string json, string expected)
     {
         using ServiceProvider provider = BuildProvider();
@@ -197,6 +200,14 @@ public sealed class ToolRegistrationTests
     [InlineData("se_region", """{"action":"style","fill":"fill:9","style":"Normal"}""")]
     [InlineData("se_region", """{"action":"delete","fill":"fill:9"}""")]
     [InlineData("se_region", """{"action":"area","sketch":"sheet:2","elements":["line2d:3","line2d:4","line2d:5","line2d:6"],"point":[55,55],"holes":["circle2d:7","arc2d:8","arc2d:9"]}""")]
+    [InlineData("se_section_view", """{"action":"list","document":"doc:1"}""")]
+    [InlineData("se_section_view", """{"action":"add","sketch":"sketch:3","keep":"outside","depth":12,"direction":"front","caption":"Half","cutHardware":true,"display":"cut_faces_with_original_bodies","showPlane":false}""")]
+    [InlineData("se_section_view", """{"action":"hide","section":"sectionview:4"}""")]
+    [InlineData("se_section_view", """{"action":"edit","section":"Half","caption":"A-A","display":"only_cut_faces","opacity":0.5,"showPlane":true}""")]
+    [InlineData("se_section_view", """{"action":"delete","section":"Section 1"}""")]
+    [InlineData("se_drawing", """{"action":"replace_background","sheet":"A3-Sheet","path":"C:\\x\\company.dft","background":"A3","replaceBlocks":true}""")]
+    [InlineData("se_drawing", """{"action":"add_background","name":"B-Custom","width":500,"height":300}""")]
+    [InlineData("se_drawing", """{"action":"setup_sheet","sheet":"Sheet1","showBackground":false}""")]
     [InlineData("se_links", """{"action":"where_used","path":"C:\\x\\a.par","folders":["C:\\x","C:\\y"],"subfolders":true,"indirect":true}""")]
     [InlineData("se_links", """{"action":"top_level","files":["C:\\x\\a.asm","C:\\x\\b.asm"]}""")]
     [InlineData("se_links", """{"action":"search","folder":"C:\\x","filter":"*.par;*.asm","text":"bracket","subfolders":true,"offset":0,"limit":20}""")]

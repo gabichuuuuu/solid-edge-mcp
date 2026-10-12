@@ -484,12 +484,12 @@ public static class DocumentService
     /// Templates are only read: they are accepted in the allowed folders and in the Solid Edge
     /// template folder.
     /// </summary>
-    internal static string CheckTemplate(SeContext context, string template, DocumentTypeConstants type)
+    internal static string CheckTemplate(SeContext context, string template, DocumentTypeConstants type, string argument = "template")
     {
         string full;
         try
         {
-            return context.Paths.Check(template, "template");
+            return context.Paths.Check(template, argument);
         }
         catch (ToolException ex) when (ex.Code == "path_not_allowed")
         {
