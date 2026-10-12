@@ -6,6 +6,14 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-12
+
+This release reaches the program itself: through your MCP client you can read and change the settings, options,
+ribbon themes, keyboard shortcuts, styles, templates and add-ins of your Solid Edge installation, print drawings
+and publish 3D PDF files. It also adds part, sheet metal, assembly and drawing tools: 69 tools in all, validated
+against Solid Edge Community Edition 2026 with 3576 calls and 1848 checks. As before, it is source only: the
+interop is generated from your own Solid Edge installation, so no binaries are published.
+
 ### Added
 
 - Solid Edge as a program, not only modelling and drawing:
