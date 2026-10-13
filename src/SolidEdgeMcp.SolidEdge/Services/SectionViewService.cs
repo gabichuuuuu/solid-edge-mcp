@@ -25,7 +25,9 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 ///   se_ref_plane and the Planes commands make, stay;
 /// - a new section view takes the display mode and the cutting plane visibility last set in its document (not the opacity);
 ///   a new document starts with cut faces and cut bodies and the plane hidden;
-/// - PlaneExtentType gives E_INVALIDARG for these section views.
+/// - PlaneExtentType gives E_INVALIDARG for these section views;
+/// - a section by a plane is made from a rectangle drawn on the plane around the whole model, keeping its outside within the
+///   extent: what the extent covers is cut away (AddByPlane and AddByPlaneEx give E_FAIL).
 /// </summary>
 public static class SectionViewService
 {
@@ -49,21 +51,36 @@ public static class SectionViewService
     /// <param name="depth">Extent in mm along the sketch normal; null = without limit.</param>
     /// <param name="direction">both (through all, or symmetric with a depth) | front (along the normal) | back.</param>
     /// <param name="display">What is drawn (see <see cref="Displays"/>); null = what Solid Edge repeats from the document.</param>
+    /// <param name="plane">Instead of a sketch: the plane that cuts the model; direction front | back is the side cut away.</param>
     public static object Add(SeContext context, string? documentHandle, string? sketch, string keep, double? depth, string direction,
-        string? caption, bool cutHardware, string? display = null, double? opacity = null, bool? showPlane = null)
+        string? caption, bool cutHardware, string? display = null, double? opacity = null, bool? showPlane = null, string? plane = null)
     {
-        if (string.IsNullOrWhiteSpace(sketch))
+        if (string.IsNullOrWhiteSpace(sketch) == string.IsNullOrWhiteSpace(plane))
         {
-            throw ToolException.InvalidArgument("add requires 'sketch': a sketch of the model (se_sketch create, draw, close) whose profile cuts it.");
+            throw ToolException.InvalidArgument("add requires 'sketch' (a sketch of the model whose profile cuts it: se_sketch create, draw, close) or 'plane' (a plane that cuts it), not both.");
         }
 
         PMISectionDisplayModeConstants? mode = Mode(display);
         RequireOpacity(opacity);
+        double[]? planeNormal = null;
+        string? switchedNote = null;
+        if (plane is not null)
+        {
+            if (direction == "both" && depth is null)
+            {
+                throw ToolException.InvalidArgument("With 'plane', 'direction' front or back is the side cut away (both would cut the whole model).",
+                    "Give direction front or back, or a depth to cut a slab of that width around the plane.");
+            }
 
-        SolidEdgeDocument document = string.IsNullOrWhiteSpace(documentHandle) && context.Handles.GetScope(sketch) is not null
-            ? Require(context.DocumentOf(sketch))
+            (sketch, planeNormal, bool switched) = AroundModel(context, Model(context, documentHandle), plane);
+            switchedNote = switched ? "The document was switched to ordered modeling to draw the profile." : null;
+            keep = "outside";
+        }
+
+        SolidEdgeDocument document = string.IsNullOrWhiteSpace(documentHandle) && context.Handles.GetScope(sketch!) is not null
+            ? Require(context.DocumentOf(sketch!))
             : Model(context, documentHandle);
-        object profile = SketchService.Resolve(context, sketch);
+        object profile = SketchService.Resolve(context, sketch!);
         SectionViewProfileSide side = keep switch
         {
             "inside" => SectionViewProfileSide.igInsideProfileSide,
@@ -83,6 +100,11 @@ public static class SectionViewService
         }
         catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
+            if (plane is not null)
+            {
+                SketchService.Delete(context, sketch!);
+            }
+
             throw new ToolException("section_failed", $"Solid Edge did not make the section view: {ex.Message.Trim()}",
                 "Close the sketch first (se_sketch close; open=true for a single open line) and check that it crosses the model.", ex);
         }
@@ -97,8 +119,76 @@ public static class SectionViewService
         {
             section = Describe(context, document, view),
             count = views.Count,
-            note = "The model itself does not change; see the cut with se_view capture, hide it with 'hide'.",
+            frontNormal = planeNormal,
+            note = "The model itself does not change; see the cut with se_view capture, hide it with 'hide'." + (switchedNote is null ? "" : " " + switchedNote),
         };
+    }
+
+    /// <summary>
+    /// A closed rectangle on <paramref name="plane"/> around the whole model (its box projected onto the plane, plus a margin),
+    /// for a section by that plane; returns the sketch handle and the normal of the sketch frame (front).
+    /// </summary>
+    private static (string Sketch, double[] Normal, bool Switched) AroundModel(SeContext context, SolidEdgeDocument document, string plane)
+    {
+        double[] lo = [double.MaxValue, double.MaxValue, double.MaxValue];
+        double[] hi = [double.MinValue, double.MinValue, double.MinValue];
+        void Grow(double[] a, double[] b)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                lo[k] = Math.Min(lo[k], a[k]);
+                hi[k] = Math.Max(hi[k], b[k]);
+            }
+        }
+
+        SolidEdgePart.Profile profile;
+        bool switched = false;
+        if (document is SolidEdgeAssembly.AssemblyDocument assembly)
+        {
+            foreach (SolidEdgeAssembly.Occurrence occurrence in Late.Items(assembly.Occurrences).OfType<SolidEdgeAssembly.Occurrence>())
+            {
+                occurrence.Range(out double x0, out double y0, out double z0, out double x1, out double y1, out double z1);
+                Grow([x0, y0, z0], [x1, y1, z1]);
+            }
+
+            profile = assembly.ProfileSets.Add().Profiles.Add(SketchService.AssemblyPlane(context, assembly, plane));
+        }
+        else
+        {
+            ModelDocument model = ModelDocument.From(document);
+            List<SolidEdgeGeometry.Body> bodies = [.. model.Bodies().Select(b => b.Body)];
+            if (bodies.Count > 0)
+            {
+                (double[] min, double[] max) = InspectService.Range(bodies);
+                Grow([.. min.Select(Units.MmToM)], [.. max.Select(Units.MmToM)]);
+            }
+
+            switched = model.EnsureOrdered();
+            profile = model.Sketches.Add().Profiles.Add(model.ResolvePlane(context, plane));
+        }
+
+        if (lo[0] > hi[0])
+        {
+            throw new ToolException("section_failed", $"'{SeContext.SafeName(document)}' has no body to cut.", "Model it first, or cut an assembly that holds parts.");
+        }
+
+        string sketch = context.Register(profile, "sketch", document);
+        double u0 = double.MaxValue, v0 = double.MaxValue, u1 = double.MinValue, v1 = double.MinValue;
+        foreach (int corner in Enumerable.Range(0, 8))
+        {
+            profile.Convert3DCoordinate((corner & 1) == 0 ? lo[0] : hi[0], (corner & 2) == 0 ? lo[1] : hi[1], (corner & 4) == 0 ? lo[2] : hi[2],
+                out double u, out double v);
+            (u0, v0, u1, v1) = (Math.Min(u0, u), Math.Min(v0, v), Math.Max(u1, u), Math.Max(v1, v));
+        }
+
+        double margin = 0.1 * Math.Max(u1 - u0, v1 - v0) + 0.001;
+        SketchService.Rectangle(context, sketch, [Units.MToMm(u0 - margin), Units.MToMm(v0 - margin), Units.MToMm(u1 + margin), Units.MToMm(v1 + margin)]);
+        SketchService.Close(context, sketch);
+        profile.Convert2DCoordinate(0, 0, out double ox, out double oy, out double oz);
+        profile.Convert2DCoordinate(1, 0, out double xx, out double xy, out double xz);
+        profile.Convert2DCoordinate(0, 1, out double yx, out double yy, out double yz);
+        double[] normal = Geo.Cross([xx - ox, xy - oy, xz - oz], [yx - ox, yy - oy, yz - oz]);
+        return (sketch, [.. normal.Select(Geo.R)], switched);
     }
 
     public static object Show(SeContext context, string? documentHandle, string? section, bool shown)

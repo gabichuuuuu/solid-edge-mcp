@@ -132,7 +132,8 @@ public static partial class DrawingService
             throw ToolException.InvalidArgument("Give 'text' or 'note' (a saved note), not both.");
         }
 
-        string content = note is not null ? SavedNote(context, note) : RequireText(text, "text");
+        // Verified: a text box keeps its lines only when they are separated by '\r' ('\n' and "\r\n" are not kept).
+        string content = (note is not null ? SavedNote(context, note) : RequireText(text, "text")).Replace("\r\n", "\r").Replace('\n', '\r');
         (double x, double y) = Geo.Point2(position ?? throw ToolException.InvalidArgument("'position' [x, y] in mm on the sheet is required for a text box."), "position");
         DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
@@ -145,6 +146,27 @@ public static partial class DrawingService
                 throw new ToolException("annotation_failed", "Solid Edge did not keep the text of the text box.", "Avoid control characters in 'text'.");
             }
         });
+    }
+
+    /// <summary>
+    /// Technical requirements: a text box with a title and the requirements numbered below it. Verified:
+    /// TechnicalRequirements.Add draws only the title (the requirements are not shown), so they are written as text.
+    /// </summary>
+    public static object AddRequirements(SeContext context, string? documentHandle, string? sheetRef, string? title, string[]? items, double[]? position)
+    {
+        if (items is not { Length: > 0 } || items.Any(string.IsNullOrWhiteSpace))
+        {
+            throw ToolException.InvalidArgument("'items' must list the requirements, one text each.");
+        }
+
+        if (items.Any(i => i.Contains('\n') || i.Contains('\r')))
+        {
+            throw ToolException.InvalidArgument("Each requirement is one line: split a long one into several items.");
+        }
+
+        string heading = string.IsNullOrWhiteSpace(title) ? "TECHNICAL REQUIREMENTS" : title.Trim();
+        string content = string.Join("\r", items.Select((item, i) => $"{i + 1}. {item.Trim()}").Prepend(heading));
+        return AddText(context, documentHandle, sheetRef, content, position);
     }
 
     /// <summary>Balloon (or callout) with a leader to the edge, vertex or circle picked by a model point.</summary>

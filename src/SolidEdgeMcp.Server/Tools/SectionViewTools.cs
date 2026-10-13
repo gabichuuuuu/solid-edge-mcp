@@ -50,7 +50,7 @@ public sealed class SectionViewTools(ToolRunner runner)
     [McpServerTool(Name = "se_section_view", Title = "3D section views", Destructive = true, OpenWorld = false)]
     [Description("""
         3D section views of a part, sheet metal or assembly (View > Section): the model is shown cut by a sketch profile pushed along the normal of its plane; the model itself does not change. mm.
-        list | add (sketch = a sketch of the model, drawn and closed with se_sketch (open=true for a single line); keep = the part that stays: inside|outside of a closed profile, or left|right of an open one, the side of its drawing direction as the sketch frame shows it (x right, y up); depth = how far the cut goes along the sketch normal, default without limit; direction = both (with depth: symmetric, depth is the total width)|front (along the frame's normal)|back; caption; cutHardware = assemblies: cut the fasteners too; display, opacity, showPlane as in edit) |
+        list | add (sketch = a sketch of the model, drawn and closed with se_sketch (open=true for a single line), or plane = a plane that cuts it (direction front|back = the side cut away; with depth only that far; both + depth = a slab around the plane); frontNormal is reported; keep = the part that stays: inside|outside of a closed profile, or left|right of an open one, the side of its drawing direction as the sketch frame shows it (x right, y up); depth = how far the cut goes along the sketch normal, default without limit; direction = both (with depth: symmetric, depth is the total width)|front (along the frame's normal)|back; caption; cutHardware = assemblies: cut the fasteners too; display, opacity, showPlane as in edit) |
         show | hide | edit (caption, display = what is drawn, opacity of the cutting plane 0-1, showPlane, cutHardware) | delete.
         A new section view repeats the display and showPlane last set in its document unless add gives them.
         section = handle, name or caption from list or add.
@@ -60,7 +60,8 @@ public sealed class SectionViewTools(ToolRunner runner)
     public Task<CallToolResult> SectionView(
         SectionViewAction action,
         [Description("add: handle of the profile sketch (se_sketch create on any plane of the model, draw, close).")] string? sketch = null,
-        [Description("add: the part that stays (default inside).")] SectionKeep keep = SectionKeep.Inside,
+        [Description("add: instead of a sketch, the plane that cuts the model: '1'-'3', a reference plane or planar face handle.")] string? plane = null,
+        [Description("add: the part that stays (default inside; not used with plane).")] SectionKeep keep = SectionKeep.Inside,
         [Description("add: depth of the cut in mm along the sketch normal (default: without limit).")] double? depth = null,
         [Description("add: both sides of the sketch plane (default), front = along the normal of the sketch frame, back = against it.")] SectionDirection direction = SectionDirection.Both,
         [Description("add, edit: caption of the section view.")] string? caption = null,
@@ -78,7 +79,7 @@ public sealed class SectionViewTools(ToolRunner runner)
         {
             SectionViewAction.List => runner.RunAsync(tool, act, c => SectionViewService.List(c, document), cancellationToken),
             SectionViewAction.Add => runner.RunAsync(tool, act, c => SectionViewService.Add(c, document, sketch, Snake(keep), depth, Snake(direction),
-                caption, cutHardware ?? false, display is { } look ? Snake(look) : null, opacity, showPlane), cancellationToken),
+                caption, cutHardware ?? false, display is { } look ? Snake(look) : null, opacity, showPlane, plane), cancellationToken),
             SectionViewAction.Show => runner.RunAsync(tool, act, c => SectionViewService.Show(c, document, section, true), cancellationToken),
             SectionViewAction.Hide => runner.RunAsync(tool, act, c => SectionViewService.Show(c, document, section, false), cancellationToken),
             SectionViewAction.Edit => runner.RunAsync(tool, act, c => SectionViewService.Edit(c, document, section, caption,

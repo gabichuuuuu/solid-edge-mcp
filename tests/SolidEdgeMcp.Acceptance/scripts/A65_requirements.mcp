@@ -1,0 +1,22 @@
+# A65: multi-line text boxes and technical requirements (se_annotation text, requirements). A text box keeps its lines when
+# they are separated by '\r'; '\n' and "\r\n" are turned into it. The requirements are a text box with the title and the items
+# numbered below it (TechnicalRequirements.Add draws only the title). A line is 5.727 mm high in the default style: one line,
+# 3 lines (17.182) and the requirements' 4 lines (22.909).
+@d = se_documents {"action":"new","kind":"draft"}
+@t1 = se_annotation {"action":"text","text":"ONE LINE","position":[30,250]}
+?= t1.annotation.size[1] 5.727283 0.01
+@t3 = se_annotation {"action":"text","text":"TITLE\n1. One\r\n2. Two","position":[30,200]}
+?~ t3.annotation.text 1. One
+?= t3.annotation.size[1] 17.181828 0.01
+! [invalid_argument] se_annotation {"action":"requirements","items":[],"position":[30,150]}
+! [invalid_argument] se_annotation {"action":"requirements","items":["Break edges\nand corners"],"position":[30,150]}
+@r = se_annotation {"action":"requirements","items":["Break sharp edges 0.5 x 45°.","Paint RAL 7035.","Unspecified tolerances ISO 2768-mK."],"position":[30,150]}
+?~ r.annotation.text TECHNICAL REQUIREMENTS
+?~ r.annotation.text 3. Unspecified tolerances ISO 2768-mK.
+?= r.annotation.size[1] 22.909101 0.01
+@r2 = se_annotation {"action":"requirements","title":"NOTES","items":["Deburr."],"position":[200,150]}
+?~ r2.annotation.text NOTES
+?~ r2.annotation.text 1. Deburr.
+@l = se_annotation {"action":"list","kind":"text"}
+?= l.count 4
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

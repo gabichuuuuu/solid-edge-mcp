@@ -14,6 +14,7 @@ public enum AnnotationAction
 {
     List,
     Text,
+    Requirements,
     Notes,
     Balloon,
     Callout,
@@ -105,18 +106,18 @@ public sealed class AnnotationTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_annotation", Title = "Drawing annotations", Destructive = true, OpenWorld = false)]
     [Description("""
-        Annotations of a drawing sheet. Sheet positions in mm from its lower-left corner; model points in mm pick what a view shows (as for se_drawing dimensions).
-        list (sheet; kind filter) | text (text or note = a saved note + position on the sheet) | notes (the saved notes of the library) | balloon (view + points = a model point on an edge, vertex or circle + text; position = its centre) |
+        Annotations of a drawing sheet. Sheet positions in mm from its lower-left corner; model points in mm pick what a view shows (as in se_dimension).
+        list (sheet; kind filter) | text (text, lines split by \n, or note = a saved note; position) | requirements (title + items, numbered; position) | notes (saved notes) | balloon (view + points = a model point on an edge, vertex or circle + text; position = its centre) |
         callout (like balloon, in a box) | center_mark (view + points = centre of, or a point on, a circle) |
         centerline (view + points = on two circles (centre to centre) or two straight edges (mid line)) | leader (view + points + position = the free end) |
         surface_finish (view + points = on the edge; finish, text = roughness e.g. 'Ra 3.2'; position = on a leader) |
         datum (view + points + text = the letter; position = on a leader) | datum_target (like datum, text = e.g. 'A1') | datum_point (view + points) |
         bolt_circle (view + points = three hole centres) | corner (view + points = a point on the edge; text = deviation mm "+0.3" or "upper|lower" "-0.1|-0.3"; position = on a leader) |
-        feature_control_frame (characteristic + tolerance (⌀ or Ø for a diameter zone) + datums, or text = the whole frame in Solid Edge codes;
+        feature_control_frame (characteristic + tolerance (⌀ or Ø: diameter zone) + datums, or text = the frame in Solid Edge codes;
         rows = up to 3 more rows 'characteristic|tolerance|datum…', or with composite 'tolerance|datum…' sharing the first characteristic;
         view + points = on a leader from that edge, position = the frame; or only position = a free frame) |
-        weld (view + points = a point on the welded edge; weld type, weldSide (arrow / other / both), text = size e.g. 'a5', allAround, field; position = start of the reference line) | gost_weld (like weld; text = 'above' or 'above|below' the shelf; allAround, field) | delete (annotation handle).
-        Leaders end 15 mm up-right unless a position is given. Annotations picked from a view stay attached to it; each is checked and removed if wrong.
+        weld (view + points = on the welded edge; weld type, weldSide, text = size e.g. 'a5', allAround, field; position = start of the reference line) | gost_weld (like weld; text = 'above' or 'above|below' the shelf; allAround, field) | delete (annotation handle).
+        Leaders end 15 mm up-right unless a position is given. Annotations picked from a view stay attached to it; each is checked, removed if wrong.
         Example: {"action":"feature_control_frame","view":"drawing_view:2","points":[100,30,20],"characteristic":"perpendicularity","tolerance":"0.02","datums":["A"]}.
         """)]
     public Task<CallToolResult> Annotation(
@@ -136,6 +137,8 @@ public sealed class AnnotationTools(ToolRunner runner)
         [Description("weld, gost_weld: weld all around (circle at the bend of the leader).")] bool allAround = false,
         [Description("weld, gost_weld: field weld (flag).")] bool field = false,
         [Description("text: name of a saved note (action 'notes') to place instead of 'text'.")] string? note = null,
+        [Description("requirements: the title above the list (default 'TECHNICAL REQUIREMENTS').")] string? title = null,
+        [Description("requirements: the requirements, one line each, numbered 1., 2., ... in order.")] string[]? items = null,
         [Description("list: only this kind.")] AnnotationKind? kind = null,
         [Description("delete: annotation handle.")] string? annotation = null,
         [Description("Sheet handle or name (default: the active sheet).")] string? sheet = null,
@@ -150,6 +153,7 @@ public sealed class AnnotationTools(ToolRunner runner)
         {
             AnnotationAction.List => runner.RunAsync(tool, act, c => DrawingService.Annotations(c, document, sheet, kind is { } k ? Snake(k) : null, offset, limit), cancellationToken),
             AnnotationAction.Text => runner.RunAsync(tool, act, c => DrawingService.AddText(c, document, sheet, text, position, note), cancellationToken),
+            AnnotationAction.Requirements => runner.RunAsync(tool, act, c => DrawingService.AddRequirements(c, document, sheet, title, items, position), cancellationToken),
             AnnotationAction.Notes => runner.RunAsync(tool, act, DrawingService.SavedNotes, cancellationToken),
             AnnotationAction.Balloon => runner.RunAsync(tool, act, c => DrawingService.AddBalloon(c, view, points, position, text, callout: false), cancellationToken),
             AnnotationAction.Callout => runner.RunAsync(tool, act, c => DrawingService.AddBalloon(c, view, points, position, text, callout: true), cancellationToken),

@@ -13,6 +13,12 @@ Relevant changes to this project are recorded here. The format follows
   reported with the one expected from the profile.
 - `se_assembly_feature hole` makes counterbore holes (`counterboreDiameter`, `counterboreDepth`): a simple hole plus an
   extruded assembly cutout named after it, in the parts the counterbore reaches.
+- `se_annotation requirements`: technical requirements as a text box, the title and the items numbered below it;
+  `se_annotation text` keeps several lines (`\n` between them).
+- `se_section_view add` with `plane`: a 3D section by a plane, cutting away one side of it or a slab around it, with no
+  sketch to draw.
+- `se_loft_sweep tube`: a tube (outer diameter and wall) or a solid rod along a sketch path, a curve or a 3D sketch, with
+  the section placed normal to the start of the path; the expected volume (section area x path length) is reported.
 
 ### Fixed
 

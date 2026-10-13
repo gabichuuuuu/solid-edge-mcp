@@ -51,6 +51,7 @@ public enum SweepAction
     Loft,
     Sweep,
     Helix,
+    Tube,
 }
 
 public enum HelixHand
@@ -261,12 +262,13 @@ public sealed class PartTools(ToolRunner runner)
         sweep: moves 'sketches' (>= 1 sections) along 'path' (a sketch with a chain of lines/arcs closed with 'close', open: true for an open chain, a 3D curve from se_curve or a 3D sketch from se_sketch3d; the section usually lies on a plane across the path start).
         helix: coils one section around 'axis' (se_sketch 'axis' on a line of the same sketch, before 'close'); give two of pitch (mm), turns and height (mm); it starts at the section and rises towards the end point of the axis line; hand right (default) | left.
         wall (add): a thin wall of that thickness in mm along the sections instead of a solid (a pipe from a swept circle); wallSide inside | outside | symmetric; endCaps closes both ends.
+        tube: no sketches; a circle of outerDiameter (with wall: a pipe of that wall) on a plane normal to the start of 'path' (a sketch chain of lines and arcs, a curve or a 3D sketch), swept along it; expectedVolume = section area x path length.
         {{VerifiedNote}} The sketches are kept if it fails.
         Example: {"action":"loft","sketches":["sketch:3","sketch:7"]}; {"action":"helix","sketches":["sketch:2"],"axis":"axis:4","pitch":8,"turns":5}.
         """)]
     public Task<CallToolResult> LoftSweep(
         SweepAction action,
-        [Description("Closed section sketch handles, in order.")] string[] sketches,
+        [Description("Closed section sketch handles, in order (not for tube).")] string[]? sketches = null,
         FeatureOperation operation = FeatureOperation.Add,
         [Description("Sweep: path sketch handle, a curve handle from se_curve or a 3D sketch handle from se_sketch3d.")] string? path = null,
         [Description("Loft/sweep: start point of each section [x1,y1,x2,y2,...] in mm, sketch coordinates.")] double[]? origins = null,
@@ -275,14 +277,17 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Helix: number of turns.")] double? turns = null,
         [Description("Helix: height in mm.")] double? height = null,
         HelixHand hand = HelixHand.Right,
-        [Description("add: thin wall thickness in mm (omitted = solid).")] double? wall = null,
+        [Description("tube: outer diameter in mm.")] double? outerDiameter = null,
+        [Description("add: thin wall thickness in mm (omitted = solid); tube: the pipe wall (omitted = a solid rod).")] double? wall = null,
         [Description("wall: inside (default) | outside | symmetric of the section lines.")] WallSide wallSide = WallSide.Inside,
         [Description("wall: close both ends with caps of the wall thickness.")] bool endCaps = false,
         [Description("Document handle; default: the sketches' document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_loft_sweep", Snake(action), c => FeatureService.LoftSweep(c, document,
-            new SweepSpec(Snake(action), Snake(operation), sketches, path, origins, axis, pitch, turns, height, Snake(hand),
-                wall is { } thickness ? new ThinWallSpec(thickness, Snake(wallSide), endCaps) : null)), cancellationToken);
+        runner.RunAsync("se_loft_sweep", Snake(action), c => action == SweepAction.Tube
+            ? FeatureService.Tube(c, document, path, outerDiameter, wall, Snake(operation))
+            : FeatureService.LoftSweep(c, document,
+                new SweepSpec(Snake(action), Snake(operation), sketches, path, origins, axis, pitch, turns, height, Snake(hand),
+                    wall is { } thickness ? new ThinWallSpec(thickness, Snake(wallSide), endCaps) : null)), cancellationToken);
 
     [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part / fillet weld", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -299,7 +304,7 @@ public sealed class PartTools(ToolRunner runner)
         scale_body: scale = one factor or three (x, y, z) about the part origin (the first body of a split part).
         copy_part: path = a saved .par/.psm copied into this part (base body of an empty part, or united with the body); optional scale and mirror plane.
         fillet_weld (part documents): a weld bead body between 'faces' (base) and 'targetFaces' meeting them along an edge; leg mm on the base faces, leg2 on the targets (default leg).
-        Threads: se_hole tapped (cosmetic) or a helix cut with se_loft_sweep.
+        Threads: se_hole tapped (cosmetic) or se_thread (physical).
         {{VerifiedNote}}
         Example: {"action":"rib","sketch":"sketch:6","thickness":6}; {"action":"scale_body","scale":[2]}.
         """)]
