@@ -6,6 +6,18 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-13
+
+1.0.0 is the first complete version. Since 0.9 Claude has used it end to end from plain-language requests: a plate with
+holes and a PMI model view, a sheet metal bracket with a checker sensor, assemblies with relations and a bill of
+materials, drawings with views, dimensions, parts lists and balloons, 3D PDF and printed PDF files, a synchronous block
+lengthened by its dimension, a family of parts, document units, the view background and the ribbon. Every result was
+measured again by reopening the files, and what those sessions missed is added here. Tool names and parameters are now
+stable: an incompatible change waits for a major version. The designer stays in control: the server works in allowed
+folders, returns the previous value of every setting it changes and reports what Solid Edge or Windows change on their
+own, such as the default printer. 77 tools in all. As before, it is source only: the interop is generated from your own
+Solid Edge installation, so no binaries are published.
+
 ### Added
 
 - `se_drawing tables`: reads the tables already on a drawing (parts lists, bend, tolerance, family of parts and block
