@@ -6,6 +6,15 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-13
+
+This release closes the assemblies: since 0.7 an assembly can have alternate positions or be a family of assemblies
+(se_assembly_family), copy the components of another assembly in step with it, be simplified into a part, and carry 2D
+layouts, and drawings show its members and other positions. Every assembly function in the coverage table now has a
+tested state; the few left open are not in Solid Edge Community Edition (Harness Design, XpresRoute, Explode-Render-Animate)
+or are kept out on purpose because related calls leave Solid Edge unstable. 75 tools in all. As before, it is source
+only: the interop is generated from your own Solid Edge installation, so no binaries are published.
+
 ### Changed
 
 - `docs/COVERAGE.md` gives a tested state for the remaining assembly functions: hidden parts are unloaded through
