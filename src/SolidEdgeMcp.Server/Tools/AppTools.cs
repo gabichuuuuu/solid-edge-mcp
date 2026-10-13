@@ -31,7 +31,7 @@ public sealed class AppTools(ToolRunner runner)
     [McpServerTool(Name = "se_export", Title = "Export to neutral formats", Destructive = false, OpenWorld = false)]
     [Description("""
         Writes a copy of a document in another format; the format comes from the extension of 'path' (absolute, in an allowed folder). The document itself is not renamed.
-        Part, sheet metal, assembly: .stp/.step, .igs/.iges, .x_t, .x_b, .stl, .jt, .sat, .3mf, .pdf (3D). Draft: .pdf, .dxf, .dwg, .igs, .tif.
+        Part, sheet metal, assembly: .stp/.step, .igs/.iges, .x_t, .x_b, .stl, .jt, .sat, .3mf, .pdf (a page with a picture of the view; a 3D PDF is se_publish pdf3d). Draft: .pdf (the sheets chosen by the PDF options: the active one by default), .dxf, .dwg, .igs, .tif. PDF results give their pages and page sizes in mm.
         flatPattern=true (sheet metal): flat pattern as .dxf/.dwg. Images of the view: se_view capture with 'path'.
         """)]
     public Task<CallToolResult> Export(

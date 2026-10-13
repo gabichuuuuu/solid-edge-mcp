@@ -127,6 +127,10 @@ se_export {"path":"{{work}}\\plate.stp","overwrite":true}
 se_export {"path":"{{work}}\\plate.stl","overwrite":true}
 se_export {"path":"{{work}}\\plate.x_t","overwrite":true}
 se_export {"path":"{{work}}\\plate.igs","overwrite":true}
+@ep = se_export {"path":"{{work}}\\plate.pdf","overwrite":true}
+?= ep.format PDF
+?= ep.pages 1
+?~ ep.note se_publish pdf3d
 se_documents {"action":"save_copy_as","path":"{{work}}\\plate_copy.par","overwrite":true}
 ! se_documents {"action":"save_as","path":"{{work}}\\plate.par"}
 se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

@@ -27,7 +27,7 @@ public static class ExportService
         [".jt"] = "JT",
         [".sat"] = "ACIS",
         [".3mf"] = "3MF",
-        [".pdf"] = "3D PDF",
+        [".pdf"] = "PDF",
     };
 
     private static readonly Dictionary<string, string> DraftFormats = new(StringComparer.OrdinalIgnoreCase)
@@ -116,6 +116,32 @@ public static class ExportService
             : !wasDirty && document.Dirty
                 ? "Solid Edge marks the document as modified after this export although its content did not change: close it with saveChanges=false, or save it."
                 : null;
-        return new { document = document.Name, path = target, format, bytes = file.Length, note };
+        // PDF files are read back: pages and their sizes (mm). Verified: a model writes one page with a picture of the view, not a
+        // 3D PDF (that is Publish3DPDFEx, se_publish).
+        PdfFile.Info? pdf = format.EndsWith("PDF", StringComparison.Ordinal) && PdfFile.IsPdf(target) ? PdfFile.Inspect(target) : null;
+        int sheets = draft && pdf is not null ? ((SolidEdgeDraft.DraftDocument)document).Sections.WorkingSection.Sheets.Count : 0;
+        if (pdf is not null && !draft && !pdf.Has3D)
+        {
+            const string flat = "The PDF holds a picture of the view, not the 3D model: publish a 3D PDF with se_publish pdf3d.";
+            note = note is null ? flat : $"{note} {flat}";
+        }
+
+        if (pdf?.Pages < sheets)
+        {
+            // Verified: with the default PDF options only the active sheet is exported.
+            string sheetNote = $"The PDF holds {pdf.Pages} page(s) for {sheets} working sheets: the PDF options of Solid Edge choose the sheets (se_options category 'pdf'), or export each sheet after se_drawing activate_sheet.";
+            note = note is null ? sheetNote : $"{note} {sheetNote}";
+        }
+
+        return new
+        {
+            document = document.Name,
+            path = target,
+            format,
+            bytes = file.Length,
+            pages = pdf?.Pages,
+            pageSizes = pdf?.PageSizes.Count > 0 ? pdf.PageSizes : null,
+            note,
+        };
     }
 }

@@ -181,9 +181,13 @@ se_drawing {"action":"delete_view","view":"{{v3.view.handle}}"}
 @su = se_drawing {"action":"setup_sheet","sheet":"{{s2.handle}}","name":"Detail sheet","paper":"a2"}
 ?= su.size[0] 594
 se_drawing {"action":"activate_sheet","sheet":"Sheet1"}
-# Drawing export (format from the extension; .dwg without a prior recipe); a drawing is not exported to .stp
+# Drawing export (format from the extension; .dwg without a prior recipe); a drawing is not exported to .stp. The PDF is read
+# back: with the default PDF options it holds the active sheet only (A2 landscape) and the result says so
 @e1 = se_export {"path":"{{work}}\\a07.pdf","overwrite":true}
 ?= e1.format PDF
+?= e1.pages 1
+?~ e1.pageSizes [594.1,420.2]
+?~ e1.note 1 page(s) for 2 working sheets
 # Unsaved drawing: the result warns that the title block (file date) will come out with "Error: No reference";
 # once saved, it no longer does. The 'fit' capture frames the whole sheet (with the title block), not just the views.
 ?~ e1.note never been saved

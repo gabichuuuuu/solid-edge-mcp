@@ -60,6 +60,21 @@ public sealed class PdfFileTests
     }
 
     [Fact]
+    public void Inspect_turns_the_page_size_when_every_page_is_rotated_a_quarter_turn()
+    {
+        // An A3 landscape sheet as Solid Edge exports it: a portrait box inherited from the page tree and /Rotate 90.
+        byte[] rotated = Pdf(
+            "1 0 obj\n<</Type/Page/Parent 8 0 R/Resources <</Font <</F1 4 0 R>>>>/Contents 2 0 R/Rotate 90>>\nendobj\n"
+            + "8 0 obj\n<</Type/Pages/Kids[1 0 R]/Count 1/MediaBox[0 0 842 1191]>>\nendobj\n",
+            "");
+        byte[] mixed = Pdf(
+            "1 0 obj <</Type/Page/Rotate 90/MediaBox[0 0 842 1191]>> endobj\n2 0 obj <</Type/Page/MediaBox[0 0 842 1191]>> endobj\n",
+            "");
+
+        Assert.Collection(PdfFile.Inspect(rotated).PageSizes, size => Assert.Equal([420.2, 297.0], size));
+        Assert.Collection(PdfFile.Inspect(mixed).PageSizes, size => Assert.Equal([297.0, 420.2], size));
+    }
+    [Fact]
     public void IsPdf_checks_the_header()
     {
         string folder = Directory.CreateTempSubdirectory("pdffile").FullName;

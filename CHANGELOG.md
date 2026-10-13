@@ -6,6 +6,17 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_export` reads PDF files back: the result gives their pages and page sizes in mm (as shown, also for landscape sheets
+  that Solid Edge writes as turned portrait pages), and says when a drawing PDF holds fewer pages than working sheets
+  (the PDF options of Solid Edge write the active sheet only by default).
+
+### Fixed
+
+- `se_export` no longer calls the PDF of a part, sheet metal or assembly a 3D PDF: it is one page with a picture of the
+  view, and the result points to `se_publish pdf3d` for a 3D PDF.
+
 ## [0.9.0] - 2026-10-13
 
 This release closes the rest of parts, sheet metal and the program: since 0.8 a part can carry 3D sketches and sketch

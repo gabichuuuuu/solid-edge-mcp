@@ -18,7 +18,8 @@ public static partial class PdfFile
     private const int MaxStream = 64 * 1024 * 1024;
 
     /// <summary>
-    /// Contents of a PDF. <paramref name="PageSizes"/>: the distinct page sizes [width, height] in mm (MediaBox);
+    /// Contents of a PDF. <paramref name="PageSizes"/>: the distinct page sizes [width, height] in mm (MediaBox), as shown:
+    /// turned when every page is rotated a quarter turn (Solid Edge writes a landscape sheet as a portrait box with /Rotate 90);
     /// <paramref name="Views3D"/>: the distinct external names (/XN) of its 3D views, in file order; <paramref name="Widgets"/>:
     /// its widget annotations (form fields and buttons).
     /// </summary>
@@ -44,6 +45,7 @@ public static partial class PdfFile
         var sizes = new List<double[]>();
         var views = new List<string>();
         int widgets = 0;
+        int pageDicts = 0, turned = 0;
         foreach (string text in texts)
         {
             foreach (Match match in MediaBox().Matches(text))
@@ -78,6 +80,15 @@ public static partial class PdfFile
             }
 
             has3D |= ThreeD().IsMatch(text);
+            foreach (Match match in PageType().Matches(text))
+            {
+                pageDicts++;
+                if (QuarterTurn().IsMatch(EnclosingDictionary(text, match.Index)))
+                {
+                    turned++;
+                }
+            }
+
             widgets += Widget().Count(text);
             foreach (Match match in ViewName().Matches(text))
             {
@@ -89,7 +100,63 @@ public static partial class PdfFile
             }
         }
 
+        if (pageDicts > 0 && turned == pageDicts)
+        {
+            sizes = [.. sizes.Select(s => new[] { s[1], s[0] }).DistinctBy(s => (s[0], s[1]))];
+        }
+
         return new Info(pages, [.. files], has3D, sizes, views, widgets);
+    }
+
+    /// <summary>The dictionary &lt;&lt;…&gt;&gt; that holds the position <paramref name="index"/>, nested dictionaries included.</summary>
+    private static string EnclosingDictionary(string text, int index)
+    {
+        int start = -1;
+        for (int i = index, depth = 0; i > 0; i--)
+        {
+            if (text[i] == '>' && text[i - 1] == '>')
+            {
+                depth++;
+                i--;
+            }
+            else if (text[i] == '<' && text[i - 1] == '<')
+            {
+                if (depth == 0)
+                {
+                    start = i - 1;
+                    break;
+                }
+
+                depth--;
+                i--;
+            }
+        }
+
+        if (start < 0)
+        {
+            return "";
+        }
+
+        for (int i = start + 2, depth = 0; i + 1 < text.Length; i++)
+        {
+            if (text[i] == '<' && text[i + 1] == '<')
+            {
+                depth++;
+                i++;
+            }
+            else if (text[i] == '>' && text[i + 1] == '>')
+            {
+                if (depth == 0)
+                {
+                    return text[start..(i + 2)];
+                }
+
+                depth--;
+                i++;
+            }
+        }
+
+        return text[start..];
     }
 
     /// <summary>Contents of the streams that decompress with zlib (FlateDecode); others are skipped.</summary>
@@ -233,6 +300,12 @@ public static partial class PdfFile
 
     [GeneratedRegex(@"/Subtype\s*/3D\b", RegexOptions.CultureInvariant)]
     private static partial Regex ThreeD();
+
+    [GeneratedRegex(@"/Type\s*/Page(?![s\w])", RegexOptions.CultureInvariant)]
+    private static partial Regex PageType();
+
+    [GeneratedRegex(@"/Rotate\s+-?(?:90|270)\b", RegexOptions.CultureInvariant)]
+    private static partial Regex QuarterTurn();
 
     [GeneratedRegex(@"/Subtype\s*/Widget\b", RegexOptions.CultureInvariant)]
     private static partial Regex Widget();
