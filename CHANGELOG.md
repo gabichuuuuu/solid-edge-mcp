@@ -6,6 +6,17 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-13
+
+This release closes the rest of parts, sheet metal and the program: since 0.8 a part can carry 3D sketches and sketch
+blocks, documents have a life-cycle status, view styles their lights, models their PMI model views and sheet metal its
+checker sensors, and 3D PDF files take every model view with navigation buttons; a named view saved through the MCP no
+longer keeps the document from being saved. Every function in the coverage table now has a tested state, apart from 14
+that are not in Solid Edge Community Edition (Harness Design, XpresRoute, Explode-Render-Animate, weldment documents) or
+are left to the designer on purpose because they send e-mail, print on paper, change the installation or sit next to
+calls that leave Solid Edge unstable. 77 tools in all. As before, it is source only: the interop is generated from your
+own Solid Edge installation, so no binaries are published.
+
 ### Added
 
 - `se_publish pdf3d`: `modelViews` puts every PMI model view of the model in the 3D PDF as a 3D view, and `buttons` adds
