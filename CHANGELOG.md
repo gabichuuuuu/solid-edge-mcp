@@ -6,6 +6,13 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `docs/COVERAGE.md` gives a tested state for the remaining assembly functions: hidden parts are unloaded through
+  `se_command` (Unload Hidden Parts); capture fit, standard parts and motion simulation are interactive commands; layouts
+  torn off from edges give E_NOINTERFACE; Harness Design, XpresRoute tubes and Explode-Render-Animate are not in Solid
+  Edge Community Edition.
+
 ## [0.7.2] - 2026-10-13
 
 ### Added

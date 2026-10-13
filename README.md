@@ -15,7 +15,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![75 tools](https://img.shields.io/badge/tools-75-2F6FEB)
 
 ![Version 0.7.2](https://img.shields.io/badge/version-0.7.2-2F6FEB)
-[![Progress: 66 % of functions work through the MCP](https://img.shields.io/badge/progress-66%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 67 % of functions work through the MCP](https://img.shields.io/badge/progress-67%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -74,8 +74,8 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=8fdfd05d">
-  <img src="docs/assets/progress.svg?v=caff4f61" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=c0760bc7">
+  <img src="docs/assets/progress.svg?v=3e0a4a18" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
