@@ -6,6 +6,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-13
+
 ### Added
 
 - `se_export` reads PDF files back: the result gives their pages and page sizes in mm (as shown, also for landscape sheets
