@@ -47,6 +47,10 @@ public static class InspectService
         }
 
         (double[] lo, double[] hi) = Range(bodies.Select(b => b.Body));
+        // Verified: Body.Volume comes out high on bodies with elliptical edges (a tube swept round a sharp corner, 0.5 %;
+        // elliptical faces, 0.4 %), while ComputePhysicalProperties is within 0.03 % of the exact value.
+        bool elliptical = bodies.Any(b => Late.Items(b.Body.Edges[FeatureTopologyQueryTypeConstants.igQueryAll]).OfType<Edge>()
+            .Any(e => e.Geometry is SolidEdgeGeometry.Ellipse));
         return new
         {
             document,
@@ -59,6 +63,7 @@ public static class InspectService
             vertices = bodies.Sum(b => Late.Count(b.Body.Vertices)),
             modelingMode = model.ModelingMode,
             bodies = bodies.Count == 1 ? null : bodies.Select(b => DescribeBody(context, model.Document, b.Model, b.Body)).ToArray(),
+            note = elliptical ? "The body has elliptical edges, where Solid Edge's body volume comes out up to about 0.5 % high: se_physical computes the volume precisely." : null,
         };
     }
 

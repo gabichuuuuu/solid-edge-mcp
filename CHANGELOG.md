@@ -6,6 +6,14 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `se_geometry summary` warns when the body has elliptical edges (a tube swept round a sharp corner, an oblique cut of
+  a cylinder): there Solid Edge's body volume comes out up to about 0.5 % high, and `se_physical` gives the precise value.
+  Found in an end-to-end session: a tube of 18 095.6 mm³ read 18 194.40 from the body and 18 100.97 from `se_physical`.
+- `docs/COVERAGE.md`: more evidence for counterbore holes made in an assembly and section views by planes, which still
+  do not work.
+
 ## [1.2.0] - 2026-10-13
 
 This release fills in options that part and sheet metal design use every day: thin wall bosses, lofts, sweeps and helices,
