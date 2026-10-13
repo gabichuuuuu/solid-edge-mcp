@@ -6,6 +6,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-13
+
+Every function listed in the coverage table now has a tested state: the last ones were tested with the agreement of the
+person whose installation was used, with copies of every setting they could change. Two fixes found while doing so: the
+document search with several file patterns and properties written by their standard name.
+
 ### Added
 
 - `se_links search contents=true`: documents whose contents (texts and notes of drawings) contain a text, through the
