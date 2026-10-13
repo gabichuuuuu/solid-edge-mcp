@@ -6,6 +6,19 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_thread`: physical ISO metric threads (60° profile, standard depth) cut as a helix into a cylindrical face, outside
+  on a shaft or inside on a hole drilled at the minor diameter, from either end, right or left hand; the removed volume is
+  reported with the one expected from the profile.
+- `se_assembly_feature hole` makes counterbore holes (`counterboreDiameter`, `counterboreDepth`): a simple hole plus an
+  extruded assembly cutout named after it, in the parts the counterbore reaches.
+
+### Fixed
+
+- `se_documents save_as` reports `file_in_use`, with the next step, when Solid Edge refuses to replace an existing file it
+  still holds for a document closed earlier.
+
 ## [1.3.0] - 2026-10-13
 
 Every function listed in the coverage table now has a tested state: the last ones were tested with the agreement of the

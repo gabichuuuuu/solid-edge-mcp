@@ -308,7 +308,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         Assembly features: made in the assembly (the part files do not change), from a sketch drawn in the assembly (se_sketch create with plane '1'-'3' of the assembly, draw, close).
         list (status, the faces left on each part, volumes) | cut (extruded cutout: sketch; occurrences = the parts to cut; depth mm, default through all; side auto (along the plane normal, then against it) | normal | reverse | symmetric) |
         revolve (revolved cutout: sketch and its 'axis' from se_sketch 'axis' before 'close'; angle degrees, default 360; side) |
-        hole (plane '1'-'3' or an assembly plane; centers [x,y,z,...] mm; diameter; type simple | countersink; extent through_all | finite with depth; direction auto | normal | reverse; counterbore and tapped: se_hole in the part) |
+        hole (plane '1'-'3' or an assembly plane; centers [x,y,z,...] mm; diameter; type simple | countersink | counterbore (counterboreDiameter, counterboreDepth: the hole plus a cutout "<name> counterbore"); extent through_all | finite with depth; direction auto | normal | reverse; tapped: se_hole in the part) |
         mirror (features = names of cutouts; plane) | pattern (features = names of cutouts or holes; plane whose sketch axes the copies follow; count [columns, rows]; spacing [mm, mm]; angle turns the rows, degrees) |
         protrusion (sketch; depth mm; side normal | reverse | symmetric: a new assembly body) | revolved_protrusion (sketch, axis, angle, side) |
         fillet_weld (weldment only, se_documents new kind 'weldment': faces = base faces, targetFaces, read with se_geometry 'faces' and source = the occurrence; leg mm on the base faces, leg2 on the target faces, default leg) |
@@ -339,6 +339,8 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         HoleType type = HoleType.Simple,
         [Description("hole countersink: diameter in mm.")] double? countersinkDiameter = null,
         [Description("hole countersink: angle in degrees (default 90).")] double countersinkAngle = 90,
+        [Description("hole counterbore: diameter in mm, larger than the hole.")] double? counterboreDiameter = null,
+        [Description("hole counterbore: depth in mm from the plane.")] double? counterboreDepth = null,
         SimpleExtent extent = SimpleExtent.ThroughAll,
         HoleDirection direction = HoleDirection.Auto,
         [Description("Name of the new feature; delete: the feature name.")] string? name = null,
@@ -353,7 +355,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyFeatureAction.Cut => runner.RunAsync(tool, act, c => AssemblyFeatureService.Cut(c, sketch, occurrences, depth, Snake(side), name), cancellationToken),
             AssemblyFeatureAction.Revolve => runner.RunAsync(tool, act, c => AssemblyFeatureService.Revolve(c, sketch, axis, occurrences, angle, Snake(side), name), cancellationToken),
             AssemblyFeatureAction.Hole => runner.RunAsync(tool, act, c => AssemblyFeatureService.Hole(c, document, occurrences,
-                new HoleSpec(plane ?? "", centers, diameter, Snake(type), null, null, countersinkDiameter, countersinkAngle,
+                new HoleSpec(plane ?? "", centers, diameter, Snake(type), counterboreDiameter, counterboreDepth, countersinkDiameter, countersinkAngle,
                     null, Snake(extent), depth, Snake(direction)), name), cancellationToken),
             AssemblyFeatureAction.Mirror => runner.RunAsync(tool, act, c => AssemblyFeatureService.Mirror(c, document, features, plane, name), cancellationToken),
             AssemblyFeatureAction.Pattern => runner.RunAsync(tool, act, c => AssemblyFeatureService.Pattern(c, document, features, plane, count, spacing, angle, name), cancellationToken),

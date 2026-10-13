@@ -1,0 +1,27 @@
+# A63: physical threads (se_thread): the ISO 60° profile cut as a helix into a cylindrical face. M10 on a Ø10 x 30 shaft, 20 mm from
+# the end at z 30: 13.33 turns remove 191.70 mm3 (192.18 expected for full turns: the first half turn starts at the end); M10 in a
+# Ø8.376 hole (the minor diameter) through a 20 mm block: 141.26 (142.19 expected). A shaft of another diameter is refused for M10.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":30}
+@c = se_geometry {"action":"faces","type":"cylinder"}
+! [invalid_argument] se_thread {"face":"{{c.items[0].handle}}","thread":"M12"}
+@t = se_thread {"face":"{{c.items[0].handle}}","thread":"M10","length":20}
+?~ t.thread.kind external
+?~ t.thread.designation M10x1.5
+?= t.volumeChange -191.696 0.01
+se_documents {"action":"close","saveChanges":false}
+@d2 = se_documents {"action":"new","kind":"part"}
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[-15,-15,15,15]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+se_extrude {"sketch":"{{k2.sketch}}","distance":20}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{top.items[0].handle}}","centers":[0,0,20],"diameter":8.376}
+@c2 = se_geometry {"action":"faces","type":"cylinder"}
+@t2 = se_thread {"face":"{{c2.items[0].handle}}","thread":"M10"}
+?= t2.volumeChange -141.260 0.01
+?~ t2.thread.kind internal
+se_documents {"action":"close","saveChanges":false}

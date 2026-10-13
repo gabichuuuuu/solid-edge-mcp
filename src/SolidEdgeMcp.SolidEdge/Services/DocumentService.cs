@@ -236,25 +236,37 @@ public static class DocumentService
                 "To write another format (STEP, PDF, DXF, STL...) use se_export.");
         }
 
-        if (File.Exists(target) && !overwrite)
+        bool existed = File.Exists(target);
+        if (existed && !overwrite)
         {
             throw new ToolException("file_exists", $"'{target}' already exists.", "Pass overwrite=true to replace it.");
         }
 
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target)!);
-        if (copy)
+        try
         {
-            document.SaveCopyAs(target);
-        }
-        else
-        {
-            document.SaveAs(target);
-            if (document.Dirty)
+            if (copy)
             {
-                // Seen with a draft and an assembly of a model that was open (not reproduced on demand): they came back
-                // modified right after SaveAs and a second save left them clean, as after Save As in the interface.
-                document.Save();
+                document.SaveCopyAs(target);
             }
+            else
+            {
+                document.SaveAs(target);
+            }
+        }
+        catch (COMException ex) when (existed && !ComErrors.IsGone(ex))
+        {
+            // Seen on 2026-10-13: after some assemblies were closed, Solid Edge kept refusing to replace the files of their parts
+            // (DISP_E_EXCEPTION) for as long as it ran (over 12 minutes), with no document open and the file not locked.
+            throw new ToolException("file_in_use", $"Solid Edge did not replace '{target}' ({ex.Message.Trim()}): it may still hold that file for a document closed earlier.",
+                "Save under another name, or close Solid Edge and open it again before replacing the file.");
+        }
+
+        if (!copy && document.Dirty)
+        {
+            // Seen with a draft and an assembly of a model that was open (not reproduced on demand): they came back
+            // modified right after SaveAs and a second save left them clean, as after Save As in the interface.
+            document.Save();
         }
 
         if (!File.Exists(target))

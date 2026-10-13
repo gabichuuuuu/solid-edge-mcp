@@ -102,6 +102,7 @@ public static class Program
         typeof(Sketch3dTools),
         typeof(ModelViewTools),
         typeof(TubeTools),
+        typeof(ThreadTools),
         typeof(ThinWallTools),
         typeof(RegionTools),
         typeof(FeatureTools),

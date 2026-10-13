@@ -158,7 +158,7 @@ se_documents {"action":"close","document":"{{f.handle}}","saveChanges":false}
 #   A rectangle (35,-5)-(40,15) on plane 3 turned 360° about its side x = 35: a hole r5, one face 2pi*5*10 = 314.159. A rectangle
 #   (65,5)-(70,15) turned 180° about x = 65: a half pocket r5, 5 deep: pi*5*5 + 12.5pi + 10*5 = 167.810 in 3 faces. Holes Ø8 through all at
 #   (35,20) and (65,-20) in both plates: 2*pi*8*10 = 502.655 in 2 faces on each. Ø6 4 deep: pi*6*4 + 9pi = 103.673 (flat bottom).
-#   Ø6 countersunk Ø12 90°: pi*9*3*sqrt(2) + pi*6*7 = 251.905. Counterbore and tapped holes are refused (made in the part).
+#   Ø6 countersunk Ø12 90°: pi*9*3*sqrt(2) + pi*6*7 = 251.905. Tapped holes and a counterbore without its diameter and depth are refused (A64 makes counterbores).
 #   A cut r4 at (50,15) through both plates mirrored about plane 3 (y = 0) lands at (50,-15); the mirror reports its faces in the
 #   first plate: 2*pi*4*10 = 251.327. About plane 2 (x = 0) it would land outside the plates: it fails and is removed. Holes are
 #   not mirrored (Solid Edge reports a mirrored hole fine even outside the parts).

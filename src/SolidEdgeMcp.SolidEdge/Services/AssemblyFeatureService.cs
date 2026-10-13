@@ -100,7 +100,8 @@ public static partial class AssemblyFeatureService
     /// Holes through <paramref name="occurrenceHandles"/> at centers (assembly mm) projected onto an assembly plane: simple or
     /// countersink, through all or to a depth, toward the plane normal or against it ("auto" tries both). Each center gets its own
     /// profile (with several hole points in one profile only the first is drilled). Verified: a counterbore assembly hole comes
-    /// out as a through hole of the counterbore diameter, so it is refused.
+    /// out as a through hole of the counterbore diameter, so a counterbore is made as a simple hole plus an extruded cutout of
+    /// the counterbore diameter and depth from the same plane, on the side the hole went.
     /// </summary>
     public static object Hole(SeContext context, string? documentHandle, string[]? occurrenceHandles, HoleSpec spec, string? name)
     {
@@ -111,10 +112,30 @@ public static partial class AssemblyFeatureService
         }
 
         List<(double X, double Y, double Z)> centers = Geo.Points3(spec.Centers, "centers", 1);
-        if (spec.Type is "tapped" or "counterbore")
+        if (spec.Type is "tapped")
         {
-            throw ToolException.InvalidArgument("Assembly holes are simple or countersink: Solid Edge makes a counterbore assembly hole as a through hole of the counterbore diameter.",
-                "Make tapped and counterbore holes in the part (se_hole).");
+            throw ToolException.InvalidArgument("Assembly holes are simple, countersink or counterbore: a tapped hole is made in the part.",
+                "Make tapped holes in the part (se_hole) or thread them with se_thread.");
+        }
+
+        bool counterbore = spec.Type == "counterbore";
+        (double Diameter, double Depth) bore = default;
+        if (counterbore)
+        {
+            double hole = Units.RequirePositive(spec.Diameter ?? throw ToolException.InvalidArgument("'diameter' is required (mm)."), "diameter");
+            bore = (Units.RequirePositive(spec.CounterboreDiameter ?? throw ToolException.InvalidArgument("A counterbore hole needs 'counterboreDiameter' (mm)."), "counterboreDiameter"),
+                Units.RequirePositive(spec.CounterboreDepth ?? throw ToolException.InvalidArgument("A counterbore hole needs 'counterboreDepth' (mm)."), "counterboreDepth"));
+            if (bore.Diameter <= hole)
+            {
+                throw ToolException.InvalidArgument("'counterboreDiameter' must be larger than the hole 'diameter'.");
+            }
+
+            if (spec.Extent == "finite" && spec.Depth is { } holeDepth && bore.Depth >= holeDepth)
+            {
+                throw ToolException.InvalidArgument("'counterboreDepth' must be smaller than the hole 'depth'.");
+            }
+
+            spec = spec with { Type = "simple" };
         }
 
         FeaturePropertyConstants holeType = FeatureService.HoleTypeOf(spec);
@@ -130,6 +151,8 @@ public static partial class AssemblyFeatureService
         FeaturePropertyConstants[] sides = Sides(spec.Direction, false);
         AssemblyDocument assembly = documentHandle is null ? scope[0].TopLevelDocument : Assembly(context, documentHandle);
         CheckName(assembly, name);
+        string? boreName = counterbore && name is not null ? $"{name} counterbore" : null;
+        CheckName(assembly, boreName);
         HoleData data = FeatureService.CreateHoleData(assembly.HoleDataCollection, spec, holeType, depth);
         object refPlane = SketchService.AssemblyPlane(context, assembly, spec.Plane);
         var sets = new List<ProfileSet>();
@@ -146,6 +169,8 @@ public static partial class AssemblyFeatureService
         }
 
         AssemblyFeaturesHoles holes = FeaturesOf(assembly).AssemblyFeaturesHoles;
+        AssemblyFeaturesHole? made = null;
+        bool holeMade = false;
         try
         {
             object result = Make(context, assembly, scope, sides, name, "hole", extent =>
@@ -155,19 +180,121 @@ public static partial class AssemblyFeatureService
                 FeaturePropertyConstants extentSide = extent;
                 double length = depth;
                 KeyPointExtentConstants flags = 0;
-                return holes.Add((uint)parts.Length, ref parts, (uint)profileArray.Length, ref profileArray, ref extentSide, data, extentType, ref length,
+                return made = holes.Add((uint)parts.Length, ref parts, (uint)profileArray.Length, ref profileArray, ref extentSide, data, extentType, ref length,
                     null, null, null, ref flags);
             }, "Check that the centers are over the parts, or give the other direction or a larger depth.");
+            holeMade = true;
             profiles.ForEach(Hide);
-            return result;
+            return counterbore ? Counterbore(context, assembly, scope, (AsmRefPlane)refPlane, centers, bore, made!, boreName) : result;
         }
-        catch (ToolException)
+        catch (Exception ex) when (ex is ToolException || holeMade && !ComErrors.IsGone(ex))
         {
+            if (holeMade)
+            {
+                Discard(made!);
+            }
+
             sets.ForEach(TryDelete);
             throw;
         }
     }
 
+    /// <summary>
+    /// The counterbore of an assembly hole: an extruded cutout of circles of the counterbore diameter at the hole centers, on the
+    /// hole's plane and side, to the counterbore depth, in the parts it reaches. Verified: with several circles in one profile only
+    /// the first is cut, so each center gets its own profile; a part of the scope that the cutout does not reach leaves it with a
+    /// warning, SetScopeParts is not implemented (E_NOTIMPL) and discarding a trial cutout lost the base plane it was drawn on, so
+    /// the parts are chosen beforehand by their range boxes.
+    /// </summary>
+    private static object Counterbore(SeContext context, AssemblyDocument assembly, Occurrence[] scope, AsmRefPlane refPlane,
+        List<(double X, double Y, double Z)> centers, (double Diameter, double Depth) bore, AssemblyFeaturesHole hole, string? name)
+    {
+        FeaturePropertyConstants side = hole.GetExtentSide();
+        Occurrence[] reached = Reached(refPlane, side, scope, centers, Units.MmToM(bore.Diameter) / 2, Units.MmToM(bore.Depth));
+        var circles = new List<Profile>();
+        foreach ((double x, double y, double z) in centers)
+        {
+            Profile profile = assembly.ProfileSets.Add().Profiles.Add(refPlane);
+            profile.Convert3DCoordinate(x, y, z, out double u, out double v);
+            profile.Circles2d.AddByCenterRadius(u, v, Units.MmToM(bore.Diameter) / 2);
+            profile.End(ProfileValidationType.igProfileClosed);
+            circles.Add(profile);
+        }
+
+        AssemblyFeaturesExtrudedCutouts cutouts = FeaturesOf(assembly).AssemblyFeaturesExtrudedCutouts;
+        object cut = Make(context, assembly, reached.Length > 0 ? reached : scope, [side], name, "extruded_cutout", extent =>
+        {
+            Array parts = (reached.Length > 0 ? reached : scope).Cast<object>().ToArray();
+            Array profiles = circles.Cast<object>().ToArray();
+            FeaturePropertyConstants extentSide = extent;
+            double length = Units.MmToM(bore.Depth);
+            KeyPointExtentConstants flags = 0;
+            return cutouts.Add(parts.Length, ref parts, profiles.Length, ref profiles, FeaturePropertyConstants.igFinite, ref extentSide,
+                FeaturePropertyConstants.igLeft, ref length, null, ref flags, null, null);
+        }, "Check that the counterbore circles lie over the parts at the start of the hole.");
+        circles.ForEach(Hide);
+        return new
+        {
+            hole = Describe(context, assembly, hole, "hole"),
+            counterbore = cut,
+            counterboreDiameter = bore.Diameter,
+            counterboreDepth = bore.Depth,
+            note = "The counterbore is a separate extruded cutout of the assembly: delete both features to remove the hole.",
+        };
+    }
+
+    /// <summary>
+    /// The parts whose range box (assembly coordinates, m) overlaps the box of a counterbore cylinder: from each center projected
+    /// onto the plane, along its normal (igRight) or against it (igLeft), to the depth. A part whose box cannot be read is kept.
+    /// </summary>
+    private static Occurrence[] Reached(AsmRefPlane plane, FeaturePropertyConstants side, Occurrence[] scope,
+        List<(double X, double Y, double Z)> centers, double radius, double depth)
+    {
+        Array normalArray = new double[3];
+        Array rootArray = new double[3];
+        plane.GetNormal(ref normalArray);
+        plane.GetRootPoint(ref rootArray);
+        double[] n = [.. normalArray.Cast<double>()];
+        double[] root = [.. rootArray.Cast<double>()];
+        double sign = side == FeaturePropertyConstants.igLeft ? -1 : 1;
+        var boxes = new List<(double[] Lo, double[] Hi)>();
+        foreach ((double x, double y, double z) in centers)
+        {
+            double[] p = [x, y, z];
+            double offset = (p[0] - root[0]) * n[0] + (p[1] - root[1]) * n[1] + (p[2] - root[2]) * n[2];
+            double[] lo = new double[3];
+            double[] hi = new double[3];
+            for (int k = 0; k < 3; k++)
+            {
+                double start = p[k] - offset * n[k];
+                double end = start + sign * depth * n[k];
+                double grow = radius * Math.Sqrt(Math.Max(0, 1 - n[k] * n[k]));
+                lo[k] = Math.Min(start, end) - grow;
+                hi[k] = Math.Max(start, end) + grow;
+            }
+
+            boxes.Add((lo, hi));
+        }
+
+        const double touch = 1e-6;
+        return scope.Where(occurrence =>
+        {
+            Array lo = new double[3];
+            Array hi = new double[3];
+            try
+            {
+                occurrence.GetRangeBox(ref lo, ref hi);
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+                return true;
+            }
+
+            double[] a = [.. lo.Cast<double>()];
+            double[] b = [.. hi.Cast<double>()];
+            return boxes.Any(box => Enumerable.Range(0, 3).All(k => a[k] < box.Hi[k] - touch && b[k] > box.Lo[k] + touch));
+        }).ToArray();
+    }
     /// <summary>
     /// Mirror of assembly cutouts (by name) about an assembly plane, in the parts the cutouts go through. Verified: the mirror is
     /// made with MirrorType 1, while igPatternMirror (59) leaves it failed; a cutout mirrored outside the parts is failed too. A
