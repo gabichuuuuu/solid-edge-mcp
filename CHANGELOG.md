@@ -6,6 +6,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-13
+
+This release fills in options that part and sheet metal design use every day: thin wall bosses, lofts, sweeps and helices,
+extrusions up to or between planes and faces with a draft angle, fill patterns, chamfers with two setbacks or an angle,
+and louvers in sheet metal, each checked against the volume Solid Edge reports. 80 tools in all.
+
 ### Added
 
 - `se_sheetmetal louver`: louvers on a flat face of the sheet, placed by the middle of the opening edge and the direction
