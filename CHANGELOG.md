@@ -6,6 +6,41 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Parts: `se_loft_sweep solid`, a closed construction body (the tool) moved along a sketch path and cut from or added
+  to the part.
+- Sheet metal: `se_sheetmetal flange` takes a `dimension`: the length measured from the inner face of the sheet (inside,
+  the default) or from its outer face (outside).
+- Surfaces: `se_surface ruled`, a band of a given width along each edge of a planar face, square to the face or tapered
+  away from it or over it, out of the material or reversed.
+- Sheet metal: `se_sheetmetal tab_slot`, tabs on edges of one sheet body and the slots for them in faces of another (a
+  number of tabs or a spacing, tab length, end offsets, depth and slot clearance), and `tab` with `newBody` to start
+  another sheet body.
+- Sheet metal: `se_sheetmetal unbend`, the chosen bends or every bend of the sheet flat about a face that stays in place;
+  deleting the unbend bends the sheet again.
+- Drawings: `se_drawing hole_table`, the holes of a view with their X and Y from an origin (a corner or a hole centre;
+  by default the lower left corner) and their size.
+- Sheet metal: `se_sheetmetal gusset`, gussets across a bend, rounded or square: one at a distance from an end of the
+  bend, several spread over it or several at a spacing.
+- Sheet metal: `se_sheetmetal_form bead` makes circular beads (`beadType circular`) and punched or formed ends (`beadEnd`,
+  `punchWidth`).
+- Sheet metal: `se_sheetmetal_form normal_cutout` takes an `extent`: through all, through next, finite (`depth`) or from
+  the sketch plane to a plane or face (`to`).
+- Assemblies: `se_assembly_pattern curve`, occurrences repeated along a line, arc or spline of an assembly layout, from
+  either end, at a fixed spacing measured along the curve.
+- Parts: `se_part_feature label_weld`, edges marked as welded without a bead, with an optional weld symbol (type, side,
+  size note, all around, field weld).
+- Drawings: `se_drawing dimension` kind `symmetric_diameter`, twice the distance from a centre line to a silhouette edge
+  parallel to it (the diameter of a shaft seen from the side).
+- Sketches: `se_sketch tear_off`, a linked copy of a part sketch's elements at the same 2D coordinates on another plane.
+
+### Changed
+
+- The generic COM layer refuses `Blends.Add`, which leaves Solid Edge unstable with the faces in a nested array,
+  `CloseCorners.Add`, which does so in synchronous modeling and leaves the corner failed in ordered modeling, and
+  `AssemblyFeaturesSweptProtrusions.Add`, which does so with the origins as an object array of numbers.
+
 ## [0.6.0] - 2026-10-13
 
 First release of solid-edge-mcp, an MCP server through which Claude or another MCP client works in Solid Edge 2026 for

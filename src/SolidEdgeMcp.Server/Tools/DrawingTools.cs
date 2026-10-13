@@ -37,6 +37,7 @@ public enum DrawingAction
     ToleranceTable,
     FamilyTable,
     BlockTable,
+    HoleTable,
     Tables,
     Update,
     Blocks,
@@ -56,6 +57,7 @@ public enum DimensionKind
     Coordinate,
     AngularCoordinate,
     Chamfer,
+    SymmetricDiameter,
 }
 
 public enum MeasureDirection
@@ -118,10 +120,10 @@ public sealed class DrawingTools(ToolRunner runner)
     [McpServerTool(Name = "se_drawing", Title = "Drawings (draft)", Destructive = true, OpenWorld = false)]
     [Description("""
         Drawings of a draft document (se_documents new kind=draft). Sheet positions in mm from its lower-left corner (a view position is its centre); model points in mm.
-        Sheets: sheets (also background sheets = frame and title block; draw on them with se_sketch/se_annotation) | add_sheet (name, paper + portrait or width/height) | setup_sheet (rename, resize, background, showBackground) | activate_sheet (a background opens the background view) | delete_sheet | add_background | replace_background (from the .dft 'path').
-        Views: views | base_view (path of a saved .par/.psm/.asm or model = an open saved model handle; orientation; scale, default the largest standard one that fits; flat = flat pattern; modelView = a saved PMI model view; member = of an assembly family or alternate positions) | projected_view (view + direction; diagonals = pictorial) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | model2d_view (what is drawn on the model2d sheet; scale default 1) | move_view (position or delta) | scale_view | delete_view. Without position, derived views go beside their source view.
+        Sheets: sheets (also background sheets = frame and title block, drawn on with se_sketch) | add_sheet (name, paper + portrait or width/height) | setup_sheet (rename, resize, background, showBackground) | activate_sheet (a background opens the background view) | delete_sheet | add_background | replace_background (from the .dft 'path').
+        Views: views | base_view (path of a saved .par/.psm/.asm or model = an open saved model; orientation; scale, default the largest that fits; flat = flat pattern; modelView = a saved PMI model view; member = of an assembly family or alternate positions) | projected_view (view + direction; diagonals = pictorial) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | model2d_view (what is drawn on the model2d sheet; scale default 1) | move_view (position or delta) | scale_view | delete_view. Derived views default beside their source.
         Dimensions: dimension (view + kind + points = model points that pick what to measure) | retrieve_dimensions (view: model dimensions parallel to it, with centre marks) | dimensions (of a sheet).
-        Tables: parts_list (assembly view; balloons) | bend_table (flat pattern view) | tolerance_table (view: its dimensions with a fit) | family_table (view of a part with a family of parts) | block_table (sheet: its placed blocks) | tables (read them all: kind, cells) | update (views, title block text; force = full).
+        Tables: parts_list (assembly view; balloons) | bend_table (flat pattern view) | tolerance_table (view: its dimensions with a fit) | family_table (view of a part with a family of parts) | block_table (sheet: its placed blocks) | hole_table (view; points: the origin, then the holes) | tables (read them all: kind, cells) | update (views, title block text; force = full).
         Blocks: blocks (definitions and occurrences) | create_block (name + elements + position = block origin) | place_block (name + position; scale, angle) | import_block (path of a saved .dft) | delete_block (name).
         Title block: se_properties, then 'update'. Export: se_export (.pdf/.dxf/.dwg).
         Example: {"action":"projected_view","view":"view:3","direction":"down"}.
@@ -141,7 +143,7 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("detail_view: model point [x, y, z] in mm at the centre of the detail.")] double[]? center = null,
         [Description("detail_view: radius of the detail circle in mm of the model.")] double? radius = null,
         [Description("dimension: what to measure.")] DimensionKind? kind = null,
-        [Description("dimension: model points [x1, y1, z1, ...] in mm that pick what to measure in the view. length: a point on a straight edge; distance: two points, each a vertex or circle centre (measured exactly there) or a point on an edge (a horizontal/vertical edge is measured square to it); diameter/radius: the centre or a point of the circle/arc; angle: a point on each of two edges; coordinate: the origin (a vertex or circle centre) first, then each point measured from it; angular_coordinate: the centre, a point for the zero direction, then the points; chamfer: a point on the chamfer edge, then one on the edge it is measured from.")] double[]? points = null,
+        [Description("dimension: model points [x1, y1, z1, ...] in mm that pick what to measure in the view. length: a point on a straight edge; distance: two points, each a vertex or circle centre (measured exactly there) or a point on an edge (a horizontal/vertical edge is measured square to it); diameter/radius: the centre or a point of the circle/arc; angle: a point on each of two edges; coordinate: the origin (a vertex or circle centre) first, then each point measured from it; angular_coordinate: the centre, a point for the zero direction, then the points; chamfer: a point on the chamfer edge, then one on the edge it is measured from; symmetric_diameter: a point on a centre line (se_annotation centerline), then one on an edge parallel to it. hole_table: the origin (a vertex or circle centre), then a point of each hole to list (default every circle of the view).")] double[]? points = null,
         [Description("dimension (distance): aligned (true distance, default), horizontal or vertical on the sheet; coordinate: horizontal (default) or vertical distances from the origin; angular_coordinate: counterclockwise (default) or clockwise.")] MeasureDirection measure = MeasureDirection.Aligned,
         [Description("section_view: look from the other side of the cutting line.")] bool flip = false,
         [Description("base_view: flat pattern of a sheet metal part.")] bool flat = false,
@@ -157,7 +159,7 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("add_sheet/setup_sheet: show (true) or hide (false) the background of the sheet.")] bool? showBackground = null,
         [Description("replace_background: also replace the blocks of the same name with those of the 'path' drawing.")] bool replaceBlocks = false,
         [Description("parts_list: add balloons to the view (default true).")] bool balloons = true,
-        [Description("parts_list, bend_table, tolerance_table, block_table: saved table setting name (default: the document default; tolerance tables: e.g. ISO).")] string? style = null,
+        [Description("parts_list, bend_table, tolerance_table, block_table, hole_table: saved table setting name (default: the document default; tolerance tables: e.g. ISO).")] string? style = null,
         [Description("update: full (forced) update of every view.")] bool force = false,
         [Description("create_block: handles of 2D elements drawn on the sheet (se_sketch with the sheet handle); they become the block and one occurrence takes their place.")] string[]? elements = null,
         [Description("place_block: rotation in degrees, counter-clockwise (default 0).")] double? angle = null,
@@ -200,6 +202,7 @@ public sealed class DrawingTools(ToolRunner runner)
             DrawingAction.ToleranceTable => runner.RunAsync(tool, act, c => DrawingService.ToleranceTable(c, view, position, style), cancellationToken),
             DrawingAction.FamilyTable => runner.RunAsync(tool, act, c => DrawingService.FamilyTable(c, view, position), cancellationToken),
             DrawingAction.BlockTable => runner.RunAsync(tool, act, c => DrawingService.BlockTable(c, document, sheet, position, style), cancellationToken),
+            DrawingAction.HoleTable => runner.RunAsync(tool, act, c => DrawingService.HoleTable(c, view, points, position, style), cancellationToken),
             DrawingAction.Update => runner.RunAsync(tool, act, c => DrawingService.Update(c, document, view, force), cancellationToken),
             DrawingAction.Blocks => runner.RunAsync(tool, act, c => DrawingService.Blocks(c, document), cancellationToken),
             DrawingAction.CreateBlock => runner.RunAsync(tool, act, c => DrawingService.CreateBlock(c, document, name, elements, position), cancellationToken),

@@ -21,7 +21,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class FeatureService
 {
-    private static readonly string[] SurfaceTypes = ["extruded", "revolved", "offset", "lofted", "swept", "stitched", "bounded", "copy", "bluesurf"];
+    private static readonly string[] SurfaceTypes = ["extruded", "revolved", "offset", "lofted", "swept", "stitched", "bounded", "copy", "bluesurf", "ruled"];
 
     public static object Surfaces(SeContext context, string? documentHandle)
     {
@@ -217,6 +217,116 @@ public static partial class FeatureService
         return CheckedSurface(context, model, surface, "bounded", switched, [], []);
     }
 
+    /// <summary>
+    /// Ruled surfaces: one per edge, a band of the given width that stands on a planar face along the edge, square to the face or
+    /// leaning by the taper (RuledSurfaces.Add, verified in Solid Edge 2026). Always the "tapered to plane" type, also for a taper
+    /// of 0: the "normal to plane" type ignores the face and stands on the face to the left of the edge, so the top edge of a
+    /// box's front face rose along the top's normal. The reference must be a face (a reference plane gives E_NOINTERFACE) and
+    /// only one edge per surface works (several, also as a collection, leave it failed). igRuledSurfaceleft follows the face
+    /// normal out of the material whatever the edge's direction: on the top face (z = 20) of a box, a 60 mm edge and a width of
+    /// 10 give 600 mm² at z 20..30 (right: 10..20), on the front face y −10..0. Outside and inside are taken from the edge's
+    /// direction: Outside leans away from the face when the face lies to the left of the edge (seen along its normal) and the
+    /// surface grows along the normal, otherwise over it; a taper of 30° leans 5 mm, up to z 28.66. The tangent continuous
+    /// type threw RPC_E_SERVERFAULT and is not offered.
+    /// </summary>
+    public static object RuledSurface(SeContext context, string? documentHandle, string[]? edges, string[]? faces, double? distance, double taper, string direction)
+    {
+        if (edges is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("ruled needs 'edges': edge handles of the body (se_geometry edges), one surface each.");
+        }
+
+        if (faces is not [string faceHandle])
+        {
+            throw ToolException.InvalidArgument("ruled takes one planar face in 'faces': the surface stands on it along each edge.",
+                "Give the planar face the edges lie on (se_geometry faces type plane); reference planes are not accepted.");
+        }
+
+        double width = Units.MmToM(Units.RequirePositive(distance ?? throw ToolException.InvalidArgument("ruled requires 'distance': the width of the surface in mm."), "distance"));
+        if (!double.IsFinite(taper) || Math.Abs(taper) >= 90)
+        {
+            throw ToolException.InvalidArgument("'taper' must be between -90 and 90 degrees from the face normal.");
+        }
+
+        ModelDocument model = ModelDocument.For(context, documentHandle, faceHandle);
+        Face face = context.Handles.Resolve<Face>(faceHandle, "faces");
+        if (face.Geometry is not SolidEdgeGeometry.Plane)
+        {
+            throw ToolException.InvalidArgument($"'{faceHandle}' is not a planar face.", "Give the planar face the edges lie on (se_geometry faces type plane).");
+        }
+
+        bool reverse = direction == "reverse";
+        var chosen = new List<(Edge Edge, RuledSurfaceSideConstants Lean)>();
+        foreach (string handle in edges)
+        {
+            Edge edge = context.Handles.Resolve<Edge>(handle, "edges");
+            bool faceOnLeft = FaceOnLeft(face, edge)
+                ?? throw ToolException.InvalidArgument($"'{handle}' is not an edge of '{faceHandle}'.", "Give edges that bound the face (se_geometry edges with source = the face).");
+            bool outsideIsAway = faceOnLeft != reverse;
+            chosen.Add((edge, (taper >= 0) == outsideIsAway ? RuledSurfaceSideConstants.igRuledSurfaceOutside : RuledSurfaceSideConstants.igRuledSurfaceInside));
+        }
+
+        RuledSurfaceDirectionConstants side = reverse ? RuledSurfaceDirectionConstants.igRuledSurfacRight : RuledSurfaceDirectionConstants.igRuledSurfaceleft;
+        bool switched = model.EnsureOrdered();
+        var made = new List<object>();
+        var results = new List<object>();
+        try
+        {
+            foreach ((Edge edge, RuledSurfaceSideConstants lean) in chosen)
+            {
+                Array one = new object[] { edge };
+                object surface = Create("ruled surface", () => ConstructionsOf(model).RuledSurfaces.Add(1, ref one, face, width, Units.DegToRad(Math.Abs(taper)),
+                    RuledSurfaceTypeConstants.igRuledTaperedToPlane, side, lean));
+                results.Add(CheckedSurface(context, model, surface, "ruled", switched, [], []));
+                made.Add(surface);
+            }
+        }
+        catch (ToolException)
+        {
+            foreach (object surface in made)
+            {
+                TryDeleteSurface(surface);
+            }
+
+            throw;
+        }
+
+        return new { count = results.Count, surfaces = results };
+    }
+
+    /// <summary>
+    /// Whether the face lies to the left of the edge, seen along the face normal (the edge runs anticlockwise round it), by
+    /// testing points 0.1 mm to either side of the edge's midpoint; null when the edge is not on the face.
+    /// </summary>
+    private static bool? FaceOnLeft(Face face, Edge edge)
+    {
+        edge.GetParamExtents(out double low, out double high);
+        (double[] point, double[] tangent) = PointAndDerivative(edge, (low + high) / 2);
+        (double[] nearest, double[] normal) = NearestOnFace(face, point);
+        double[] left = Geo.Cross(normal, tangent);
+        double size = Geo.Length(left);
+        if (Geo.Distance(point, nearest) > 1e-6 || size < 1e-12)
+        {
+            return null;
+        }
+
+        bool On(double sign)
+        {
+            Array points = point.Select((v, k) => v + (sign * 1e-4 * left[k] / size)).ToArray();
+            Array guess = new double[2];
+            Array deviations = new double[1];
+            Array parameters = new double[2];
+            Array flags = new int[1];
+            face.GetParamAtPoint(1, ref points, ref guess, ref deviations, ref parameters, ref flags);
+            Array onFace = new bool[1];
+            face.GetParamOnFace(1, ref parameters, ref onFace);
+            return Convert.ToBoolean(onFace.GetValue(0));
+        }
+
+        bool onLeft = On(1), onRight = On(-1);
+        return onLeft == onRight ? null : onLeft;
+    }
+
     /// <summary>Included copies of the section sketches, with their types and start points (like the solid loft and sweep).</summary>
     private static (ModelDocument Model, Profile[] SketchProfiles, bool Switched, IncludedProfile[] Included, object[] Sections, int[] Types, object[] Starts)
         Sections(SeContext context, string? documentHandle, string[] sketches, double[]? origins)
@@ -357,7 +467,7 @@ public static partial class FeatureService
         Constructions constructions = ConstructionsOf(model);
         object[] collections = [constructions.ExtrudedSurfaces, constructions.RevolvedSurfaces, constructions.OffsetSurfaces,
             constructions.LoftedSurfaces, constructions.SweptSurfaces, constructions.StitchSurfaces, constructions.SurfaceByBoundaries,
-            constructions.CopySurfaces, constructions.BlueSurfs];
+            constructions.CopySurfaces, constructions.BlueSurfs, constructions.RuledSurfaces];
         // Surfaces closed into a solid belong to the construction model they were made on, and each model lists them all.
         var intersections = new List<object>();
         foreach (object item in Late.Items(constructions).SelectMany(c => Late.TryGet(c, "IntersectSurfaces") is { } items ? Late.Items(items) : []))

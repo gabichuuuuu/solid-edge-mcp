@@ -16,7 +16,7 @@ using TopologyQuery = SolidEdgeGeometry.FeatureTopologyQueryTypeConstants;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>Flange on sheet metal edges (mm and degrees).</summary>
-public sealed record FlangeSpec(string[]? Edges, double? Length, double Angle = 90, string Side = "inside", double? Radius = null);
+public sealed record FlangeSpec(string[]? Edges, double? Length, double Angle = 90, string Side = "inside", double? Radius = null, string Dimension = "inside");
 
 /// <summary>Hem on sheet metal edges (mm).</summary>
 public sealed record HemSpec(string[]? Edges, string Type, double? Length, double? Radius = null, double? Length2 = null,
@@ -42,7 +42,11 @@ public sealed record SheetFormSpec(
     string Position = "inside",
     string Side = "inside",
     string BeadType = "u",
-    string Method = "thickness");
+    string Method = "thickness",
+    string BeadEnd = "lanced",
+    double? PunchWidth = null,
+    string Extent = "through_all",
+    string? To = null);
 
 /// <summary>
 /// Sheet metal. Verified in Solid Edge 2026: through the API, the flange, the hem and the corner break are only resolved in
@@ -140,9 +144,10 @@ public static partial class FeatureService
     /// <summary>
     /// Tab from a closed sketch with a single loop: the first one is the base tab (creates the sheet with the thickness of the
     /// document); the following ones add material on the sheet plane. In synchronous mode, AddBaseTab with nested loops
-    /// takes only the inner region, hence the check of the number of loops.
+    /// takes only the inner region, hence the check of the number of loops. <paramref name="newBody"/>: the tab starts another sheet
+    /// body (Models.AddBody before AddBaseTab; without it a second base tab merges into the first body), e.g. for tab and slot.
     /// </summary>
-    public static object Tab(SeContext context, string? documentHandle, string sketch, string direction)
+    public static object Tab(SeContext context, string? documentHandle, string sketch, string direction, bool newBody = false)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
         Sheet(model);
@@ -160,8 +165,17 @@ public static partial class FeatureService
         }
 
         bool first = model.TryModel() is null;
-        object result = Synchronous(context, model, first ? "base tab" : "tab", 1, sketch, [() =>
+        bool body = newBody && !first;
+        object result = Synchronous(context, model, first || body ? "base tab" : "tab", 1, sketch, [() =>
         {
+            if (body)
+            {
+                int models = model.Models.Count;
+                model.Models.AddBody(AddBodyTypeConstants.igSheetMetalType, $"Body {models + 1}");
+                Model added = model.Models.AddBaseTab(profile, side);
+                return model.Models.Count > models ? LastFeature(model, added.Tabs) : null;
+            }
+
             if (first)
             {
                 return LastFeature(model, model.Models.AddBaseTab(profile, side).Tabs);
@@ -171,7 +185,7 @@ public static partial class FeatureService
             tabs.AddTab(profile, side);
             return LastFeature(model, tabs);
         }],
-        first
+        first || body
             ? "Check that the sketch is one closed outline (se_sketch 'close')."
             : "Draw the tab on the plane of a sheet face (se_sketch 'create' with that face), touching or overlapping the sheet, and try direction 'reverse'.");
         TryHide(profile);
@@ -229,7 +243,8 @@ public static partial class FeatureService
     /// One flange per edge. Verified: it rises from the face the edge belongs to, moving away from the material; the
     /// length is measured from that face; BendAngle is the angle between the flange and the sheet (90 = perpendicular).
     /// ThicknessSide: material inside (outer face of the flange flush with the edge), outside, or bend outside.
-    /// DimSide does not accept any value (E_INVALIDARG with 4, 5, 97 and 98), so it is not offered.
+    /// DimSide takes igLeft (1, the default: the length is measured from the sheet's inner face, so a 20 mm flange on a 1 mm tab
+    /// rises to 21 above its outer face) or igRight (2: measured from the outer face, up to 20); 4, 5, 97, 98 and 0 give E_INVALIDARG.
     /// </summary>
     public static object Flange(SeContext context, string? documentHandle, FlangeSpec spec)
     {
@@ -249,11 +264,17 @@ public static partial class FeatureService
             "bend_outside" => FlangeFeatureConstants.seFlangeBendOutside,
             _ => throw ToolException.InvalidArgument($"Unknown side '{spec.Side}'.", "Use inside, outside or bend_outside."),
         };
+        int dimSide = spec.Dimension switch
+        {
+            "inside" => (int)FeaturePropertyConstants.igLeft,
+            "outside" => (int)FeaturePropertyConstants.igRight,
+            _ => throw ToolException.InvalidArgument($"Unknown dimension '{spec.Dimension}'.", "Use inside or outside."),
+        };
         object radius = spec.Radius is { } r ? Units.MmToM(Units.RequirePositive(r, "radius")) : Type.Missing;
         double bendAngle = Units.DegToRad(angle);
         return Synchronous(context, model, "flange", 1, null,
             PerEdge(model, edges, edge => model.RequireModel().Flanges.AddSync(edge, length,
-                ThicknessSide: (int)side, InsideRadius: radius, BendAngle: bendAngle)),
+                ThicknessSide: (int)side, InsideRadius: radius, DimSide: dimSide, BendAngle: bendAngle)),
             SyncNextStep);
     }
 
@@ -561,7 +582,7 @@ public static partial class FeatureService
             }
 
             case "normal_cutout":
-                return NormalCutout(context, model, sketchProfile, spec.Sketch, spec.Direction, spec.Method);
+                return NormalCutout(context, model, sketchProfile, spec);
             case "etch":
                 // An engraving does not change the volume: it is enough that Solid Edge does not mark it as failed.
                 return Form(context, model, sketchProfile, spec.Sketch, "etch", 0, null, (target, profile) => target.Etches.Add(profile),
@@ -609,19 +630,31 @@ public static partial class FeatureService
                 {
                     "u" => FeaturePropertyConstants.igUShaped,
                     "v" => FeaturePropertyConstants.igVShaped,
-                    _ => throw ToolException.InvalidArgument($"Unknown bead type '{spec.BeadType}'.", "Use u or v (the circular bead has no effect in Solid Edge 2026)."),
+                    "circular" => FeaturePropertyConstants.igCircular,
+                    _ => throw ToolException.InvalidArgument($"Unknown bead type '{spec.BeadType}'.", "Use u, v or circular."),
                 };
-                // Verified combination (height 3, width 8): shape radius = width/4, punch and die = min/3,
-                // taper 0.1 rad, no fillet, lanced end (the punched end gives E_FAIL).
-                double formRadius = width / 4;
+                FeaturePropertyConstants end = spec.BeadEnd switch
+                {
+                    "lanced" => FeaturePropertyConstants.igLancedEnd,
+                    "punched" => FeaturePropertyConstants.igPunchedEnd,
+                    "formed" => FeaturePropertyConstants.igFormedEnd,
+                    _ => throw ToolException.InvalidArgument($"Unknown bead end '{spec.BeadEnd}'.", "Use lanced, punched or formed."),
+                };
+                // Verified (height 3, width 8, on a 1 mm sheet): U and V with shape radius = width/4, taper 0.1 rad; circular
+                // with the radius of the arc through the bead's edges and its top and no taper (with width/4 it fails); punch
+                // and die = min/3, no fillet. The punched end needs a punch width (0 gives E_FAIL).
+                bool circular = shape == FeaturePropertyConstants.igCircular;
+                double formRadius = circular ? (width * width / 4 + height * height) / (2 * height) : width / 4;
                 double toolRadius = Math.Min(width, height) / 3;
+                double punch = end != FeaturePropertyConstants.igPunchedEnd ? 0
+                    : spec.PunchWidth is double given ? Units.MmToM(Units.RequirePositive(given, "punchWidth")) : width;
                 return Form(context, model, sketchProfile, spec.Sketch, "bead", 0, direction, (target, profile) =>
                 {
                     Array profiles = new object[] { profile };
-                    return target.Beads.Add(1, ref profiles, shape, height, width, 0.1, formRadius, toolRadius, toolRadius,
+                    return target.Beads.Add(1, ref profiles, shape, height, width, circular ? 0 : 0.1, formRadius, toolRadius, toolRadius,
                         FeaturePropertyConstants.igNoRound,
                         normal ? FeaturePropertyConstants.igNormalSideDummy : FeaturePropertyConstants.igReverseNormalSideDummy,
-                        FeaturePropertyConstants.igLancedEnd, 0.0);
+                        end, punch);
                 });
             }
 
@@ -632,25 +665,48 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Normal cutout through the whole thickness of the sheet. With direction "auto" it cuts toward the material if the sketch is on
-    /// a face of the sheet; otherwise it tries toward the sketch normal and, if it removes no material, toward the other side (the side
-    /// without material gives no error or effect). igBoth is not used: it leaves the body unreadable (E_FAIL) in Solid Edge 2026.
+    /// Normal cutout through the thickness of the sheet, along the sketch normal: through all, through next (to the first wall it
+    /// meets), finite (depth from the sketch plane) or from the sketch plane to a plane or planar face. With direction "auto" it cuts
+    /// toward the material if the sketch is on a face of the sheet; otherwise it tries toward the sketch normal and, if it removes no
+    /// material, toward the other side (the side without material gives no error or effect). Verified with a 20 x 10 rectangle on the
+    /// plane y = 0 of a tab with flanges of 20 at y = 0 and y = 60: through all cuts both flanges (-400 mm3), finite 5 or 30, through
+    /// next and from to a plane at y = 30 cut only the first (-200). igBoth is not used: it leaves the body unreadable (E_FAIL).
     /// </summary>
-    private static object NormalCutout(SeContext context, ModelDocument model, Profile sketchProfile, string sketch, string direction, string method)
+    private static object NormalCutout(SeContext context, ModelDocument model, Profile sketchProfile, SheetFormSpec spec)
     {
-        FeaturePropertyConstants how = method switch
+        FeaturePropertyConstants how = spec.Method switch
         {
             "thickness" => FeaturePropertyConstants.igThickness,
             "mid_plane" => FeaturePropertyConstants.igSMMidPlaneCutout,
             "clearance" => FeaturePropertyConstants.igSMClearanceCutout,
-            _ => throw ToolException.InvalidArgument($"Unknown method '{method}'.", "Use thickness, mid_plane or clearance."),
+            _ => throw ToolException.InvalidArgument($"Unknown method '{spec.Method}'.", "Use thickness, mid_plane or clearance."),
         };
-        FeaturePropertyConstants[] sides = direction switch
+        string sketch = spec.Sketch;
+        double depth = spec.Extent switch
+        {
+            "finite" => Required(spec.Depth, "depth", "normal_cutout with extent finite"),
+            "through_all" or "through_next" or "from_to" => 0,
+            _ => throw ToolException.InvalidArgument($"Unknown extent '{spec.Extent}'.", "Use through_all, through_next, finite or from_to."),
+        };
+        if (spec.Extent == "from_to")
+        {
+            object to = model.ResolvePlaneSource(context, spec.To ?? throw ToolException.InvalidArgument(
+                "normal_cutout with extent from_to requires 'to': the plane or planar face the cut ends at.",
+                "Pass a reference plane (index or handle; se_ref_plane offset makes one) or a planar face parallel to the sketch."), "to");
+            object from = sketchProfile.Plane;
+            return Form(context, model, sketchProfile, sketch, "normal cutout", -1, null, (target, profile) =>
+            {
+                Array profiles = new object[] { profile };
+                return target.NormalCutouts.AddFromToMulti(1, ref profiles, from, to, how);
+            });
+        }
+
+        FeaturePropertyConstants[] sides = spec.Direction switch
         {
             "auto" => TowardsMaterial(model, sketchProfile) is { } side ? [side] : [FeaturePropertyConstants.igRight, FeaturePropertyConstants.igLeft],
             "normal" => [FeaturePropertyConstants.igRight],
             "reverse" => [FeaturePropertyConstants.igLeft],
-            _ => throw ToolException.InvalidArgument($"Unknown direction '{direction}'.", "Use auto, normal or reverse."),
+            _ => throw ToolException.InvalidArgument($"Unknown direction '{spec.Direction}'.", "Use auto, normal or reverse."),
         };
         for (int i = 0; ; i++)
         {
@@ -661,7 +717,12 @@ public static partial class FeatureService
                     (target, profile) =>
                     {
                         Array profiles = new object[] { profile };
-                        return target.NormalCutouts.AddThroughAllMulti(1, ref profiles, side, how);
+                        return spec.Extent switch
+                        {
+                            "finite" => target.NormalCutouts.AddFiniteMulti(1, ref profiles, side, depth, how),
+                            "through_next" => target.NormalCutouts.AddThroughNextMulti(1, ref profiles, side, how),
+                            _ => target.NormalCutouts.AddThroughAllMulti(1, ref profiles, side, how),
+                        };
                     });
             }
             catch (ToolException ex) when (ex.Code == "feature_failed" && i + 1 < sides.Length)

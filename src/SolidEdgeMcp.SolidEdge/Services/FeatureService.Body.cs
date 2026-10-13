@@ -32,7 +32,12 @@ public sealed record PartFeatureSpec(
     string[]? TargetFaces = null,
     double? Leg = null,
     double? Leg2 = null,
-    double? Angle = null);
+    double? Angle = null,
+    string? Weld = null,
+    string WeldSide = "arrow",
+    string? Note = null,
+    bool AllAround = false,
+    bool Field = false);
 
 public static partial class FeatureService
 {
@@ -40,7 +45,7 @@ public static partial class FeatureService
     // shaft or a hole; end faces or edges; HoleData from Add or AddEx with the ISO Metric table, regular, tapped or thread
     // type; reserved arguments missing, null or 0; arrays by value or by reference). Threads are made with se_hole 'tapped'
     // (cosmetic) or se_thread (physical, a helix cutout).
-    public static readonly IReadOnlyList<string> PartFeatureActions = ["rib", "thicken", "mirror_body", "delete_faces", "delete_holes", "delete_rounds", "delete_region", "offset_faces", "replace_faces", "rotate_faces", "redefine_faces", "resize_holes", "resize_rounds", "normal_protrusion", "normal_cutout", "split", "cut_by_plane", "unite", "slot", "web_network", "lip", "scale_body", "copy_part", "fillet_weld"];
+    public static readonly IReadOnlyList<string> PartFeatureActions = ["rib", "thicken", "mirror_body", "delete_faces", "delete_holes", "delete_rounds", "delete_region", "offset_faces", "replace_faces", "rotate_faces", "redefine_faces", "resize_holes", "resize_rounds", "normal_protrusion", "normal_cutout", "split", "cut_by_plane", "unite", "slot", "web_network", "lip", "scale_body", "copy_part", "fillet_weld", "label_weld"];
 
     public static object PartFeature(SeContext context, string? documentHandle, PartFeatureSpec spec) => spec.Action switch
     {
@@ -68,6 +73,7 @@ public static partial class FeatureService
         "scale_body" => ScaleBody(context, documentHandle, spec),
         "copy_part" => CopyPart(context, documentHandle, spec),
         "fillet_weld" => FilletWeld(context, documentHandle, spec),
+        "label_weld" => LabelWeld(context, documentHandle, spec),
         _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", PartFeatureActions)}."),
     };
 

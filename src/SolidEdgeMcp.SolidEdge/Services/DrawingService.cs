@@ -706,9 +706,12 @@ public static partial class DrawingService
                 break;
             }
 
+            case "symmetric_diameter":
+                dimension = SymmetricDiameter(view, sheet, graphics, dimensions, model, at);
+                break;
 
             default:
-                throw ToolException.InvalidArgument($"Unknown dimension kind '{kind}'.", "Use length, distance, diameter, radius, angle, coordinate, angular_coordinate or chamfer.");
+                throw ToolException.InvalidArgument($"Unknown dimension kind '{kind}'.", "Use length, distance, diameter, radius, angle, coordinate, angular_coordinate, chamfer or symmetric_diameter.");
         }
 
         return new { view = context.Register(view, "drawing_view", Document(draft)), dimension = DescribeDimension(context, draft, dimension) };
@@ -808,14 +811,87 @@ public static partial class DrawingService
         dimension.TrackDistance = chosen;
     }
 
-    private static void RequireValue(Dimension dimension, double expected, string what)
+    /// <summary>
+    /// Symmetric diameter: twice the distance from an axis (a centre line of the sheet, se_annotation centerline) to a straight
+    /// edge parallel to it, e.g. the diameter of a shaft seen from the side. Verified in Solid Edge 2026: AddSymmetricalDiameter
+    /// with the centre line and the edge measures along the axis by default (7 mm: twice the overhang of the centre line past
+    /// the shaft end). Across a horizontal axis SetOrientation(vertical) gives the diameter (40 mm for a radius of 20); with a
+    /// vertical axis SetOrientation reads 0 either way and MeasurementAxisDirection = true gives it (30 mm for a radius of 15).
+    /// </summary>
+    private static Dimension SymmetricDiameter(DrawingView view, Sheet sheet, List<Graphic> graphics, SolidEdgeFrameworkSupport.Dimensions dimensions,
+        List<(double X, double Y, double Z)> model, (double X, double Y)? at)
+    {
+        if (model.Count != 2)
+        {
+            throw ToolException.InvalidArgument("A symmetric diameter needs two model points: one on the axis (a centre line of the view) and one on the edge whose distance to it is doubled.");
+        }
+
+        (double X, double Y) onAxis = ToSheet(view, ModelToView(view, model[0]));
+        SolidEdgeFrameworkSupport.CenterLine? axis = null;
+        Box axisBox = default;
+        double nearest = double.MaxValue;
+        foreach (SolidEdgeFrameworkSupport.CenterLine line in Late.Items(sheet.CenterLines).OfType<SolidEdgeFrameworkSupport.CenterLine>())
+        {
+            line.Range(out double x1, out double y1, out double x2, out double y2);
+            var box = new Box(Math.Min(x1, x2), Math.Min(y1, y2), Math.Max(x1, x2), Math.Max(y1, y2));
+            double dx = Math.Max(0, Math.Max(box.X1 - onAxis.X, onAxis.X - box.X2)), dy = Math.Max(0, Math.Max(box.Y1 - onAxis.Y, onAxis.Y - box.Y2));
+            double distance = Math.Sqrt(dx * dx + dy * dy);
+            if (distance < nearest)
+            {
+                (axis, axisBox, nearest) = (line, box, distance);
+            }
+        }
+
+        if (axis is null || nearest > PickTolerance * view.ScaleFactor)
+        {
+            throw ToolException.NotFound("No centre line of the sheet passes through the first point.",
+                "Draw the axis first with se_annotation centerline (two points, one on each silhouette edge of the shaft), then give a model point on it.");
+        }
+
+        bool horizontal = axisBox.Y2 - axisBox.Y1 < 1e-7;
+        if (!horizontal && axisBox.X2 - axisBox.X1 >= 1e-7)
+        {
+            throw new ToolException("not_supported", "The centre line is neither horizontal nor vertical on the sheet.", "Use a view where the axis is horizontal or vertical.");
+        }
+
+        Pick edge = PickAt(view, graphics, model[1], true);
+        (double X, double Y) e1 = ToSheet(view, edge.Graphic.Start), e2 = ToSheet(view, edge.Graphic.End);
+        double drift = horizontal ? Math.Abs(e2.Y - e1.Y) : Math.Abs(e2.X - e1.X);
+        double offset = horizontal ? e1.Y - axisBox.Y1 : e1.X - axisBox.X1;
+        if (drift > 1e-7)
+        {
+            throw ToolException.InvalidArgument("The edge at the second point is not parallel to the axis.", "Give a point on a silhouette edge of the shaft, along the centre line.");
+        }
+
+        if (Math.Abs(offset) < 1e-7)
+        {
+            throw ToolException.InvalidArgument("The edge at the second point lies on the axis.", "Give a point on a silhouette edge of the shaft, away from the centre line.");
+        }
+
+        Dimension dimension = dimensions.AddSymmetricalDiameter(axis, onAxis.X, onAxis.Y, 0, false, edge.Graphic.Reference, edge.Sheet.X, edge.Sheet.Y, 0, false);
+        if (horizontal)
+        {
+            dimension.SetOrientation(DimensionOrientationConstants.igOrientationVertical);
+        }
+        else
+        {
+            dimension.MeasurementAxisDirection = !dimension.MeasurementAxisDirection;
+        }
+
+        RequireValue(dimension, 2 * Math.Abs(offset) / view.ScaleFactor, "symmetric diameter", "Give a point on the centre line and one on a silhouette edge parallel to it.");
+        (double X, double Y) near = edge.Sheet;
+        (double X, double Y) far = horizontal ? (near.X, 2 * axisBox.Y1 - near.Y) : (2 * axisBox.X1 - near.X, near.Y);
+        PlaceLinear(view, sheet, dimension, near, far, horizontal ? (0, 1) : (1, 0), graphics, at);
+        return dimension;
+    }
+
+    private static void RequireValue(Dimension dimension, double expected, string what,        string hint = "Check the points: the first on the chamfer edge, the second on the edge it is measured from.")
     {
         if (Math.Abs(dimension.Value - expected) > 1e-6)
         {
             double value = dimension.Value;
             TryDeleteDimension(dimension);
-            throw new ToolException("dimension_failed", $"The {what} reads {Geo.Mm(value)} mm instead of {Geo.Mm(expected)} mm; it was removed.",
-                "Check the points: the first on the chamfer edge, the second on the edge it is measured from.");
+            throw new ToolException("dimension_failed", $"The {what} reads {Geo.Mm(value)} mm instead of {Geo.Mm(expected)} mm; it was removed.", hint);
         }
     }
 
@@ -1023,7 +1099,7 @@ public static partial class DrawingService
     }
 
     /// <summary>
-    /// The tables already on a drawing (parts lists, bend, tolerance, family of parts and block tables) with their shown columns
+    /// The tables already on a drawing (parts lists, bend, tolerance, family of parts, block and hole tables) with their shown columns
     /// and cells, so that a drawing opened from a file can be read.
     /// </summary>
     public static object Tables(SeContext context, string? documentHandle)
@@ -1070,6 +1146,11 @@ public static partial class DrawingService
         foreach (BlockTable table in Late.Items(draft.BlockTables).OfType<BlockTable>())
         {
             Add("block_table", table, table.Columns, table.Rows.Count);
+        }
+
+        foreach (HoleTable2 table in Late.Items(draft.HoleTables2).OfType<HoleTable2>())
+        {
+            Add("hole_table", table, table.Columns, table.Rows.Count);
         }
 
         return new { document = Document(draft).Name, count = tables.Count, tables };
@@ -1176,6 +1257,118 @@ public static partial class DrawingService
             columns = headers,
             count = table.Rows.Count,
             rows,
+        };
+    }
+
+    /// <summary>
+    /// Hole table of a view (HoleTables2.Add by user selection, verified in Solid Edge 2026): an origin at a vertex or circle
+    /// centre of the view (AddNewXYoriginEx with its sheet reference and key point) and one row per circle (AddHole with the
+    /// circle's reference and origin 1; origin 0 makes Solid Edge throw a server fault, and attaching the whole view gives
+    /// E_UNEXPECTED). Each row gives the hole label, X and Y from the origin and the size: the top view of a plate with holes of
+    /// 6.6 at (15, 15) and (85, 15) and 12 at (50, 40), with the origin at its corner (100, 0), lists 1.1 | -85 | 15 | 6.6,
+    /// 1.2 | -15 | 15 | 6.6 and 1.3 | -50 | 40 | 12 (mm). The table stays after saving and reopening.
+    /// </summary>
+    public static object HoleTable(SeContext context, string? viewHandle, double[]? points, double[]? position, string? style)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        List<(double X, double Y, double Z)> model = points is null ? [] : Geo.Points3(points, "points", 1);
+        List<Graphic> graphics = Graphics(view);
+        Pick origin;
+        if (model.Count > 0)
+        {
+            origin = PickAt(view, graphics, model[0], false);
+            if (!origin.KeyPoint)
+            {
+                throw ToolException.InvalidArgument("The origin of a hole table (the first point) must be a vertex or a circle centre of the view.",
+                    "Give the model point of a corner or a hole centre (se_geometry lists edges with their ends and circles with their centres).");
+            }
+        }
+        else
+        {
+            // As a person would place it: the lower left corner of the outline.
+            (Graphic Graphic, (double X, double Y) Point)[] ends = [.. graphics.Where(g => g.Shape == Shape.Line).SelectMany(g => new[] { (g, g.Start), (g, g.End) })];
+            if (ends.Length == 0)
+            {
+                throw new ToolException("hole_table_failed", "The view has no straight edges to put the origin of the hole table on.",
+                    "Give the origin in 'points' (a vertex or a circle centre of the model).");
+            }
+
+            (Graphic corner, (double X, double Y) at) = ends.MinBy(e => e.Point.X + e.Point.Y);
+            origin = new Pick(corner, true, ToSheet(view, at));
+        }
+
+        List<Graphic> circles = model.Count > 1
+            ? [.. model.Skip(1).Select(p => Nearest(graphics, ModelToView(view, p), p, g => g.Shape == Shape.Circle, "circle"))]
+            : [.. graphics.Where(g => g.Shape == Shape.Circle)];
+        if (circles.Count == 0)
+        {
+            throw ToolException.NotFound("The view shows no circles (holes).", "Use a view that looks along the holes (e.g. the top view of a plate).");
+        }
+
+        if (circles.Distinct().Count() != circles.Count)
+        {
+            throw ToolException.InvalidArgument("Two points pick the same circle of the view.", "Give one point per hole.");
+        }
+
+        HoleTable2 table;
+        try
+        {
+            table = ((HoleTables2)draft.HoleTables2).Add(style ?? "", HoleTableType.igByUserSelection);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("hole_table_failed", $"Solid Edge could not create the hole table: {ex.Message.Trim()}",
+                style is null ? null : "Check the saved setting name in 'style'.", ex);
+        }
+
+        try
+        {
+            table.AddNewXYoriginEx(origin.Graphic.Reference, KeyPointOf(view, origin));
+            foreach (Graphic circle in circles)
+            {
+                table.AddHole(circle.Reference, 1);
+            }
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException && !ComErrors.IsGone(ex))
+        {
+            table.Delete();
+            throw new ToolException("hole_table_failed", $"Solid Edge rejected the hole table: {ComErrors.Unwrap(ex).Message.Trim()}",
+                "Give a vertex or circle centre of the view as the origin and circles of the same view as the holes.", ex);
+        }
+
+        if (table.Rows.Count == 0)
+        {
+            table.Delete();
+            throw new ToolException("hole_table_failed", "The hole table came out empty.", "Give circles of the view as the holes.");
+        }
+
+        (TableAnchorPoint anchor, double x, double y) = TableCorner(view, position);
+        table.AnchorPoint = anchor;
+        table.Pages.Item(1).SetOrigin(x, y);
+        (List<string?> headers, List<string?[]> rows) = TableContent(context, table, table.Columns, table.Rows.Count);
+        return new
+        {
+            handle = context.Register(table, "hole_table", Document(draft)),
+            origin = new[] { Geo.Mm(x), Geo.Mm(y) },
+            anchor = anchor == TableAnchorPoint.igUpperLeft ? "upper_left" : "lower_right",
+            holeOrigin = new[] { Geo.Mm(origin.Sheet.X), Geo.Mm(origin.Sheet.Y) },
+            columns = headers,
+            count = table.Rows.Count,
+            rows,
+        };
+    }
+
+    /// <summary>Key point index of a picked vertex or centre for the Solid Edge calls that take an element and a key point.</summary>
+    private static KeypointIndexConstants KeyPointOf(DrawingView view, Pick pick)
+    {
+        double Off((double X, double Y) p) => Distance(ToSheet(view, p), pick.Sheet);
+        return pick.Graphic.Shape switch
+        {
+            Shape.Line => Off(pick.Graphic.Start) <= Off(pick.Graphic.End) ? KeypointIndexConstants.igLineStart : KeypointIndexConstants.igLineEnd,
+            Shape.Circle => KeypointIndexConstants.igCircleCenter,
+            _ => new[] { (KeypointIndexConstants.igArcCenter, Off(pick.Graphic.Centre)), (KeypointIndexConstants.igArcStart, Off(pick.Graphic.Start)),
+                (KeypointIndexConstants.igArcEnd, Off(pick.Graphic.End)) }.MinBy(k => k.Item2).Item1,
         };
     }
 

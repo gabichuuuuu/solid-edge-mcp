@@ -1,0 +1,51 @@
+# A83: bead shapes and ends (se_sheetmetal_form bead beadType / beadEnd / punchWidth). A tab 100 x 140 (t = 1) and seven beads
+#   of height 3 and width 8 along lines x 20..80, 18 mm apart; each volume change is the Solid Edge value of that bead alone
+#   on a 100 x 60 tab: U lanced +325.645 (as in A05), circular +152.374 (radius 4.167, the arc through the edges and the top),
+#   U punched 2 mm +284.042, U punched with the default width (8) +159.105, U formed +347.665, V formed +228.067 and
+#   circular formed +155.117.
+@d = se_documents {"action":"new","kind":"sheet_metal"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,140]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@t = se_sheetmetal {"action":"tab","sketch":"{{k.sketch}}"}
+?= t.volume 14000
+@k1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{k1.sketch}}","points":[20,12,80,12]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}","open":true}
+@b1 = se_sheetmetal_form {"action":"bead","sketch":"{{k1.sketch}}","height":3,"width":8}
+?= b1.volumeChange 325.645 0.01
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{k2.sketch}}","points":[20,30,80,30]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}","open":true}
+@b2 = se_sheetmetal_form {"action":"bead","sketch":"{{k2.sketch}}","height":3,"width":8,"beadType":"circular"}
+?= b2.volumeChange 152.374 0.01
+@k3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{k3.sketch}}","points":[20,48,80,48]}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}","open":true}
+# refused: a punch width that is not positive
+! [invalid_argument] se_sheetmetal_form {"action":"bead","sketch":"{{k3.sketch}}","height":3,"width":8,"beadEnd":"punched","punchWidth":-2}
+@b3 = se_sheetmetal_form {"action":"bead","sketch":"{{k3.sketch}}","height":3,"width":8,"beadEnd":"punched","punchWidth":2}
+?= b3.volumeChange 284.042 0.01
+@k4 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{k4.sketch}}","points":[20,66,80,66]}
+se_sketch {"action":"close","sketch":"{{k4.sketch}}","open":true}
+@b4 = se_sheetmetal_form {"action":"bead","sketch":"{{k4.sketch}}","height":3,"width":8,"beadEnd":"punched"}
+?= b4.volumeChange 159.105 0.01
+@k5 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{k5.sketch}}","points":[20,84,80,84]}
+se_sketch {"action":"close","sketch":"{{k5.sketch}}","open":true}
+@b5 = se_sheetmetal_form {"action":"bead","sketch":"{{k5.sketch}}","height":3,"width":8,"beadEnd":"formed"}
+?= b5.volumeChange 347.665 0.01
+@k6 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{k6.sketch}}","points":[20,102,80,102]}
+se_sketch {"action":"close","sketch":"{{k6.sketch}}","open":true}
+@b6 = se_sheetmetal_form {"action":"bead","sketch":"{{k6.sketch}}","height":3,"width":8,"beadType":"v","beadEnd":"formed"}
+?= b6.volumeChange 228.067 0.01
+@k7 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{k7.sketch}}","points":[20,120,80,120]}
+se_sketch {"action":"close","sketch":"{{k7.sketch}}","open":true}
+@b7 = se_sheetmetal_form {"action":"bead","sketch":"{{k7.sketch}}","height":3,"width":8,"beadType":"circular","beadEnd":"formed"}
+?= b7.volumeChange 155.117 0.01
+@ph = se_physical {}
+?= ph.volume 15652.015 0.05
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

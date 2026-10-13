@@ -20,7 +20,8 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 ///   land in the one output folder, so Solid Edge writes into a new empty folder and the server moves the results: it
 ///   never meets an existing file;
 /// - STEP AP242 and JT files are embedded named after the source; the HTML option writes a self-contained .html next to
-///   the PDF; ListOfAttachments embedded nothing (an array of paths, an object array or one path);
+///   the PDF; ListOfAttachments embedded nothing (an array of paths, an object array, one path or paths separated by
+///   semicolons, also through the typed interface);
 /// - with every PMI model view selected the PDF holds a 3D view per model view (named after it) besides "Default", whatever
 ///   their IncludeIn3dPdfPublish flags; lists of model or named view names (strings or objects), the default model view, all
 ///   named views and the custom properties option changed nothing that can be found in the PDF; next/previous buttons add

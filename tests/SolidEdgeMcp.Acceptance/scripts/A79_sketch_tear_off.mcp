@@ -1,0 +1,42 @@
+# A79: sketches torn off onto another plane (se_sketch tear_off): a linked copy of the elements at the same 2D x/y.
+#   A 100 x 60 rectangle on XY torn off onto a plane 50 mm above and extruded 10: 60000 mm3, centre of volume at z = 55.
+#   An open chain (0,0)-(50,0)-(50,30) torn off onto YZ: two lines on a sketch whose normal is x.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@rp = se_ref_plane {"action":"offset","plane":"1","distance":50}
+@t = se_sketch {"action":"tear_off","sketch":"{{k.sketch}}","plane":"{{rp.handle}}"}
+?= t.frame.origin[2] 50 0.001
+?= t.frame.normal[2] 1 0.001
+?= t.elements.lines 4 0
+@i = se_sketch {"action":"info","sketch":"{{t.sketch}}"}
+?~ i.items "start":[100,60]
+?~ i.items "start":[0,0]
+@e = se_extrude {"sketch":"{{t.sketch}}","distance":10}
+?= e.volume 60000 0.001
+@b = se_physical {}
+?= b.centerOfVolume[2] 55 0.001
+?= b.centerOfVolume[0] 50 0.001
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"polyline","sketch":"{{k2.sketch}}","points":[0,0,50,0,50,30],"closed":false}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}","open":true}
+@c = se_sketch {"action":"tear_off","sketch":"{{k2.sketch}}","plane":"2"}
+?= c.frame.normal[0] 1 0.001
+?= c.elements.lines 2 0
+@ci = se_sketch {"action":"info","sketch":"{{c.sketch}}"}
+?~ ci.items "end":[50,30]
+# refusals
+! [invalid_argument] se_sketch {"action":"tear_off","sketch":"{{k.sketch}}"}
+@k3 = se_sketch {"action":"create","plane":"1"}
+! [sketch_not_closed] se_sketch {"action":"tear_off","sketch":"{{k3.sketch}}","plane":"2"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@ly = se_sketch {"action":"create","plane":"1","layout":true}
+se_sketch {"action":"line","sketch":"{{ly.sketch}}","points":[0,0,100,0]}
+se_sketch {"action":"close","sketch":"{{ly.sketch}}","open":true}
+! [not_supported] se_sketch {"action":"tear_off","sketch":"{{ly.sketch}}","plane":"2"}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+! [not_supported] se_sketch {"action":"tear_off","sketch":"{{d.handle}}","plane":"1"}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

@@ -1,0 +1,32 @@
+# A81: symmetric diameter dimensions on a drawing (se_drawing dimension kind symmetric_diameter): twice the distance from a
+#   centre line of the sheet to a silhouette edge parallel to it.
+#   A shaft of radius 20 and length 80 along x (front view: axis horizontal) reads 40 at 1:1 and at 1:2; a post of radius
+#   15 and height 50 along z (front view: axis vertical) reads 30.
+@ps = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"cylinder","plane":"2","center":[0,0,0],"radius":20,"depth":80}
+@sb = se_physical {}
+se_documents {"action":"save_as","path":"{{work}}\\a81_shaft.par","overwrite":true}
+se_documents {"action":"close","document":"{{ps.handle}}","saveChanges":false}
+@pp = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"cylinder","plane":"1","center":[0,0,0],"radius":15,"depth":50}
+se_documents {"action":"save_as","path":"{{work}}\\a81_post.par","overwrite":true}
+se_documents {"action":"close","document":"{{pp.handle}}","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+@v1 = se_drawing {"action":"base_view","path":"{{work}}\\a81_shaft.par","orientation":"front","position":[120,200],"scale":1}
+@c1 = se_annotation {"action":"centerline","view":"{{v1.view.handle}}","points":[{{sb.centerOfVolume[0]}},0,20, {{sb.centerOfVolume[0]}},0,-20]}
+@s1 = se_drawing {"action":"dimension","view":"{{v1.view.handle}}","kind":"symmetric_diameter","points":[{{sb.centerOfVolume[0]}},0,0, {{sb.centerOfVolume[0]}},0,20]}
+?= s1.dimension.value 40 0.001
+?~ s1.dimension.type diameter
+@v2 = se_drawing {"action":"base_view","path":"{{work}}\\a81_shaft.par","orientation":"front","position":[300,200],"scale":0.5}
+se_annotation {"action":"centerline","view":"{{v2.view.handle}}","points":[{{sb.centerOfVolume[0]}},0,20, {{sb.centerOfVolume[0]}},0,-20]}
+@s2 = se_drawing {"action":"dimension","view":"{{v2.view.handle}}","kind":"symmetric_diameter","points":[{{sb.centerOfVolume[0]}},0,0, {{sb.centerOfVolume[0]}},0,-20]}
+?= s2.dimension.value 40 0.001
+@v3 = se_drawing {"action":"base_view","path":"{{work}}\\a81_post.par","orientation":"front","position":[120,80],"scale":1}
+se_annotation {"action":"centerline","view":"{{v3.view.handle}}","points":[15,0,25, -15,0,25]}
+@s3 = se_drawing {"action":"dimension","view":"{{v3.view.handle}}","kind":"symmetric_diameter","points":[0,0,25, 15,0,25]}
+?= s3.dimension.value 30 0.001
+# refusals: no centre line through the first point, the end edge (across the axis, at x = 0), one point only
+! [not_found] se_drawing {"action":"dimension","view":"{{v3.view.handle}}","kind":"symmetric_diameter","points":[15,0,25, -15,0,25]}
+! [invalid_argument] se_drawing {"action":"dimension","view":"{{v1.view.handle}}","kind":"symmetric_diameter","points":[{{sb.centerOfVolume[0]}},0,0, 0,0,10]}
+! [invalid_argument] se_drawing {"action":"dimension","view":"{{v1.view.handle}}","kind":"symmetric_diameter","points":[{{sb.centerOfVolume[0]}},0,0]}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

@@ -148,6 +148,8 @@ public static class GenericCom
         ["Relations3d.AddPlanarCam"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the faces of the cam and the follower as assembly references)", null),
         ["Relations3d.AddPath"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with an edge, a circular edge or a vertex as the follower)", null),
         ["Rounds.AddBlend"] = ("closed Solid Edge (with one face set and two radii) and otherwise leaves the blend failed", "Round the edge the faces share with se_round."),
+        ["Blends.Add"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the faces in a nested array) and otherwise fails with E_FAIL", "Round the edge the faces share with se_round."),
+        ["CloseCorners.Add"] = ("leaves Solid Edge unstable in synchronous modeling (RPC_E_SERVERFAULT) and the corner failed in ordered modeling", "Close the corner with the Close 2-Bend Corner command."),
         ["SheetMetalSensors.AddMinimumDistanceSensor"] = ("fails with E_INVALIDARG after leaving an empty sensor that stops the document from saving (sensors cannot be deleted either)", "Use a variable sensor, or a distance sensor in an assembly that holds the part."),
         ["Sensor.Delete"] = ("breaks every sensor of the document, also in the saved file (each later call on Sensors fails with 0x80040225)", "Keep the sensor and change its condition with se_sensor set."),
         ["EndCaps.Add"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT on the next call on the assembly's occurrences) after capping the members of a frame", "Use the End Cap command of the frame in Solid Edge."),
@@ -160,6 +162,7 @@ public static class GenericCom
         ["Decals.AddByPlanarProjection"] = ("left Solid Edge unstable (RPC_E_SERVERFAULT, a picture projected onto two faces)", "Wrap the picture on one face with se_decal add."),
         ["Relations3d.AddBarrelCam"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the cylindrical face of the follower and a circular edge of the cam)", null),
         ["AssemblyDrivenPartFeaturesExtrudedCutouts.Add"] = ("closed Solid Edge (a cutout driven by the assembly into one of its parts)", "Cut the assembly with se_assembly_feature, or the part itself in its own document."),
+        ["AssemblyFeaturesSweptProtrusions.Add"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the origins as an object array of numbers) and otherwise fails with E_INVALIDARG or DISP_E_TYPEMISMATCH", "Sweep the body in a part with se_loft_sweep sweep and place the part."),
     };
 
     private static void RefuseUnsafe(Type? type, string member)

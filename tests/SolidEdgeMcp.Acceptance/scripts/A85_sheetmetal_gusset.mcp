@@ -1,0 +1,74 @@
+# A85: gussets (se_sheetmetal gusset): stiffening ribs pressed across a bend. A tab 100 x 60 (t = 1, r = 1) with a flange of
+#   20 on its edge y = 0 (7935.619); gussets of depth 8 and width 5 (radius 2, punch and die t/2) on the bend's outer face, each
+#   deleted before the next: one round in the middle +69.993 (side faces at x 47.5 and 52.5), one square, three spread over
+#   the bend (fit, centres 25, 50 and 75) +210.354, three every 25 from the arc edge x = 0 (the same centres) and one 10 mm
+#   from the arc edge x = 100 (+72.743: the same faces as the middle one; Solid Edge's volume of a gusset varies with its place).
+@d = se_documents {"action":"new","kind":"sheet_metal"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k.sketch}}"}
+# a sheet without bends
+@t0 = se_geometry {"action":"faces","direction":[0,0,1]}
+! [not_found] se_sheetmetal {"action":"gusset","faces":["{{t0.items[0].handle}}"],"depth":8,"width":5}
+@te = se_geometry {"action":"edges","source":"{{t0.items[0].handle}}","direction":[1,0,0]}
+@fl = se_sheetmetal {"action":"flange","edges":["{{te.items[?start=[0,0,1]].handle}}"],"length":20}
+?= fl.volume 7935.619 0.01
+@cy = se_geometry {"action":"faces","type":"cylinder"}
+?= cy.count 2
+@ce = se_geometry {"action":"edges","source":"{{cy.items[?radius=2].handle}}"}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+# refusals: no face, no depth, a planar face, a distance or a pattern beyond the bend, a straight edge, an unknown shape
+! [invalid_argument] se_sheetmetal {"action":"gusset","depth":8,"width":5}
+! [invalid_argument] se_sheetmetal {"action":"gusset","faces":["{{cy.items[?radius=2].handle}}"],"width":5}
+! [invalid_argument] se_sheetmetal {"action":"gusset","faces":["{{top.items[0].handle}}"],"depth":8,"width":5}
+! [invalid_argument] se_sheetmetal {"action":"gusset","faces":["{{cy.items[?radius=2].handle}}"],"depth":8,"width":5,"distance":100}
+! [invalid_argument] se_sheetmetal {"action":"gusset","faces":["{{cy.items[?radius=2].handle}}"],"depth":8,"width":5,"count":3,"spacing":40}
+! [invalid_argument] se_sheetmetal {"action":"gusset","faces":["{{cy.items[?radius=2].handle}}"],"depth":8,"width":5,"edges":["{{ce.items[?type="line"].handle}}"]}
+! [invalid_argument] se_sheetmetal {"action":"gusset","faces":["{{cy.items[?radius=2].handle}}"],"depth":8,"width":5,"gussetShape":"triangle"}
+# one round gusset in the middle
+@g1 = se_sheetmetal {"action":"gusset","faces":["{{cy.items[?radius=2].handle}}"],"depth":8,"width":5}
+?= g1.feature.status ok
+?= g1.volumeChange 69.993 0.01
+@gf1 = se_geometry {"action":"faces","source":"{{g1.feature.handle}}"}
+?= gf1.count 6
+?= gf1.items[?normal=[1,0,0]].boundingBox.min[0] 52.5 0.001
+?= gf1.items[?normal=[-1,0,0]].boundingBox.min[0] 47.5 0.001
+se_feature_edit {"action":"delete","feature":"{{g1.feature.handle}}"}
+# square
+@cy2 = se_geometry {"action":"faces","type":"cylinder"}
+@g2 = se_sheetmetal {"action":"gusset","faces":["{{cy2.items[?radius=2].handle}}"],"depth":8,"width":5,"gussetShape":"square"}
+?= g2.feature.status ok
+@gf2 = se_geometry {"action":"faces","source":"{{g2.feature.handle}}"}
+?= gf2.items[?normal=[1,0,0]].boundingBox.min[0] 52.5 0.001
+se_feature_edit {"action":"delete","feature":"{{g2.feature.handle}}"}
+# three spread over the bend
+@cy3 = se_geometry {"action":"faces","type":"cylinder"}
+@g3 = se_sheetmetal {"action":"gusset","faces":["{{cy3.items[?radius=2].handle}}"],"depth":8,"width":5,"count":3}
+?= g3.volumeChange 210.354 0.01
+@gf3 = se_geometry {"action":"faces","source":"{{g3.feature.handle}}"}
+?= gf3.count 18
+se_feature_edit {"action":"delete","feature":"{{g3.feature.handle}}"}
+# three every 25 from the arc edge x = 0
+@cy4 = se_geometry {"action":"faces","type":"cylinder"}
+@ce4 = se_geometry {"action":"edges","source":"{{cy4.items[?radius=2].handle}}","type":"circle"}
+@g4 = se_sheetmetal {"action":"gusset","faces":["{{cy4.items[?radius=2].handle}}"],"depth":8,"width":5,"count":3,"spacing":25,"edges":["{{ce4.items[?center=[0,2,2]].handle}}"]}
+?= g4.volumeChange 210.354 0.01
+se_feature_edit {"action":"delete","feature":"{{g4.feature.handle}}"}
+# one 10 mm from the arc edge x = 100
+@cy5 = se_geometry {"action":"faces","type":"cylinder"}
+@ce5 = se_geometry {"action":"edges","source":"{{cy5.items[?radius=2].handle}}","type":"circle"}
+@g5 = se_sheetmetal {"action":"gusset","faces":["{{cy5.items[?radius=2].handle}}"],"depth":8,"width":5,"distance":10,"edges":["{{ce5.items[?center=[100,2,2]].handle}}"]}
+?= g5.volumeChange 72.743 0.01
+@gf5 = se_geometry {"action":"faces","source":"{{g5.feature.handle}}"}
+?= gf5.items[?normal=[1,0,0]].boundingBox.min[0] 92.5 0.001
+se_feature_edit {"action":"delete","feature":"{{g5.feature.handle}}"}
+@ph = se_physical {}
+?= ph.volume 7935.619 0.01
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# a part document
+@p = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@pf = se_geometry {"action":"faces","direction":[0,0,1]}
+! [wrong_document_type] se_sheetmetal {"action":"gusset","faces":["{{pf.items[0].handle}}"],"depth":8,"width":5}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

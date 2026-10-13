@@ -1,0 +1,56 @@
+# A78: component patterns along a curve of an assembly layout (se_assembly_pattern curve). A pin at the origin; a layout on
+#   the XY plane with a line (0,0)-(200,0) and a quarter arc, centre (0,300), radius 100, from (100,300) to (0,400).
+#   Each copy is the pin moved by the chord from the anchor to the point at i*spacing along the curve (moved, not turned).
+#   line, 3 every 50 from the start: copies at x = 50 and 100; reverse, 2 every 40 from the end (200): 160 - 200 = -40.
+#   arc, 3 every 50 from (100,300): angles 0.5 and 1 rad -> (100cos - 100, 100sin) = (-12.242, 47.943) and (-45.970, 84.147).
+@q = se_documents {"action":"new","kind":"part"}
+@qs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{qs.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{qs.sketch}}"}
+se_extrude {"sketch":"{{qs.sketch}}","distance":30}
+se_documents {"action":"save_as","path":"{{work}}\\a78_pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@oq = se_assembly {"action":"insert","path":"{{work}}\\a78_pin.par","origin":[0,0,0]}
+@ly = se_sketch {"action":"create","plane":"1","layout":true}
+@ln = se_sketch {"action":"line","sketch":"{{ly.sketch}}","points":[0,0,200,0]}
+@ar = se_sketch {"action":"arc","sketch":"{{ly.sketch}}","center":[0,300],"start":[100,300],"end":[0,400]}
+se_sketch {"action":"close","sketch":"{{ly.sketch}}","open":true}
+@c = se_assembly_pattern {"action":"curve","occurrences":["{{oq.handle}}"],"curve":"{{ln.element}}","count":3,"spacing":50}
+?= c.added 2
+?= c.length 200 0.001
+?= c.occurrences 3
+?~ c.pattern.type curve
+?~ c.pattern.occurrences "origin":[50,0,0]
+?~ c.pattern.occurrences "origin":[100,0,0]
+@r = se_assembly_pattern {"action":"curve","occurrences":["{{oq.handle}}"],"curve":"{{ln.element}}","count":2,"spacing":40,"reverse":true,"name":"Back"}
+?= r.added 1
+?~ r.pattern.occurrences "origin":[-40,0,0]
+@k = se_assembly_pattern {"action":"curve","occurrences":["{{oq.handle}}"],"curve":"{{ar.element}}","count":3,"spacing":50,"name":"Arc"}
+?= k.added 2
+?= k.length 157.08 0.001
+?= k.pattern.occurrences[?name="a78_pin.par:5"].origin[0] -12.242 0.001
+?= k.pattern.occurrences[?name="a78_pin.par:5"].origin[1] 47.943 0.001
+?= k.pattern.occurrences[?name="a78_pin.par:6"].origin[0] -45.970 0.001
+?= k.pattern.occurrences[?name="a78_pin.par:6"].origin[1] 84.147 0.001
+?= k.pattern.occurrences[?name="a78_pin.par:6"].angles[2] 0 0.001
+@l = se_assembly_pattern {"action":"list"}
+?= l.count 3
+# refusals
+! [invalid_argument] se_assembly_pattern {"action":"curve","occurrences":["{{oq.handle}}"],"curve":"{{ln.element}}","count":6,"spacing":50}
+! [invalid_argument] se_assembly_pattern {"action":"curve","occurrences":["{{oq.handle}}"],"curve":"{{ln.element}}","count":1,"spacing":50}
+! [invalid_argument] se_assembly_pattern {"action":"curve","occurrences":["{{oq.handle}}"],"curve":"{{ln.element}}","count":3}
+! [invalid_argument] se_assembly_pattern {"action":"curve","occurrences":["{{oq.handle}}"],"count":3,"spacing":50}
+! [invalid_argument] se_assembly_pattern {"action":"curve","occurrences":["{{oq.handle}}"],"curve":"{{ln.element}}","count":3,"spacing":50,"name":"Arc"}
+@sk = se_sketch {"action":"create","plane":"1"}
+@sl = se_sketch {"action":"line","sketch":"{{sk.sketch}}","points":[0,0,100,0]}
+! [invalid_argument] se_assembly_pattern {"action":"curve","occurrences":["{{oq.handle}}"],"curve":"{{sl.element}}","count":2,"spacing":50}
+# delete removes the copies; dissolve keeps them as ordinary occurrences
+@d = se_assembly_pattern {"action":"delete","name":"Pattern 1"}
+?= d.removed 2
+?= d.occurrences 4
+@s = se_assembly_pattern {"action":"dissolve","name":"Back"}
+?= s.occurrences 4
+@l2 = se_assembly_pattern {"action":"list"}
+?= l2.count 1
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}

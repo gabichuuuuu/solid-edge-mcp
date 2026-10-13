@@ -632,7 +632,7 @@ public static partial class DrawingService
 
     public static readonly IReadOnlyList<string> WeldSides = ["arrow", "other", "both"];
 
-    private const int WeldOtherSide = WeldType.igDimWeldBottomFillet - WeldType.igDimWeldTopFillet;
+    internal const int WeldOtherSide = WeldType.igDimWeldBottomFillet - WeldType.igDimWeldTopFillet;
 
     /// <summary>How far (m) a weld symbol may reach left of or below its leader: the all-around circle and the arrow-side text.</summary>
     private const double WeldReach = 0.015;

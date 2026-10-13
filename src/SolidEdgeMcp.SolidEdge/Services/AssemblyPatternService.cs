@@ -15,9 +15,8 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// <summary>
 /// Component patterns that follow a pattern of a part (e.g. a pin in the first hole repeated on every hole of the plate's
 /// hole pattern), as the "Pattern" command of the assembly does with "part pattern", and duplicate patterns, as the
-/// "Duplicate" command does. Solid Edge 2026 does not create component mirrors through the API (<c>AssemblyMirrors</c> has
-/// no Add) and rejects every curve tried for patterns along a curve (<c>CreateAlongCurveEx3</c>: E_NOINTERFACE with part
-/// edges, their references and lines of an assembly layout).
+/// "Duplicate" command does, and patterns along a curve of an assembly layout. Solid Edge 2026 does not create component
+/// mirrors through the API (<c>AssemblyMirrors</c> has no Add).
 /// </summary>
 public static class AssemblyPatternService
 {
@@ -154,6 +153,165 @@ public static class AssemblyPatternService
         return new { pattern = Describe(context, assembly, created), added, occurrences = assembly.Occurrences.Count };
     }
 
+    /// <summary>
+    /// Repeats <paramref name="occurrenceHandles"/> along an element of an assembly layout, <paramref name="count"/> in all
+    /// (the originals included) every <paramref name="spacing"/> mm measured along the curve from its start (or its end with
+    /// <paramref name="reverse"/>). The copies are moved, not turned. Verified: <c>CreateAlongCurveEx3</c> takes the curve of
+    /// the layout profile's curve body (<c>MapGeometryToCurves</c>) and one of its <c>CurveVertices</c> as the anchor; part
+    /// edges, their references, the 2D element itself or a vertex reference give E_NOINTERFACE, E_INVALIDARG or 0x80040224. Only
+    /// the fixed spacing is used: the fit spacing closed Solid Edge 2026 (RPC server gone).
+    /// </summary>
+    public static object AlongCurve(SeContext context, string[]? occurrenceHandles, string? curveHandle, int? count, double? spacing, bool reverse, string? name)
+    {
+        if (occurrenceHandles is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("'occurrences' must list the occurrences to repeat along the curve.");
+        }
+
+        if (string.IsNullOrWhiteSpace(curveHandle))
+        {
+            throw ToolException.InvalidArgument("'curve' is required: an element (line, arc, spline) of an assembly layout.",
+                "Draw it with se_sketch create layout=true, a line or arc, then se_sketch close (open=true for an open path).");
+        }
+
+        int copies = count ?? throw ToolException.InvalidArgument("'count' is required: occurrences in all along the curve, the originals included.");
+        if (copies < 2)
+        {
+            throw ToolException.InvalidArgument("'count' must be at least 2 (the original and one copy).");
+        }
+
+        double step = Units.MmToM(Units.RequirePositive(spacing ?? throw ToolException.InvalidArgument("'spacing' (mm along the curve) is required."), "spacing"));
+        Occurrence[] masters = occurrenceHandles.Select(h => Occurrence(context, h, "occurrences")).ToArray();
+        AssemblyDocument assembly = masters[0].TopLevelDocument;
+        object element = context.Handles.Resolve(curveHandle, "curve");
+        Profile profile = Late.Get(element, "Parent") as Profile ?? throw ToolException.InvalidArgument(
+            $"'{curveHandle}' is not an element of a sketch or layout.", "Pass a line, arc or spline of an assembly layout (se_sketch create layout=true).");
+        SolidEdgeGeometry.Curve curve = LayoutCurve(profile, element, curveHandle);
+
+        Array start = new double[3];
+        Array end = new double[3];
+        curve.GetEndPoints(ref start, ref end);
+        double[] anchorPoint = Geo.Doubles(reverse ? end : start).ToArray();
+        SolidEdgeGeometry.CurveVertex anchor = Items<SolidEdgeGeometry.CurveVertex>(curve.CurveVertices)
+            .FirstOrDefault(v => Geo.Length([.. VertexPoint(v).Zip(anchorPoint, (a, b) => a - b)]) < 1e-9)
+            ?? throw ToolException.InvalidArgument($"'{curveHandle}' is a closed curve; use an open line, arc or spline.");
+        curve.GetParamExtents(out double p0, out double p1);
+        curve.GetLengthAtParam(p0, p1, out double length);
+        if ((copies - 1) * step > length + 1e-9)
+        {
+            throw ToolException.InvalidArgument(
+                $"{copies} occurrences {Geo.Mm(step)} mm apart need {Geo.Mm((copies - 1) * step)} mm, but the curve is {Geo.Mm(length)} mm long.",
+                "Use fewer occurrences, a smaller spacing or a longer curve.");
+        }
+
+        // Each copy is the original moved by the chord from the anchor to the point at i·spacing along the curve.
+        double[][] offsets = Enumerable.Range(1, copies - 1).Select(i =>
+        {
+            double along = reverse ? length - i * step : i * step;
+            Array parameters = new[] { ParamAtLength(curve, p0, p1, along) };
+            Array point = new double[3];
+            curve.GetPointAtParam(1, ref parameters, ref point);
+            return Geo.Doubles(point).Zip(anchorPoint, (a, b) => a - b).ToArray();
+        }).ToArray();
+        double[][] expected = masters.SelectMany(m => offsets.Select(o => Placement.Of(m).Origin.Zip(o, (a, b) => a + b).ToArray())).ToArray();
+
+        string patternTitle = name ?? NextName(assembly);
+        if (Find(assembly, patternTitle) is not null)
+        {
+            throw ToolException.InvalidArgument($"The assembly already has a pattern named '{patternTitle}'.", "Pass another 'name'.");
+        }
+
+        int before = assembly.Occurrences.Count;
+        HashSet<int> existing = [.. Items<Occurrence>(assembly.Occurrences).Select(o => o.OccurrenceID)];
+        Array mastersArray = masters.Cast<object>().ToArray();
+        Array curves = new object[] { curve };
+        Array none = Array.Empty<object>();
+        AssemblyPattern created;
+        try
+        {
+            created = assembly.AssemblyPatterns.CreateAlongCurveEx3(masters.Length, ref mastersArray, 1, ref curves, anchor,
+                PatternCurveAnchorSideConstants.sePatternCurveRightSide, 0, SolidEdgeAssembly.PatternOffsetTypeConstants.sePatternFixedOffset, copies, step,
+                0, ref none, null, PatternCurveAnchorSideConstants.sePatternCurveLeftSide, 0, SolidEdgeAssembly.PatternOffsetTypeConstants.sePatternFixedOffset, 1, 0,
+                PatternTransformTypeConstants.sePatternTransformLinear, PatternTransformRotateTypeConstants.sePatternTransformRotateOnCurvePosition,
+                null, patternTitle, 0);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("pattern_failed", $"Solid Edge did not create the pattern along the curve ({ex.Message}).",
+                "Check that the curve is an open element of a closed layout (se_sketch close open=true) and that the occurrences are not in another pattern.");
+        }
+
+        int added = assembly.Occurrences.Count - before;
+        double[][] origins = [.. Items<Occurrence>(assembly.Occurrences).Where(o => !existing.Contains(o.OccurrenceID)).Select(o => Placement.Of(o).Origin)];
+        bool placed = expected.All(e => origins.Any(o => Geo.Length([.. o.Zip(e, (a, b) => a - b)]) < 1e-6));
+        if (added != expected.Length || !placed)
+        {
+            TryDelete(assembly, patternTitle);
+            string Points(IEnumerable<double[]> points) => string.Join(" ", points.Select(p => $"[{string.Join(", ", p.Select(Geo.Mm))}]"));
+            throw new ToolException("pattern_failed",
+                $"The pattern along the curve added {added} occurrences ({expected.Length} expected){(placed ? "" : $" at {Points(origins)} instead of {Points(expected)}")} and was removed.",
+                "Check the curve and the spacing; se_assembly 'list' shows the occurrences.");
+        }
+
+        return new { pattern = Describe(context, assembly, created), added, length = Geo.Mm(length), occurrences = assembly.Occurrences.Count };
+    }
+
+    /// <summary>The curve of the layout profile's curve body that a 2D element maps to (the profile must be closed: se_sketch close).</summary>
+    private static SolidEdgeGeometry.Curve LayoutCurve(Profile profile, object element, string handle)
+    {
+        if (LayoutOf(profile) is null)
+        {
+            throw ToolException.InvalidArgument($"'{handle}' is not on an assembly layout.", "Draw the curve on a layout: se_sketch create layout=true.");
+        }
+
+        object? mapped = null;
+        int number;
+        try
+        {
+            profile.MapGeometryToCurves(element, out number, out mapped);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("pattern_failed", $"Solid Edge did not give the curve of '{handle}' ({ex.Message}).",
+                "Close the layout first: se_sketch close (open=true for an open path).", ex);
+        }
+
+        return (mapped as Array)?.OfType<SolidEdgeGeometry.Curve>().ToArray() is [SolidEdgeGeometry.Curve single] && number == 1
+            ? single
+            : throw new ToolException("pattern_failed", $"'{handle}' maps to {number} curves of the layout; one is needed.",
+                "Close the layout first (se_sketch close open=true) and pass a single line, arc or spline.");
+    }
+
+    /// <summary>
+    /// Parameter at an arc length from the start, by bisection: on layout curves <c>GetParamAtLength</c> returns the start
+    /// parameter whatever the length (verified), while <c>GetLengthAtParam</c> works (arcs are parametrized by angle).
+    /// </summary>
+    private static double ParamAtLength(SolidEdgeGeometry.Curve curve, double p0, double p1, double target)
+    {
+        double low = p0;
+        double high = p1;
+        for (int i = 0; i < 60; i++)
+        {
+            double mid = (low + high) / 2;
+            curve.GetLengthAtParam(p0, mid, out double length);
+            (low, high) = length < target ? (mid, high) : (low, mid);
+        }
+
+        return (low + high) / 2;
+    }
+
+    private static Layout? LayoutOf(Profile profile) =>
+        Late.Get(profile.Parent, "Parent") is AssemblyDocument assembly
+            ? Items<Layout>(assembly.Layouts).FirstOrDefault(l => ReferenceEquals(l.Profile, profile))
+            : null;
+
+    private static double[] VertexPoint(SolidEdgeGeometry.CurveVertex vertex)
+    {
+        Array point = new double[3];
+        vertex.GetPointData(ref point);
+        return Geo.Doubles(point).ToArray();
+    }
+
     /// <summary>Deletes the pattern and the occurrences it created (the original occurrences stay).</summary>
     public static object Delete(SeContext context, string? documentHandle, string? name)
     {
@@ -193,7 +351,12 @@ public static class AssemblyPatternService
         return new
         {
             name = pattern.Name,
-            type = pattern.PatternType() == AssemblyPatternTypeConstants.seAssemblyDuplicatePatternType ? "duplicate" : "part_pattern",
+            type = pattern.PatternType() switch
+            {
+                AssemblyPatternTypeConstants.seAssemblyDuplicatePatternType => "duplicate",
+                AssemblyPatternTypeConstants.seAssemblyPatternAlongCurveType => "curve",
+                _ => "part_pattern",
+            },
             instances = pattern.Count,
             visible = pattern.Visible,
             occurrences = Copies(pattern).Select(o => AssemblyService.Describe(context, assembly, o, grounded)).ToArray(),

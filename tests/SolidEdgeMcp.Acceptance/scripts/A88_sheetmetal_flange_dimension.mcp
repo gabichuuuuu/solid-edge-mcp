@@ -1,0 +1,47 @@
+# A88: the dimension of a flange's length (se_sheetmetal flange dimension): inside (default) measures it from the sheet's
+#   inner face, outside from its outer face. Tabs 100 x 60 x 1 (6000) with flanges of 20 (radius 1) on the edges y = 0 and
+#   y = 60: inside, the flange's end face (100 x 1) is at z 21 and it adds 1935.619; outside, its end is at z 20 and it adds
+#   100 mm3 less (1835.619). With the material outside the edge (side outside) each flange is one strip of 100 x 1 x 1
+#   larger (2035.619 inside, 1935.619 outside) and stands beyond the edge (y -1..0; inside it stands at y 59..60).
+@d = se_documents {"action":"new","kind":"sheet_metal"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k.sketch}}"}
+@t1 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e1 = se_geometry {"action":"edges","source":"{{t1.items[0].handle}}","direction":[1,0,0]}
+@f1 = se_sheetmetal {"action":"flange","edges":["{{e1.items[?start=[0,0,1]].handle}}"],"length":20}
+?= f1.volumeChange 1935.619 0.01
+@u1 = se_geometry {"action":"faces","source":"{{f1.feature.handle}}","direction":[0,0,1]}
+?= u1.items[0].area 100 0.001
+?= u1.items[0].boundingBox.max[2] 21 0.001
+@t2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e2 = se_geometry {"action":"edges","source":"{{t2.items[?area=5800].handle}}","direction":[-1,0,0]}
+@f2 = se_sheetmetal {"action":"flange","edges":["{{e2.items[?start=[100,60,1]].handle}}"],"length":20,"dimension":"outside"}
+?= f2.volumeChange 1835.619 0.01
+@u2 = se_geometry {"action":"faces","source":"{{f2.feature.handle}}","direction":[0,0,1]}
+?= u2.items[0].area 100 0.001
+?= u2.items[0].boundingBox.max[2] 20 0.001
+?= u2.items[0].boundingBox.min[1] 59 0.001
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# the material outside the edge
+@d2 = se_documents {"action":"new","kind":"sheet_metal"}
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k2.sketch}}"}
+@t3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e3 = se_geometry {"action":"edges","source":"{{t3.items[0].handle}}","direction":[1,0,0]}
+@f3 = se_sheetmetal {"action":"flange","edges":["{{e3.items[?start=[0,0,1]].handle}}"],"length":20,"side":"outside"}
+?= f3.volumeChange 2035.619 0.01
+@u3 = se_geometry {"action":"faces","source":"{{f3.feature.handle}}","direction":[0,0,1]}
+?= u3.items[?area=100].boundingBox.max[2] 21 0.001
+?= u3.items[?area=100].boundingBox.min[1] -1 0.001
+@t4 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e4 = se_geometry {"action":"edges","source":"{{t4.items[?area=5900].handle}}","direction":[-1,0,0]}
+@f4 = se_sheetmetal {"action":"flange","edges":["{{e4.items[?start=[100,60,1]].handle}}"],"length":20,"side":"outside","dimension":"outside"}
+?= f4.volumeChange 1935.619 0.01
+@u4 = se_geometry {"action":"faces","source":"{{f4.feature.handle}}","direction":[0,0,1]}
+?= u4.items[?area=100].boundingBox.max[2] 20 0.001
+?= u4.items[?area=100].boundingBox.max[1] 61 0.001
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}
