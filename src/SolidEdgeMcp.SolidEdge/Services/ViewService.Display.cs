@@ -383,6 +383,10 @@ public static partial class ViewService
             colors = gradient ? new[] { ComProperties.Hex(backdrop.Color1), ComProperties.Hex(backdrop.Color2) } : null,
             gradient = gradient ? Gradients.FirstOrDefault(p => p.Value == backdrop.Gradient).Key ?? backdrop.Gradient.ToString() : null,
             path = image ? backdrop.Image : null,
+            // Verified: the API neither reads nor changes the colour of a solid background, and other kinds leave it as it was.
+            note = backdrop.Type == SeBackgroundType.seBackgroundTypeSolid
+                ? "Solid Edge keeps the colour of a solid background, which the API does not change: kind 'solid' without colours puts this one back."
+                : null,
         };
     }
 

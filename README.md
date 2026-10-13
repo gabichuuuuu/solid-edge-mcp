@@ -141,7 +141,7 @@ Replace `<path>` with the folder of your publish output and of your `policy.json
 claude mcp add -s user solid-edge -- "<path>\publish\SolidEdgeMcp.Server.exe" --policy "<path>\policy.json"
 ```
 
-If long operations exceed the client's limit, adjust the `MCP_TOOL_TIMEOUT` variable.
+If long operations exceed the client's limit, adjust the `MCP_TOOL_TIMEOUT` variable. When the client asks for progress notifications, the server sends one every 5 seconds while a call runs, so clients that reset their time limit on progress keep waiting.
 
 <details>
 <summary><b>Claude Desktop</b> (<code>claude_desktop_config.json</code>)</summary>

@@ -64,6 +64,9 @@ se_styles {"action":"add","type":"view","name":"A22 view","document":"{{p.handle
 @vv = se_view {"action":"style","name":"A22 view"}
 ?~ vv.style A22 view
 @b0 = se_view {"action":"background"}
+?= b0.background.kind solid
+?~ b0.background.note puts this one back
+@c0 = se_view {"action":"capture","width":320,"height":240,"samples":true}
 @bg = se_view {"action":"background","kind":"gradient","colors":["#FF0000","#0000FF"]}
 ?= bg.background.kind gradient
 ?= bg.background.colors[0] #FF0000
@@ -86,8 +89,12 @@ se_styles {"action":"add","type":"view","name":"A22 view","document":"{{p.handle
 ?= bi.background.kind image
 ! [path_not_allowed] se_view {"action":"background","kind":"image","path":"C:\\Windows\\win.ini"}
 ! [invalid_argument] se_view {"action":"background","kind":"solid","colors":["#FF0000","#00FF00"]}
+# Back to solid without colours: the solid colour of the style is the one it had before the gradients and the image
 @br = se_view {"action":"background","kind":"solid"}
 ?= br.background.kind solid
+@c4 = se_view {"action":"capture","width":320,"height":240,"samples":true}
+?# c4.samples.topLeft {{c0.samples.topLeft}} 2
+?# c4.samples.bottomRight {{c0.samples.bottomRight}} 2
 @vb = se_view {"action":"style","name":"{{esc:vs.style}}"}
 ?~ vb.style {{vs.style}}
 se_styles {"action":"remove","type":"view","name":"A22 view","document":"{{p.handle}}"}

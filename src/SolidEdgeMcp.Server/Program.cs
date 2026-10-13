@@ -82,7 +82,7 @@ public static class Program
             // Explicit IEnumerable<Type>: with Type[] the generic overload WithTools<T>(instance) would be chosen.
             .WithTools((IEnumerable<Type>)ToolTypes, ToolJson)
             .WithPrompts<SolidEdgePrompts>()
-            .WithRequestFilters(filters => filters.AddCallToolFilter(ArgumentValidator.Filter));
+            .WithRequestFilters(filters => filters.AddCallToolFilter(ArgumentValidator.Filter).AddCallToolFilter(ProgressHeartbeat.Filter));
     }
 
     public static readonly Type[] ToolTypes =

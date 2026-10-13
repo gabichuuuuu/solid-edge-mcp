@@ -10,6 +10,13 @@ Relevant changes to this project are recorded here. The format follows
 
 - `se_drawing tables`: reads the tables already on a drawing (parts lists, bend, tolerance, family of parts and block
   tables) with their columns and cells, so a drawing opened from its file can be checked.
+- Progress notifications: when the client asks for them, the server sends one every 5 seconds while a tool call runs,
+  so clients that limit each request in time and reset the limit on progress wait for long operations.
+
+### Changed
+
+- `se_view background` says that a solid background keeps its colour, which the API does not change, and that kind
+  `solid` without colours puts it back.
 
 ## [0.9.1] - 2026-10-13
 

@@ -18,6 +18,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
@@ -145,7 +146,9 @@ foreach (string raw in File.ReadAllLines(script))
         var arguments = JsonSerializer.Deserialize<Dictionary<string, object?>>(json)!;
         Console.WriteLine($">> {(expectError ? "! " : "")}{tool} {json}");
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        CallToolResult result = await client.CallToolAsync(tool, arguments);
+        // Progress notifications the server sends while a long call runs (one every few seconds).
+        var progress = new ProgressCounter();
+        CallToolResult result = await client.CallToolAsync(tool, arguments, progress);
         calls++;
         bool isError = result.IsError == true;
         string text = string.Concat(result.Content.OfType<TextContentBlock>().Select(t => t.Text));
@@ -177,7 +180,7 @@ foreach (string raw in File.ReadAllLines(script))
         bool ok = expectError
             ? isError && (expectedCode is null || text.Contains($"[{expectedCode}]", StringComparison.Ordinal))
             : !isError;
-        Console.WriteLine($"   ({sw.ElapsedMilliseconds} ms){(ok ? "" : expectError ? " FAIL: expected an error" + (expectedCode is null ? "" : $" [{expectedCode}]") : " FAIL: unexpected error")}");
+        Console.WriteLine($"   ({sw.ElapsedMilliseconds} ms{(progress.Count > 0 ? $", {progress.Count} progress" : "")}){(ok ? "" : expectError ? " FAIL: expected an error" + (expectedCode is null ? "" : $" [{expectedCode}]") : " FAIL: unexpected error")}");
         if (!ok)
         {
             failures++;
@@ -249,4 +252,14 @@ static bool Same(JsonElement a, JsonElement b)
         return x.Count == y.Count && x.Zip(y).All(t => Same(t.First, t.Second));
     }
     return a.GetRawText() == b.GetRawText();
+}
+
+/// <summary>Counts the progress notifications of one call.</summary>
+internal sealed class ProgressCounter : IProgress<ProgressNotificationValue>
+{
+    private int _count;
+
+    public int Count => Volatile.Read(ref _count);
+
+    public void Report(ProgressNotificationValue value) => Interlocked.Increment(ref _count);
 }
