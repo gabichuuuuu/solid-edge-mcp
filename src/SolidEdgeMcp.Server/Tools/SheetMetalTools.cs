@@ -26,6 +26,7 @@ public enum SheetMetalAction
     BendRadius,
     Convert,
     MatchFace,
+    Louver,
 }
 
 public enum SheetMetalSide
@@ -47,6 +48,12 @@ public enum CornerType
 {
     Round,
     Chamfer,
+}
+
+public enum LouverEnd
+{
+    Lanced,
+    Formed,
 }
 
 public enum ChainSide
@@ -114,18 +121,19 @@ public sealed class SheetMetalTools(ToolRunner runner)
 
     [McpServerTool(Name = "se_sheetmetal", Title = "Sheet metal", Destructive = false, OpenWorld = false)]
     [Description($$"""
-        Sheet metal (.psm): settings, base, edge features and flat pattern. Lengths in mm, angles in degrees; radius defaults to the document bend radius.
+        Sheet metal (.psm): settings, base, edge features and flat pattern. mm and degrees; radius defaults to the document bend radius.
         settings | set_settings (thickness, bend radius, relief, neutral factor) | gauge (a material library gauge).
-        tab: closed sketch with ONE outline -> base tab (first feature) or an extra tab on the plane of a sheet face; direction = side of the thickness.
-        contour_flange: open sketch (se_sketch close with open=true) -> base contour flange (a tab plus one flange per further segment); width grows along the sketch normal; materialSide; radius.
-        flange: one flange per straight edge on the sheet faces (se_geometry 'edges'); it rises from the face of the edge, away from the material (top edge -> up); length from that face, angle, side, radius.
-        hem: one hem per edge (usually the free edge of a flange); hemType, length of the folded part, radius, side.
+        tab: closed sketch with ONE outline -> base tab or an extra tab on the plane of a sheet face; direction = side of the thickness.
+        contour_flange: open sketch (se_sketch close open=true) -> base contour flange (a tab plus a flange per further segment); width along the sketch normal.
+        flange: one flange per straight edge of the sheet faces (se_geometry 'edges'), rising from the face of the edge away from the material; length from that face, angle, side, radius.
+        hem: one hem per edge (usually a flange's free edge); hemType, length of the folded part, radius.
         break_corner: cornerType with 'size' on corner edges through the thickness.
         flatten: flat pattern and its cut size (x, y); export it with se_export flatPattern=true.
-        bend_angle: faces = one bend face, fixedFace = a planar face that stays, angle = the new angle | bend_radius: faces = bend faces, radius = the new inside radius.
-        convert: thin-walled part copied in (se_part_feature copy_part) -> sheet metal; faces = the base face that stays flat, edges = the corner edges to rip; first set_settings thickness = the wall thickness.
-        match_face: faces = the outer or inner face of a flange, plane = a plane or planar face parallel to it -> the flange moves onto it, or distance mm short (negative: beyond).
-        tab, contour_flange, flange, hem and break_corner are built in synchronous modeling (the only mode the API solves them in) and the document returns to ordered; flanges and hems need edges of those features.
+        bend_angle: faces = one bend face, fixedFace = a planar face that stays, angle | bend_radius: faces = bend faces, radius = the new inside radius.
+        convert: thin-walled part copied in (se_part_feature copy_part) -> sheet metal; faces = the base face, edges = corner edges to rip; first set_settings thickness = the wall.
+        match_face: faces = a flange's outer or inner face, plane = a parallel plane or face -> the flange moves onto it, or distance mm short (negative: beyond).
+        louver: faces = a flat sheet face, point = middle of the opening edge on it, along = its direction (it opens to the left, seen from the face normal); length, width, height, louverEnd, radius = die radius.
+        tab, contour_flange, flange, hem, break_corner and louver are built in synchronous modeling and the document returns to ordered; flanges and hems need edges of those features.
         Sketch-based features: se_sheetmetal_form. Verified: a feature that fails or has no effect is an error and the call is undone.
         Example: {"action":"flange","edges":["edge:12","edge:15"],"length":20}.
         """)]
@@ -133,16 +141,16 @@ public sealed class SheetMetalTools(ToolRunner runner)
         SheetMetalAction action,
         [Description("tab / contour_flange: sketch handle.")] string? sketch = null,
         [Description("flange / hem / break_corner: edge handles from se_geometry 'edges' (break_corner: corner edges along the sheet normal); convert: corner edges to rip.")] string[]? edges = null,
-        [Description("flange / hem: length in mm.")] double? length = null,
+        [Description("flange / hem / louver: length in mm.")] double? length = null,
         [Description("flange: angle between flange and sheet in degrees (default 90 = perpendicular; smaller folds it back over the sheet); bend_angle: the new angle between the bent part and the fixed face.")] double angle = 90,
         [Description("flange / hem: inside (default: the flange outer face is flush with the edge) | outside (the inner face is at the edge) | bend_outside (the bend starts at the edge).")] SheetMetalSide side = SheetMetalSide.Inside,
-        [Description("flange / hem / contour_flange: bend radius in mm (default: document bend radius); bend_radius: the new inside radius.")] double? radius = null,
+        [Description("flange / hem / contour_flange: bend radius in mm (default: document bend radius); bend_radius: the new inside radius; louver: die radius (rounded ends).")] double? radius = null,
         [Description("hem: closed | open | s_flange (with radius2, length2) | closed_loop.")] HemType hemType = HemType.Closed,
         [Description("hem s_flange: length of the second flange in mm (default: length).")] double? length2 = null,
         [Description("hem s_flange: second bend radius in mm (default: radius).")] double? radius2 = null,
         [Description("break_corner: round (size = radius) or chamfer (size = setback).")] CornerType cornerType = CornerType.Round,
         [Description("break_corner: round radius or chamfer setback in mm.")] double? size = null,
-        [Description("contour_flange: extent along the sketch normal in mm.")] double? width = null,
+        [Description("contour_flange: extent along the sketch normal in mm; louver: size of the opening across it in mm.")] double? width = null,
         [Description("tab: side of the thickness (normal or reverse); contour_flange: only normal.")] SheetDirection direction = SheetDirection.Normal,
         [Description("contour_flange: side of the chain where the thickness goes, walking from its first point, seen from the side the sketch normal points to.")] ChainSide materialSide = ChainSide.Right,
         [Description("set_settings: material thickness in mm.")] double? thickness = null,
@@ -150,7 +158,11 @@ public sealed class SheetMetalTools(ToolRunner runner)
         [Description("set_settings: bend relief width in mm.")] double? reliefWidth = null,
         [Description("set_settings: bend relief depth in mm.")] double? reliefDepth = null,
         [Description("set_settings: neutral factor (0-1, e.g. 0.33).")] double? neutralFactor = null,
-        [Description("bend_angle: one bend face; bend_radius: bend faces (cylindrical faces of the bends, se_geometry faces of type cylinder); convert: the base face; match_face: one face of a flange.")] string[]? faces = null,
+        [Description("bend_angle: one bend face; bend_radius: bend faces (cylindrical faces of the bends, se_geometry faces of type cylinder); convert: the base face; match_face: one face of a flange; louver: one flat sheet face.")] string[]? faces = null,
+        [Description("louver: [x, y, z] in mm on the face, the middle of the louver's opening edge.")] double[]? point = null,
+        [Description("louver: [x, y, z] direction the louver runs, in the plane of the face.")] double[]? along = null,
+        [Description("louver: how far it rises from the face in mm.")] double? height = null,
+        [Description("louver: lanced (default: open ends) | formed (closed, drawn ends).")] LouverEnd louverEnd = LouverEnd.Lanced,
         [Description("bend_angle: planar face that stays in place.")] string? fixedFace = null,
         [Description("match_face: the plane the face goes to: index or handle from se_ref_plane, or a planar face (a plane is made on it).")] string? plane = null,
         [Description("match_face: mm the face stops short of the plane, on the side it comes from (negative: beyond the plane).")] double distance = 0,
@@ -180,6 +192,8 @@ public sealed class SheetMetalTools(ToolRunner runner)
             SheetMetalAction.BendRadius => runner.RunAsync(tool, name, c => FeatureService.BendRadius(c, document, faces, radius), cancellationToken),
             SheetMetalAction.Convert => runner.RunAsync(tool, name, c => FeatureService.ConvertToSheet(c, document, faces, edges), cancellationToken),
             SheetMetalAction.MatchFace => runner.RunAsync(tool, name, c => FeatureService.MatchFace(c, document, faces, plane, distance), cancellationToken),
+            SheetMetalAction.Louver => runner.RunAsync(tool, name, c => FeatureService.Louver(c, document,
+                new LouverSpec(faces, point, along, length, width, height, Snake(louverEnd), radius)), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

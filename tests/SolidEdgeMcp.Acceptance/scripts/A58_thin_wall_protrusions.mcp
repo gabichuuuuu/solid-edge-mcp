@@ -1,0 +1,74 @@
+# A58: thin wall protrusions (se_extrude / se_revolve wall, wallSide, endCaps: SetThinWallOptions on the new feature).
+# A 40 x 40 square extruded 30 (48000 solid) with a 2 mm wall: inside (40² - 36²)·30 = 9120; symmetric (42² - 38²)·30 = 9600;
+# inside with end caps 48000 - 36²·26 = 14304. A 10 x 30 rectangle 10 mm off the axis revolved 360° (π(20² - 10²)·30 = 28274.33
+# solid): inside wall π(20² - 10²)·30 - π(18² - 12²)·26 = 13571.68. se_loft_sweep: a circle r5 swept along the A03 path (7263.09 solid)
+# with a 1 mm wall is a pipe (2619.37, a little more than 0.36 of the solid at the sharp corner); the A03 loft (56453.84) with a 2 mm wall
+# 11938.52; the A03 helix of a circle r2 (3948.50) with a 0.5 mm wall keeps about 1 - 0.75² = 0.4375 of it (1727.47): 1730.10,
+# a little more because the wall is offset normal to the coil, which leans at the helix angle.
+@d1 = se_documents {"action":"new","kind":"part"}
+@k1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[-20,-20,20,20]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+@e1 = se_extrude {"sketch":"{{k1.sketch}}","distance":30,"wall":2}
+?= e1.volume 9120 0.001
+@g1 = se_geometry {"action":"summary"}
+?= g1.boundingBox.size[0] 40 0.001
+! [invalid_argument] se_extrude {"sketch":"{{k1.sketch}}","operation":"cut","extent":"through_all","wall":2}
+se_documents {"action":"close","saveChanges":false}
+@d2 = se_documents {"action":"new","kind":"part"}
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[-20,-20,20,20]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@e2 = se_extrude {"sketch":"{{k2.sketch}}","distance":30,"wall":2,"wallSide":"symmetric"}
+?= e2.volume 9600 0.001
+@g2 = se_geometry {"action":"summary"}
+?= g2.boundingBox.size[0] 42 0.001
+se_documents {"action":"close","saveChanges":false}
+@d3 = se_documents {"action":"new","kind":"part"}
+@k3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k3.sketch}}","points":[-20,-20,20,20]}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}"}
+# A wall thicker than half the profile leaves no thin wall: the feature is deleted and the sketch kept.
+! [feature_failed] se_extrude {"sketch":"{{k3.sketch}}","distance":30,"wall":25}
+@e3 = se_extrude {"sketch":"{{k3.sketch}}","distance":30,"wall":2,"endCaps":true}
+?= e3.volume 14304 0.001
+se_documents {"action":"close","saveChanges":false}
+@d4 = se_documents {"action":"new","kind":"part"}
+@k4 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{k4.sketch}}","points":[10,0,20,30]}
+@l4 = se_sketch {"action":"line","sketch":"{{k4.sketch}}","points":[0,0,0,30]}
+@a4 = se_sketch {"action":"axis","sketch":"{{k4.sketch}}","element":"{{l4.element}}"}
+se_sketch {"action":"close","sketch":"{{k4.sketch}}"}
+@r4 = se_revolve {"sketch":"{{k4.sketch}}","axis":"{{a4.axis}}","wall":2}
+?= r4.volume 13571.68 0.01
+se_documents {"action":"close","saveChanges":false}
+@d5 = se_documents {"action":"new","kind":"part"}
+@p5 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"polyline","sketch":"{{p5.sketch}}","points":[0,0,0,50,30,80],"closed":false}
+se_sketch {"action":"close","sketch":"{{p5.sketch}}","open":true}
+@s5 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{s5.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{s5.sketch}}"}
+@w5 = se_loft_sweep {"action":"sweep","sketches":["{{s5.sketch}}"],"path":"{{p5.sketch}}","wall":1}
+?= w5.volume 2619.37 0.01
+se_documents {"action":"close","saveChanges":false}
+@d6 = se_documents {"action":"new","kind":"part"}
+@a6 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{a6.sketch}}","points":[-20,-20,20,20]}
+se_sketch {"action":"close","sketch":"{{a6.sketch}}"}
+@r6 = se_ref_plane {"action":"offset","plane":"1","distance":50}
+@b6 = se_sketch {"action":"create","plane":"{{r6.handle}}"}
+se_sketch {"action":"circle","sketch":"{{b6.sketch}}","center":[0,0],"radius":15}
+se_sketch {"action":"close","sketch":"{{b6.sketch}}"}
+@w6 = se_loft_sweep {"action":"loft","sketches":["{{a6.sketch}}","{{b6.sketch}}"],"wall":2}
+?= w6.volume 11938.52 0.01
+se_documents {"action":"close","saveChanges":false}
+@d7 = se_documents {"action":"new","kind":"part"}
+@h7 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"circle","sketch":"{{h7.sketch}}","center":[10,3],"radius":2}
+@hl7 = se_sketch {"action":"line","sketch":"{{h7.sketch}}","points":[0,0,0,40]}
+@ha7 = se_sketch {"action":"axis","sketch":"{{h7.sketch}}","element":"{{hl7.element}}"}
+se_sketch {"action":"close","sketch":"{{h7.sketch}}"}
+@w7 = se_loft_sweep {"action":"helix","sketches":["{{h7.sketch}}"],"axis":"{{ha7.axis}}","pitch":8,"turns":5,"wall":0.5}
+?= w7.volume 1730.10 0.01
+se_documents {"action":"close","saveChanges":false}

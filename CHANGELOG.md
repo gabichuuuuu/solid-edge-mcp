@@ -6,6 +6,28 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_sheetmetal louver`: louvers on a flat face of the sheet, placed by the middle of the opening edge and the direction
+  they run, with length, opening width and height, lanced or formed ends and rounded ends with a die radius; the result
+  reads back the louver's bounding box.
+- `se_extrude`, `se_revolve` and `se_loft_sweep`: `wall`, `wallSide` and `endCaps` make a boss, loft, sweep or helix a
+  thin wall of the profile (inside, outside or symmetric, with caps at both ends), such as a pipe from a swept circle; a
+  wall that Solid Edge does not take is an error and the feature is deleted.
+- `se_extrude`: extents `to` (from the sketch plane up to a plane or planar face) and `from_to` (between two planes or
+  faces), for bosses and cuts, and `draft` / `draftSide` to taper the side faces inside or outside.
+- `se_pattern fill`: copies of features on a grid from the original wherever a node falls inside a closed region sketch,
+  rectangular or staggered (`stagger`), turned by `angle`.
+- `se_chamfer`: two setbacks (`distance2`) or a setback and an `angle`, measured from a reference `face`.
+
+### Changed
+
+- `se_hole` and `se_assembly_feature` keep their own extents (finite, through_all, through_next): the new extrusion
+  extents do not apply to them.
+- `docs/COVERAGE.md`: more evidence for what still does not work: threads (`Threads.AddEx`, cosmetic or physical), a
+  pattern at sketch points (`Patterns.Add` and `Patterns.AddSync`), cross brakes and technical requirements (through the
+  typed interface too), keypoint extents of extrusions.
+
 ## [1.1.0] - 2026-10-13
 
 This release adds what a review of the functions left open after 1.0.0 found workable: tubes routed in assemblies, mounting

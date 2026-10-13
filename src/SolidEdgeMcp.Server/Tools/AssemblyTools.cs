@@ -339,7 +339,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         HoleType type = HoleType.Simple,
         [Description("hole countersink: diameter in mm.")] double? countersinkDiameter = null,
         [Description("hole countersink: angle in degrees (default 90).")] double countersinkAngle = 90,
-        ExtrudeExtent extent = ExtrudeExtent.ThroughAll,
+        SimpleExtent extent = SimpleExtent.ThroughAll,
         HoleDirection direction = HoleDirection.Auto,
         [Description("Name of the new feature; delete: the feature name.")] string? name = null,
         [Description("Assembly document handle; default: the active document.")] string? document = null,

@@ -1,0 +1,22 @@
+# A61: chamfer variants (se_chamfer distance2 / angle with a reference face). A 40 x 40 x 30 block (48000); top face 40 x 40.
+# Two setbacks 3 on the top face and 5 on the side face remove 0.5·3·5·40 = 300 and leave the top face 40 x 37 = 1480;
+# 3 on the top face at 30° removes 0.5·3·(3·tan 30°)·40 = 103.92 more and leaves it 40 x 34 = 1360.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[-20,-20,20,20]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":30}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@ex = se_geometry {"action":"edges","source":"{{top.items[0].handle}}","direction":[1,0,0]}
+! [invalid_argument] se_chamfer {"edges":["{{ex.items[0].handle}}"],"distance":3,"distance2":5}
+@c1 = se_chamfer {"edges":["{{ex.items[0].handle}}"],"distance":3,"distance2":5,"face":"{{top.items[0].handle}}"}
+?= c1.volumeChange -300 0.001
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
+?= top2.items[0].area 1480 0.001
+@ex2 = se_geometry {"action":"edges","source":"{{top2.items[0].handle}}","direction":[1,0,0]}
+?= ex2.items[1].start[1] 20 0.001
+@c2 = se_chamfer {"edges":["{{ex2.items[1].handle}}"],"distance":3,"angle":30,"face":"{{top2.items[0].handle}}"}
+?= c2.volumeChange -103.923 0.001
+@top3 = se_geometry {"action":"faces","direction":[0,0,1]}
+?= top3.items[0].area 1360 0.001
+se_documents {"action":"close","saveChanges":false}

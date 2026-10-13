@@ -42,12 +42,14 @@ public sealed record PatternSpec(
     string? Curve = null,
     double? Spacing = null,
     bool Reverse = false,
-    bool Part = false);
+    bool Part = false,
+    string? Region = null,
+    double? Stagger = null);
 
 public static partial class FeatureService
 {
     public static readonly IReadOnlyList<string> HoleTypes = ["simple", "counterbore", "countersink", "tapped"];
-    public static readonly IReadOnlyList<string> PatternTypes = ["rectangular", "circular", "mirror", "curve"];
+    public static readonly IReadOnlyList<string> PatternTypes = ["rectangular", "circular", "mirror", "curve", "fill"];
 
     /// <summary>
     /// Holes at the given centers. With direction "auto" it tries toward the normal of the plane and, if it
@@ -199,7 +201,7 @@ public static partial class FeatureService
             return ConstructionPattern(context, documentHandle, spec, items);
         }
 
-        if (spec.Type != "curve" && string.IsNullOrWhiteSpace(spec.Plane))
+        if (spec.Type is not ("curve" or "fill") && string.IsNullOrWhiteSpace(spec.Plane))
         {
             throw ToolException.InvalidArgument(spec.Type == "mirror"
                 ? "'plane' is required: the mirror plane ('1'-'3', refplane or planar face handle)."
@@ -210,7 +212,7 @@ public static partial class FeatureService
         object[] features = spec.Features.Select(h => context.Handles.Resolve(h, "features")).ToArray();
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
-        RefPlane? refPlane = spec.Type == "curve" ? null : model.ResolvePlane(context, spec.Plane!);
+        RefPlane? refPlane = spec.Type is "curve" or "fill" ? null : model.ResolvePlane(context, spec.Plane!);
         double before = model.Volume();
         object feature;
         switch (spec.Type)
@@ -254,6 +256,8 @@ public static partial class FeatureService
             case "mirror":
                 feature = Create("mirror copy", () => target.MirrorCopies.Add(refPlane, features.Length, features));
                 break;
+            case "fill":
+                return FillPattern(context, model, target, features, spec, before, switched);
             case "curve":
                 feature = CurvePattern(context, target, features, spec);
                 break;
@@ -262,6 +266,32 @@ public static partial class FeatureService
         }
 
         return Verify(context, model, feature, before, 0, switched);
+    }
+
+    /// <summary>
+    /// Fill pattern: copies of the features at the nodes of a grid that fall inside a closed region sketch, the grid starting
+    /// at the features. Verified with a Ø4 hole at (10, 10) of a 100 x 60 x 5 plate and the region 5..95 x 5..55: spacing 10 x 10
+    /// makes 44 copies (9 x 5 nodes, the seed included), every other row shifted 5 mm 46 (rows of 9 and 10: centres on the
+    /// boundary count), the grid turned 45° 45.
+    /// </summary>
+    private static object FillPattern(SeContext context, ModelDocument model, Model target, object[] features, PatternSpec spec, double before, bool switched)
+    {
+        string region = spec.Region ?? throw ToolException.InvalidArgument("A fill pattern needs 'region': a closed sketch whose outline the copies fill.",
+            "Draw the region on the plane of the features with se_sketch and close it.");
+        double sx = Units.MmToM(Units.RequirePositive(spec.SpacingX ?? throw ToolException.InvalidArgument("A fill pattern needs 'spacingX' (mm)."), "spacingX"));
+        double sy = Units.MmToM(Units.RequirePositive(spec.SpacingY ?? spec.SpacingX.Value, "spacingY"));
+        double stagger = spec.Stagger is { } s ? Units.MmToM(Units.RequirePositive(s, "stagger")) : 0;
+        Profile sketchProfile = SketchService.Resolve(context, region);
+        IncludedProfile included = Include(model, sketchProfile);
+        Array featureArray = features;
+        Array regions = new object[] { included.Profile };
+        object feature = Create("fill pattern", included, () => target.Patterns.AddByFill(features.Length, featureArray, 1, regions,
+            stagger > 0 ? FillPatternMethodConstants.seStaggerLinearOffsetFillMethod : FillPatternMethodConstants.seRectangularFillMethod,
+            sx, sy, stagger, Units.DegToRad(spec.Angle % 360), false, 0.0, 0.0));
+        object result = Verify(context, model, feature, before, 0, switched, region, included);
+        Hide(sketchProfile);
+        Hide(included.Profile);
+        return result;
     }
 
     /// <summary>

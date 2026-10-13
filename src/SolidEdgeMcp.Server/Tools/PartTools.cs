@@ -31,6 +31,7 @@ public enum PatternType
     Circular,
     Mirror,
     Curve,
+    Fill,
 }
 
 public enum ShellSide
@@ -184,7 +185,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Countersink diameter in mm.")] double? countersinkDiameter = null,
         [Description("Countersink included angle in degrees (default 90).")] double countersinkAngle = 90,
         [Description("Tapped holes: metric thread such as 'M6' or 'M10x1.25'.")] string? thread = null,
-        ExtrudeExtent extent = ExtrudeExtent.ThroughAll,
+        SimpleExtent extent = SimpleExtent.ThroughAll,
         [Description("For extent 'finite': depth in mm.")] double? depth = null,
         HoleDirection direction = HoleDirection.Auto,
         [Description("Document handle; default: the plane's document or the active one.")] string? document = null,
@@ -199,6 +200,7 @@ public sealed class PartTools(ToolRunner runner)
         circular: 'count' occurrences around the normal of 'plane' through 'center' [x,y,z] (mm, model coordinates, default origin), spread over 'angle' degrees (360 = full circle) |
         mirror: symmetric copy about 'plane' |
         curve: 'count' occurrences every 'spacing' mm along an open edge ('curve', from se_geometry edges or a se_curve), from the original towards the edge end ('reverse': towards its start; se_geometry shows each edge's start and end).
+        fill: copies on a grid from the original, spacingX by spacingY mm (default spacingX), wherever a node falls inside 'region' (a closed sketch on the features' plane); stagger = mm every other row shifts; angle = turn of the grid in degrees.
         features: handles from se_feature_tree or from the tool that created them; or construction geometry (se_surface, se_curve, construction bodies from se_body list, or their faces), copied as new construction bodies with mirror or curve.
         part: true (curve only, no features): copies the whole part, every design body, along the curve.
         {{VerifiedNote}}
@@ -209,19 +211,21 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Layout plane (rectangular/circular, normally the features' sketch plane) or mirror plane: '1'-'3', refplane or planar face handle. Not used by curve.")] string? plane = null,
         [Description("Rectangular: occurrences along x (default 1).")] int countX = 1,
         [Description("Rectangular: occurrences along y (default 1).")] int countY = 1,
-        [Description("Rectangular: spacing along x in mm.")] double? spacingX = null,
-        [Description("Rectangular: spacing along y in mm.")] double? spacingY = null,
+        [Description("Rectangular, fill: spacing along x in mm.")] double? spacingX = null,
+        [Description("Rectangular, fill: spacing along y in mm.")] double? spacingY = null,
         [Description("Circular, curve: number of occurrences including the original.")] int count = 0,
-        [Description("Circular: total angle in degrees (default 360).")] double angle = 360,
+        [Description("Circular: total angle in degrees (default 360); fill: turn of the grid in degrees (360 = none).")] double angle = 360,
         [Description("Circular: axis point [x,y,z] in mm, model coordinates (default origin).")] double[]? center = null,
         [Description("Curve: handle of the open edge to follow.")] string? curve = null,
         [Description("Curve: distance between occurrences in mm, measured along the edge.")] double? spacing = null,
         [Description("Curve: copies towards the start of the edge instead of its end.")] bool reverse = false,
         [Description("Curve: copy the whole part (every design body) instead of features.")] bool part = false,
+        [Description("Fill: closed sketch handle whose outline the copies fill.")] string? region = null,
+        [Description("Fill: shift in mm of every other row (staggered grid).")] double? stagger = null,
         [Description("Document handle; default: the features' document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_pattern", Snake(type), c => FeatureService.Pattern(c, document,
-            new PatternSpec(features, Snake(type), plane, countX, countY, spacingX, spacingY, count, angle, center, curve, spacing, reverse, part)), cancellationToken);
+            new PatternSpec(features, Snake(type), plane, countX, countY, spacingX, spacingY, count, angle, center, curve, spacing, reverse, part, region, stagger)), cancellationToken);
 
     [McpServerTool(Name = "se_shell", Title = "Shell (thin wall)", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -256,6 +260,7 @@ public sealed class PartTools(ToolRunner runner)
         loft: blends 'sketches' (>= 2 sections on different planes, in order); 'origins' [x1,y1,x2,y2,...] (mm, each sketch's own x/y) picks the matching start point of each section to control twist (default: first vertex of each section; a circle starts at +x).
         sweep: moves 'sketches' (>= 1 sections) along 'path' (a sketch with a chain of lines/arcs closed with 'close', open: true for an open chain, a 3D curve from se_curve or a 3D sketch from se_sketch3d; the section usually lies on a plane across the path start).
         helix: coils one section around 'axis' (se_sketch 'axis' on a line of the same sketch, before 'close'); give two of pitch (mm), turns and height (mm); it starts at the section and rises towards the end point of the axis line; hand right (default) | left.
+        wall (add): a thin wall of that thickness in mm along the sections instead of a solid (a pipe from a swept circle); wallSide inside | outside | symmetric; endCaps closes both ends.
         {{VerifiedNote}} The sketches are kept if it fails.
         Example: {"action":"loft","sketches":["sketch:3","sketch:7"]}; {"action":"helix","sketches":["sketch:2"],"axis":"axis:4","pitch":8,"turns":5}.
         """)]
@@ -270,10 +275,14 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Helix: number of turns.")] double? turns = null,
         [Description("Helix: height in mm.")] double? height = null,
         HelixHand hand = HelixHand.Right,
+        [Description("add: thin wall thickness in mm (omitted = solid).")] double? wall = null,
+        [Description("wall: inside (default) | outside | symmetric of the section lines.")] WallSide wallSide = WallSide.Inside,
+        [Description("wall: close both ends with caps of the wall thickness.")] bool endCaps = false,
         [Description("Document handle; default: the sketches' document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_loft_sweep", Snake(action), c => FeatureService.LoftSweep(c, document,
-            new SweepSpec(Snake(action), Snake(operation), sketches, path, origins, axis, pitch, turns, height, Snake(hand))), cancellationToken);
+            new SweepSpec(Snake(action), Snake(operation), sketches, path, origins, axis, pitch, turns, height, Snake(hand),
+                wall is { } thickness ? new ThinWallSpec(thickness, Snake(wallSide), endCaps) : null)), cancellationToken);
 
     [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part / fillet weld", Destructive = false, OpenWorld = false)]
     [Description($$"""

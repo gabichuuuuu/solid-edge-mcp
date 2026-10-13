@@ -22,6 +22,10 @@ public sealed record FlangeSpec(string[]? Edges, double? Length, double Angle = 
 public sealed record HemSpec(string[]? Edges, string Type, double? Length, double? Radius = null, double? Length2 = null,
     double? Radius2 = null, string Side = "inside");
 
+/// <summary>Louver on a planar sheet face (mm): Point is the middle of its opening edge, Along the direction it runs.</summary>
+public sealed record LouverSpec(string[]? Faces, double[]? Point, double[]? Along, double? Length, double? Width, double? Height,
+    string End = "lanced", double? Radius = null);
+
 /// <summary>Global sheet metal values (mm); <c>null</c> = no change.</summary>
 public sealed record SheetMetalValues(double? Thickness, double? BendRadius, double? ReliefWidth, double? ReliefDepth, double? NeutralFactor);
 
@@ -303,6 +307,121 @@ public static partial class FeatureService
         return Synchronous(context, model, "break corner", 0, null,
             [() => model.RequireModel().BreakCorners.Add(kind, edgeObjects.Length, edgeObjects, setback)],
             "Use the corner edges that go through the thickness (se_geometry 'edges' with direction = the sheet normal) of synchronous features, and a smaller size.");
+    }
+
+    /// <summary>
+    /// Louver on a planar face of the sheet (Louvers.AddSync, synchronous; Louvers.Add from a line profile in ordered modeling
+    /// leaves the feature failed). Verified on a 100 x 60 x 1 mm tab: origin (50, 30, 1) on the top face, direction +x, length
+    /// 40, width 5, height 3 -> the louver spans x 30..70 (centred on the origin), y 30..35 (it opens to the left of the
+    /// direction seen from the face normal) and rises to z 4; a lanced end removes a little volume (-1.667 mm3), a formed
+    /// end adds some, and rounded ends take the die radius. An origin off the face gives 0x807B0086.
+    /// </summary>
+    public static object Louver(SeContext context, string? documentHandle, LouverSpec spec)
+    {
+        if (spec.Faces is not [string faceHandle])
+        {
+            throw ToolException.InvalidArgument("louver requires 'faces' with one planar face of the sheet (se_geometry faces type plane): the louver rises from it.");
+        }
+
+        if (spec.Point is not { Length: 3 } point || spec.Along is not { Length: 3 } along)
+        {
+            throw ToolException.InvalidArgument("louver requires 'point' [x, y, z] in mm on the face (the middle of the louver's opening edge) and 'along' [x, y, z], the direction it runs in the plane of the face.");
+        }
+
+        double length = Units.MmToM(Units.RequirePositive(spec.Length ?? throw ToolException.InvalidArgument("louver requires 'length' (mm)."), "length"));
+        double width = Units.MmToM(Units.RequirePositive(spec.Width ?? throw ToolException.InvalidArgument("louver requires 'width' (mm): the size of the opening across the louver."), "width"));
+        double height = Units.MmToM(Units.RequirePositive(spec.Height ?? throw ToolException.InvalidArgument("louver requires 'height' (mm): how far it rises from the face."), "height"));
+        LouverFeatureConstants end = spec.End switch
+        {
+            "lanced" => LouverFeatureConstants.seLouverLancedEnd,
+            "formed" => LouverFeatureConstants.seLouverFormedEnd,
+            _ => throw ToolException.InvalidArgument($"Unknown louver end '{spec.End}'.", "Use lanced or formed."),
+        };
+        object dieRadius = spec.Radius is { } r ? Units.MmToM(Units.RequirePositive(r, "radius")) : Type.Missing;
+        ModelDocument model = ModelDocument.For(context, documentHandle, faceHandle);
+        RequireSheet(model);
+        Face face = context.Handles.Resolve<Face>(faceHandle, "faces");
+        if (face.Geometry is not SolidEdgeGeometry.Plane)
+        {
+            throw ToolException.InvalidArgument($"A louver needs a planar face; '{faceHandle}' is not one.", "Pass a flat face of the sheet (se_geometry faces with type 'plane').");
+        }
+
+        (double[] root, double[] normal) = PlaneFrame(face);
+        double[] origin = point.Select(v => Units.MmToM(Units.RequireFinite(v, "point"))).ToArray();
+        double off = Dot(Minus(origin, root), normal);
+        if (Math.Abs(off) > LouverPointTolerance)
+        {
+            throw ToolException.InvalidArgument($"'point' is {Units.MToMm(Math.Abs(off)):0.###} mm off the plane of the face.", "Pass a point on the face (se_geometry faces gives its bounding box).");
+        }
+
+        double along0 = Dot(along, normal);
+        double[] direction = along.Zip(normal, (a, n) => a - (along0 * n)).ToArray();
+        double size = Geo.Length(direction);
+        if (size < 1e-9)
+        {
+            throw ToolException.InvalidArgument("'along' is perpendicular to the face: give a direction in its plane.");
+        }
+
+        direction = direction.Select(v => v / size).ToArray();
+        return Synchronous(context, model, "louver", 0, null,
+            [() =>
+            {
+                // The face of the ordered body may be stale once the document is synchronous: take the synchronous face under the point.
+                Face target = FaceUnder(model, origin, normal) ?? face;
+                Array o = origin.ToArray();
+                Array d = direction.ToArray();
+                return model.RequireModel().Louvers.AddSync(target, ref o, ref d, length, width, height, end,
+                    spec.Radius is null ? Type.Missing : LouverFeatureConstants.seLouverRound, dieRadius);
+            }],
+            "Keep the louver inside the face, away from its edges and other features, with 'point' on the face and 'along' in its plane; try a smaller length, width or height.",
+            box: FeatureBox);
+    }
+
+    private const double LouverPointTolerance = 1e-5;
+
+    /// <summary>The planar face of the body with this outward normal whose plane holds the point and whose box contains it.</summary>
+    private static Face? FaceUnder(ModelDocument model, double[] point, double[] normal) =>
+        model.Bodies().SelectMany(b => Late.Items(b.Body.Faces[TopologyQuery.igQueryPlane]).OfType<Face>()).FirstOrDefault(f =>
+        {
+            if (Dot(InspectService.FaceNormal(f), normal) < 1 - ParallelTolerance || Math.Abs(Dot(Minus(point, PlaneFrame(f).Point), normal)) > LouverPointTolerance)
+            {
+                return false;
+            }
+
+            Array low = new double[3];
+            Array high = new double[3];
+            f.GetRange(ref low, ref high);
+            double[] lo = Geo.Doubles(low).ToArray();
+            double[] hi = Geo.Doubles(high).ToArray();
+            return Enumerable.Range(0, 3).All(k => point[k] >= lo[k] - LouverPointTolerance && point[k] <= hi[k] + LouverPointTolerance);
+        });
+
+    /// <summary>Bounding box (mm) of the faces of a feature.</summary>
+    private static object? FeatureBox(object feature)
+    {
+        var faces = Late.Get(feature, "Faces", TopologyQuery.igQueryAll) is { } all ? Late.Items(all).OfType<Face>().ToList() : [];
+        if (faces.Count == 0)
+        {
+            return null;
+        }
+
+        double[] min = [double.MaxValue, double.MaxValue, double.MaxValue];
+        double[] max = [double.MinValue, double.MinValue, double.MinValue];
+        foreach (Face f in faces)
+        {
+            Array low = new double[3];
+            Array high = new double[3];
+            f.GetRange(ref low, ref high);
+            double[] lo = Geo.Doubles(low).ToArray();
+            double[] hi = Geo.Doubles(high).ToArray();
+            for (int k = 0; k < 3; k++)
+            {
+                min[k] = Math.Min(min[k], lo[k]);
+                max[k] = Math.Max(max[k], hi[k]);
+            }
+        }
+
+        return new { min = min.Select(Geo.Mm).ToArray(), max = max.Select(Geo.Mm).ToArray() };
     }
 
     /// <summary>
@@ -677,7 +796,7 @@ public static partial class FeatureService
     /// each operation is a transaction): in synchronous mode, deleting a flange does not return the plate it trimmed.
     /// </summary>
     private static object Synchronous(SeContext context, ModelDocument model, string what, int expectedSign, string? sketch,
-        IReadOnlyList<Func<object?>> steps, string nextStep, Func<IReadOnlyList<object>>? parts = null)
+        IReadOnlyList<Func<object?>> steps, string nextStep, Func<IReadOnlyList<object>>? parts = null, Func<object, object?>? box = null)
     {
         int undoStart = UndoCount(model);
         bool switched = model.EnsureSynchronous();
@@ -739,6 +858,7 @@ public static partial class FeatureService
         {
             feature = Describe(context, model, created[0]),
             features = all.Count > 1 ? all.Select(f => Describe(context, model, f)).ToList() : null,
+            boundingBox = box?.Invoke(created[0]),
             volume = Geo.Mm3(final),
             volumeChange = Geo.Mm3(current - start),
             modelingMode = model.ModelingMode,

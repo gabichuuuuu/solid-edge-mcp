@@ -22,7 +22,8 @@ public sealed record SweepSpec(
     double? Pitch = null,
     double? Turns = null,
     double? Height = null,
-    string Hand = "right");
+    string Hand = "right",
+    ThinWallSpec? ThinWall = null);
 
 public static partial class FeatureService
 {
@@ -58,6 +59,7 @@ public static partial class FeatureService
 
         ModelDocument model = ModelDocument.For(context, documentHandle, sketches[0]);
         bool cut = IsCut(spec.Operation);
+        ThinWallSpec? wall = CheckThinWall(spec.ThinWall, cut);
         Profile[] sketchProfiles = sketches.Select(s => SketchService.Resolve(context, s)).ToArray();
         (double X, double Y)[]? origins = spec.Origins is null ? null : Geo.Points2(spec.Origins, "origins", sketches.Length).ToArray();
         if (origins is not null && origins.Length != sketches.Length)
@@ -149,6 +151,8 @@ public static partial class FeatureService
                 _ => Helix(model, existing, cut, axis!, sections, helix, hand),
             });
 
+            // The section copies are deleted by the catch below if the wall does not take.
+            ApplyThinWall(model, feature, wall, null);
             (double after, string? status) = Check(context, model, feature, before, cut ? -1 : 1, string.Join(", ", sketches), null);
             foreach (Profile profile in sketchProfiles.Concat(pathProfile is null ? [] : [pathProfile]))
             {

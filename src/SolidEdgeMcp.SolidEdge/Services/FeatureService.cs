@@ -10,6 +10,12 @@ using SolidEdgePart;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
+/// <summary>Thin wall of a protrusion (mm): Side = inside | outside | symmetric of the profile; EndCaps closes both ends.</summary>
+public sealed record ThinWallSpec(double Thickness, string Side = "inside", bool EndCaps = false);
+
+/// <summary>Extrusion limits and draft: From/To = plane index, plane handle or planar face; Draft in degrees, DraftSide inside | outside.</summary>
+public sealed record ExtrudeLimits(string? From = null, string? To = null, double? Draft = null, string? DraftSide = null);
+
 /// <summary>
 /// Part operations in ordered modelling. Each operation is verified: if Solid Edge marks it
 /// as failed or does not change the volume as expected, it is deleted and an actionable error is returned.
@@ -27,16 +33,40 @@ public static partial class FeatureService
     public static readonly IReadOnlyList<string> Directions = ["normal", "reverse", "symmetric"];
 
     public static object Extrude(SeContext context, string? documentHandle, string sketch, string operation, string extent,
-        string direction, double? distance)
+        string direction, double? distance, ThinWallSpec? thinWall = null, ExtrudeLimits? limits = null)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
         Profile sketchProfile = SketchService.Resolve(context, sketch);
         bool cut = IsCut(operation);
+        ThinWallSpec? wall = CheckThinWall(thinWall, cut);
         bool finite = extent switch
         {
             "finite" => true,
-            "through_all" or "through_next" => false,
-            _ => throw ToolException.InvalidArgument($"Unknown extent '{extent}'.", "Use finite, through_all or through_next."),
+            "through_all" or "through_next" or "to" or "from_to" => false,
+            _ => throw ToolException.InvalidArgument($"Unknown extent '{extent}'.", "Use finite, through_all, through_next, to or from_to."),
+        };
+        object? fromSource = null;
+        object? toSource = null;
+        if (extent is "to" or "from_to")
+        {
+            toSource = model.ResolvePlaneSource(context, limits?.To ?? throw ToolException.InvalidArgument($"Extent '{extent}' requires 'to': the plane or planar face the extrusion ends on."), "to");
+            if (extent == "from_to")
+            {
+                fromSource = model.ResolvePlaneSource(context, limits.From ?? throw ToolException.InvalidArgument("Extent 'from_to' requires 'from': the plane or planar face the extrusion starts on."), "from");
+            }
+        }
+
+        double? draft = limits?.Draft;
+        if (draft is { } angle && !(angle > 0 && angle < 90))
+        {
+            throw ToolException.InvalidArgument("'draft' must be an angle between 0 and 90 degrees.");
+        }
+
+        DraftSideConstants draftSide = (limits?.DraftSide ?? "inside") switch
+        {
+            "inside" => DraftSideConstants.seDraftInside,
+            "outside" => DraftSideConstants.seDraftOutside,
+            string other => throw ToolException.InvalidArgument($"Unknown draft side '{other}'.", "Use inside or outside."),
         };
         double depth = finite
             ? Units.MmToM(Units.RequirePositive(distance ?? throw ToolException.InvalidArgument("Extent 'finite' requires 'distance' (mm)."), "distance"))
@@ -57,6 +87,7 @@ public static partial class FeatureService
                 {
                     "finite" => cutouts.AddFiniteMulti(1, ref profiles, side, depth),
                     "through_all" => cutouts.AddThroughAllMulti(1, ref profiles, side),
+                    "to" or "from_to" => cutouts.AddFromToMulti(1, ref profiles, fromSource ?? included.Profile.Plane, toSource),
                     _ => cutouts.AddThroughNextMulti(1, ref profiles, side),
                 };
             }
@@ -77,9 +108,16 @@ public static partial class FeatureService
             {
                 "finite" => protrusions.AddFiniteMulti(1, ref profiles, side, depth),
                 "through_all" => protrusions.AddThroughAllMulti(1, ref profiles, side),
+                "to" or "from_to" => protrusions.AddFromToMulti(1, ref profiles, fromSource ?? included.Profile.Plane, toSource),
                 _ => protrusions.AddThroughNextMulti(1, ref profiles, side),
             };
         });
+
+        ApplyThinWall(model, feature, wall, included);
+        if (draft is { } degrees)
+        {
+            ApplyDraft(model, feature, Units.DegToRad(degrees), draftSide, side == FeaturePropertyConstants.igSymmetric, included);
+        }
 
         object result = Verify(context, model, feature, before, cut ? -1 : 1, switched, sketch, included);
         Hide(sketchProfile);
@@ -87,8 +125,125 @@ public static partial class FeatureService
         return result;
     }
 
+    /// <summary>
+    /// Draft (taper) of the side faces of an extrusion (ApplyDirection1Treatment, and Direction2 when symmetric). Verified with a
+    /// 40 x 40 square extruded 30 mm: 5° inside 41976.37 mm3 (a frustum 40 -> 34.75), outside 54574.74 (40 -> 45.25).
+    /// A draft the solid cannot take leaves the volume as it was: the feature is then deleted.
+    /// </summary>
+    private static void ApplyDraft(ModelDocument model, object feature, double radians, DraftSideConstants side, bool bothDirections, IncludedProfile included)
+    {
+        if (StatusOf(feature) == "failed")
+        {
+            // Verify reports the failed feature itself.
+            return;
+        }
+
+        double before = model.Volume();
+        string? problem = null;
+        try
+        {
+            // Verified: the same side on Direction2 tapers that half the other way (symmetric 30 mm, 5° inside on both gave
+            // 48068.89 mm3 = an inside half plus an outside half), so the second direction takes the opposite side.
+            DraftSideConstants opposite = side == DraftSideConstants.seDraftInside ? DraftSideConstants.seDraftOutside : DraftSideConstants.seDraftInside;
+            foreach ((string method, DraftSideConstants s) in bothDirections ? [("ApplyDirection1Treatment", side), ("ApplyDirection2Treatment", opposite)] : new[] { ("ApplyDirection1Treatment", side) })
+            {
+                Late.Call(feature, method, (int)TreatmentTypeConstants.seTreatmentDraft, (int)s, radians, (int)TreatmentCrownTypeConstants.seTreatmentCrownNone,
+                    (int)TreatmentCrownSideConstants.seTreatmentCrownSideNone, (int)TreatmentCrownCurvatureSideConstants.seTreatmentCrownCurvatureNone, 0.0, 0.0);
+            }
+
+            if (StatusOf(feature) == "failed" || Math.Abs(model.Volume() - before) <= VolumeTolerance)
+            {
+                problem = "the draft did not change the solid";
+            }
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            problem = $"Solid Edge did not take the draft ({ComErrors.Unwrap(ex).Message.Trim()})";
+        }
+
+        if (problem is not null)
+        {
+            string name = Late.TryGetString(feature, "Name") ?? "The feature";
+            TryDelete(feature);
+            DeleteIncluded(included);
+            throw new ToolException("feature_failed", $"{name} was deleted because {problem}. The sketch is kept: call the tool again with it.",
+                "Use a smaller draft angle, or the other draftSide, so that the side faces still meet the end.");
+        }
+    }
+
+    /// <summary>
+    /// The thin wall option of a protrusion (SetThinWallOptions on the new feature, as the Thin Wall step of the command).
+    /// Verified with a 40 x 40 square extruded 30 mm (48000 mm3) and a 2 mm wall: inside 9120 (40² - 36²)·30, outside 10080,
+    /// symmetric 9600, inside with end caps 14304 (48000 - 36²·26); a 10 x 30 rectangle 10 mm off the axis revolved 360°:
+    /// inside 13571.68, outside 16587.61. An open profile gives no body.
+    /// </summary>
+    private static ThinWallSpec? CheckThinWall(ThinWallSpec? wall, bool cut)
+    {
+        if (wall is null)
+        {
+            return null;
+        }
+
+        if (cut)
+        {
+            throw ToolException.InvalidArgument("'wall' applies to protrusions (operation add), not to cutouts.");
+        }
+
+        Units.RequirePositive(wall.Thickness, "wall");
+        _ = ThinWallSide(wall.Side);
+        return wall;
+    }
+
+    private static FeaturePropertyConstants ThinWallSide(string side) => side switch
+    {
+        "inside" => FeaturePropertyConstants.igInside,
+        "outside" => FeaturePropertyConstants.igOutside,
+        "symmetric" => FeaturePropertyConstants.igSymmetric,
+        _ => throw ToolException.InvalidArgument($"Unknown wall side '{side}'.", "Use inside, outside or symmetric."),
+    };
+
+    /// <summary>
+    /// Sets the thin wall on the new feature. Verified: a wall thicker than half the profile leaves the solid as it was with a
+    /// warning, so a volume that does not change is taken as a failure and the feature is deleted.
+    /// </summary>
+    private static void ApplyThinWall(ModelDocument model, object feature, ThinWallSpec? wall, IncludedProfile? included)
+    {
+        if (wall is null || StatusOf(feature) == "failed")
+        {
+            return;
+        }
+
+        const string hint = "Use a closed sketch and a wall thinner than half the narrowest part of the profile.";
+        double solid = model.Volume();
+        string? problem = null;
+        try
+        {
+            Late.Call(feature, "SetThinWallOptions", true, wall.EndCaps, false, Units.MmToM(wall.Thickness), (int)ThinWallSide(wall.Side));
+            if (StatusOf(feature) == "failed" || Math.Abs(model.Volume() - solid) <= VolumeTolerance)
+            {
+                problem = "the solid did not become a thin wall";
+            }
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            problem = $"Solid Edge did not take the thin wall ({ComErrors.Unwrap(ex).Message.Trim()})";
+        }
+
+        if (problem is not null)
+        {
+            string name = Late.TryGetString(feature, "Name") ?? "The feature";
+            TryDelete(feature);
+            if (included is not null)
+            {
+                DeleteIncluded(included);
+            }
+
+            throw new ToolException("feature_failed", $"{name} was deleted because {problem}. The sketches are kept: call the tool again with them.", hint);
+        }
+    }
+
     public static object Revolve(SeContext context, string? documentHandle, string sketch, string? axis, string operation,
-        double angle, string direction)
+        double angle, string direction, ThinWallSpec? thinWall = null)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
         Profile sketchProfile = SketchService.Resolve(context, sketch);
@@ -96,6 +251,7 @@ public static partial class FeatureService
             axis ?? throw ToolException.InvalidArgument("se_revolve requires 'axis'.", "Create it with se_sketch action 'axis' on a line of the sketch, before closing the sketch."),
             "axis");
         bool cut = IsCut(operation);
+        ThinWallSpec? wall = CheckThinWall(thinWall, cut);
         double radians = Units.DegToRad(Units.RequirePositive(angle, "angle"));
         if (radians > 2 * Math.PI + 1e-9)
         {
@@ -125,6 +281,7 @@ public static partial class FeatureService
             return existing.RevolvedProtrusions.AddFiniteMulti(1, ref profiles, refAxis, side, radians);
         });
 
+        ApplyThinWall(model, feature, wall, included);
         object result = Verify(context, model, feature, before, cut ? -1 : 1, switched, sketch, included);
         Hide(sketchProfile);
         Hide(included.Profile);
@@ -200,14 +357,43 @@ public static partial class FeatureService
     }
 
     /// <summary>Equal-setback chamfer on the given edges.</summary>
-    public static object Chamfer(SeContext context, string? documentHandle, string[]? edges, double? distance)
+    /// <summary>
+    /// Chamfer with an equal setback, two setbacks or a setback and an angle; the last two measure 'distance' on the reference
+    /// face. Verified on an edge of a 40 x 40 x 30 block with the top face as reference: 3 and 5 remove 0.5·3·5·40 = 300 mm3,
+    /// 3 and 30° remove 0.5·3·(3·tan 30°)·40 = 103.92 mm3.
+    /// </summary>
+    public static object Chamfer(SeContext context, string? documentHandle, string[]? edges, double? distance, double? distance2 = null,
+        double? angle = null, string? face = null)
     {
         (ModelDocument model, object[] edgeObjects) = ResolveEdges(context, documentHandle, edges);
         double d = Units.MmToM(Units.RequirePositive(distance ?? throw ToolException.InvalidArgument("se_chamfer requires 'distance' (mm)."), "distance"));
+        if (distance2 is not null && angle is not null)
+        {
+            throw ToolException.InvalidArgument("Give either 'distance2' (two setbacks) or 'angle' (a setback and an angle), not both.");
+        }
+
+        if (angle is { } a && !(a > 0 && a < 90))
+        {
+            throw ToolException.InvalidArgument("'angle' must be between 0 and 90 degrees.");
+        }
+
+        object? reference = null;
+        if (distance2 is not null || angle is not null)
+        {
+            reference = context.Handles.Resolve<SolidEdgeGeometry.Face>(face ?? throw ToolException.InvalidArgument(
+                "Two setbacks or an angle need 'face': the face 'distance' is measured on, one of the two faces that meet at the edges.",
+                "Get it with se_geometry 'faces'."), "face");
+        }
+
+        double d2 = distance2 is { } second ? Units.MmToM(Units.RequirePositive(second, "distance2")) : 0;
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
         double before = model.Volume();
-        object feature = Create("chamfer", () => target.Chamfers.AddEqualSetback(edgeObjects.Length, edgeObjects, d));
+        object feature = Create("chamfer", () => distance2 is not null
+            ? target.Chamfers.AddUnequalSetback(reference, edgeObjects.Length, edgeObjects, d, d2)
+            : angle is { } degrees
+                ? target.Chamfers.AddSetbackAngle(reference, edgeObjects.Length, edgeObjects, d, Units.DegToRad(degrees))
+                : target.Chamfers.AddEqualSetback(edgeObjects.Length, edgeObjects, d));
         return Verify(context, model, feature, before, 0, switched);
     }
 

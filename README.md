@@ -15,7 +15,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![80 tools](https://img.shields.io/badge/tools-80-2F6FEB)
 
 ![Version 1.1.0](https://img.shields.io/badge/version-1.1.0-2F6FEB)
-[![Progress: 71 % of functions work through the MCP](https://img.shields.io/badge/progress-71%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 72 % of functions work through the MCP](https://img.shields.io/badge/progress-72%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -74,8 +74,8 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=60bcc6d2">
-  <img src="docs/assets/progress.svg?v=b7dcaa16" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=f82ba71b">
+  <img src="docs/assets/progress.svg?v=ad47c84a" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
@@ -253,17 +253,17 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_sketch3d` | 3D sketches of parts in model space: polylines tied end to end, arcs, circles, splines through points, points, fillets between lines and 3D relations (parallel, perpendicular, connect, tangent, on a plane, symmetric, lock…); each element read back with its ends, centre, length or radius. A 3D sketch is a sweep path for `se_loft_sweep`. |
 | | `se_region` | Closed regions of drawing sheets and sketches: fills and hatching (round a point among the elements or by the corners of a polygon) with fill style, colour, angle and spacing; list, restyle and delete them; area properties (area, perimeter, centroid, second moments, principal axes, radii of gyration and section moduli), minus holes. The point is proved to be inside a closed loop before Solid Edge looks for the region. |
 | | `se_ref_plane` | Reference planes of parts and assemblies: list; offset, angled, through three points, midway between two planes, normal to an edge (at an end, a distance or a fraction of its length) and tangent to a cylinder, each checked against its geometry and global, as the Planes commands make them; in an assembly, offset and angled from assembly planes or faces of occurrences and normal to an edge of an occurrence. Coordinate systems by origin and angles or along two edges, with their origin and axes. Show, hide, rename and delete planes and coordinate systems (the base ones and those something is built on are kept). |
-| **Part** | `se_extrude` | Boss or cut by extrusion: blind, through all or up to next; normal, reversed or symmetric. |
-| | `se_revolve` | Boss or cut by revolution about the sketch axis. |
+| **Part** | `se_extrude` | Boss or cut by extrusion: blind, through all, up to next, up to a plane or face, or from one plane or face to another; normal, reversed or symmetric; with a draft angle on the side faces; a boss can be a thin wall of the profile (inside, outside or symmetric, with end caps). |
+| | `se_revolve` | Boss or cut by revolution about the sketch axis; a boss can be a thin wall of the profile. |
 | | `se_hole` | Simple, counterbored, countersunk and threaded holes at points on a plane, without a sketch. |
 | | `se_round` | Edge fillet with a constant radius, or a variable one (a radius at the start and the end of each edge). |
-| | `se_chamfer` | Edge chamfer with equal setback. |
-| | `se_pattern` | Rectangular pattern, circular pattern, pattern along an edge and mirror of features; mirror copies and copies along an edge of construction geometry (surfaces, curves, construction bodies); copies of the whole part along an edge. |
+| | `se_chamfer` | Edge chamfer with an equal setback, two setbacks or a setback and an angle. |
+| | `se_pattern` | Rectangular pattern, circular pattern, pattern along an edge, fill pattern inside a region (rectangular or staggered) and mirror of features; mirror copies and copies along an edge of construction geometry (surfaces, curves, construction bodies); copies of the whole part along an edge. |
 | | `se_shell` | Shell with a common wall thickness and optional open faces. |
 | | `se_thin_wall` | Mounting bosses of plastic parts, grown from a plane to the next face, with an optional mounting hole; the volume change is read back. |
 | | `se_decal` | Decals: a picture wrapped on a face of a part, with a name and an offset; list and delete. |
 | | `se_draft` | Face draft relative to a neutral plane. |
-| | `se_loft_sweep` | Loft, sweep (along a sketch, a 3D curve or a 3D sketch) and helix, as a boss or a cut. |
+| | `se_loft_sweep` | Loft, sweep (along a sketch, a 3D curve or a 3D sketch) and helix, as a boss or a cut; a boss can be a thin wall (a pipe from a swept circle). |
 | | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, offset faces, replace faces with a plane or a surface, merge adjacent faces into one B-spline face, delete a region bounded by a loop of edges, and resize holes and rounds; slots along an open path, web networks and lips in shelled parts, normal protrusions and cutouts (the region inside or outside closed curves projected or wrapped onto faces, raised or recessed, e.g. a logo), scaling of the body, copies of saved parts (scaled or mirrored), splitting a body by a plane into design bodies and uniting them again (`se_geometry` and `se_physical` measure every body), and fillet weld beads between faces of the part, with equal or unequal legs. |
 | | `se_body` | Bodies of a part: list the design and construction bodies; subtract and intersect design bodies (with a closed body as the tool, or an open surface that keeps the side its normal points to or the other one); unite closed construction bodies (end-capped surfaces) with a design body, the tools staying as construction bodies; emboss closed bodies into another (thickened or as a cut only, with a clearance, on either side); turn design bodies into construction bodies and closed construction bodies (end-capped surfaces) into design bodies; divide a saved part into one part file per piece by a reference plane or a surface. Each result is checked by the volume and the bodies. |
 | | `se_face_relation` | 3D relations between faces of a part, as the Relate commands of synchronous modelling: coplanar, offset at a distance, parallel, perpendicular, tangent and concentric (the faces move and the target stays; each relation is checked on the geometry, and one that Solid Edge cannot meet is deleted), and fixed faces; list relations, edit the distance of an offset and delete relations; read and set the live rules of the session, restore their defaults and put them back. |
@@ -274,7 +274,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_curve` | Construction curves: through 3D points, intersections of faces, surfaces and the body, sketches projected onto faces, crossings of two sketches, chains of edges, contours drawn on a face through points on it, sketches wrapped onto cylindrical or conical faces, and isoclines (where the face normal makes an angle with a plane, e.g. a silhouette); split a curve where planes or other curves cross it (its length is checked); list and delete. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature or a group; group features and dissolve a group; move a feature before or after another; roll the model back to a feature (new features go after it) and forward to its end. |
 | | `se_simplify` | The simplified model of a part or sheet metal part, which assemblies can show instead of the design body: make it, delete holes up to a diameter, rounds, chosen faces and regions bounded by edges from it (each change checked on its body, the design body untouched), switch between the design and the simplified model, list and delete its features; the simplified model of an assembly (without chosen or small components), written as a part. |
-| **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), gauges of a material library, tab, contour flange, flange, hem, corner break, flat pattern with cut size, changes of the angle and radius of existing bends, a flange matched to a parallel plane (onto it, short of it or beyond it), and conversion of a thin-walled part into sheet metal. |
+| **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), gauges of a material library, tab, contour flange, flange, hem, corner break, flat pattern with cut size, changes of the angle and radius of existing bends, a flange matched to a parallel plane (onto it, short of it or beyond it), louvers (lanced or formed, with rounded ends) placed on a flat face, and conversion of a thin-walled part into sheet metal. |
 | | `se_sheetmetal_form` | From a sketch: dimple, drawn cutout, normal cutout, etch, jog, bend and bead. |
 | **Assemblies** | `se_assembly` | Insert, move, rotate, mirror about a plane, fix, replace, show or hide, suppress and delete occurrences; activate or inactivate them; make a subassembly from occurrences, move occurrences into a subassembly and disperse one; copy the components of another assembly in, kept in step with it, plain or mirrored. |
 | | `se_relations` | Planar (mate and flush), axial (rotation locked or free), insert, parallel, tangent, angle, center-plane, connect (points of edges onto points, faces, planes or edges), coordinate system and rigid set relations, each checked geometrically; gear relations between two gears or a gear and a rack, in teeth or turns; list and delete. |
