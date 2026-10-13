@@ -1022,6 +1022,59 @@ public static partial class DrawingService
         return TableResult(context, draft, table, "block_table", table.Columns, table.Rows.Count, anchor, x, y);
     }
 
+    /// <summary>
+    /// The tables already on a drawing (parts lists, bend, tolerance, family of parts and block tables) with their shown columns
+    /// and cells, so that a drawing opened from a file can be read.
+    /// </summary>
+    public static object Tables(SeContext context, string? documentHandle)
+    {
+        DraftDocument draft = DraftFor(context, documentHandle, null);
+        var tables = new List<object>();
+        void Add(string kind, object table, TableColumns columns, int count)
+        {
+            (List<string?> headers, List<string?[]> rows) = TableContent(context, table, columns, count);
+            double[]? origin = null;
+            try
+            {
+                object?[] args = Late.CallByRef(table, "GetOrigin", [0.0, 0.0], 0, 1);
+                origin = [Geo.Mm(Convert.ToDouble(args[0], System.Globalization.CultureInfo.InvariantCulture)), Geo.Mm(Convert.ToDouble(args[1], System.Globalization.CultureInfo.InvariantCulture))];
+            }
+            catch (Exception ex) when (Late.IsMemberFailure(ex))
+            {
+                // Bend and family of parts tables have no GetOrigin.
+            }
+
+            tables.Add(new { handle = context.Register(table, kind, Document(draft)), kind, origin, columns = headers, count, rows });
+        }
+
+        foreach (PartsList list in Late.Items(draft.PartsLists).OfType<PartsList>())
+        {
+            Add("parts_list", list, list.Columns, list.Rows.Count);
+        }
+
+        foreach (DraftBendTable table in Late.Items(draft.DraftBendTables).OfType<DraftBendTable>())
+        {
+            Add("bend_table", table, table.Columns, table.Rows.Count);
+        }
+
+        foreach (ToleranceTable table in Late.Items(draft.ToleranceTables).OfType<ToleranceTable>())
+        {
+            Add("tolerance_table", table, table.Columns, table.Rows.Count);
+        }
+
+        foreach (FOPTable table in Late.Items(draft.FOPTables).OfType<FOPTable>())
+        {
+            Add("family_table", table, table.Columns, table.Rows.Count);
+        }
+
+        foreach (BlockTable table in Late.Items(draft.BlockTables).OfType<BlockTable>())
+        {
+            Add("block_table", table, table.Columns, table.Rows.Count);
+        }
+
+        return new { document = Document(draft).Name, count = tables.Count, tables };
+    }
+
     private static object TableResult(SeContext context, DraftDocument draft, object table, string kind, TableColumns columns, int count,
         TableAnchorPoint anchor, double x, double y)
     {

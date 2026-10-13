@@ -6,6 +6,11 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_drawing tables`: reads the tables already on a drawing (parts lists, bend, tolerance, family of parts and block
+  tables) with their columns and cells, so a drawing opened from its file can be checked.
+
 ## [0.9.1] - 2026-10-13
 
 ### Added

@@ -37,6 +37,7 @@ public enum DrawingAction
     ToleranceTable,
     FamilyTable,
     BlockTable,
+    Tables,
     Update,
     Blocks,
     CreateBlock,
@@ -118,9 +119,9 @@ public sealed class DrawingTools(ToolRunner runner)
     [Description("""
         Drawings of a draft document (se_documents new kind=draft). Sheet positions in mm from its lower-left corner (a view position is its centre); model points in mm.
         Sheets: sheets (also background sheets = frame and title block; draw on them with se_sketch/se_annotation) | add_sheet (name, paper + portrait or width/height) | setup_sheet (rename, resize, background, showBackground) | activate_sheet (a background opens the background view) | delete_sheet | add_background | replace_background (from the .dft 'path').
-        Views: views | base_view (path of a saved .par/.psm/.asm or model = an open saved model handle; orientation; scale, default the largest standard one that fits; flat = flat pattern; modelView = a saved PMI model view; member = of an assembly family or alternate positions) | projected_view (view + direction; diagonals = pictorial) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | model2d_view (what is drawn on the model2d sheet of 'sheets'; scale default 1) | move_view (position or delta) | scale_view | delete_view. Without position, derived views go beside their source view.
-        Dimensions: dimension (view + kind + points = model points that pick what to measure) | retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet).
-        Tables: parts_list (assembly view; balloons) | bend_table (sheet metal view, usually the flat pattern) | tolerance_table (view: its dimensions with a fit) | family_table (view of a part with a family of parts) | block_table (sheet: its placed blocks) | update (views and title block text; force = full update).
+        Views: views | base_view (path of a saved .par/.psm/.asm or model = an open saved model handle; orientation; scale, default the largest standard one that fits; flat = flat pattern; modelView = a saved PMI model view; member = of an assembly family or alternate positions) | projected_view (view + direction; diagonals = pictorial) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | model2d_view (what is drawn on the model2d sheet; scale default 1) | move_view (position or delta) | scale_view | delete_view. Without position, derived views go beside their source view.
+        Dimensions: dimension (view + kind + points = model points that pick what to measure) | retrieve_dimensions (view: model dimensions parallel to it, with centre marks) | dimensions (of a sheet).
+        Tables: parts_list (assembly view; balloons) | bend_table (flat pattern view) | tolerance_table (view: its dimensions with a fit) | family_table (view of a part with a family of parts) | block_table (sheet: its placed blocks) | tables (read them all: kind, cells) | update (views, title block text; force = full).
         Blocks: blocks (definitions and occurrences) | create_block (name + elements + position = block origin) | place_block (name + position; scale, angle) | import_block (path of a saved .dft) | delete_block (name).
         Title block: se_properties, then 'update'. Export: se_export (.pdf/.dxf/.dwg).
         Example: {"action":"projected_view","view":"view:3","direction":"down"}.
@@ -193,6 +194,7 @@ public sealed class DrawingTools(ToolRunner runner)
                 Snake(ToolRunner.RequireValue(kind, "kind", act)), points, Snake(measure), position), cancellationToken),
             DrawingAction.RetrieveDimensions => runner.RunAsync(tool, act, c => DrawingService.RetrieveDimensions(c, view), cancellationToken),
             DrawingAction.Dimensions => runner.RunAsync(tool, act, c => DrawingService.Dimensions(c, document, sheet, offset, limit), cancellationToken),
+            DrawingAction.Tables => runner.RunAsync(tool, act, c => DrawingService.Tables(c, document), cancellationToken),
             DrawingAction.PartsList => runner.RunAsync(tool, act, c => DrawingService.PartsList(c, view, position, balloons, style), cancellationToken),
             DrawingAction.BendTable => runner.RunAsync(tool, act, c => DrawingService.BendTable(c, view, position, style), cancellationToken),
             DrawingAction.ToleranceTable => runner.RunAsync(tool, act, c => DrawingService.ToleranceTable(c, view, position, style), cancellationToken),

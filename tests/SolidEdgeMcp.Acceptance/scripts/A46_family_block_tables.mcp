@@ -1,4 +1,4 @@
-# A46: family of parts and block tables on drawings (se_drawing family_table, block_table).
+# A46: family of parts and block tables on drawings (se_drawing family_table, block_table), read back with se_drawing tables.
 # A block 100 x 60 x 20 whose depth is the family variable, with members Thick (30) and Thin (10); a sheet block placed twice.
 @d = se_documents {"action":"new","kind":"part"}
 @k = se_sketch {"action":"create","plane":"1"}
@@ -46,4 +46,14 @@ se_drawing {"action":"place_block","name":"Frame","position":[250,60]}
 ?= b.anchor lower_right
 ?~ b.rows[0] Frame
 ?~ b.rows[0] "2"
+# 4) The tables of a drawing opened from its file are read back: the family of parts table and the block table with their cells
+se_documents {"action":"save_as","path":"{{work}}\\a46_tables.dft","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+se_documents {"action":"open","path":"{{work}}\\a46_tables.dft"}
+@tb = se_drawing {"action":"tables"}
+?= tb.count 2
+?~ tb.tables family_table
+?~ tb.tables Thick
+?~ tb.tables block_table
+?~ tb.tables Frame
 se_documents {"action":"close","saveChanges":false}
