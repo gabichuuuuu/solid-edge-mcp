@@ -12,10 +12,10 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![74 tools](https://img.shields.io/badge/tools-74-2F6FEB)
+![75 tools](https://img.shields.io/badge/tools-75-2F6FEB)
 
 ![Version 0.7.0](https://img.shields.io/badge/version-0.7.0-2F6FEB)
-[![Progress: 65 % of functions work through the MCP](https://img.shields.io/badge/progress-65%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 66 % of functions work through the MCP](https://img.shields.io/badge/progress-66%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -34,7 +34,7 @@ machine or a specific workflow.
 
 **Broad coverage**
 
-Parts, sheet metal, assemblies, drawings and export with 74 tools, plus the whole API through a
+Parts, sheet metal, assemblies, drawings and export with 75 tools, plus the whole API through a
 generic COM layer.
 
 </td>
@@ -74,8 +74,8 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=d3442323">
-  <img src="docs/assets/progress.svg?v=7966ddbc" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=d0df9625">
+  <img src="docs/assets/progress.svg?v=ac9c7ac4" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
@@ -202,7 +202,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-74 tools, grouped by area.
+75 tools, grouped by area.
 
 | Area | Tools |
 |---|---|
@@ -213,7 +213,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Sketches** | `se_sketch` `se_sketch_constraint` `se_sketch_edit` `se_region` `se_ref_plane` |
 | **Part** | `se_extrude` `se_revolve` `se_hole` `se_round` `se_chamfer` `se_pattern` `se_shell` `se_draft` `se_loft_sweep` `se_part_feature` `se_body` `se_face_relation` `se_face_split` `se_pmi` `se_primitive` `se_surface` `se_curve` `se_feature_edit` `se_simplify` |
 | **Sheet metal** | `se_sheetmetal` `se_sheetmetal_form` |
-| **Assemblies** | `se_assembly` `se_relations` `se_assembly_pattern` `se_assembly_config` `se_component_group` `se_component_query` `se_assembly_feature` `se_frame` `se_interference` `se_bom` |
+| **Assemblies** | `se_assembly` `se_relations` `se_assembly_pattern` `se_assembly_config` `se_assembly_family` `se_component_group` `se_component_query` `se_assembly_feature` `se_frame` `se_interference` `se_bom` |
 | **Drawings** | `se_drawing` `se_drawing_view` `se_dimension` `se_annotation` `se_sheet_content` |
 | **Export, publishing and printing** | `se_export` `se_publish` `se_print` |
 | **Full API access** | `se_com_describe` `se_com_get` `se_com_set` `se_com_invoke` `se_com_items` `se_com_constants` `se_command` |
@@ -275,6 +275,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Assemblies** | `se_assembly` | Insert, move, rotate, fix, replace, show or hide, suppress and delete occurrences; activate or inactivate them; make a subassembly from occurrences, move occurrences into a subassembly and disperse one. |
 | | `se_relations` | Planar (mate and flush), axial (rotation locked or free), insert, parallel, tangent, angle, center-plane, connect (points of edges onto points, faces, planes or edges), coordinate system and rigid set relations, each checked geometrically; gear relations between two gears or a gear and a rack, in teeth or turns; list and delete. |
 | | `se_assembly_pattern` | Component patterns that follow a part pattern (e.g. a pin repeated on every hole of a hole pattern): list, create, delete and dissolve. |
+| | `se_assembly_family` | Alternate positions and families of assemblies: turn a saved assembly into one with named members, add, activate, rename and delete members, write one as a plain assembly, and leave components out of a member of a family. |
 | | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them; automatic exploded views with the exploded placement of each component. |
 | | `se_component_group` | Component groups (the groups of PathFinder): create, add and remove components, rename, show and hide, ungroup, pack the occurrences of one file and unpack, and delete a group together with its components (with an explicit confirmation). |
 | | `se_component_query` | Find components as the Select Tools do: by occurrence name or by the properties and material of their files (all criteria at once), among all, shown, hidden or selected components and inside subassemblies, or inside a box (zone); the matches are selected and can be shown alone (a matched subassembly whole), hidden or shown; queries and zones can be saved in the assembly, run, renamed and deleted. |
@@ -282,8 +283,8 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_frame` | Structural frames (sections from the installed library or your own part, mitred or butted) and pipes with elbows and fittings, along a polyline or assembly sketch lines; members and segments with their extent and cut lengths (also per member); list the library, list, delete and repair (frames made elsewhere before any assembly feature). |
 | | `se_interference` | Interferences between occurrences, with the affected pairs. |
 | | `se_bom` | Top-level or flat bill of materials, grouped by file. |
-| **Drawings** | `se_drawing` | Sheets and background sheets (the frame and title block: list, show or hide, draw and write on them, replace one with a background of another drawing, add, rename and delete one no sheet uses); base (also of an assembly display configuration or of a PMI model view), projected, auxiliary, section and detail views; 2D model views (what is drawn on the 2D model sheet, at a scale); dimensions (also coordinate, angular coordinate and chamfer dimensions) and dimensions retrieved from the model; parts list; bend table; tolerance table (the dimensions of a view with an ISO fit); family of parts table (one row per member); block table (the blocks placed on a sheet and their quantity); blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete); update. |
-| | `se_drawing_view` | Display of a drawing view as in its Properties dialog: hidden and tangent edges, shading, captions and the display of each member of an assembly view (hide a part, show it as reference), checked by the edges drawn; break lines (add, list, show or hide, remove); broken-out sections cut to a depth; conversion of a view to 2D geometry. |
+| **Drawings** | `se_drawing` | Sheets and background sheets (the frame and title block: list, show or hide, draw and write on them, replace one with a background of another drawing, add, rename and delete one no sheet uses); base (also of an assembly display configuration, of a member of an assembly family or alternate position, or of a PMI model view), projected, auxiliary, section and detail views; 2D model views (what is drawn on the 2D model sheet, at a scale); dimensions (also coordinate, angular coordinate and chamfer dimensions) and dimensions retrieved from the model; parts list; bend table; tolerance table (the dimensions of a view with an ISO fit); family of parts table (one row per member); block table (the blocks placed on a sheet and their quantity); blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete); update. |
+| | `se_drawing_view` | Display of a drawing view as in its Properties dialog: hidden and tangent edges, shading, captions and the display of each member of an assembly view (hide a part, show it as reference), checked by the edges drawn; break lines (add, list, show or hide, remove); broken-out sections cut to a depth; the other alternate positions of an assembly drawn as phantoms; conversion of a view to 2D geometry. |
 | | `se_dimension` | Tolerance of a dimension of a drawing, a sketch or the PMI: plus/minus deviations, limits, ISO fits for holes and shafts (H7, g6, alone or with deviations or limits), basic and reference dimensions; prefix, suffix and a text shown instead of the value. |
 | | `se_annotation` | Text, balloons, callouts, centre marks, centre lines, leaders, surface finish symbols, datums, datum targets and points, bolt hole circles, corner annotations (edge conditions, ISO 13715), feature control frames, weld symbols and GOST weld symbols attached to the views; the saved notes of the note library; list and delete. |
 | | `se_sheet_content` | Tables of your own (a revision list, notes in columns), pictures (a logo), smart frames (reserved areas) and symbols (saved drawings, embedded, linked or copied as geometry) on drawing sheets: a table with headers, rows and column widths where you want it, a cell changed, rows added, an image sized by width or height, an empty frame of a style; list and delete, everything read back. |
@@ -319,7 +320,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 74 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 75 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -334,7 +335,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 74 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 75 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -391,10 +392,10 @@ Results (unit tests and acceptance suite run on 2026-10-12):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 75/75 and `SolidEdgeMcp.Server.Tests` 377/377.
-- Acceptance suite against real Solid Edge 2026: **4231 calls and 2186 checks** in `A01`–`A48`, with expected
+- Acceptance suite against real Solid Edge 2026: **4301 calls and 2210 checks** in `A01`–`A49`, with expected
   values computed from formulas (or Solid Edge reference values when there is no simple formula, noted in the script). All of
   them pass.
-- Coverage by value: the 74 tools have correct calls, and `A10` runs every value of the action,
+- Coverage by value: the 75 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -505,13 +506,13 @@ one in `C:\Program Files\dotnet`.
 ```text
 solid-edge-mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (74 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (75 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A48 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A49 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, update-progress.ps1
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md (coverage by function and route), assets/
@@ -522,7 +523,7 @@ solid-edge-mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A48`, listed under [Validation](#validation)) with expected volumes, measurements
+calls (`A01`–`A49`, listed under [Validation](#validation)) with expected volumes, measurements
 and errors written in advance. Each script creates and closes its documents without saving:
 
 ```powershell

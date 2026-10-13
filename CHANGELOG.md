@@ -6,6 +6,20 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_assembly_family`: alternate positions and families of assemblies. A saved assembly becomes one with named members;
+  members are listed, added, activated, renamed, deleted and written as plain assemblies, and a member of a family can
+  leave components out. 75 tools.
+- `se_drawing base_view member`: a view of one member of an assembly family or alternate position; `se_drawing_view`
+  `alternates`, `add_alternate` and `remove_alternate` draw the other alternate positions as phantoms.
+- Acceptance script `A49`.
+
+### Fixed
+
+- `se_documents` saves, closes and finds an assembly with alternate positions or a family, whose document Solid Edge names
+  `file.asm!Master`; the active member is reported.
+
 ## [0.7.0] - 2026-10-13
 
 This release closes the drawings and annotations: on top of the dimension tolerances and the drawing tables of 0.6, a

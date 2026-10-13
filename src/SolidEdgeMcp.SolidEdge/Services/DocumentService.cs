@@ -17,7 +17,8 @@ public sealed record DocumentInfo(
     string Kind,
     bool Dirty,
     bool ReadOnly,
-    bool Active);
+    bool Active,
+    string? Member = null);
 
 /// <summary>Documents: list, create, open, save and close, always through <see cref="PathGuard"/>.</summary>
 public static class DocumentService
@@ -267,7 +268,7 @@ public static class DocumentService
     public static object Close(SeContext context, string? handle, bool? saveChanges)
     {
         SolidEdgeDocument document = context.GetDocument(handle);
-        string name = document.Name;
+        string name = IsFamilyMember(document.FullName) && PathOf(document) is { } file ? System.IO.Path.GetFileName(file) : document.Name;
         bool dirty = document.Dirty;
         if (dirty && saveChanges is null)
         {
@@ -408,22 +409,48 @@ public static class DocumentService
         {
         }
 
+        string? path = PathOf(document);
+        string? member = null;
+        if (IsFamilyMember(document.FullName))
+        {
+            // The document of an assembly with alternate positions or a family is named "file.asm!Master": its active
+            // member is the one shown and edited.
+            member = Late.Get(document, "AssemblyFamilyMembers") is { } members ? Late.Get(members, "ActiveMember") as string : null;
+        }
+
         return new DocumentInfo(
             context.DocumentHandle(document),
-            document.Name,
-            PathOf(document),
+            path is not null && member is not null ? System.IO.Path.GetFileName(path) : document.Name,
+            path,
             DocumentKinds.ToKind(document.Type),
             document.Dirty,
             readOnly,
-            active is not null && ReferenceEquals(active, document));
+            active is not null && ReferenceEquals(active, document),
+            member);
     }
 
     /// <summary>Full path, or <c>null</c> if the document has never been saved.</summary>
     public static string? PathOf(SolidEdgeDocument document)
     {
-        string? full = document.FullName;
+        string? full = FileOf(document.FullName);
         return string.IsNullOrWhiteSpace(full) || !System.IO.Path.IsPathFullyQualified(full) ? null : full;
     }
+
+    /// <summary>
+    /// The file of a document or model link name. Verified: once an assembly has alternate positions or is a family, its
+    /// document reads "C:\...\file.asm!Master" followed by a control character, and a drawing links "file.asm!Member".
+    /// </summary>
+    public static string? FileOf(string? fullName) =>
+        fullName is not null && FamilyMember.Match(fullName) is { Success: true } m ? m.Groups[1].Value : fullName;
+
+    /// <summary>The member a "file.asm!Member" name refers to, or null.</summary>
+    public static string? MemberOf(string? fullName) =>
+        fullName is not null && FamilyMember.Match(fullName) is { Success: true } m ? m.Groups[2].Value : null;
+
+    private static bool IsFamilyMember(string? fullName) => fullName is not null && FamilyMember.IsMatch(fullName);
+
+    private static readonly System.Text.RegularExpressions.Regex FamilyMember =
+        new(@"^(.+\.(?:asm|par|psm))!([^\x00-\x1f]+)[\x00-\x1f]*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private static SolidEdgeDocument? FindOpen(SeContext context, string path)
     {

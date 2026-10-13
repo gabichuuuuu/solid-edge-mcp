@@ -92,6 +92,24 @@ public enum AssemblyFeatureAction
     Delete,
 }
 
+public enum AssemblyFamilyAction
+{
+    List,
+    Create,
+    Add,
+    Activate,
+    Rename,
+    Delete,
+    SaveMember,
+    Exclude,
+}
+
+public enum AssemblyFamilyKind
+{
+    AlternatePositions,
+    Family,
+}
+
 public enum AssemblyConfigAction
 {
     List,
@@ -336,6 +354,46 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyFeatureAction.FilletWeld => runner.RunAsync(tool, act, c => AssemblyFeatureService.FilletWeld(c, document, faces, targetFaces, leg, leg2, name), cancellationToken),
             AssemblyFeatureAction.LabelWeld => runner.RunAsync(tool, act, c => AssemblyFeatureService.LabelWeld(c, document, edges, name), cancellationToken),
             AssemblyFeatureAction.Delete => runner.RunAsync(tool, act, c => AssemblyFeatureService.Delete(c, document, name), cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
+
+    [McpServerTool(Name = "se_assembly_family", Title = "Alternate positions and families of assemblies", Destructive = true, OpenWorld = false)]
+    [Description("""
+        Alternate positions and families of assemblies: one assembly file with named members. In alternate positions every member has the same
+        components in its own positions (move them with se_assembly or se_relations while the member is active); in a family each member can leave
+        components out. Drawings show a member with se_drawing base_view 'member', and the other positions as phantoms with se_drawing_view 'alternate'.
+        list (kind none | alternate_positions | family, the active member, the members) |
+        create (kind; members = two names: turns the saved assembly into one with two members) | add (name: a new member made from the active one, then active) |
+        activate (member) | rename (member, newName; a new member must be saved first) | delete (member: not the active one, two members stay) |
+        save_member (member, path = a .asm file: that member as a plain assembly) | exclude (family: member, occurrences left out of it).
+        Example: {"action":"create","kind":"alternate_positions","members":["Closed","Open"]}.
+        """)]
+    public Task<CallToolResult> AssemblyFamily(
+        AssemblyFamilyAction action,
+        [Description("create: alternate_positions (default) or family.")] AssemblyFamilyKind kind = AssemblyFamilyKind.AlternatePositions,
+        [Description("create: the names of the two first members.")] string[]? members = null,
+        [Description("add: the new member's name.")] string? name = null,
+        [Description("activate, rename, delete, save_member, exclude: member name.")] string? member = null,
+        [Description("rename: the new name.")] string? newName = null,
+        [Description("save_member: absolute path of the .asm file to write (allowed folders).")] string? path = null,
+        [Description("exclude: occurrence handles to leave out of the member.")] string[]? occurrences = null,
+        [Description("Assembly document handle; default: the active document.")] string? document = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string tool = "se_assembly_family";
+        string act = Snake(action);
+        return action switch
+        {
+            AssemblyFamilyAction.List => runner.RunAsync(tool, act, c => AssemblyFamilyService.List(c, document), cancellationToken),
+            AssemblyFamilyAction.Create => runner.RunAsync(tool, act, c => AssemblyFamilyService.Create(c, document, Snake(kind), members), cancellationToken),
+            AssemblyFamilyAction.Add => runner.RunAsync(tool, act, c => AssemblyFamilyService.Add(c, document, name), cancellationToken),
+            AssemblyFamilyAction.Activate => runner.RunAsync(tool, act, c => AssemblyFamilyService.Activate(c, document, member), cancellationToken),
+            AssemblyFamilyAction.Rename => runner.RunAsync(tool, act, c => AssemblyFamilyService.Rename(c, document, member, newName), cancellationToken),
+            AssemblyFamilyAction.Delete => runner.RunAsync(tool, act, c => AssemblyFamilyService.Delete(c, document, member), cancellationToken),
+            AssemblyFamilyAction.SaveMember => runner.RunAsync(tool, act, c => AssemblyFamilyService.SaveMember(c, document, member, path), cancellationToken,
+                precheck: path is null ? null : () => guard.Check(path)),
+            AssemblyFamilyAction.Exclude => runner.RunAsync(tool, act, c => AssemblyFamilyService.Exclude(c, document, member, occurrences), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

@@ -221,7 +221,7 @@ public static partial class DrawingService
 
     /// <summary>Base view of a saved model; without a scale, the largest standard scale that leaves room for the projections.</summary>
     public static object BaseView(SeContext context, string? documentHandle, string? sheetRef, string? path, string? modelHandle,
-        string? orientation, double? scale, double[]? position, bool flat, string? configuration = null, string? modelView = null)
+        string? orientation, double? scale, double[]? position, bool flat, string? configuration = null, string? modelView = null, string? member = null)
     {
         DraftDocument draft = Draft(context, documentHandle);
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
@@ -260,7 +260,12 @@ public static partial class DrawingService
             }
         }
 
-        ModelLink link = LinkTo(draft, file);
+        if (!string.IsNullOrWhiteSpace(member) && extension != ".asm")
+        {
+            throw ToolException.InvalidArgument("'member' picks a member of an assembly with alternate positions or a family (.asm).");
+        }
+
+        ModelLink link = LinkTo(draft, file, string.IsNullOrWhiteSpace(member) ? null : member.Trim());
         if (!string.IsNullOrWhiteSpace(modelView))
         {
             RequireModelView(link, file, modelView);
@@ -1546,19 +1551,112 @@ public static partial class DrawingService
         return file;
     }
 
-    private static ModelLink LinkTo(DraftDocument draft, string file)
+    /// <summary>
+    /// The link to a model file, or to one member of an assembly with alternate positions or a family ("file.asm!Member").
+    /// Verified: a drawing links such an assembly through its first member, and a link names it "file.asm!Member".
+    /// </summary>
+    private static ModelLink LinkTo(DraftDocument draft, string file, string? member = null)
     {
         foreach (ModelLink link in Late.Items(draft.ModelLinks).OfType<ModelLink>())
         {
-            if (string.Equals(Late.TryGetString(link, "FileName"), file, StringComparison.OrdinalIgnoreCase))
+            string? name = Late.TryGetString(link, "FileName");
+            if (string.Equals(DocumentService.FileOf(name), file, StringComparison.OrdinalIgnoreCase)
+                && (member is null || string.Equals(DocumentService.MemberOf(name), member, StringComparison.OrdinalIgnoreCase)))
             {
                 return link;
             }
         }
 
-        return draft.ModelLinks.Add(file);
+        if (member is null)
+        {
+            return draft.ModelLinks.Add(file);
+        }
+
+        ModelLink added;
+        try
+        {
+            added = draft.ModelLinks.Add($"{file}!{member}");
+        }
+        catch (COMException ex) when (ex.HResult == unchecked((int)0x80030002))
+        {
+            // Verified: an unknown member gives STG_E_FILENOTFOUND.
+            throw ToolException.NotFound($"'{System.IO.Path.GetFileName(file)}' has no member '{member}'.",
+                "List the members with se_assembly_family list (on the open assembly).");
+        }
+
+        if (!added.IsAssemblyFamilyMember || !string.Equals(added.AssemblyFamilyMemberName, member, StringComparison.OrdinalIgnoreCase))
+        {
+            added.Delete();
+            throw ToolException.NotFound($"'{System.IO.Path.GetFileName(file)}' has no member '{member}'.",
+                "List the members with se_assembly_family list (on the open assembly).");
+        }
+
+        return added;
     }
 
+    /// <summary>The alternate positions a view of an assembly with alternate positions can show, and those it shows.</summary>
+    public static object Alternates(SeContext context, string? viewHandle)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        return new { view = viewHandle, shown = AlternateMembers(view, shown: true), candidates = AlternateMembers(view, shown: false) };
+    }
+
+    /// <summary>
+    /// Shows (or stops showing) another alternate position of the assembly in a view, drawn as a phantom. Verified:
+    /// GetAlternatePositionMemberCandidates lists every member of the assembly; the view grows to hold the other position.
+    /// </summary>
+    public static object SetAlternate(SeContext context, string? viewHandle, string? member, bool add)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        string name = string.IsNullOrWhiteSpace(member) ? throw ToolException.InvalidArgument("'member' is required: an alternate position from 'alternates'.") : member.Trim();
+        string[] candidates = AlternateMembers(view, shown: false);
+        string match = candidates.FirstOrDefault(c => string.Equals(c, name, StringComparison.OrdinalIgnoreCase))
+            ?? throw ToolException.NotFound($"The view has no alternate position '{name}'.",
+                candidates.Length == 0 ? "The view must show an assembly with alternate positions (se_assembly_family)." : $"Alternate positions: {string.Join(", ", candidates)}.");
+        bool shown = AlternateMembers(view, shown: true).Contains(match, StringComparer.Ordinal);
+        if (add && !shown)
+        {
+            view.AddAlternateMember(match);
+        }
+        else if (!add && shown)
+        {
+            view.RemoveAlternateMember(match);
+        }
+
+        view.Update();
+        if (AlternateMembers(view, shown: true).Contains(match, StringComparer.Ordinal) != add)
+        {
+            throw new ToolException("view_failed", $"Solid Edge did not {(add ? "add" : "remove")} the alternate position '{match}'.");
+        }
+
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        return new { view = DescribeView(context, draft, view), shown = AlternateMembers(view, shown: true) };
+    }
+
+    /// <summary>
+    /// Verified: GetAlternateMembers needs a sized array and fills it from the second slot, so the positions shown are read from
+    /// the model members of the view instead (IsAlternatePosition, AlternatePositionMemberName).
+    /// </summary>
+    private static string[] AlternateMembers(DrawingView view, bool shown)
+    {
+        if (shown)
+        {
+            return [.. Late.Items(view.ModelMembers).OfType<ModelMember>().Where(m => m.IsAlternatePosition).Select(m => m.AlternatePositionMemberName)];
+        }
+
+        Array members = Array.Empty<object>();
+        int count;
+        try
+        {
+            view.GetAlternatePositionMemberCandidates(out count, ref members);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            return [];
+        }
+
+        return count == 0 || members is null ? [] : [.. members.Cast<object?>().Select(m => m?.ToString() ?? "").Where(m => m.Length > 0)];
+    }
     private static void ApplySetup(DraftDocument draft, Sheet sheet, string? paper, bool portrait, double? width, double? height, string? background,
         bool? showBackground)
     {

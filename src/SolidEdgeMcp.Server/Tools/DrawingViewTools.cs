@@ -21,6 +21,9 @@ public enum DrawingViewAction
     RemoveBreak,
     BrokenOut,
     To2d,
+    Alternates,
+    AddAlternate,
+    RemoveAlternate,
 }
 
 public enum BreakDirection
@@ -54,7 +57,8 @@ public sealed class DrawingViewTools(ToolRunner runner)
         only apply to members added later) | breaks | add_break (direction of the break lines; from and to = their
         positions on the sheet in mm; shape, gap) | set_broken (broken = true shows the breaks, false the whole view) |
         remove_break (index) | broken_out (points = the corners of an outline as model points of the view, depth = mm from the front of the part: that area is cut away and shown hatched) |
-        to2d (turns the view into plain 2D elements: it no longer follows the model).
+        to2d (turns the view into plain 2D elements: it no longer follows the model) |
+        alternates (view of an assembly with alternate positions: the positions shown and those it can show) | add_alternate / remove_alternate (member: another position drawn as a phantom).
         Values: booleans, numbers in API units (metres), colours '#RRGGBB', enumerations by name or its end.
         Example: {"action":"set_display","view":"drawing_view:3","property":"ShowHiddenEdges","value":false}.
         """)]
@@ -63,7 +67,7 @@ public sealed class DrawingViewTools(ToolRunner runner)
         [Description("Drawing view handle (se_drawing views).")] string? view = null,
         [Description("set_display: property name as listed by display.")] string? property = null,
         [Description("set_display: new value.")] JsonElement? value = null,
-        [Description("set_display: model member number (from display) or component/file name; default the top members.")] string? member = null,
+        [Description("set_display: model member number (from display) or component/file name; default the top members. add_alternate, remove_alternate: the alternate position.")] string? member = null,
         [Description("add_break: vertical lines (they shorten the view horizontally) or horizontal lines.")] BreakDirection? direction = null,
         [Description("add_break: position in mm on the sheet of the first break line (x for vertical lines, y for horizontal).")] double? from = null,
         [Description("add_break: position in mm on the sheet of the second break line.")] double? to = null,
@@ -92,6 +96,9 @@ public sealed class DrawingViewTools(ToolRunner runner)
                 ToolRunner.RequireValue(broken, "broken", act)), cancellationToken),
             DrawingViewAction.RemoveBreak => runner.RunAsync(tool, act, c => DrawingService.RemoveBreak(c, view,
                 ToolRunner.RequireValue(index, "index", act)), cancellationToken),
+            DrawingViewAction.Alternates => runner.RunAsync(tool, act, c => DrawingService.Alternates(c, view), cancellationToken),
+            DrawingViewAction.AddAlternate => runner.RunAsync(tool, act, c => DrawingService.SetAlternate(c, view, member, add: true), cancellationToken),
+            DrawingViewAction.RemoveAlternate => runner.RunAsync(tool, act, c => DrawingService.SetAlternate(c, view, member, add: false), cancellationToken),
             DrawingViewAction.To2d => runner.RunAsync(tool, act, c => DrawingService.To2d(c, view), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

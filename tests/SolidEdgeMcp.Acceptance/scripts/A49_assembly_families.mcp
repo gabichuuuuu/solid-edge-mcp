@@ -1,0 +1,101 @@
+# A49: alternate positions and families of assemblies (se_assembly_family), and drawing views of their members and of the
+# other positions (se_drawing base_view member, se_drawing_view alternates, add_alternate, remove_alternate).
+# A block 100 x 60 x 20 (grounded) and a pin Ø10 x 40 at (200, 0, 0); in the "Open" position the pin is 100 mm further in y.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\a49\\a49_blk.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@pk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{pk.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
+se_extrude {"sketch":"{{pk.sketch}}","distance":40}
+se_documents {"action":"save_as","path":"{{work}}\\a49\\a49_pin.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# 1) Alternate positions: the assembly must be saved; each member keeps its own positions
+@a = se_documents {"action":"new","kind":"assembly"}
+@blk = se_assembly {"action":"insert","path":"{{work}}\\a49\\a49_blk.par"}
+@pin = se_assembly {"action":"insert","path":"{{work}}\\a49\\a49_pin.par","origin":[200,0,0]}
+@l0 = se_assembly_family {"action":"list"}
+?= l0.kind none
+! [not_saved] se_assembly_family {"action":"create","members":["Closed","Open"]}
+se_documents {"action":"save_as","path":"{{work}}\\a49\\a49_positions.asm","overwrite":true}
+! [invalid_argument] se_assembly_family {"action":"create","members":["Closed","closed"]}
+@c = se_assembly_family {"action":"create","members":["Closed","Open"]}
+?= c.kind alternate_positions
+?= c.members[1].name Open
+! [family_exists] se_assembly_family {"action":"create","members":["A","B"]}
+@ao = se_assembly_family {"action":"activate","member":"open"}
+?= ao.active Open
+@lo = se_assembly {"action":"list"}
+@mo = se_assembly {"action":"move","occurrence":"{{lo.occurrences[1].handle}}","delta":[0,100,0]}
+?= mo.origin[1] 100
+@ac = se_assembly_family {"action":"activate","member":"Closed"}
+@lc = se_assembly {"action":"list"}
+?= lc.occurrences[1].origin[1] 0
+@dl = se_documents {"action":"list"}
+?= dl.documents[0].member Closed
+?= dl.documents[0].name a49_positions.asm
+# 2) Members: add (then active), rename once saved, delete (not the active one, two stay), one written as a plain assembly
+@h = se_assembly_family {"action":"add","name":"Half"}
+?= h.active Half
+! [not_saved] se_assembly_family {"action":"rename","member":"Half","newName":"Middle"}
+se_documents {"action":"save"}
+@rn = se_assembly_family {"action":"rename","member":"Half","newName":"Middle"}
+?= rn.members[2].name Middle
+! [invalid_argument] se_assembly_family {"action":"delete","member":"Middle"}
+se_assembly_family {"action":"activate","member":"Closed"}
+@dm = se_assembly_family {"action":"delete","member":"Middle"}
+?= dm.members[1].name Open
+! [invalid_argument] se_assembly_family {"action":"delete","member":"Open"}
+! [not_found] se_assembly_family {"action":"activate","member":"Nope"}
+@sm = se_assembly_family {"action":"save_member","member":"Open","path":"{{work}}\\a49\\a49_open.asm"}
+! [invalid_argument] se_assembly_family {"action":"exclude","member":"Open","occurrences":["{{lc.occurrences[1].handle}}"]}
+se_documents {"action":"save"}
+se_documents {"action":"close","saveChanges":false}
+@so = se_documents {"action":"open","path":"{{work}}\\a49\\a49_open.asm"}
+@ls = se_assembly {"action":"list"}
+?= ls.occurrences[1].origin[1] 100
+@sl = se_assembly_family {"action":"list"}
+?= sl.kind none
+se_documents {"action":"close","saveChanges":false}
+# 3) A family: a member without the pin
+@f = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a49\\a49_blk.par"}
+se_assembly {"action":"insert","path":"{{work}}\\a49\\a49_pin.par","origin":[200,0,0]}
+se_documents {"action":"save_as","path":"{{work}}\\a49\\a49_family.asm","overwrite":true}
+@fc = se_assembly_family {"action":"create","kind":"family","members":["WithPin","NoPin"]}
+?= fc.kind family
+se_assembly_family {"action":"activate","member":"NoPin"}
+@fl = se_assembly {"action":"list"}
+! [invalid_argument] se_assembly_family {"action":"exclude","member":"NoPin"}
+@fx = se_assembly_family {"action":"exclude","member":"NoPin","occurrences":["{{fl.occurrences[1].handle}}"]}
+?= fx.components 1
+@fw = se_assembly_family {"action":"activate","member":"WithPin"}
+?= fw.components 2
+se_documents {"action":"save"}
+se_documents {"action":"close","saveChanges":false}
+# 4) Drawings: a view of a member, and the other alternate position drawn as a phantom
+@d = se_documents {"action":"new","kind":"draft"}
+! [not_found] se_drawing {"action":"base_view","path":"{{work}}\\a49\\a49_positions.asm","member":"Nope","orientation":"top","scale":0.5}
+! [invalid_argument] se_drawing {"action":"base_view","path":"{{work}}\\a49\\a49_blk.par","member":"Open","orientation":"top","scale":0.5}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\a49\\a49_positions.asm","orientation":"top","position":[200,250],"scale":0.5}
+?~ bv.view.model !Closed
+?= bv.view.size[1] 45.2 0.1
+@bo = se_drawing {"action":"base_view","path":"{{work}}\\a49\\a49_positions.asm","member":"Open","orientation":"top","position":[420,250],"scale":0.5}
+?~ bo.view.model !Open
+@bn = se_drawing {"action":"base_view","path":"{{work}}\\a49\\a49_family.asm","member":"NoPin","orientation":"top","position":[200,100],"scale":0.5}
+?= bn.view.size[0] 62.7 0.1
+@al = se_drawing_view {"action":"alternates","view":"{{bv.view.handle}}"}
+?= al.candidates[1] Open
+! [not_found] se_drawing_view {"action":"add_alternate","view":"{{bv.view.handle}}","member":"Nope"}
+@aa = se_drawing_view {"action":"add_alternate","view":"{{bv.view.handle}}","member":"open"}
+?= aa.shown[0] Open
+?= aa.view.size[1] 67.7 0.1
+@ar = se_drawing_view {"action":"remove_alternate","view":"{{bv.view.handle}}","member":"Open"}
+@a2 = se_drawing_view {"action":"alternates","view":"{{bv.view.handle}}"}
+?= a2.candidates[0] Closed
+se_documents {"action":"close","saveChanges":false}
