@@ -25,6 +25,7 @@ public enum DrawingAction
     AuxiliaryView,
     SectionView,
     DetailView,
+    Model2dView,
     MoveView,
     ScaleView,
     DeleteView,
@@ -115,12 +116,12 @@ public sealed class DrawingTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_drawing", Title = "Drawings (draft)", Destructive = true, OpenWorld = false)]
     [Description("""
-        Drawings of a draft document (se_documents new kind=draft). Sheet positions in mm from the lower-left corner of the sheet (a view position is its centre); model points in mm (part or assembly coordinates).
-        Sheets: sheets (also background sheets = frame and title block; draw on them with se_sketch/se_annotation) | add_sheet (name, paper + portrait or width/height; applies the background of that size) | setup_sheet (rename, resize, background, showBackground) | activate_sheet (a background opens the background view) | delete_sheet | add_background | replace_background (from the .dft 'path').
-        Views: views | base_view (path of a saved .par/.psm/.asm or model = an open saved model handle; orientation; scale, default the largest standard one that fits; flat = flat pattern) | projected_view (view + direction; diagonals give a pictorial view) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | move_view (position or delta) | scale_view | delete_view. Without position, derived views go beside their source view.
-        Dimensions: dimension (view + kind + points = model points that pick what to measure, like clicking edges) | retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet).
+        Drawings of a draft document (se_documents new kind=draft). Sheet positions in mm from its lower-left corner (a view position is its centre); model points in mm.
+        Sheets: sheets (also background sheets = frame and title block; draw on them with se_sketch/se_annotation) | add_sheet (name, paper + portrait or width/height) | setup_sheet (rename, resize, background, showBackground) | activate_sheet (a background opens the background view) | delete_sheet | add_background | replace_background (from the .dft 'path').
+        Views: views | base_view (path of a saved .par/.psm/.asm or model = an open saved model handle; orientation; scale, default the largest standard one that fits; flat = flat pattern; modelView = a saved PMI model view) | projected_view (view + direction; diagonals give a pictorial view) | auxiliary_view (view + line) | section_view (view + line; flip) | detail_view (view + center, radius; scale default 2) | model2d_view (what is drawn on the model2d sheet of 'sheets'; scale default 1) | move_view (position or delta) | scale_view | delete_view. Without position, derived views go beside their source view.
+        Dimensions: dimension (view + kind + points = model points that pick what to measure) | retrieve_dimensions (view: the model dimensions parallel to it, with centre marks) | dimensions (of a sheet).
         Tables: parts_list (assembly view; balloons) | bend_table (sheet metal view, usually the flat pattern) | tolerance_table (view: its dimensions with a fit) | family_table (view of a part with a family of parts) | block_table (sheet: its placed blocks) | update (views and title block text; force = full update).
-        Blocks: blocks (definitions and occurrences) | create_block (name + elements + position = block origin) | place_block (name + position; scale, angle) | import_block (path of a saved .dft) | delete_block (name: the block and its occurrences).
+        Blocks: blocks (definitions and occurrences) | create_block (name + elements + position = block origin) | place_block (name + position; scale, angle) | import_block (path of a saved .dft) | delete_block (name).
         Title block: se_properties, then 'update'. Export: se_export (.pdf/.dxf/.dwg).
         Example: {"action":"projected_view","view":"view:3","direction":"down"}.
         """)]
@@ -144,6 +145,7 @@ public sealed class DrawingTools(ToolRunner runner)
         [Description("section_view: look from the other side of the cutting line.")] bool flip = false,
         [Description("base_view: flat pattern of a sheet metal part.")] bool flat = false,
         [Description("base_view: a display configuration of the assembly to show (se_assembly_config list), e.g. with some parts hidden.")] string? configuration = null,
+        [Description("base_view: name of a PMI model view saved in the model (exact case), shown as saved: its orientation and PMI.")] string? modelView = null,
         [Description("add_sheet/add_background/setup_sheet: sheet name (setup_sheet renames); create_block/place_block/delete_block: block name.")] string? name = null,
         [Description("add_sheet/add_background/setup_sheet: standard paper size (landscape unless portrait).")] PaperSize? paper = null,
         [Description("add_sheet/add_background/setup_sheet: portrait paper.")] bool portrait = false,
@@ -176,7 +178,8 @@ public sealed class DrawingTools(ToolRunner runner)
             DrawingAction.AddBackground => runner.RunAsync(tool, act, c => DrawingService.AddBackground(c, document, name, size, portrait, width, height), cancellationToken),
             DrawingAction.ReplaceBackground => runner.RunAsync(tool, act, c => DrawingService.ReplaceBackground(c, document, sheet, path, background, replaceBlocks), cancellationToken),
             DrawingAction.Views => runner.RunAsync(tool, act, c => DrawingService.Views(c, document, sheet), cancellationToken),
-            DrawingAction.BaseView => runner.RunAsync(tool, act, c => DrawingService.BaseView(c, document, sheet, path, model, orient, scale, position, flat, configuration), cancellationToken),
+            DrawingAction.BaseView => runner.RunAsync(tool, act, c => DrawingService.BaseView(c, document, sheet, path, model, orient, scale, position, flat, configuration, modelView), cancellationToken),
+            DrawingAction.Model2dView => runner.RunAsync(tool, act, c => DrawingService.Model2dView(c, document, sheet, scale, position), cancellationToken),
             DrawingAction.ProjectedView => runner.RunAsync(tool, act, c => DrawingService.ProjectedView(c, view,
                 Snake(ToolRunner.RequireValue(direction, "direction", act)), position), cancellationToken),
             DrawingAction.AuxiliaryView => runner.RunAsync(tool, act, c => DrawingService.AuxiliaryView(c, view, line, position), cancellationToken),

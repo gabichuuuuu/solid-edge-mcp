@@ -109,6 +109,58 @@ public static class ApplicationService
         };
     }
 
+    /// <summary>
+    /// Extracts the data Solid Edge's AI automatic drawing creation learns from (the sheet, views and their placement) out of
+    /// a saved drawing into a CSV file. Verified: the call opens the drawing and leaves it open and modified, so a drawing that
+    /// was not open before is closed again without saving. Training the models from the CSV
+    /// (CreateONNXModelsForAIAutomaticDrawingCreation) changes the installation's AI models and is not called.
+    /// </summary>
+    public static object AiDrawingData(SeContext context, string drawing, string? output)
+    {
+        string file = context.Paths.Check(drawing, "path");
+        if (!File.Exists(file))
+        {
+            throw ToolException.NotFound($"There is no file '{file}'.");
+        }
+
+        if (!string.Equals(IOPath.GetExtension(file), ".dft", StringComparison.OrdinalIgnoreCase))
+        {
+            throw ToolException.InvalidArgument($"'{IOPath.GetFileName(file)}' is not a drawing (.dft).");
+        }
+
+        string csv = context.Paths.Check(output ?? IOPath.ChangeExtension(file, ".csv"), "output");
+        if (!string.Equals(IOPath.GetExtension(csv), ".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            throw ToolException.InvalidArgument("'output' is a .csv file.");
+        }
+
+        Application app = context.Application;
+        bool wasOpen = OpenDocument(app, file) is not null;
+        DateTime before = File.Exists(csv) ? File.GetLastWriteTimeUtc(csv) : DateTime.MinValue;
+        try
+        {
+            app.ExtractDataForAIAutomaticDrawingCreation(file, csv);
+        }
+        finally
+        {
+            if (!wasOpen && OpenDocument(app, file) is { } opened)
+            {
+                opened.Close(false);
+            }
+        }
+
+        if (!File.Exists(csv) || File.GetLastWriteTimeUtc(csv) == before || new FileInfo(csv).Length == 0)
+        {
+            throw new ToolException("export_failed", $"Solid Edge wrote no data for '{IOPath.GetFileName(file)}'.", "Check that the drawing has views of a model.");
+        }
+
+        return new { drawing = file, csv, rows = File.ReadLines(csv).Count(l => l.Length > 0), bytes = new FileInfo(csv).Length };
+    }
+
+    private static SolidEdgeDocument? OpenDocument(Application app, string file) =>
+        Late.Items(app.Documents).OfType<SolidEdgeDocument>()
+            .FirstOrDefault(d => string.Equals(Late.TryGetString(d, "FullName"), file, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>Sets the default template of a document type (also used by the New command of Solid Edge).</summary>
     public static object SetTemplate(SeContext context, string kind, string path)
     {

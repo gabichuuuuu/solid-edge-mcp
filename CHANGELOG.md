@@ -6,6 +6,21 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_drawing base_view modelView`: a view of a PMI model view saved in the model, with its orientation and PMI; the
+  name is checked against the model's PMI model views.
+- `se_drawing model2d_view`: a view of what is drawn on the 2D model sheet, at a scale; `sheets` gives the 2D model
+  sheet, drawn on with `se_sketch`.
+- `se_annotation gost_weld`: GOST weld symbols on a leader shelf, with the note above it or above and below, all around
+  and field weld.
+- `se_annotation notes`, and `text` with `note`: the saved notes of the note library, and one placed as a text box.
+- `se_sheet_content symbol`: a saved drawing placed as a symbol, embedded or linked, or its 2D elements copied onto the
+  sheet; symbols are listed and deleted with the other sheet contents.
+- `se_app ai_drawing_data`: the data Solid Edge's AI automatic drawing creation learns from, extracted from a saved
+  drawing into a CSV file (one row per drawing).
+- Acceptance script `A48`.
+
 ## [0.6.2] - 2026-10-13
 
 ### Added

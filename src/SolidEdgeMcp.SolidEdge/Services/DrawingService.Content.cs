@@ -25,7 +25,7 @@ public static partial class DrawingService
 {
     private static readonly string[] ImageExtensions = [".bmp", ".jpg", ".jpeg", ".png", ".gif", ".tif", ".tiff", ".emf", ".wmf"];
 
-    /// <summary>Tables of the drawing (with the sheet each is on), images and smart frames of the sheet.</summary>
+    /// <summary>Tables of the drawing (with the sheet each is on), images, smart frames and symbols of the sheet.</summary>
     public static object Contents(SeContext context, string? documentHandle, string? sheetRef)
     {
         DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
@@ -33,7 +33,8 @@ public static partial class DrawingService
         object[] tables = [.. Late.Items(draft.Tables).OfType<Table>().Select(t => DescribeTable(context, draft, t))];
         object[] images = [.. Late.Items(sheet.Images2d).OfType<Image2d>().Select(i => DescribeImage(context, draft, i))];
         object[] frames = [.. Late.Items(sheet.SmartFrames2d).OfType<SmartFrame2d>().Select(f => DescribeFrame(context, draft, f))];
-        return new { sheet = sheet.Name, tables, images, frames };
+        object[] symbols = [.. Late.Items(sheet.Symbols).OfType<SolidEdgeFramework.Symbol2d>().Select(s => DescribeSymbol(context, draft, s))];
+        return new { sheet = sheet.Name, tables, images, frames, symbols };
     }
 
     /// <summary>
@@ -289,12 +290,85 @@ public static partial class DrawingService
         return new { frame = DescribeFrame(context, draft, frame) };
     }
 
-    /// <summary>Deletes a table, an image or a smart frame of a sheet.</summary>
+    /// <summary>
+    /// A symbol: a saved drawing (.dft, e.g. from a symbol library) placed on the sheet with its lower-left corner at
+    /// <paramref name="position"/> (mm), embedded or linked; with <paramref name="geometry"/>, its 2D elements are copied onto the
+    /// sheet instead. Verified: Symbols.Add places the whole sheet of the drawing (its background too) with the lower-left
+    /// corner of its range at the point; InsertSymbolAsGeometry adds plain elements (Symbols does not count them).
+    /// </summary>
+    public static object AddSymbol(SeContext context, string? documentHandle, string? sheetRef, string? path, double[]? position, bool link, bool geometry)
+    {
+        string file = context.Paths.Check(path ?? throw ToolException.InvalidArgument("Action 'symbol' requires 'path': a saved drawing (.dft)."), "path");
+        if (!File.Exists(file))
+        {
+            throw ToolException.NotFound($"There is no file '{file}'.");
+        }
+
+        if (!string.Equals(Path.GetExtension(file), ".dft", StringComparison.OrdinalIgnoreCase))
+        {
+            // Verified: a part file linked into a smart frame closed Solid Edge, so only drawings are placed.
+            throw ToolException.InvalidArgument($"'{Path.GetFileName(file)}' is not a drawing: a symbol is a saved .dft.",
+                "Show a model with se_drawing base_view, or a picture with action 'image'.");
+        }
+
+        if (link && geometry)
+        {
+            throw ToolException.InvalidArgument("'geometry' copies the elements of the drawing, so it cannot be linked.");
+        }
+
+        (double x, double y) = Geo.Point2(position ?? throw ToolException.InvalidArgument("Action 'symbol' requires 'position': the lower-left corner [x, y] in mm."), "position");
+        DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
+        Sheet sheet = ResolveSheet(context, draft, sheetRef);
+        var symbols = (SolidEdgeFramework.Symbols)sheet.Symbols;
+        if (geometry)
+        {
+            int objects = Late.Count(sheet.DrawingObjects);
+            symbols.InsertSymbolAsGeometry(file, x, y);
+            int added = Late.Count(sheet.DrawingObjects) - objects;
+            return added > 0
+                ? new { geometry = new { file = Path.GetFileName(file), elements = added, position = new[] { Geo.Mm(x), Geo.Mm(y) } } }
+                : throw new ToolException("symbol_failed", $"Solid Edge copied nothing from '{Path.GetFileName(file)}'.", "Check that its working sheet has 2D elements.");
+        }
+
+        int before = symbols.Count;
+        var symbol = (SolidEdgeFramework.Symbol2d)symbols.Add((int)(link ? SolidEdgeFramework.OLEInsertionTypeConstant.igOLELinked : SolidEdgeFramework.OLEInsertionTypeConstant.igOLEEmbedded), file, x, y);
+        try
+        {
+            symbol.Range(out double x0, out double y0, out _, out _);
+            if (symbols.Count != before + 1 || Math.Abs(x0 - x) > 1e-6 || Math.Abs(y0 - y) > 1e-6)
+            {
+                throw new ToolException("symbol_failed", $"Solid Edge placed the symbol at ({Geo.Mm(x0)}, {Geo.Mm(y0)}) mm.");
+            }
+        }
+        catch (Exception ex) when (ex is ToolException || (ComErrors.Unwrap(ex) is COMException && !ComErrors.IsGone(ex)))
+        {
+            symbol.Delete();
+            throw ex is ToolException ? ex : new ToolException("symbol_failed", $"Solid Edge rejected the symbol: {ComErrors.Unwrap(ex).Message.Trim()}", null, ex);
+        }
+
+        return new { symbol = DescribeSymbol(context, draft, symbol) };
+    }
+
+    private static object DescribeSymbol(SeContext context, DraftDocument draft, SolidEdgeFramework.Symbol2d symbol)
+    {
+        symbol.Range(out double x0, out double y0, out double x1, out double y1);
+        bool linked = symbol.OLEType == SolidEdgeFramework.OLEInsertionTypeConstant.igOLELinked;
+        return new
+        {
+            handle = context.Register(symbol, "symbol", Document(draft)),
+            link = linked,
+            file = linked ? symbol.SourceDoc : null,
+            position = new[] { Geo.Mm(x0), Geo.Mm(y0) },
+            size = new[] { Geo.Mm(x1 - x0), Geo.Mm(y1 - y0) },
+        };
+    }
+
+    /// <summary>Deletes a table, an image, a smart frame or a symbol of a sheet.</summary>
     public static object DeleteContent(SeContext context, string? handle)
     {
         if (string.IsNullOrWhiteSpace(handle))
         {
-            throw ToolException.InvalidArgument("'item' is required: a table, image or frame handle from action 'list'.");
+            throw ToolException.InvalidArgument("'item' is required: a table, image, frame or symbol handle from action 'list'.");
         }
 
         object item = context.Handles.Resolve(handle, "item");
@@ -331,8 +405,18 @@ public static partial class DrawingService
                 }
 
                 break;
+            case SolidEdgeFramework.Symbol2d symbol:
+                var symbols = (SolidEdgeFramework.Symbols)((Sheet)Late.Get(symbol, "Parent")!).Symbols;
+                int placed = symbols.Count;
+                symbol.Delete();
+                if (symbols.Count != placed - 1)
+                {
+                    throw new ToolException("symbol_failed", "Solid Edge did not delete the symbol.");
+                }
+
+                break;
             default:
-                throw ToolException.InvalidArgument($"'{handle}' is not a table, an image or a smart frame of a sheet.");
+                throw ToolException.InvalidArgument($"'{handle}' is not a table, an image, a smart frame or a symbol of a sheet.");
         }
 
         context.Handles.Remove(handle, "it was deleted");

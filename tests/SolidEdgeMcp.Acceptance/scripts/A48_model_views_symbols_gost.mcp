@@ -1,0 +1,81 @@
+# A48: views of a PMI model view and of the 2D model, GOST weld symbols, symbols (saved drawings), saved notes and the data
+# for AI automatic drawing creation (se_drawing base_view modelView, model2d_view; se_annotation gost_weld, notes;
+# se_sheet_content symbol; se_app ai_drawing_data).
+# A block 100 x 60 x 20 with a PMI model view named "Shop view".
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@pmi = se_com_get {"target":"active_document","member":"PMI"}
+@mv = se_com_get {"target":"{{pmi.value.handle}}","member":"PMIModelViews"}
+@v1 = se_com_invoke {"target":"{{mv.value.handle}}","method":"AddByStandardViewOrientation","arguments":[7,4,0]}
+se_com_set {"target":"{{v1.result.handle}}","member":"Name","value":"Shop view"}
+se_documents {"action":"save_as","path":"{{work}}\\a48_blk.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# A symbol: a drawing with a 30 x 20 box and its diagonal
+@s = se_documents {"action":"new","kind":"draft"}
+@ss = se_drawing {"action":"sheets"}
+se_sketch {"action":"rectangle","sketch":"{{ss.sheets[0].handle}}","points":[0,0,30,20]}
+se_sketch {"action":"line","sketch":"{{ss.sheets[0].handle}}","points":[0,0,30,20]}
+se_documents {"action":"save_as","path":"{{work}}\\a48_symbol.dft","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+# 1) A PMI model view: the name must match (exact case), and orientation, flat or configuration do not apply
+! [not_found] se_drawing {"action":"base_view","path":"{{work}}\\a48_blk.par","modelView":"Shop View"}
+! [invalid_argument] se_drawing {"action":"base_view","path":"{{work}}\\a48_blk.par","modelView":"Shop view","orientation":"top"}
+@pv = se_drawing {"action":"base_view","path":"{{work}}\\a48_blk.par","modelView":"Shop view","position":[150,250],"scale":1}
+?= pv.view.type pictorial
+?= pv.view.center[0] 150
+?= pv.view.center[1] 250
+@dl = se_documents {"action":"list"}
+?= dl.count 1
+# 2) A 2D model view shows what is drawn on the 2D model sheet, at its scale
+! [invalid_argument] se_drawing {"action":"model2d_view","scale":0.5}
+@sh = se_drawing {"action":"sheets"}
+?~ sh.model2d.name 2D
+se_sketch {"action":"rectangle","sketch":"{{sh.model2d.handle}}","points":[0,0,200,100]}
+@m2 = se_drawing {"action":"model2d_view","scale":0.5,"position":[420,300]}
+?= m2.view.scale 0.5
+?= m2.view.center[0] 420
+?= m2.view.size[0] 112.7 0.5
+# 3) GOST weld symbols on a shelf: the note above, or above and below
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\a48_blk.par","orientation":"top","position":[160,120],"scale":1}
+! [invalid_argument] se_annotation {"action":"gost_weld","view":"{{bv.view.handle}}","points":[100,30,20]}
+@g1 = se_annotation {"action":"gost_weld","view":"{{bv.view.handle}}","points":[100,30,20],"text":"GOST 5264-80-T1-4"}
+@a1 = se_com_get {"target":"{{g1.annotation.handle}}","member":"AboveBreakLineText"}
+?~ a1.value 5264
+@g2 = se_annotation {"action":"gost_weld","view":"{{bv.view.handle}}","points":[50,60,20],"text":"GOST 14771-76-H1|4","allAround":true,"field":true,"position":[150,180]}
+@b2 = se_com_get {"target":"{{g2.annotation.handle}}","member":"BelowBreakLineText"}
+?= b2.value 4
+@f2 = se_com_get {"target":"{{g2.annotation.handle}}","member":"WeldInField"}
+?= f2.value true
+@lg = se_annotation {"action":"list","kind":"gost_weld"}
+?= lg.count 2
+# 4) Symbols: only drawings, embedded, linked or copied as geometry
+! [invalid_argument] se_sheet_content {"action":"symbol","path":"{{work}}\\a48_blk.par","position":[300,40]}
+! [invalid_argument] se_sheet_content {"action":"symbol","path":"{{work}}\\a48_symbol.dft","position":[300,40],"link":true,"geometry":true}
+@se = se_sheet_content {"action":"symbol","path":"{{work}}\\a48_symbol.dft","position":[300,40]}
+?= se.symbol.link false
+?= se.symbol.position[0] 300
+@sl = se_sheet_content {"action":"symbol","path":"{{work}}\\a48_symbol.dft","position":[310,50],"link":true}
+?= sl.symbol.link true
+?~ sl.symbol.file a48_symbol
+@sg = se_sheet_content {"action":"symbol","path":"{{work}}\\a48_symbol.dft","position":[500,40],"geometry":true}
+?= sg.geometry.elements 1
+se_sheet_content {"action":"delete","item":"{{se.symbol.handle}}"}
+@lc = se_sheet_content {"action":"list"}
+?= lc.symbols[0].link true
+# 5) Saved notes: listed (read only); an unknown note is refused
+@n = se_annotation {"action":"notes"}
+! [not_found] se_annotation {"action":"text","note":"A48 no such note","position":[40,40]}
+! [invalid_argument] se_annotation {"action":"text","note":"x","text":"y","position":[40,40]}
+se_documents {"action":"save_as","path":"{{work}}\\a48_views.dft","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# 6) Data for AI automatic drawing creation: one CSV row per drawing, and the drawing is left closed
+! [invalid_argument] se_app {"action":"ai_drawing_data","path":"{{work}}\\a48_blk.par"}
+! [invalid_argument] se_app {"action":"ai_drawing_data","path":"{{work}}\\a48_views.dft","output":"{{work}}\\a48_ai.txt"}
+@ai = se_app {"action":"ai_drawing_data","path":"{{work}}\\a48_views.dft","output":"{{work}}\\a48_ai.csv"}
+?~ ai.csv a48_ai.csv
+@dz = se_documents {"action":"list"}
+?= dz.count 0

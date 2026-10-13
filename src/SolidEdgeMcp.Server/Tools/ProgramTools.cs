@@ -22,6 +22,7 @@ public enum AppAction
     SuspendRecent,
     ResumeRecent,
     ClearRecent,
+    AiDrawingData,
 }
 
 public enum CustomizeAction
@@ -52,6 +53,7 @@ public sealed class ProgramTools(ToolRunner runner)
         addins (the Add-In Manager: ProgID, description, loaded) | set_addin (addin = index, ProgID or description; connect true/false; returns the previous state) |
         templates (default template of each document type: part, sheet_metal, assembly, draft, weldment, weldment_assembly) | set_template (documentType, path of a template in an allowed folder or the Solid Edge template folder) |
         recent (the recent files list) | suspend_recent / resume_recent (Solid Edge stops and resumes updating it; documents saved with save_as are still added) | clear_recent (empties the person's list: only when asked).
+        ai_drawing_data (path = a saved .dft; output = .csv, default next to it): the data Solid Edge's AI automatic drawing creation learns from (sheet, views, placement).
         Add-ins, templates and the recent files belong to the person and persist between sessions: change them only when asked.
         Example: {"action":"set_template","documentType":"part","path":"C:\\Users\\me\\Documents\\Templates\\Company.par"}.
         """)]
@@ -60,7 +62,8 @@ public sealed class ProgramTools(ToolRunner runner)
         [Description("For set_addin: add-in index, ProgID, GUID or description (or a unique part of it).")] string? addin = null,
         [Description("For set_addin: true loads the add-in, false unloads it.")] bool? connect = null,
         [Description("For set_template: part, sheet_metal, assembly, draft, weldment or weldment_assembly.")] string? documentType = null,
-        [Description("For set_template: absolute path of the template file.")] string? path = null,
+        [Description("For set_template: absolute path of the template file; ai_drawing_data: of the saved drawing.")] string? path = null,
+        [Description("For ai_drawing_data: the .csv file to write (allowed folders).")] string? output = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_app";
@@ -77,6 +80,7 @@ public sealed class ProgramTools(ToolRunner runner)
             AppAction.Recent => runner.RunAsync(tool, actionName, ApplicationService.Recent, cancellationToken),
             AppAction.SuspendRecent => runner.RunAsync(tool, actionName, c => ApplicationService.RecentList(c, "suspend"), cancellationToken),
             AppAction.ResumeRecent => runner.RunAsync(tool, actionName, c => ApplicationService.RecentList(c, "resume"), cancellationToken),
+            AppAction.AiDrawingData => runner.RunAsync(tool, actionName, c => ApplicationService.AiDrawingData(c, ToolRunner.Require(path, "path", actionName), output), cancellationToken),
             AppAction.ClearRecent => runner.RunAsync(tool, actionName, c => ApplicationService.RecentList(c, "clear"), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

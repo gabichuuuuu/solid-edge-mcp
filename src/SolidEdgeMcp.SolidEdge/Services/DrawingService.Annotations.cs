@@ -14,6 +14,8 @@ using CenterMark = SolidEdgeFrameworkSupport.CenterMark;
 using CenterMarks = SolidEdgeFrameworkSupport.CenterMarks;
 using CornerAnnotation = SolidEdgeFrameworkSupport.CornerAnnotation;
 using CornerAnnotations = SolidEdgeFrameworkSupport.CornerAnnotations;
+using GostWeldSymbol = SolidEdgeFrameworkSupport.GostWeldSymbol;
+using GostWeldSymbols = SolidEdgeFrameworkSupport.GostWeldSymbols;
 using DatumFrame = SolidEdgeFrameworkSupport.DatumFrame;
 using DatumFrames = SolidEdgeFrameworkSupport.DatumFrames;
 using FeatureControlFrame = SolidEdgeFrameworkSupport.FeatureControlFrame;
@@ -45,7 +47,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 public static partial class DrawingService
 {
     public static readonly IReadOnlyList<string> AnnotationKinds =
-        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame", "weld", "bolt_circle", "datum_target", "datum_point", "corner"];
+        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame", "weld", "bolt_circle", "datum_target", "datum_point", "corner", "gost_weld"];
 
     public static readonly IReadOnlyList<string> FinishTypes = ["basic", "machined", "no_material_removal"];
 
@@ -91,9 +93,46 @@ public static partial class DrawingService
         return new { sheet = sheet.Name, count = rows.Count, offset = start, returned = page.Count, more = start + page.Count < rows.Count, annotations = page };
     }
 
-    public static object AddText(SeContext context, string? documentHandle, string? sheetRef, string? text, double[]? position)
+    /// <summary>
+    /// The saved notes of the installation's note library (texts kept for reuse in text boxes and callouts), read only:
+    /// Application.AddNote has no counterpart to remove a note, so the server does not add any.
+    /// </summary>
+    public static object SavedNotes(SeContext context)
     {
-        string content = RequireText(text, "text");
+        string[] names = SavedNoteNames(context);
+        return new { count = names.Length, notes = names.Select(n => new { name = n, text = SavedNote(context, n) }).ToList() };
+    }
+
+    /// <summary>Verified: with an empty note library GetSavedNoteList fails with E_POINTER (NullReferenceException in .NET).</summary>
+    private static string[] SavedNoteNames(SeContext context)
+    {
+        try
+        {
+            context.Application.GetSavedNoteList(out Array list);
+            return list is null ? [] : [.. list.Cast<object?>().Select(n => n?.ToString() ?? "").Where(n => n.Length > 0)];
+        }
+        catch (NullReferenceException)
+        {
+            return [];
+        }
+    }
+
+    private static string SavedNote(SeContext context, string name)
+    {
+        string[] names = SavedNoteNames(context);
+        string match = names.FirstOrDefault(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase))
+            ?? throw ToolException.NotFound($"There is no saved note '{name}'.", names.Length == 0 ? "The note library is empty." : $"Saved notes: {string.Join(", ", names)}.");
+        return context.Application.GetSavedNote(match)?.ToString() ?? "";
+    }
+
+    public static object AddText(SeContext context, string? documentHandle, string? sheetRef, string? text, double[]? position, string? note = null)
+    {
+        if (note is not null && text is not null)
+        {
+            throw ToolException.InvalidArgument("Give 'text' or 'note' (a saved note), not both.");
+        }
+
+        string content = note is not null ? SavedNote(context, note) : RequireText(text, "text");
         (double x, double y) = Geo.Point2(position ?? throw ToolException.InvalidArgument("'position' [x, y] in mm on the sheet is required for a text box."), "position");
         DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
@@ -644,6 +683,52 @@ public static partial class DrawingService
     }
 
     /// <summary>
+    /// GOST weld symbol (GOST 2.312) on a leader from the edge picked by a model point: text = the note above the leader
+    /// shelf, or "above|below" (the seam on the arrow side reads above, the other side below); allAround, field; position =
+    /// the end of the leader (default 15 mm up-right).
+    /// </summary>
+    public static object AddGostWeld(SeContext context, string? viewHandle, double[]? points, double[]? position, string? text, bool allAround, bool field)
+    {
+        string[] notes = string.IsNullOrWhiteSpace(text)
+            ? throw ToolException.InvalidArgument("gost_weld requires 'text': the weld note, e.g. \"GOST 5264-80-T1-4\", or \"above|below\".")
+            : [.. text.Split('|').Select(p => p.Trim())];
+        if (notes.Length > 2)
+        {
+            throw ToolException.InvalidArgument("'text' for a GOST weld symbol is one note or two separated by '|' (above and below the shelf).");
+        }
+
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        Pick pick = PickOne(view, points);
+        (double X, double Y) at = position is null ? (pick.Sheet.X + AnnotationOffset, pick.Sheet.Y + AnnotationOffset) : Geo.Point2(position, "position");
+        GostWeldSymbol symbol = ((GostWeldSymbols)SheetOf(view).GostWeldSymbols).AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
+        return Checked(context, draft, "gost_weld", symbol, () =>
+        {
+            symbol.WeldAllAround = allAround;
+            symbol.WeldInField = field;
+            OnLeader(symbol, at, "GOST weld symbol");
+            // The shelf of the leader is its break line, and the notes go above and below it (the leader-line texts would
+            // be written along the slanted leader).
+            symbol.BreakLine = true;
+            // Verified: true draws the shelf to the left of the bend.
+            symbol.BreakLineDirection = at.X < pick.Sheet.X;
+            symbol.BreakLineDistance = Math.Max(0.02, notes.Max(n => n.Length) * 0.0025);
+            symbol.AboveBreakLineText = notes[0];
+            if (notes.Length > 1)
+            {
+                symbol.BelowBreakLineText = notes[1];
+            }
+
+            if (symbol.AboveBreakLineText != notes[0] || notes.Length > 1 && symbol.BelowBreakLineText != notes[1])
+            {
+                throw new ToolException("annotation_failed", "Solid Edge did not keep the notes of the GOST weld symbol.");
+            }
+
+
+        });
+    }
+
+    /// <summary>
     /// With a position, draws the symbol on a leader ending there (verified: Leader plus one vertex, as with balloons); then
     /// checks that it is attached to the view and drawn around its position.
     /// </summary>
@@ -799,7 +884,7 @@ public static partial class DrawingService
             ("centerline", sheet.CenterLines), ("leader", sheet.Leaders), ("surface_finish", sheet.SurfaceFinishSymbols),
             ("datum", sheet.DatumFrames), ("feature_control_frame", sheet.FeatureControlFrames),
             ("weld", sheet.WeldSymbols), ("bolt_circle", sheet.BoltHoleCircles), ("datum_target", sheet.DatumTargets),
-            ("datum_point", sheet.DatumPoints), ("corner", sheet.CornerAnnotations),
+            ("datum_point", sheet.DatumPoints), ("corner", sheet.CornerAnnotations), ("gost_weld", sheet.GostWeldSymbols),
         })
         {
             if (collection is null)
@@ -829,6 +914,7 @@ public static partial class DrawingService
         DatumTarget => "datum_target",
         DatumPoint => "datum_point",
         CornerAnnotation => "corner",
+        GostWeldSymbol => "gost_weld",
         _ => null,
     };
 

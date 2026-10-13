@@ -89,7 +89,44 @@ public static partial class DrawingService
             section = IsBackground(draft.ActiveSheet) ? "background" : "working",
             sheets = WorkingSheets(draft).Select(sheet => DescribeSheet(context, draft, sheet, active)).ToList(),
             backgrounds = BackgroundSheets(draft).Select(sheet => DescribeSheet(context, draft, sheet, active)).ToList(),
+            model2d = Model2d(context, draft),
         };
+    }
+
+    /// <summary>The 2D model sheet: drawn on with se_sketch like any sheet, and shown on working sheets by 2D model views.</summary>
+    private static object Model2d(SeContext context, DraftDocument draft)
+    {
+        Sheet sheet = draft.Sections.Get2DModelSheet;
+        return new { handle = context.Register(sheet, "sheet", Document(draft)), name = sheet.Name, objects = Late.Count(sheet.DrawingObjects) };
+    }
+
+    /// <summary>
+    /// A 2D model view: the content of the 2D model sheet at a scale, centred at <paramref name="position"/> (default the centre of
+    /// the sheet). Verified: Add2dModelView shows everything drawn on the 2D model sheet; with nothing on it the view is an empty
+    /// 25.4 mm square, so an empty 2D model is refused.
+    /// </summary>
+    public static object Model2dView(SeContext context, string? documentHandle, string? sheetRef, double? scale, double[]? position)
+    {
+        DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
+        Sheet sheet = ResolveSheet(context, draft, sheetRef);
+        Sheet model = draft.Sections.Get2DModelSheet;
+        if (Late.Count(model.DrawingObjects) == 0)
+        {
+            throw ToolException.InvalidArgument("The 2D model sheet is empty, so a 2D model view would show nothing.",
+                "Draw on it first: se_sketch with the 'model2d' sheet handle from 'sheets'.");
+        }
+
+        if (IsBackground(sheet))
+        {
+            throw ToolException.InvalidArgument("A 2D model view goes on a working sheet, not on a background.");
+        }
+
+        double factor = scale is { } s ? RequireScale(s) : 1;
+        (double x, double y) = position is null ? Centre(sheet) : Geo.Point2(position, "position");
+        sheet.Activate();
+        DrawingView view = Create(() => sheet.DrawingViews.Add2dModelView(factor, x, y), "2D model view", "Check the scale.");
+        CentreAt(view, x, y);
+        return Result(context, draft, view, null);
     }
 
     public static object AddSheet(SeContext context, string? documentHandle, string? name, string? paper, bool portrait,
@@ -184,7 +221,7 @@ public static partial class DrawingService
 
     /// <summary>Base view of a saved model; without a scale, the largest standard scale that leaves room for the projections.</summary>
     public static object BaseView(SeContext context, string? documentHandle, string? sheetRef, string? path, string? modelHandle,
-        string? orientation, double? scale, double[]? position, bool flat, string? configuration = null)
+        string? orientation, double? scale, double[]? position, bool flat, string? configuration = null, string? modelView = null)
     {
         DraftDocument draft = Draft(context, documentHandle);
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
@@ -193,6 +230,11 @@ public static partial class DrawingService
         if (flat && extension is not (".psm" or ".par"))
         {
             throw ToolException.InvalidArgument("'flat' needs a sheet metal model (.psm, or a .par with a flat pattern).");
+        }
+
+        if (!string.IsNullOrWhiteSpace(modelView) && (flat || !string.IsNullOrWhiteSpace(configuration) || orientation is not null))
+        {
+            throw ToolException.InvalidArgument("'modelView' shows a PMI model view as it was saved: leave out 'flat', 'configuration' and 'orientation'.");
         }
 
         string orientationName = orientation ?? (flat ? "top" : "front");
@@ -219,9 +261,22 @@ public static partial class DrawingService
         }
 
         ModelLink link = LinkTo(draft, file);
+        if (!string.IsNullOrWhiteSpace(modelView))
+        {
+            RequireModelView(link, file, modelView);
+        }
+
         double factor = scale is { } s ? RequireScale(s) : FitScale(link, orient, sheet);
         (double x, double y) = position is null ? Centre(sheet) : Geo.Point2(position, "position");
         sheet.Activate();
+        if (!string.IsNullOrWhiteSpace(modelView))
+        {
+            DrawingView pmi = Create(() => sheet.DrawingViews.AddPMIModelView(link, modelView, factor, x, y), "PMI model view",
+                "Check the name of the PMI model view in the model.");
+            CentreAt(pmi, x, y);
+            return Result(context, draft, pmi, warning);
+        }
+
         if (configFile is not null)
         {
             DrawingView configured = Create(() => sheet.DrawingViews.AddWithConfiguration(link, orient, factor, x, y, configFile, configuration!),
@@ -244,6 +299,26 @@ public static partial class DrawingService
             "base view", flat ? "Create the flat pattern in the model first (se_sheetmetal 'flatten') and save it." : "Check that the model has geometry and is saved.");
         CentreAt(view, x, y);
         return Result(context, draft, view, warning);
+    }
+
+    /// <summary>
+    /// Checks that the linked model has a PMI model view of that name (exact case, as AddPMIModelView needs it). Verified: an
+    /// unknown name makes AddPMIModelView fail with DISP_E_MEMBERNOTFOUND, which says nothing about the name.
+    /// </summary>
+    private static void RequireModelView(ModelLink link, string file, string modelView)
+    {
+        string[] names = [];
+        if (Late.Get(link.ModelDocument, "PMI") is { } pmi && Late.Get(pmi, "PMIModelViews") is { } views)
+        {
+            names = [.. Late.Items(views).Select(v => Late.Get(v, "Name") as string ?? "")];
+        }
+
+        if (!names.Contains(modelView, StringComparer.Ordinal))
+        {
+            throw ToolException.NotFound(
+                names.Length == 0 ? $"'{System.IO.Path.GetFileName(file)}' has no PMI model views." : $"'{System.IO.Path.GetFileName(file)}' has no PMI model view '{modelView}'.",
+                names.Length == 0 ? "Add one in the model (PMI model views) and save it." : $"Its PMI model views: {string.Join(", ", names)}.");
+        }
     }
 
     /// <summary>Projected (folded) view from another one; the diagonals give a pictorial view.</summary>
