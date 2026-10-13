@@ -6,6 +6,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-13
+
 ### Changed
 
 - `se_geometry summary` warns when the body has elliptical edges (a tube swept round a sharp corner, an oblique cut of
