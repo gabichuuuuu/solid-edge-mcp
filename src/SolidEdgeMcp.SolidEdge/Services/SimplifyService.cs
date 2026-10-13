@@ -19,15 +19,21 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// design body does not change; MakeActive switches between the design and the simplified model; deleting its features
 /// brings its body back. SimplifiedModels has no Remove: once made, the simplified model stays in the document.
 /// </summary>
-public static class SimplifyService
+public static partial class SimplifyService
 {
-    public static readonly IReadOnlyList<string> Actions = ["status", "create", "delete_holes", "delete_rounds", "delete_faces", "delete_region", "activate", "delete"];
+    public static readonly IReadOnlyList<string> Actions = ["status", "create", "delete_holes", "delete_rounds", "delete_faces", "delete_region", "activate", "delete", "save_as"];
 
     private const int FaceCollection = 1;
     private const int EdgeCollection = 2;
 
     public static object Run(SeContext context, string? documentHandle, string action, double? diameter, string[]? faces, string? model, string? feature,
-        string[]? edges = null) => action switch
+        string[]? edges = null, string[]? occurrences = null, double? ratio = null, string? path = null) =>
+        AssemblyTarget(context, documentHandle, faces, feature) is { } assembly
+            ? RunAssembly(context, assembly, action, occurrences, ratio, path)
+            : RunPart(context, documentHandle, action, diameter, faces, model, feature, edges);
+
+    private static object RunPart(SeContext context, string? documentHandle, string action, double? diameter, string[]? faces, string? model, string? feature,
+        string[]? edges) => action switch
     {
         "status" => Status(context, Document(context, documentHandle, faces, feature)),
         "create" => Create(context, Document(context, documentHandle, faces, feature)),

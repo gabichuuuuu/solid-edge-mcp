@@ -6,6 +6,14 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_assembly copy_assembly`: the components of another saved assembly copied in and kept in step with it, plain or
+  mirrored about an assembly plane.
+- `se_simplify` on an assembly: its simplified model without chosen components or those smaller than a share of its
+  size (status, create, delete), written as a part (`save_as`).
+- Acceptance script `A50`.
+
 ## [0.7.1] - 2026-10-13
 
 ### Added

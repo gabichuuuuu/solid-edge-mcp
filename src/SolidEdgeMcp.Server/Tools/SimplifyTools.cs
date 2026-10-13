@@ -20,6 +20,7 @@ public enum SimplifyAction
     DeleteRegion,
     Activate,
     Delete,
+    SaveAs,
 }
 
 public enum SimplifyModel
@@ -28,7 +29,7 @@ public enum SimplifyModel
     Simplified,
 }
 
-/// <summary>The simplified model of a part (Simplify tab).</summary>
+/// <summary>The simplified model of a part (Simplify tab) or of an assembly.</summary>
 [McpServerToolType]
 public sealed class SimplifyTools(ToolRunner runner)
 {
@@ -40,6 +41,7 @@ public sealed class SimplifyTools(ToolRunner runner)
         delete_holes: every hole up to 'diameter' | delete_rounds: 'faces' of rounds | delete_faces: 'faces' removed and healed | delete_region: 'edges' = the closed loop around a region, 'faces' = [one face inside it]; faces and edges of the simplified body (se_geometry with source = the body from status) |
         activate: model = design | simplified (what Solid Edge shows and edits) | delete: one simplification 'feature' (handle from status).
         Each change is checked by the simplified body (volume or faces) and deleted if nothing changed.
+        An assembly: status (what it leaves out) | create (occurrences to leave out and/or ratio = leave out the components smaller than that share of the assembly, 0-1) | delete | save_as (path = a .par of what is left).
         Example: {"action":"create"}; {"action":"delete_holes","diameter":12}; {"action":"activate","model":"design"}.
         """)]
     public Task<CallToolResult> Simplify(
@@ -49,8 +51,11 @@ public sealed class SimplifyTools(ToolRunner runner)
         [Description("delete_region: the closed loop of edges around the region (simplified body).")] string[]? edges = null,
         [Description("activate: design or simplified.")] SimplifyModel? model = null,
         [Description("delete: handle of a simplification feature (status).")] string? feature = null,
+        [Description("Assembly create: occurrence handles to leave out.")] string[]? occurrences = null,
+        [Description("Assembly create: leave out the components smaller than this share of the assembly size (0-1).")] double? ratio = null,
+        [Description("Assembly save_as: absolute path of the .par to write (allowed folders).")] string? path = null,
         [Description("Document handle; default: the document of the faces or the active one.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_simplify", Snake(action), c => SimplifyService.Run(c, document, Snake(action), diameter, faces,
-            model is { } m ? Snake(m) : null, feature, edges), cancellationToken);
+            model is { } m ? Snake(m) : null, feature, edges, occurrences, ratio, path), cancellationToken);
 }

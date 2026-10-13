@@ -30,6 +30,7 @@ public enum AssemblyAction
     Bundle,
     Transfer,
     Disperse,
+    CopyAssembly,
 }
 
 public enum RelationAction
@@ -145,7 +146,8 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         suppress (unloads it but keeps it in the assembly; returns a 'suppressed' handle) | unsuppress (that handle) | delete (removes the occurrence, not its file) |
         activate (loads the part for editing; all = every component) | inactivate (a part occurrence of a saved assembly: lighter, still visible and measurable) |
         bundle (occurrences → a new subassembly saved at path (.asm, must not exist; template optional), keeping their positions) |
-        transfer (occurrences → into the existing subassembly occurrence 'subassembly') | disperse (subassembly occurrence: its components move up into the assembly; all = every occurrence of that subassembly).
+        transfer (occurrences → into the existing subassembly occurrence 'subassembly') | disperse (subassembly occurrence: its components move up into the assembly; all = every occurrence of that subassembly) |
+        copy_assembly (path of another saved .asm: its components copied in and kept in step with it; plane = mirror them about an assembly plane '1'-'3' or a handle).
         bundle/transfer change the subassembly file, which is saved when the assembly is saved; the moved occurrences get new handles (se_assembly list).
         move/rotate are checked: an occurrence held by its relations is left where it was and reported. se_relations frees (ungrounds) the occurrence it positions.
         Faces for relations: se_geometry with 'source' = the occurrence handle.
@@ -154,7 +156,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
     public Task<CallToolResult> Assembly(
         AssemblyAction action,
         [Description("Occurrence handle (move, rotate, ground, unground, replace, show, hide, suppress, delete, activate, inactivate, disperse); 'suppressed' handle for unsuppress.")] string? occurrence = null,
-        [Description("insert/replace: absolute path of the part or assembly file (allowed folders); bundle: the new subassembly file (.asm).")] string? path = null,
+        [Description("insert/replace: absolute path of the part or assembly file (allowed folders); bundle: the new subassembly file (.asm); copy_assembly: the assembly to copy.")] string? path = null,
         [Description("insert/move: position [x,y,z] in mm.")] double[]? origin = null,
         [Description("insert/move: rotation angles [ax,ay,az] in degrees about the assembly X, Y, Z axes.")] double[]? angles = null,
         [Description("move: relative displacement [dx,dy,dz] in mm.")] double[]? delta = null,
@@ -166,6 +168,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         [Description("bundle, transfer: occurrence handles to move into the subassembly.")] string[]? occurrences = null,
         [Description("transfer: the subassembly occurrence to move them into.")] string? subassembly = null,
         [Description("bundle: assembly template for the new subassembly (default: Solid Edge's default assembly template).")] string? template = null,
+        [Description("copy_assembly: assembly plane to mirror the copy about ('1'-'3' or a reference plane handle).")] string? plane = null,
         int offset = 0,
         int limit = 100,
         [Description("Assembly document handle; default: the occurrence's assembly or the active document.")] string? document = null,
@@ -195,6 +198,8 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyAction.Bundle => runner.RunAsync(tool, name, c => AssemblyService.Bundle(c, occurrences,
                 ToolRunner.Require(path, "path", "bundle"), template), cancellationToken, precheck: precheck),
             AssemblyAction.Transfer => runner.RunAsync(tool, name, c => AssemblyService.Transfer(c, occurrences, subassembly), cancellationToken),
+            AssemblyAction.CopyAssembly => runner.RunAsync(tool, name, c => AssemblyService.CopyAssembly(c, document,
+                ToolRunner.Require(path, "path", "copy_assembly"), plane), cancellationToken, precheck: precheck),
             AssemblyAction.Disperse => runner.RunAsync(tool, name, c => AssemblyService.Disperse(c, occurrence, all), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

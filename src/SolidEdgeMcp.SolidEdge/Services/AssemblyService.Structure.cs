@@ -208,6 +208,76 @@ public static partial class AssemblyService
         };
     }
 
+    /// <summary>
+    /// Copies the components of another saved assembly into this one, associatively (an assembly copy that follows its
+    /// source), optionally mirrored about an assembly plane. Verified: AssemblyCopies.Add places the source's top-level
+    /// components at their positions in the source's active member (or mirrored, the type then reads Mirror); they come in
+    /// ungrounded.
+    /// </summary>
+    public static object CopyAssembly(SeContext context, string? documentHandle, string path, string? plane)
+    {
+        AssemblyDocument assembly = Assembly(context, documentHandle);
+        string file = context.Paths.Check(path, "path");
+        if (!File.Exists(file))
+        {
+            throw ToolException.NotFound($"There is no file '{file}'.");
+        }
+
+        if (!string.Equals(System.IO.Path.GetExtension(file), ".asm", StringComparison.OrdinalIgnoreCase))
+        {
+            throw ToolException.InvalidArgument("An assembly copy is made from another saved assembly (.asm).", "Insert a part with action 'insert'.");
+        }
+
+        if (string.Equals(file, DocumentService.PathOf((SolidEdgeDocument)assembly), StringComparison.OrdinalIgnoreCase))
+        {
+            throw ToolException.InvalidArgument("An assembly cannot copy itself.");
+        }
+
+        if (Items<AssemblyCopy>(assembly.AssemblyCopies).Any(c => string.Equals(c.SourceFilename, file, StringComparison.OrdinalIgnoreCase)))
+        {
+            // Verified: with two copies of the same assembly, plain or mirrored, SaveAs fails with DISP_E_EXCEPTION.
+            throw new ToolException("copy_exists", $"The assembly already has a copy of '{System.IO.Path.GetFileName(file)}', and Solid Edge cannot save an assembly with two.",
+                "Copy another assembly, or save the copy of this one under another name and copy that.");
+        }
+
+        object? mirror = string.IsNullOrWhiteSpace(plane) ? null : SketchService.AssemblyPlane(context, assembly, plane);
+        HashSet<int> ids = Items<Occurrence>(assembly.Occurrences).Select(o => o.OccurrenceID).ToHashSet();
+        AssemblyCopy copy;
+        try
+        {
+            copy = mirror is null
+                ? assembly.AssemblyCopies.Add(file, AssemblyCopyComponentConstants.seAssemblyCopyComponentsIncludeAll)
+                : assembly.AssemblyCopies.Add(file, AssemblyCopyComponentConstants.seAssemblyCopyComponentsIncludeAll, mirror);
+        }
+        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        {
+            // Verified with an assembly that has alternate positions.
+            throw new ToolException("copy_failed", $"Solid Edge could not copy '{System.IO.Path.GetFileName(file)}' (E_FAIL): an assembly with alternate positions or a family is not copied.",
+                "Write one member as a plain assembly (se_assembly_family save_member) and copy that.");
+        }
+        context.ModelChanged((SolidEdgeDocument)assembly, "an assembly copy was added");
+        List<Occurrence> added = Items<Occurrence>(assembly.Occurrences).Where(o => !ids.Contains(o.OccurrenceID)).ToList();
+        if (copy.Status != AssemblyCopyStatusConstants.seAssemblyCopyStatusOK || added.Count == 0)
+        {
+            foreach (Occurrence occurrence in added)
+            {
+                occurrence.Delete();
+            }
+
+            throw new ToolException("copy_failed", $"The assembly copy of '{System.IO.Path.GetFileName(file)}' is {copy.Status} with {added.Count} components.",
+                "Check that the source assembly opens and has components.");
+        }
+
+        HashSet<int> grounded = GroundedIds(assembly);
+        return new
+        {
+            copy = copy.Name,
+            source = copy.SourceFilename,
+            mirrored = copy.AssemblyCopyType == AssemblyCopyTypeConstants.seAssemblyCopyTypeMirror,
+            occurrences = added.Select(o => Describe(context, assembly, o, grounded)).ToList(),
+        };
+    }
+
     /// <summary>TransferOccurrences into <paramref name="target"/>, checked by the number of components it then has.</summary>
     private static object MoveInto(SeContext context, AssemblyDocument assembly, List<Occurrence> moving, string[] handles, Occurrence target)
     {
