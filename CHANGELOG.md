@@ -6,6 +6,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-13
+
+More of what the Solid Edge API leaves broken now works: faces turned about an edge, a part cut by a plane, the draft
+analysis of a part, conical helices and helical curves (which only needed the right axis or side constant), each
+checked by its measured result.
+
 ### Added
 
 - `se_part_feature rotate_faces`: a planar face turned about one of its edges by an angle, as a plane at that angle about
