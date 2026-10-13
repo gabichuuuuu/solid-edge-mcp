@@ -6,6 +6,13 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_part_feature rotate_faces`: a planar face turned about one of its edges by an angle, as a plane at that angle about
+  the edge that replaces the face (Solid Edge's face rotate feature fails through the API).
+- `se_part_feature cut_by_plane`: removes what lies on one side of a plane, as an extruded cutout through all of a
+  rectangle drawn on the plane around the body (the Boolean feature with a plane tool fails through the API).
+
 ## [1.4.0] - 2026-10-13
 
 Five functions that the Solid Edge API does not offer, or offers broken, now work through routes built from features that

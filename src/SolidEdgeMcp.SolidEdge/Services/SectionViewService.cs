@@ -173,22 +173,7 @@ public static class SectionViewService
         }
 
         string sketch = context.Register(profile, "sketch", document);
-        double u0 = double.MaxValue, v0 = double.MaxValue, u1 = double.MinValue, v1 = double.MinValue;
-        foreach (int corner in Enumerable.Range(0, 8))
-        {
-            profile.Convert3DCoordinate((corner & 1) == 0 ? lo[0] : hi[0], (corner & 2) == 0 ? lo[1] : hi[1], (corner & 4) == 0 ? lo[2] : hi[2],
-                out double u, out double v);
-            (u0, v0, u1, v1) = (Math.Min(u0, u), Math.Min(v0, v), Math.Max(u1, u), Math.Max(v1, v));
-        }
-
-        double margin = 0.1 * Math.Max(u1 - u0, v1 - v0) + 0.001;
-        SketchService.Rectangle(context, sketch, [Units.MToMm(u0 - margin), Units.MToMm(v0 - margin), Units.MToMm(u1 + margin), Units.MToMm(v1 + margin)]);
-        SketchService.Close(context, sketch);
-        profile.Convert2DCoordinate(0, 0, out double ox, out double oy, out double oz);
-        profile.Convert2DCoordinate(1, 0, out double xx, out double xy, out double xz);
-        profile.Convert2DCoordinate(0, 1, out double yx, out double yy, out double yz);
-        double[] normal = Geo.Cross([xx - ox, xy - oy, xz - oz], [yx - ox, yy - oy, yz - oz]);
-        return (sketch, [.. normal.Select(Geo.R)], switched);
+        return (sketch, SketchService.RectangleAround(context, sketch, lo, hi), switched);
     }
 
     public static object Show(SeContext context, string? documentHandle, string? section, bool shown)

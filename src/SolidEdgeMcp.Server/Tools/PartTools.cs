@@ -71,12 +71,14 @@ public enum PartFeatureAction
     DeleteRegion,
     OffsetFaces,
     ReplaceFaces,
+    RotateFaces,
     RedefineFaces,
     ResizeHoles,
     ResizeRounds,
     NormalProtrusion,
     NormalCutout,
     Split,
+    CutByPlane,
     Unite,
     Slot,
     WebNetwork,
@@ -295,25 +297,24 @@ public sealed class PartTools(ToolRunner runner)
         rib: sketch = an open chain (se_sketch close open:true) across the part; thickness; side; depth |
         thicken: faces, thickness; side |
         mirror_body: a mirrored copy about 'plane'.
-        split: 'plane' cuts the body (or 'bodies') into design bodies | unite: 'bodies' into one (default all); more in se_body.
-        Direct edits (also imported parts): delete_faces (healed) | delete_holes (diameter: holes up to it) | delete_rounds (round faces) | delete_region (edges = closed loop, faces = [one face inside]) | offset_faces (distance, positive adds) | replace_faces (onto replaceWith: plane, surface or face) | redefine_faces (adjacent faces into one B-spline) | resize_holes (hole faces, diameter) | resize_rounds (round faces, radius).
-        normal_protrusion | normal_cutout: 'edges' of closed curves on faces (se_curve project/wrap) raised or recessed by 'distance'; side auto = inside, reverse = outside.
-        slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends (path extended by half the width) or squareEnds; through, or depth; optional counterbore |
+        split: 'plane' cuts the body (or 'bodies') into design bodies | cut_by_plane: removes one side of 'plane': side normal (its sketch normal) | reverse | unite: 'bodies' into one (default all); more in se_body.
+        Direct edits (also imported parts): delete_faces (healed) | delete_holes (diameter: holes up to it) | delete_rounds (round faces) | delete_region (edges = closed loop, faces = [one face inside]) | offset_faces (distance, positive adds; moves planar faces) | replace_faces (onto replaceWith: plane, surface or face) | rotate_faces (faces = [planar face], edges = [its pivot edge], angle degrees, positive adds) | redefine_faces (adjacent faces into one B-spline) | resize_holes (hole faces, diameter) | resize_rounds (round faces, radius).
+        normal_protrusion | normal_cutout: 'edges' of closed curves on faces (se_curve project/wrap) raised or recessed by 'distance' (side).
+        slot: sketch = an open path (lines, arcs) on a plane or face; width; rounded ends or squareEnds; through, or depth; optional counterbore |
         web_network: sketch = open lines across a shelled part; thickness; walls to the next face, or depth |
         lip: edges = a chain of rim edges (outer edges of a shelled part's open face), width, height |
-        scale_body: scale = one factor or three (x, y, z) about the part origin (the first body of a split part).
-        copy_part: path = a saved .par/.psm copied into this part (base body of an empty part, or united with the body); optional scale and mirror plane.
-        fillet_weld (part documents): a weld bead body between 'faces' (base) and 'targetFaces' meeting them along an edge; leg mm on the base faces, leg2 on the targets (default leg).
-        Threads: se_hole tapped (cosmetic) or se_thread (physical).
+        scale_body: scale = one factor or three (x, y, z) about the part origin (first body of a split part).
+        copy_part: path = a saved .par/.psm copied in (base body of an empty part, else united); optional scale, mirror plane.
+        fillet_weld (parts): a weld bead body between 'faces' (base) and 'targetFaces' meeting along an edge; leg mm on the base, leg2 on the targets (default leg).
         {{VerifiedNote}}
         Example: {"action":"rib","sketch":"sketch:6","thickness":6}; {"action":"scale_body","scale":[2]}.
         """)]
     public Task<CallToolResult> PartFeature(
         PartFeatureAction action,
-        [Description("thicken, delete_faces, delete_rounds, offset_faces, replace_faces, redefine_faces (two or more that touch), resize_holes, resize_rounds: face handles; fillet_weld: the base faces; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
+        [Description("thicken, delete_faces, delete_rounds, offset_faces, replace_faces, rotate_faces, redefine_faces (two or more that touch), resize_holes, resize_rounds: face handles; fillet_weld: the base faces; lip: [the rim face] when it is not the smaller face of the first edge.")] string[]? faces = null,
         [Description("rib, slot, web_network: open sketch handle.")] string? sketch = null,
         [Description("rib, thicken, web_network: thickness in mm.")] double? thickness = null,
-        [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse; normal_protrusion, normal_cutout: auto = inside the curves | reverse = outside.")] PartFeatureSide side = PartFeatureSide.Auto,
+        [Description("rib: auto = symmetric | normal | reverse (thickness to one side of the sketch plane); thicken: auto = the side that adds material | normal | reverse; normal_protrusion, normal_cutout: auto = inside the curves | reverse = outside; cut_by_plane: normal | reverse = the side removed.")] PartFeatureSide side = PartFeatureSide.Auto,
         [Description("mirror_body: mirror plane ('1'-'3', refplane or planar face handle); split: the cutting reference plane; copy_part: optional mirror reference plane.")] string? plane = null,
         [Description("rib, web_network: finite depth in mm (default: up to the part or the next face); slot: depth in mm (default: through the part).")] double? depth = null,
         [Description("offset_faces: distance in mm along the face normals (positive outwards adds material, negative inwards); normal_protrusion, normal_cutout: height or depth in mm.")] double? distance = null,
@@ -321,8 +322,8 @@ public sealed class PartTools(ToolRunner runner)
         [Description("resize_rounds: new radius in mm.")] double? radius = null,
         [Description("slot, lip: width in mm.")] double? width = null,
         [Description("lip: height in mm.")] double? height = null,
-        [Description("delete_region: the closed loop of edges around the region; lip: edge handles of the rim; normal_protrusion, normal_cutout: the edges of the curves (se_geometry edges with source = the curve).")] string[]? edges = null,
-        [Description("slot: square ends instead of rounded.")] bool squareEnds = false,
+        [Description("delete_region: the closed loop of edges around the region; rotate_faces: [the edge to turn about]; lip: edge handles of the rim; normal_protrusion, normal_cutout: the edges of the curves (se_geometry edges with source = the curve).")] string[]? edges = null,
+        [Description("slot: square ends instead of rounded (rounded ends extend the path by half the width).")] bool squareEnds = false,
         [Description("slot: counterbore at the top of the slot, [total width, depth] in mm (wider than the slot).")] double[]? counterbore = null,
         [Description("scale_body, copy_part: one factor or three (x, y, z), e.g. [2] or [1, 1, 0.5].")] double[]? scale = null,
         [Description("copy_part: absolute path of the saved part file to copy (allowed folders).")] string? path = null,
@@ -331,11 +332,12 @@ public sealed class PartTools(ToolRunner runner)
         [Description("fillet_weld: target face handles, meeting the base faces along an edge.")] string[]? targetFaces = null,
         [Description("fillet_weld: leg in mm on the base faces.")] double? leg = null,
         [Description("fillet_weld: leg in mm on the target faces (default leg).")] double? leg2 = null,
+        [Description("rotate_faces: angle in degrees about the edge, positive turns the face outwards (adds material).")] double? angle = null,
         [Description("Document handle; default: the document of the faces, sketch or plane.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
             new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies, radius,
-                targetFaces, leg, leg2)), cancellationToken);
+                targetFaces, leg, leg2, angle)), cancellationToken);
 
     [McpServerTool(Name = "se_body", Title = "Bodies: list / subtract / intersect / unite / emboss / construction and design", Destructive = false, OpenWorld = false)]
     [Description($$"""

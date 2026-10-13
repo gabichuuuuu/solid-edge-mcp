@@ -1,0 +1,29 @@
+# A68: faces turned about an edge (se_part_feature rotate_faces): a plane at the angle to the face about the edge (the other
+# face along it is the pivot), then the face replaced by it. The top of a 100 x 60 x 20 block turned about one of its edges along
+# x by 10° outwards adds the wedge 0.5 x 60 x 60 tan 10° x 100 = 31738.857 mm3, and by -10° takes it away. An angle of 0 and an
+# edge that is not on the face are refused.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@e = se_geometry {"action":"edges","source":"{{top.items[0].handle}}","direction":[1,0,0]}
+@bottom = se_geometry {"action":"faces","direction":[0,0,-1]}
+@eb = se_geometry {"action":"edges","source":"{{bottom.items[0].handle}}","direction":[1,0,0]}
+! [invalid_argument] se_part_feature {"action":"rotate_faces","faces":["{{top.items[0].handle}}"],"edges":["{{e.items[0].handle}}"],"angle":0}
+! [invalid_argument] se_part_feature {"action":"rotate_faces","faces":["{{top.items[0].handle}}"],"edges":["{{eb.items[0].handle}}"],"angle":10}
+@r = se_part_feature {"action":"rotate_faces","faces":["{{top.items[0].handle}}"],"edges":["{{e.items[0].handle}}"],"angle":10}
+?= r.volumeChange 31738.857 0.01
+?~ r.direction outwards
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@d2 = se_documents {"action":"new","kind":"part"}
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+se_extrude {"sketch":"{{k2.sketch}}","distance":20}
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e2 = se_geometry {"action":"edges","source":"{{top2.items[0].handle}}","direction":[1,0,0]}
+@r2 = se_part_feature {"action":"rotate_faces","faces":["{{top2.items[0].handle}}"],"edges":["{{e2.items[0].handle}}"],"angle":-10}
+?= r2.volumeChange -31738.857 0.01
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}

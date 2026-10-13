@@ -114,6 +114,31 @@ public static partial class SketchService
         return new { elements = lines.Select(l => context.RegisterBeside(l, "line2d", sketch)).ToArray() };
     }
 
+    /// <summary>
+    /// Draws and closes a rectangle on the sketch's plane around a box of the model (corners <paramref name="lo"/> and
+    /// <paramref name="hi"/> in m: its eight corners projected onto the plane, plus a margin of a tenth of the size and 1 mm);
+    /// returns the normal of the sketch frame.
+    /// </summary>
+    internal static double[] RectangleAround(SeContext context, string sketch, double[] lo, double[] hi)
+    {
+        Profile profile = Resolve(context, sketch);
+        double u0 = double.MaxValue, v0 = double.MaxValue, u1 = double.MinValue, v1 = double.MinValue;
+        foreach (int corner in Enumerable.Range(0, 8))
+        {
+            profile.Convert3DCoordinate((corner & 1) == 0 ? lo[0] : hi[0], (corner & 2) == 0 ? lo[1] : hi[1], (corner & 4) == 0 ? lo[2] : hi[2],
+                out double u, out double v);
+            (u0, v0, u1, v1) = (Math.Min(u0, u), Math.Min(v0, v), Math.Max(u1, u), Math.Max(v1, v));
+        }
+
+        double margin = 0.1 * Math.Max(u1 - u0, v1 - v0) + 0.001;
+        Rectangle(context, sketch, [Units.MToMm(u0 - margin), Units.MToMm(v0 - margin), Units.MToMm(u1 + margin), Units.MToMm(v1 + margin)]);
+        Close(context, sketch);
+        double[] o = To3d(profile, 0, 0);
+        double[] x = To3d(profile, 1, 0);
+        double[] y = To3d(profile, 0, 1);
+        return [.. Geo.Cross([x[0] - o[0], x[1] - o[1], x[2] - o[2]], [y[0] - o[0], y[1] - o[1], y[2] - o[2]]).Select(Geo.R)];
+    }
+
     public static object Polyline(SeContext context, string sketch, double[]? points, bool closed)
     {
         Canvas2d canvas = ResolveCanvas(context, sketch);

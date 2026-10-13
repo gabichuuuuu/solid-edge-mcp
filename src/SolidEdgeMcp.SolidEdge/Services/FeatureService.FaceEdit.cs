@@ -209,6 +209,65 @@ public static partial class FeatureService
     }
 
     /// <summary>
+    /// Turns a planar face about one of its straight edges by an angle in degrees, positive outwards (adds material): a
+    /// reference plane at that angle to the face about the edge (the pivot is the other face along the edge, which must be
+    /// planar), then the face replaced by it. Verified: FaceRotates.Add leaves the feature failed; this route on the top of a
+    /// 100 x 60 x 20 block about its front edge, 10°, adds the wedge 0.5 x 60 x 60 tan 10° x 100 = 31738.86 mm³.
+    /// </summary>
+    private static object RotateFaces(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        double degrees = spec.Angle ?? throw ToolException.InvalidArgument("rotate_faces requires 'angle' in degrees: positive turns the face outwards (adds material), negative inwards.");
+        if (!double.IsFinite(degrees) || Math.Abs(degrees) < 1e-6 || Math.Abs(degrees) >= 90)
+        {
+            throw ToolException.InvalidArgument("'angle' must be between -90 and 90 degrees and not 0.");
+        }
+
+        if (spec.Faces is not { Length: 1 } || spec.Edges is not { Length: 1 })
+        {
+            throw ToolException.InvalidArgument("rotate_faces takes one planar face in 'faces' and the straight edge of it to turn about in 'edges'.",
+                "Get them with se_geometry 'faces' and 'edges' (source = the face).");
+        }
+
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "rotate_faces", "the face to turn");
+        var face = (Face)faces[0];
+        Edge edge = context.Handles.Resolve<Edge>(spec.Edges[0], "edges");
+        if (face.Geometry is not SolidEdgeGeometry.Plane || edge.Geometry is not SolidEdgeGeometry.Line)
+        {
+            throw ToolException.InvalidArgument("rotate_faces turns a planar face about a straight edge of it.");
+        }
+
+        Array adjacent = Array.Empty<object>();
+        edge.GetFaces(out int count, ref adjacent);
+        Face[] sides = [.. adjacent.Cast<object>().OfType<Face>()];
+        if (count != 2 || !sides.Any(f => f.ID == face.ID))
+        {
+            throw ToolException.InvalidArgument("The edge is not an edge of the face.", "Pass an edge from se_geometry 'edges' with source = the face.");
+        }
+
+        Face pivot = sides.First(f => f.ID != face.ID);
+        if (pivot.Geometry is not SolidEdgeGeometry.Plane)
+        {
+            throw ToolException.InvalidArgument("The other face along the edge must be planar: it sets the axis the face turns about.");
+        }
+
+        bool switched = model.EnsureOrdered();
+        double before = model.Volume();
+        RefPlane plane = model.RefPlanes.AddAngularByAngle(face, Units.DegToRad(degrees), ReferenceElementConstants.igNormalSide, pivot,
+            ReferenceElementConstants.igPivotEnd, Local: true);
+        try
+        {
+            object feature = Create("rotate face", () => target.ReplaceFaces.Add(face, plane));
+            return Verify(context, model, feature, before, Math.Sign(degrees), switched, direction: degrees > 0 ? "outwards" : "inwards",
+                hint: "Turn a planar face about an edge between it and another planar face, by less than the angle that would make it meet another face.");
+        }
+        catch (ToolException)
+        {
+            TryDeleteObject(plane);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Merges adjacent faces into one B-spline face, as done on imported parts to edit them as one. Verified (ordered):
     /// Model.RedefineFaces.Add(n, faces, 0, [], [], igSurfaceByBoundarySingle, true) on the top of a 100 x 60 x 20 block and
     /// the round of radius 5 along its edge (7 faces to 6, the volume 0.46 mm³ less) and with the front face too (5 faces);
