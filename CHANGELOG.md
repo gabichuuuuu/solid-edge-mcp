@@ -6,6 +6,16 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-13
+
+The base program at its maximum. The functions of the coverage map that failed through the API were tried again by
+other routes (typed calls, other argument values and constants, collections, the selection), and new actions cover
+more of Solid Edge: 274 of the 343 functions work through the 81 tools (79 %, from 261 of 339 in 0.6.0). Each of the
+other 69 is documented with the reason and an alternative when there is one: 40 have no route through the API of
+Solid Edge 2026, 9 leave it unstable and are refused by the generic layer, and 20 need another edition or
+installation, an interactive command or a separate program. The acceptance scripts added since the last full run
+(A54 to A89: 966 calls, 410 checks) and an end-to-end session from a request in plain language pass with this version.
+
 ### Added
 
 - Parts: `se_loft_sweep solid`, a closed construction body (the tool) moved along a sketch path and cut from or added

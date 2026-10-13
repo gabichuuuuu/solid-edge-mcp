@@ -14,7 +14,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![81 tools](https://img.shields.io/badge/tools-81-2F6FEB)
 
-![Version 0.6.0](https://img.shields.io/badge/version-0.6.0-2F6FEB)
+![Version 0.7.0](https://img.shields.io/badge/version-0.7.0-2F6FEB)
 [![Progress: 79 % of functions work through the MCP](https://img.shields.io/badge/progress-79%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
@@ -67,7 +67,7 @@ for approval.
 </table>
 
 > [!NOTE]
-> Current version (0.6.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
+> Current version (0.7.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
 > works and has been validated end to end with Claude Code and Codex. Until 1.0.0 a tool name or
 > parameter may still change; every such change is listed in the changelog.
 
@@ -403,7 +403,8 @@ Results (unit tests and acceptance scripts run on 2026-10-13):
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 76/76 and `SolidEdgeMcp.Server.Tests` 542/542.
 - Acceptance suite against real Solid Edge 2026: scripts `A01`–`A89` (there is no `A74`), with expected values computed
   from formulas (or Solid Edge reference values when there is no simple formula, noted in the script). The last full run
-  (`A01`–`A53`) made **4578 calls and 2331 checks** without failures; each later script passed when it was added.
+  (`A01`–`A53`) made **4578 calls and 2331 checks** without failures, and `A54`–`A89` passed together for 0.7.0
+  (966 calls, 410 checks).
 - Coverage by value: the 81 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
@@ -614,12 +615,12 @@ what the commit contains.
 
 ## Project status
 
-- **Current version (0.6.0).** Working, registered in Claude Code and Codex, and validated end to end, by the
+- **Current version (0.7.0).** The base program at its maximum: the functions that failed through the API were tried
+  again by other routes, and those that still fail list the reason and an alternative in
+  [docs/COVERAGE.md](docs/COVERAGE.md). Working, registered in Claude Code and Codex, and validated end to end, by the
   acceptance suite and by sessions in which Claude uses Solid Edge from requests in plain language. Change history in
   [CHANGELOG.md](CHANGELOG.md).
 - **Roadmap to 1.0.0:**
-  - 0.7.0: the base program at its maximum: the functions that fail today through the API tried again by other routes
-    (see [docs/COVERAGE.md](docs/COVERAGE.md)), and a full run of the acceptance suite.
   - 0.8.0: Design Manager and the other programs installed with Solid Edge.
   - 0.9.0: an easier installation: a build without the Solid Edge interop, installable without compiling and through the Claude plugin marketplace.
   - 1.0.0: the complete, stable version: the full suite and end-to-end sessions in every area, with tool names and
