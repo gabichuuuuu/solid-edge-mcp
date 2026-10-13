@@ -25,7 +25,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 public static partial class RefPlaneService
 {
     /// <summary>Parent of an assembly plane: what Solid Edge takes, and its root point and normal in assembly coordinates (m).</summary>
-    private sealed record AssemblyParent(object Element, double[] Root, double[] Normal);
+    internal sealed record AssemblyParent(object Element, double[] Root, double[] Normal);
 
     private static object AssemblyList(SeContext context, AssemblyDocument assembly)
     {
@@ -154,7 +154,7 @@ public static partial class RefPlaneService
     /// Assembly plane ('1'.., 'xy'/'yz'/'xz' or a handle) or a planar face of an occurrence (handle from se_geometry with
     /// 'source' = the occurrence), with its root point and normal (outward for a face) in assembly coordinates.
     /// </summary>
-    private static AssemblyParent ResolveAssemblyParent(SeContext context, AssemblyDocument assembly, string value, string argumentName)
+    internal static AssemblyParent ResolveAssemblyParent(SeContext context, AssemblyDocument assembly, string value, string argumentName)
     {
         AsmRefPlanes planes = assembly.AsmRefPlanes;
         if (OrientedPlanes.TryAxis(value, out int axis))

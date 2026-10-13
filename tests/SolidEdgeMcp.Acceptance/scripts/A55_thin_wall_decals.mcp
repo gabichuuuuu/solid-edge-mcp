@@ -1,0 +1,40 @@
+# A55: mounting bosses of a shelled part (se_thin_wall) and decals (se_decal). A box 100 x 60 x 20 shelled 2 mm with its top
+# open has 23232 mm3; bosses of 8 mm grow from the plane of the open face (z 20) to the floor (z 2): pi * 4^2 * 18 = 904.779
+# mm3 each; with a hole of 3 mm and 10 mm deep, pi * 1.5^2 * 10 = 70.686 mm3 less each. A picture captured from the window is
+# wrapped on the bottom face and on a side face with an offset (projection onto several faces left Solid Edge unstable).
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@sh = se_shell {"thickness":2,"openFaces":["{{top.items[0].handle}}"]}
+?= sh.volume 23232 0.01
+@rp = se_ref_plane {"action":"offset","plane":"xy","distance":20}
+@b = se_thin_wall {"action":"mounting_boss","plane":"{{rp.handle}}","centers":[20,20,80,40],"diameter":8}
+?= b.bosses 2
+?= b.volumeChange 1809.557 0.01
+@bh = se_thin_wall {"action":"mounting_boss","plane":"{{rp.handle}}","centers":[50,30],"diameter":8,"holeDiameter":3,"holeDepth":10}
+?= bh.volumeChange 834.093 0.01
+! [invalid_argument] se_thin_wall {"action":"mounting_boss","plane":"{{rp.handle}}","centers":[50],"diameter":8}
+! [invalid_argument] se_thin_wall {"action":"mounting_boss","plane":"{{rp.handle}}","centers":[50,30],"diameter":8,"holeDiameter":9}
+# Decals: a picture of the window wrapped on the bottom face, then on the +x face with an offset
+se_view {"action":"capture","path":"{{work}}\\a55_logo.png","width":200,"height":150}
+@bot = se_geometry {"action":"faces","direction":[0,0,-1]}
+@d1 = se_decal {"action":"add","image":"{{work}}\\a55_logo.png","face":"{{bot.items[0].handle}}","name":"Bottom logo"}
+?= d1.decal.status ok
+?= d1.decal.faces 1
+?~ d1.decal.name Bottom logo
+@xp = se_geometry {"action":"faces","direction":[1,0,0]}
+@d2 = se_decal {"action":"add","image":"{{work}}\\a55_logo.png","face":"{{xp.items[0].handle}}","offset":[5,5]}
+?= d2.decal.status ok
+?= d2.decal.faces 1
+?= d2.decal.offset[0] 5 0.001
+@dl = se_decal {"action":"list"}
+?= dl.count 2
+@dd = se_decal {"action":"delete","decal":"Bottom logo"}
+?= dd.count 1
+! [not_found] se_decal {"action":"delete","decal":"Nope"}
+! [invalid_argument] se_decal {"action":"add","image":"{{work}}\\a55_logo.png"}
+! [invalid_argument] se_decal {"action":"add","image":"{{work}}\\nope.png","face":"{{bot.items[0].handle}}"}
+se_documents {"action":"close","saveChanges":false}

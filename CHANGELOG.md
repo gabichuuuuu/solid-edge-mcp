@@ -6,6 +6,29 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_tube`: tubes routed in an assembly (XpresRoute) along a path of straight segments, bent at the corners with the
+  bend radius, solid or hollow, with a material; `list` reads each tube's diameter, wall, bend radius, flat length, volume
+  and path.
+- `se_thin_wall mounting_boss`: mounting bosses of plastic parts grown from a plane to the next face, with an optional
+  mounting hole.
+- `se_decal`: a picture wrapped on a face of a part (by label), with a name and an offset; list and delete.
+- `se_assembly mirror`: a component mirrored about an assembly plane (a new occurrence of the same file).
+- `se_component_query`: components found by the status of their files (available, in work, released...).
+- `docs/COVERAGE.md` gives a tested state for harness wires and tables, animation and movies, tube trims, weldment
+  documents and the barrel cam relation, which do not work here; 7 functions are left untested on purpose.
+
+### Changed
+
+- The generic layer refuses `Relations3d.AddBarrelCam`, `AssemblyDrivenPartFeaturesExtrudedCutouts.Add` and
+  `Decals.AddByPlanarProjection`, which left Solid Edge unstable or closed it.
+
+### Fixed
+
+- A Solid Edge error that .NET raises as a file error (STG_E_PATHNOTFOUND as DirectoryNotFoundException, E_ACCESSDENIED)
+  is reported with its code and a next step instead of an internal error.
+
 ## [1.0.0] - 2026-10-13
 
 1.0.0 is the first complete version. Since 0.9 Claude has used it end to end from plain-language requests: a plate with

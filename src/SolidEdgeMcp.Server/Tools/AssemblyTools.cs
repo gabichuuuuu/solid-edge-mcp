@@ -31,6 +31,7 @@ public enum AssemblyAction
     Transfer,
     Disperse,
     CopyAssembly,
+    Mirror,
 }
 
 public enum RelationAction
@@ -147,7 +148,8 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         activate (loads the part for editing; all = every component) | inactivate (a part occurrence of a saved assembly: lighter, still visible and measurable) |
         bundle (occurrences → a new subassembly saved at path (.asm, must not exist; template optional), keeping their positions) |
         transfer (occurrences → into the existing subassembly occurrence 'subassembly') | disperse (subassembly occurrence: its components move up into the assembly; all = every occurrence of that subassembly) |
-        copy_assembly (path of another saved .asm: its components copied in and kept in step with it; plane = mirror them about an assembly plane '1'-'3' or a handle).
+        copy_assembly (path of another saved .asm: its components copied in and kept in step with it; plane = mirror them about an assembly plane '1'-'3' or a handle) |
+        mirror (occurrence, plane: a new occurrence of the same file placed as its mirror image).
         bundle/transfer change the subassembly file, which is saved when the assembly is saved; the moved occurrences get new handles (se_assembly list).
         move/rotate are checked: an occurrence held by its relations is left where it was and reported. se_relations frees (ungrounds) the occurrence it positions.
         Faces for relations: se_geometry with 'source' = the occurrence handle.
@@ -168,7 +170,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         [Description("bundle, transfer: occurrence handles to move into the subassembly.")] string[]? occurrences = null,
         [Description("transfer: the subassembly occurrence to move them into.")] string? subassembly = null,
         [Description("bundle: assembly template for the new subassembly (default: Solid Edge's default assembly template).")] string? template = null,
-        [Description("copy_assembly: assembly plane to mirror the copy about ('1'-'3' or a reference plane handle).")] string? plane = null,
+        [Description("copy_assembly, mirror: assembly plane to mirror about ('1'-'3', 'xy'/'yz'/'xz' or a reference plane handle).")] string? plane = null,
         int offset = 0,
         int limit = 100,
         [Description("Assembly document handle; default: the occurrence's assembly or the active document.")] string? document = null,
@@ -184,6 +186,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
                 ToolRunner.Require(path, "path", "insert"), origin, angles, ground), cancellationToken, precheck: precheck),
             AssemblyAction.Move => runner.RunAsync(tool, name, c => AssemblyService.Move(c, occurrence, delta, origin, angles), cancellationToken),
             AssemblyAction.Rotate => runner.RunAsync(tool, name, c => AssemblyService.Rotate(c, occurrence, axis, angle), cancellationToken),
+            AssemblyAction.Mirror => runner.RunAsync(tool, name, c => AssemblyService.Mirror(c, occurrence, plane), cancellationToken),
             AssemblyAction.Ground => runner.RunAsync(tool, name, c => AssemblyService.Ground(c, occurrence, true), cancellationToken),
             AssemblyAction.Unground => runner.RunAsync(tool, name, c => AssemblyService.Ground(c, occurrence, false), cancellationToken),
             AssemblyAction.Replace => runner.RunAsync(tool, name, c => AssemblyService.Replace(c, occurrence,

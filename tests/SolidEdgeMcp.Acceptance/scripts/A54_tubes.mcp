@@ -1,0 +1,37 @@
+# A54: tubes routed in assemblies (se_tube, XpresRoute). An L path of 100 + 80 mm, outer diameter 12, wall 1, bend radius 20:
+# flat length 80 + 60 + pi/2 * 20 = 171.416 mm and volume pi/4 * (12^2 - 10^2) * 171.416 = 5923.71 mm3; a straight solid
+# rod of diameter 10 and 50 mm: pi * 5^2 * 50 = 3926.99 mm3. The tubes are read back after the assembly is saved and reopened.
+@a = se_documents {"action":"new","kind":"assembly"}
+! [not_saved] se_tube {"action":"add","points":[0,0,0,100,0,0],"outerDiameter":12}
+se_documents {"action":"save_as","path":"{{work}}\\a54\\a54.asm","overwrite":true}
+@t = se_tube {"action":"add","points":[0,0,0,100,0,0,100,80,0],"outerDiameter":12,"wall":1,"bendRadius":20,"path":"{{work}}\\a54\\a54_l.par","overwrite":true}
+?= t.tube.flatLength 171.42 0.01
+?= t.tube.volume 5923.709 0.05
+?= t.tube.outerDiameter 12
+?= t.tube.wall 1
+?= t.tube.bendRadius 20
+?= t.tube.segments 2
+?= t.tube.solid false
+?= t.tube.boundingBox.max[0] 106 0.001
+?~ t.tube.points [100,80,0]
+@r = se_tube {"action":"add","points":[0,0,30,0,50,30],"outerDiameter":10,"material":"Steel","path":"{{work}}\\a54\\a54_rod.par","overwrite":true}
+?= r.tube.volume 3926.991 0.05
+?= r.tube.flatLength 50 0.01
+?= r.tube.solid true
+! [file_exists] se_tube {"action":"add","points":[0,0,60,0,50,60],"outerDiameter":10,"path":"{{work}}\\a54\\a54_rod.par"}
+! [invalid_argument] se_tube {"action":"add","points":[0,0,0],"outerDiameter":10}
+! [invalid_argument] se_tube {"action":"add","points":[0,0,0,10,0,0],"outerDiameter":10,"wall":5}
+! [invalid_argument] se_tube {"action":"add","points":[0,0,0,10,0,0,10,10,0],"outerDiameter":10,"bendRadius":4}
+! [invalid_argument] se_tube {"action":"add","points":[0,0,0,0,0,0],"outerDiameter":10}
+@l = se_tube {"action":"list"}
+?= l.count 2
+se_documents {"action":"save"}
+se_documents {"action":"close","saveChanges":false}
+se_documents {"action":"open","path":"{{work}}\\a54\\a54.asm"}
+@l2 = se_tube {"action":"list"}
+?= l2.count 2
+?~ l2.tubes a54_l.par
+?= l2.tubes[0].flatLength 171.42 0.01
+@ph = se_physical {}
+?= ph.volume 9850.700 0.1
+se_documents {"action":"close","saveChanges":false}

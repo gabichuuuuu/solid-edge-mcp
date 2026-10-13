@@ -157,6 +157,9 @@ public static class GenericCom
         ["AutoSimplifyFeatures.AddAutoSimplifyEx"] = ("is the same call as AddAutoSimplify, which closed Solid Edge", "Simplify an assembly with se_simplify (create, save_as)."),
         ["Points3D.GetPointByPosition"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the position of a point of the 3D sketch)", "Keep the positions given to se_sketch3d point."),
         ["NamedViews.Create"] = ("makes every later save of the document fail with RPC_E_SERVERFAULT", "Save the current view of the window with se_view save_view."),
+        ["Decals.AddByPlanarProjection"] = ("left Solid Edge unstable (RPC_E_SERVERFAULT, a picture projected onto two faces)", "Wrap the picture on one face with se_decal add."),
+        ["Relations3d.AddBarrelCam"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the cylindrical face of the follower and a circular edge of the cam)", null),
+        ["AssemblyDrivenPartFeaturesExtrudedCutouts.Add"] = ("closed Solid Edge (a cutout driven by the assembly into one of its parts)", "Cut the assembly with se_assembly_feature, or the part itself in its own document."),
     };
 
     private static void RefuseUnsafe(Type? type, string member)

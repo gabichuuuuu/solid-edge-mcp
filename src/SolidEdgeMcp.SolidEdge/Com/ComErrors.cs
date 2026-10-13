@@ -122,14 +122,14 @@ public static class ComErrors
         }
 
         // .NET converts some COM HRESULTs into other exceptions (E_NOTIMPL, E_INVALIDARG, E_POINTER,
-        // E_NOINTERFACE). NotImplementedException never leaves this code; the others are only treated as COM
+        // E_NOINTERFACE, STG_E_PATHNOTFOUND as DirectoryNotFoundException, E_ACCESSDENIED). NotImplementedException never leaves this code; the others are only treated as COM
         // errors when they come from a reflection call (wrapped in TargetInvocationException).
         bool fromCall = !ReferenceEquals(ex, exception);
         Exception? com = ex switch
         {
             COMException => ex,
             NotImplementedException => ex,
-            ArgumentException or NullReferenceException or InvalidCastException when fromCall => ex,
+            ArgumentException or NullReferenceException or InvalidCastException or IOException or UnauthorizedAccessException when fromCall => ex,
             _ => null,
         };
         if (com is null)

@@ -95,6 +95,29 @@ public static partial class AssemblyService
         };
     }
 
+    /// <summary>
+    /// Mirrors an occurrence about an assembly plane (Occurrence.Mirror). Verified in Solid Edge 2026: a new occurrence of the
+    /// same file is placed as the mirror image of the first (a pin at x 50 mirrored about the yz plane lands at x −50, turned
+    /// 180° about y): it is the mirror of a part symmetric about its own mid-plane, not a mirrored part file.
+    /// </summary>
+    public static object Mirror(SeContext context, string? handle, string? plane)
+    {
+        Occurrence occurrence = Occurrence(context, handle);
+        AssemblyDocument assembly = occurrence.TopLevelDocument;
+        if (string.IsNullOrWhiteSpace(plane))
+        {
+            throw ToolException.InvalidArgument("mirror needs 'plane': an assembly plane ('xy', 'yz', 'xz' or an index) or a reference plane handle.");
+        }
+
+        object mirrorPlane = RefPlaneService.ResolveAssemblyParent(context, assembly, plane, "plane").Element;
+        var before = Late.Items(assembly.Occurrences).OfType<Occurrence>().Select(o => o.Name).ToHashSet(StringComparer.Ordinal);
+        occurrence.Mirror(mirrorPlane);
+        Occurrence? made = Late.Items(assembly.Occurrences).OfType<Occurrence>().FirstOrDefault(o => !before.Contains(o.Name));
+        return made is null
+            ? throw new ToolException("mirror_failed", "Solid Edge made no mirrored occurrence.", "Use an assembly plane or a reference plane of the assembly.")
+            : new { mirrored = Describe(context, assembly, made, GroundedIds(assembly)), of = occurrence.Name };
+    }
+
     /// <summary>Inserts a file (part, sheet metal or subassembly) with a position (mm) and rotations (degrees) relative to the assembly.</summary>
     public static object Insert(SeContext context, string? documentHandle, string? path, double[]? origin, double[]? angles, bool ground)
     {

@@ -52,6 +52,7 @@ public enum ComponentProperty
     Project,
     Material,
     Custom,
+    Status,
 }
 
 public enum ComponentCondition
@@ -79,7 +80,7 @@ public enum ComponentDisplay
 
 /// <summary>One criterion of a component query.</summary>
 public sealed record ComponentCriterionArgument(
-    [property: JsonRequired, Description("name (occurrence name, e.g. 'bolt.par:2') or a property of the component file: title, subject, author, manager, company, category, keywords, comments, document_number, revision, project, material, custom.")]
+    [property: JsonRequired, Description("name (occurrence name, e.g. 'bolt.par:2') or a property of the component file: title, subject, author, manager, company, category, keywords, comments, document_number, revision, project, material, custom; or status (value available, in_work, in_review, released, baselined, obsolete; condition is (default) or is_not).")]
     ComponentProperty Property,
     [property: JsonRequired, Description("Text to compare.")] string Value,
     [property: Description("contains (default; ignores case) | is | is_not.")] ComponentCondition Condition = ComponentCondition.Contains,
@@ -142,7 +143,7 @@ public sealed class ComponentTools(ToolRunner runner)
         display: select (default) | show_only (the matches, a matched subassembly whole; hides every other component, also inside
         subassemblies) | hide | show; it lists the components whose visibility changed and undoes them if Solid Edge refuses one.
         Criterion: {"property": name (the occurrence name) | title | subject | author | manager | company | category | keywords | comments |
-        document_number | revision | project | material | custom (with "custom": the custom property name), "condition": contains (default, ignores case) | is | is_not, "value": text}.
+        document_number | revision | project | material | status (value in_work, released...; is or is_not) | custom (with "custom": the custom property name), "condition": contains (default, ignores case) | is | is_not, "value": text}.
         The file properties are those of each component's file (se_properties, se_material).
         Example: {"action":"find","criteria":[{"property":"material","condition":"is","value":"Steel"}],"display":"show_only"};
         {"action":"zone","box":[0,-50,0,200,50,100],"overlap":true,"name":"Front"}.

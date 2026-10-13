@@ -20,7 +20,8 @@ public sealed record ComponentCriterion(string Property, string Condition, strin
 /// selection), so the matches are read from the selection; the criteria are combined with AND, 'contains' ignores case and
 /// 'Name' is the occurrence name ('bolt.par:2'). Parts inside subassemblies are selected as references (path: top-level
 /// occurrence and the subassembly occurrences down to the part). Removing a query keeps the selection. <c>Query.Criteria</c>
-/// cannot be read and the Status criterion is refused (E_INVALIDARG) or matches nothing. A zone selects the parts inside
+/// cannot be read. The Status criterion takes the status number as a 16-bit integer (VT_I2: 1 = in work matches the parts in work);
+/// as a 32-bit integer it is refused (E_INVALIDARG) and as text it matches nothing. A zone selects the parts inside
 /// a box (<c>Overlap</c>: also those partly inside) and replaces the selection. Saved queries and zones are kept in the
 /// assembly file; Solid Edge's own quick query is "__SolidEdgeQuickQuery__" and is not listed.
 /// </summary>
@@ -44,6 +45,7 @@ public static class ComponentQueryService
         ["project"] = QueryPropertyConstants.seQueryPropertyProject,
         ["material"] = QueryPropertyConstants.seQueryPropertyMaterial,
         ["custom"] = QueryPropertyConstants.seQueryPropertyCustom,
+        ["status"] = QueryPropertyConstants.seQueryPropertyStatus,
     };
 
     private static readonly Dictionary<string, QueryConditionConstants> Conditions = new(StringComparer.OrdinalIgnoreCase)
@@ -68,7 +70,7 @@ public static class ComponentQueryService
         bool subassemblies, string? name, string display, int limit)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
-        (QueryPropertyConstants Property, string Custom, QueryConditionConstants Condition, string Value)[] parsed = Parse(criteria);
+        (QueryPropertyConstants Property, string Custom, QueryConditionConstants Condition, object Value)[] parsed = Parse(criteria);
         QueryScopeConstants scopeValue = ScopeOf(scope);
         string? title = Clean(name);
         if (title is not null)
@@ -96,7 +98,7 @@ public static class ComponentQueryService
         try
         {
             query.SearchSubassemblies = subassemblies;
-            foreach ((QueryPropertyConstants property, string custom, QueryConditionConstants condition, string value) in parsed)
+            foreach ((QueryPropertyConstants property, string custom, QueryConditionConstants condition, object value) in parsed)
             {
                 try
                 {
@@ -582,7 +584,10 @@ public static class ComponentQueryService
         (children is null ? null : Items<SubOccurrence>(children).FirstOrDefault(c => c.Name == name))
         ?? throw new ToolException("query_failed", $"'{parent}' has no component '{name}' any more.", "Run the query again.");
 
-    private static (QueryPropertyConstants, string, QueryConditionConstants, string)[] Parse(IReadOnlyList<ComponentCriterion>? criteria)
+    /// <summary>Document statuses as the Status criterion numbers them (se_documents status).</summary>
+    private static readonly string[] Statuses = ["available", "in_work", "in_review", "released", "baselined", "obsolete"];
+
+    private static (QueryPropertyConstants, string, QueryConditionConstants, object)[] Parse(IReadOnlyList<ComponentCriterion>? criteria)
     {
         if (criteria is not { Count: > 0 })
         {
@@ -601,7 +606,20 @@ public static class ComponentQueryService
                 custom = Clean(c.Custom) ?? throw ToolException.InvalidArgument($"criteria[{i}]: a custom criterion needs 'custom', the custom property name.");
             }
 
-            return (property, custom, condition, c.Value ?? "");
+            if (property == QueryPropertyConstants.seQueryPropertyStatus)
+            {
+                int status = Array.FindIndex(Statuses, s => string.Equals(s, (c.Value ?? "").Trim().Replace(' ', '_'), StringComparison.OrdinalIgnoreCase));
+                // 'contains' (the default condition) means 'is' for a status.
+                condition = condition == QueryConditionConstants.seQueryConditionContains ? QueryConditionConstants.seQueryConditionIs : condition;
+                if (status < 0)
+                {
+                    throw ToolException.InvalidArgument($"criteria[{i}]: unknown status '{c.Value}'.", $"Use one of: {string.Join(", ", Statuses)}.");
+                }
+
+                return (property, custom, condition, (object)(short)status);
+            }
+
+            return (property, custom, condition, (object)(c.Value ?? ""));
         }).ToArray();
     }
 
