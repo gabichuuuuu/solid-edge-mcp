@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
@@ -217,6 +218,56 @@ public static class ApplicationService
     }
 
     /// <summary>Suspends, resumes or clears the recent files list.</summary>
+    /// <summary>
+    /// The file naming rule and the managed document numbering. Verified: GetNextDocumentNumbers hands out the next numbers of
+    /// the numbering kept in Preferences\NumberGenerator.dat and uses them up (00000002, 00000003, then 00000004 to 00000006
+    /// for three at once); the naming rule reads false on this installation.
+    /// </summary>
+    public static object Numbering(SeContext context, int count)
+    {
+        if (count is < 0 or > 100)
+        {
+            throw ToolException.InvalidArgument("'count' takes 0 (only read the naming rule) to 100 document numbers.");
+        }
+
+        Application app = context.Application;
+        app.Get_Set_FileNamingRule(true, out bool rule);
+        if (count == 0)
+        {
+            return new { namingRule = rule, note = "count > 0 hands out the next document numbers, which are then used up." };
+        }
+
+        int status = app.GetNextDocumentNumbers(count, out object prefix, out object numbers);
+        if (status != 0)
+        {
+            throw new ToolException("solid_edge_error", $"Solid Edge gave no document numbers (status {status}).", "Check the numbering settings of Solid Edge.");
+        }
+
+        string[] list = numbers is Array array ? array.Cast<object>().Select(n => Convert.ToString(n, CultureInfo.InvariantCulture) ?? "").ToArray()
+            : [Convert.ToString(numbers, CultureInfo.InvariantCulture) ?? ""];
+        string? prefixText = prefix is Array p ? string.Join("", p.Cast<object>()) : prefix as string;
+        return new { namingRule = rule, prefix = string.IsNullOrEmpty(prefixText) ? null : prefixText, numbers = list };
+    }
+
+    /// <summary>
+    /// Resets the DXF/DWG (AutoCAD) translation settings of import or export to Solid Edge's defaults (ResetConfigFile).
+    /// Verified: resetting import and export rewrote Preferences\Translators\seacad.ini (15916 -> 16908 bytes: the default
+    /// template, paper space, layers and colour mapping written out). There is no undo.
+    /// </summary>
+    public static object ResetDxfSettings(SeContext context, string mode)
+    {
+        FileTranslationMode translation = mode switch
+        {
+            "import" => FileTranslationMode.seImport,
+            "export" => FileTranslationMode.seExport,
+            _ => throw ToolException.InvalidArgument($"Unknown mode '{mode}'.", "Use import or export."),
+        };
+        object file = Missing.Value;
+        object template = Missing.Value;
+        context.Application.ResetConfigFile(ConfigResetType.seResetAll, ConfigForForeignFileType.seAutoCADConfigFile, translation, "", ref file, ref template);
+        return new { reset = "dxf_dwg_" + mode, note = "The DXF/DWG " + mode + " settings are back to Solid Edge's defaults." };
+    }
+
     public static object RecentList(SeContext context, string operation)
     {
         Application app = context.Application;

@@ -15,7 +15,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![80 tools](https://img.shields.io/badge/tools-80-2F6FEB)
 
 ![Version 1.2.1](https://img.shields.io/badge/version-1.2.1-2F6FEB)
-[![Progress: 72 % of functions work through the MCP](https://img.shields.io/badge/progress-72%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 73 % of functions work through the MCP](https://img.shields.io/badge/progress-73%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -74,8 +74,8 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=f82ba71b">
-  <img src="docs/assets/progress.svg?v=ad47c84a" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=3c95bb83">
+  <img src="docs/assets/progress.svg?v=49d02ad0" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
@@ -226,13 +226,13 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Server and session** | `se_server_info` | Version, allowed folders, work folder, limits and configuration warnings. Does not need Solid Edge. |
 | | `se_session` | Status, connect (attaches to the open Solid Edge or starts it visibly), disconnect, quit and restart (refused while a document has unsaved changes). |
 | **Documents** | `se_documents` | Create a part, sheet metal, assembly, drawing or weldment; open, activate, save, save as or copy, close; import STEP, IGES, Parasolid, JT, SAT, STL, OBJ, 3MF, DXF or DWG files as new documents; undo and redo what Solid Edge records; recalculate; list this installation's templates; read and set the document status (in work, in review, released…). |
-| **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set and delete. |
+| **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set (a standard name such as Title goes to its own set, any other becomes a custom property) and delete. |
 | | `se_variables` | Variables and dimensions: list, read, set a value or formula (returns the volume change), create, delete, rename, comment, expose and limit. |
 | | `se_part_family` | Family of parts: family variables, members with their values and suppressed features, apply a member to the master (checked), write member files, copy, rename and delete members. |
 | | `se_material` | Material libraries: current material, properties and assignment (updates density and mass). |
 | | `se_appearance` | Colours (face styles): list, create and delete styles; colour the body, faces, features or assembly components by style or #RRGGBB with opacity, read them back and remove them. |
 | | `se_layer` | Layers of models and drawing sheets: list, create, activate, show or hide, make selectable or not, delete empty ones and move sketch geometry, drawing views, dimensions and annotations between them. |
-| | `se_links` | Links between files: what a document refers to (components, drawing models, copied parts) and whether they are found, replace a referenced file, break copied parts, where a file is used (directly or up to the top), top-level assemblies and the document search of File > Open (title, subject, date). |
+| | `se_links` | Links between files: what a document refers to (components, drawing models, copied parts) and whether they are found, replace a referenced file, break copied parts, where a file is used (directly or up to the top), top-level assemblies, the document search of File > Open (title, subject, date) and the search of the text inside documents through the Windows Search index. |
 | **Query** | `se_feature_tree` | Features in order with their status, the modeling mode and the volume. |
 | | `se_geometry` | Summary, faces and edges with handles and filters; in assemblies, per occurrence and in assembly coordinates. |
 | | `se_measure` | Minimum distance and angle between faces, edges, planes or occurrences, also in assemblies. |
@@ -244,7 +244,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_model_view` | PMI model views of parts, sheet metal and assemblies: by standard orientation or the current one, render mode, the section views, PMI dimensions and annotations each shows (read back), its 3D PDF flag; apply one to the window, rename, delete. Drawings place them as views and `se_publish` puts them in 3D PDF files. |
 | | `se_options` | Every Solid Edge option by page of the Options dialog (general, save, file locations, colours, helpers, assembly, drawing, units, simulation…) and document units: list, read and change them (returns the previous value); save all of them to a snapshot file and restore it. The preferences a drawing saves (projection angle, drawing view defaults, grid, the line style of each kind of edge…). |
 | | `se_ui` | Windows, environments, ribbon and interface display: list, activate and arrange windows; list environments and the tabs, groups and commands of the ribbon; find a button by the text it shows (any language or theme); colour theme, status bar, edge bar, recent files shown, and position and size of the main window. |
-| | `se_app` | Solid Edge as a program: version, edition, language and folders; the Add-In Manager (load and unload add-ins); default template of each document type; the recent files list; the data Solid Edge's AI automatic drawing creation learns from, extracted from saved drawings. |
+| | `se_app` | Solid Edge as a program: version, edition, language and folders; the Add-In Manager (load and unload add-ins); default template of each document type; the recent files list; the data Solid Edge's AI automatic drawing creation learns from, extracted from saved drawings; the file naming rule and the next document numbers; the DXF/DWG translation settings back to their defaults. |
 | | `se_customize` | The Customize dialog: ribbon themes (create from the default one, activate, rename, button size and labels, remove), tabs, groups and commands of a theme, and keyboard shortcuts of each environment. |
 | | `se_styles` | Styles of a document: dimension, text, character, line, fill, hatch, dash, drawing view, table and frame styles of drawings, and view and face styles of models. List them, read every property, change one (read back, with the previous value; colours as #RRGGBB and enumerations by name), create one from another, activate, delete, and import them from another drawing. The 8 lights of a view style: colour, intensity and direction, read back. |
 | **Sketches** | `se_sketch` | Lines, rectangles, polylines, circles, arcs, ellipses, splines, conics, points, corner fillet and chamfer, edge projection, revolve axis and validated close; list the elements and relations of a sketch. The same 2D geometry is drawn on drawing sheets (2D drafting) and on the 2D layouts of an assembly. Sketch blocks of parts and layouts: make a block from elements, place it at a scale and angle; features take the profile with its blocks. |

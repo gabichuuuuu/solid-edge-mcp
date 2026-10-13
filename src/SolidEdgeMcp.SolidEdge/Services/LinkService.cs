@@ -239,22 +239,54 @@ public static class LinkService
 
     /// <summary>
     /// Solid Edge documents of a folder (SearchDocuments, the search of File > Open) with their title, subject and date of
-    /// change; <paramref name="text"/> keeps those whose title, subject or file name contains it.
+    /// change; <paramref name="text"/> keeps those whose title, subject or file name contains it, or with
+    /// <paramref name="contents"/> those whose contents contain it (FindSEDocumentsContainingText, through the Windows Search
+    /// index). Verified: a drawing with a text box "Zorblaxite note" in an indexed folder is found; the output array must be an
+    /// empty array of strings passed by reference through IDispatch (typed, E_POINTER; an array of variants, an exception) and the scope an array of variants.
     /// </summary>
-    public static object Search(SeContext context, string? folder, string? filter, bool subfolders, string? text, int offset, int limit)
+    public static object Search(SeContext context, string? folder, string? filter, bool subfolders, string? text, int offset, int limit,
+        bool contents = false)
     {
         string root = ExistingFolder(context, folder, "folder");
-        // One call takes several patterns separated by ';' (verified); without a pattern it also lists other files (.cfg).
-        string pattern = string.Join(";", (string.IsNullOrWhiteSpace(filter) ? "*.par;*.psm;*.asm;*.dft;*.pwd" : filter)
-            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        HashSet<string>? containing = null;
+        if (contents)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                throw ToolException.InvalidArgument("contents=true searches the text inside the documents: give 'text'.");
+            }
+
+            object?[] found0 = Late.CallByRef(context.Application, "FindSEDocumentsContainingText",
+                [text, new object[] { root }, "", true, Array.Empty<string>()], 1, 4);
+            // Verified: without subfolders it finds nothing, so subfolders are searched and left out here when not asked for.
+            containing = Strings(found0[4]).Where(f => subfolders || string.Equals(System.IO.Path.GetDirectoryName(f), root.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
+        // Verified: several patterns in one call ('*.par;*.dft') can find nothing in a folder where each pattern alone finds its
+        // file, and a second call right after the first gives DISP_E_BADCALLEE; so one call lists every file and the patterns
+        // are applied here (without a pattern SearchDocuments also lists other files, such as .cfg).
+        string[] patternList = (string.IsNullOrWhiteSpace(filter) ? "*.par;*.psm;*.asm;*.dft;*.pwd" : filter)
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string pattern = string.Join(";", patternList);
         object none = Missing.Value;
-        context.Application.SearchDocuments(false, root, subfolders, out object files, out int _, pattern, none, none, none, none, none, none,
+        context.Application.SearchDocuments(false, root, subfolders, out object files, out int _, "", none, none, none, none, none, none,
             out object titles, out object subjects, out object dates);
         List<string> titleList = Strings(titles, keepEmpty: true);
         List<string> subjectList = Strings(subjects, keepEmpty: true);
         List<string> dateList = Strings(dates, keepEmpty: true);
         List<(string File, string? Title, string? Subject, string? Modified)> found =
-            [.. Strings(files).Select((f, i) => (f, titleList.ElementAtOrDefault(i), subjectList.ElementAtOrDefault(i), dateList.ElementAtOrDefault(i)))];
+            [.. Strings(files).Select((f, i) => (f, titleList.ElementAtOrDefault(i), subjectList.ElementAtOrDefault(i), dateList.ElementAtOrDefault(i)))
+                .Where(r => patternList.Any(p => System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(p, System.IO.Path.GetFileName(r.f))))];
+
+        if (containing is not null)
+        {
+            // The content search does not depend on SearchDocuments, which can list nothing for a folder it does not index.
+            found.AddRange(containing.Where(f => !found.Any(r => string.Equals(r.File, f, StringComparison.OrdinalIgnoreCase))
+                && patternList.Any(p => System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(p, System.IO.Path.GetFileName(f))))
+                .Select(f => (f, (string?)null, (string?)null, (string?)null)));
+        }
+
         var rows = found.DistinctBy(f => f.File, StringComparer.OrdinalIgnoreCase).Take(MaxFiles).Select(f => new
         {
             file = f.File,
@@ -262,13 +294,17 @@ public static class LinkService
             title = f.Title,
             subject = f.Subject,
             modified = f.Modified,
-        }).Where(r => string.IsNullOrWhiteSpace(text)
+        }).Where(r => containing is not null ? containing.Contains(r.file)
+            : string.IsNullOrWhiteSpace(text)
             || System.IO.Path.GetFileName(r.file).Contains(text, StringComparison.OrdinalIgnoreCase)
             || r.title?.Contains(text, StringComparison.OrdinalIgnoreCase) == true
             || r.subject?.Contains(text, StringComparison.OrdinalIgnoreCase) == true).ToList();
         int start = Math.Max(offset, 0);
         var page = rows.Skip(start).Take(Math.Clamp(limit, 1, context.MaxListItems)).ToList();
-        return new { folder = root, filter = pattern, subfolders, found = found.Count, count = rows.Count, offset = start, returned = page.Count, documents = page };
+        string? note = containing is { Count: 0 }
+            ? "The contents are searched through the Windows Search index: a folder outside the index, or files saved moments ago, give no results."
+            : null;
+        return new { folder = root, filter = pattern, subfolders, found = found.Count, count = rows.Count, offset = start, returned = page.Count, documents = page, note };
     }
 
     private static List<Dictionary<string, object?>> AssemblyLinks(AssemblyDocument assembly, bool recursive)

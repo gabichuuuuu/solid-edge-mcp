@@ -23,6 +23,8 @@ public enum AppAction
     ResumeRecent,
     ClearRecent,
     AiDrawingData,
+    Numbering,
+    ResetDxfSettings,
 }
 
 public enum CustomizeAction
@@ -54,6 +56,7 @@ public sealed class ProgramTools(ToolRunner runner)
         templates (default template of each document type: part, sheet_metal, assembly, draft, weldment, weldment_assembly) | set_template (documentType, path of a template in an allowed folder or the Solid Edge template folder) |
         recent (the recent files list) | suspend_recent / resume_recent (Solid Edge stops and resumes updating it; documents saved with save_as are still added) | clear_recent (empties the person's list: only when asked).
         ai_drawing_data (path = a saved .dft; output = .csv, default next to it): the data Solid Edge's AI automatic drawing creation learns from (sheet, views, placement).
+        numbering (the file naming rule; count > 0 hands out and uses up the next document numbers) | reset_dxf_settings (mode import | export: the DXF/DWG translation settings back to defaults; only when asked).
         Add-ins, templates and the recent files belong to the person and persist between sessions: change them only when asked.
         Example: {"action":"set_template","documentType":"part","path":"C:\\Users\\me\\Documents\\Templates\\Company.par"}.
         """)]
@@ -64,6 +67,8 @@ public sealed class ProgramTools(ToolRunner runner)
         [Description("For set_template: part, sheet_metal, assembly, draft, weldment or weldment_assembly.")] string? documentType = null,
         [Description("For set_template: absolute path of the template file; ai_drawing_data: of the saved drawing.")] string? path = null,
         [Description("For ai_drawing_data: the .csv file to write (allowed folders).")] string? output = null,
+        [Description("For numbering: how many document numbers to hand out (0 = only read the naming rule).")] int count = 0,
+        [Description("For reset_dxf_settings: import or export.")] string? mode = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_app";
@@ -82,6 +87,8 @@ public sealed class ProgramTools(ToolRunner runner)
             AppAction.ResumeRecent => runner.RunAsync(tool, actionName, c => ApplicationService.RecentList(c, "resume"), cancellationToken),
             AppAction.AiDrawingData => runner.RunAsync(tool, actionName, c => ApplicationService.AiDrawingData(c, ToolRunner.Require(path, "path", actionName), output), cancellationToken),
             AppAction.ClearRecent => runner.RunAsync(tool, actionName, c => ApplicationService.RecentList(c, "clear"), cancellationToken),
+            AppAction.Numbering => runner.RunAsync(tool, actionName, c => ApplicationService.Numbering(c, count), cancellationToken),
+            AppAction.ResetDxfSettings => runner.RunAsync(tool, actionName, c => ApplicationService.ResetDxfSettings(c, ToolRunner.Require(mode, "mode", actionName)), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

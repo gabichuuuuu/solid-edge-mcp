@@ -1,0 +1,13 @@
+# A62: document properties written by name (se_properties set without a set): a standard name such as Title or Project Name
+# goes to the set that holds it (SummaryInformation, ProjectInformation); any other name becomes a custom property.
+@p = se_documents {"action":"new","kind":"part"}
+@a = se_properties {"action":"set","name":"Title","value":"Bracket A"}
+?~ a.set SummaryInformation
+@b = se_properties {"action":"set","name":"Project Name","value":"P-17"}
+?~ b.set ProjectInformation
+@c = se_properties {"action":"set","name":"Supplier code","value":"X1"}
+?~ c.set Custom
+?= c.created true
+@l = se_properties {"action":"list","set":"SummaryInformation"}
+?~ l.sets[0].properties.Title Bracket A
+se_documents {"action":"close","saveChanges":false}

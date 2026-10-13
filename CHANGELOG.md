@@ -6,6 +6,26 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_links search contents=true`: documents whose contents (texts and notes of drawings) contain a text, through the
+  Windows Search index.
+- `se_app numbering` (the file naming rule and the next document numbers of the managed numbering) and
+  `se_app reset_dxf_settings` (the DXF/DWG import or export translation settings back to Solid Edge's defaults).
+
+### Fixed
+
+- `se_links search`: with the default list of file patterns it could find nothing in a folder where each pattern alone
+  found its file; the folder is now listed once and the patterns applied by the server.
+- `se_properties set` without `set`: a standard name such as Title, Subject or Project Name now goes to the set that
+  holds it, as in File > Properties, instead of becoming a custom property of that name.
+
+### Changed
+
+- `docs/COVERAGE.md`: every function now has a tested state. Paper printing, document numbering and the DXF/DWG
+  settings reset work; e-mail needs a mail profile (Outlook has none on the test machine), `AddNote` stores nothing and
+  training the drawing AI models gives E_FAIL.
+
 ## [1.2.1] - 2026-10-13
 
 ### Changed

@@ -55,10 +55,13 @@ public static class PropertyService
     public static object Set(SeContext context, string? documentHandle, string? set, string name, JsonElement value)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
-        string setName = string.IsNullOrWhiteSpace(set) ? CustomSet : set;
-        Properties properties = FindSet(document, setName);
+        // Without a set, the name of a standard property (Title, Subject, Comments, Project Name...) goes to the set that holds
+        // it, as in File > Properties; any other name is a custom property. Found in an end-to-end run: 'Title' without a set
+        // had made a custom property and left the document title empty.
+        (Properties Set, Property Property)? standard = string.IsNullOrWhiteSpace(set) ? StandardProperty(document, name) : null;
+        Properties properties = standard?.Set ?? FindSet(document, string.IsNullOrWhiteSpace(set) ? CustomSet : set);
         object converted = Convert(value);
-        Property? existing = Find(properties, name);
+        Property? existing = standard?.Property ?? Find(properties, name);
         bool created = false;
         if (existing is not null)
         {
@@ -92,6 +95,22 @@ public static class PropertyService
         Property property = Find(properties, name) ?? throw ToolException.NotFound($"There is no custom property '{name}'.");
         property.Delete();
         return new { deleted = name, set = CustomSet, note = "Save the document to keep the change." };
+    }
+
+    /// <summary>The property of that name in a set other than the custom one, if any.</summary>
+    private static (Properties Set, Property Property)? StandardProperty(SolidEdgeDocument document, string name)
+    {
+        var sets = (PropertySets)document.Properties;
+        for (int i = 1; i <= sets.Count; i++)
+        {
+            var candidate = (Properties)sets.Item(i);
+            if (!string.Equals(candidate.Name, CustomSet, StringComparison.OrdinalIgnoreCase) && Find(candidate, name) is { } property)
+            {
+                return (candidate, property);
+            }
+        }
+
+        return null;
     }
 
     private static Properties FindSet(SolidEdgeDocument document, string name)

@@ -35,7 +35,7 @@ public sealed class LinkTools(ToolRunner runner, PathGuard guard)
         break (part: unlink copied parts of 'from'; the geometry stays and no longer updates, it cannot be undone) |
         where_used (path: the documents in 'folders' (default the file's folder; subfolders) that refer to it; indirect = also their users, up to the top) |
         top_level (files, or the .asm files of 'folder': the assemblies no other one of the set uses) |
-        search (folder: Solid Edge documents with title, subject and date of change; filter = file patterns separated by ';'; text = part of the title, subject or file name).
+        search (folder: Solid Edge documents with title, subject and date of change; filter = file patterns separated by ';'; text = part of the title, subject or file name; contents=true: text inside the documents, through the Windows Search index).
         The document is changed in memory: save it with se_documents. Only folders allowed by the path policy are searched.
         Example: {"action":"replace","from":"bracket.par","to":"D:\\CAD\\bracket_v2.par"}; {"action":"where_used","path":"D:\\CAD\\bracket.par","subfolders":true}.
         """)]
@@ -52,6 +52,7 @@ public sealed class LinkTools(ToolRunner runner, PathGuard guard)
         [Description("list: include the components inside subassemblies.")] bool recursive = false,
         [Description("search: file patterns separated by ';' (default all Solid Edge documents), e.g. '*.par;*.psm'.")] string? filter = null,
         [Description("search: keep the documents whose title, subject or file name contains this text.")] string? text = null,
+        [Description("search: look for 'text' inside the documents (texts, notes) instead, through the Windows Search index.")] bool contents = false,
         int offset = 0,
         int limit = 100,
         [Description("list, replace, break: document handle; default: the active document.")] string? document = null,
@@ -68,7 +69,7 @@ public sealed class LinkTools(ToolRunner runner, PathGuard guard)
             LinkAction.WhereUsed => runner.RunAsync(tool, act, c => LinkService.WhereUsed(c, ToolRunner.Require(path, "path", "where_used"), folders, subfolders, indirect),
                 cancellationToken, precheck: path is null ? null : () => guard.Check(path)),
             LinkAction.TopLevel => runner.RunAsync(tool, act, c => LinkService.TopLevel(c, files, folder, subfolders), cancellationToken),
-            LinkAction.Search => runner.RunAsync(tool, act, c => LinkService.Search(c, ToolRunner.Require(folder, "folder", "search"), filter, subfolders, text, offset, limit),
+            LinkAction.Search => runner.RunAsync(tool, act, c => LinkService.Search(c, ToolRunner.Require(folder, "folder", "search"), filter, subfolders, text, offset, limit, contents),
                 cancellationToken, precheck: folder is null ? null : () => guard.Check(folder, "folder")),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
