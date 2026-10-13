@@ -117,8 +117,9 @@ public static partial class ViewService
     }
 
     /// <summary>
-    /// Saves the current view of the window under a name. Verified: <c>NamedViews.Create</c> stores a default camera, not the
-    /// current one, so the camera of the window is copied to it and read back.
+    /// Saves the current view of the window under a name (<c>View.SaveCurrentView</c>) and reads it back. Verified in Solid Edge
+    /// 2026: a view added with <c>NamedViews.Create</c> makes every later save of the document fail with RPC_E_SERVERFAULT,
+    /// while one saved from the window is kept in the file.
     /// </summary>
     public static object SaveView(SeContext context, string? handle, string? name, string? description)
     {
@@ -132,11 +133,19 @@ public static partial class ViewService
         }
 
         Camera camera = CameraOf(window.View);
-        NamedView view = views.Create(viewName);
         try
         {
-            view.SetCamera(camera.Eye[0], camera.Eye[1], camera.Eye[2], camera.Target[0], camera.Target[1], camera.Target[2],
-                camera.Up[0], camera.Up[1], camera.Up[2], camera.Perspective, camera.Scale);
+            window.View.SaveCurrentView(viewName);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("view_failed", $"Solid Edge rejected the named view: {ex.Message.Trim()}", "Use a plain name.", ex);
+        }
+
+        NamedView view = FindView(NamedViewsOf(document), viewName)
+            ?? throw new ToolException("view_failed", "Solid Edge did not add the named view.", "Try again with the window shown.");
+        try
+        {
             if (!string.IsNullOrEmpty(description))
             {
                 view.Description = description;

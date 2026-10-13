@@ -153,7 +153,10 @@ public static class GenericCom
         ["EndCaps.Add"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT on the next call on the assembly's occurrences) after capping the members of a frame", "Use the End Cap command of the frame in Solid Edge."),
         ["SmartFrame2d.CreateLink"] = ("closed Solid Edge (a part file linked into a smart frame of a drawing)", "Place a view of the part with se_drawing base_view, or a picture with se_sheet_content image."),
         ["ResizeHoles.Add"] =("leaves Solid Edge unstable (RPC_E_SERVERFAULT) when ThreadHoleData is not a HoleData", "Use se_part_feature resize_holes."),
+        ["AutoSimplifyFeatures.AddAutoSimplify"] = ("closed Solid Edge (a part of an assembly, not edited in place, simplifying another occurrence)", "Simplify an assembly with se_simplify (create, save_as)."),
+        ["AutoSimplifyFeatures.AddAutoSimplifyEx"] = ("is the same call as AddAutoSimplify, which closed Solid Edge", "Simplify an assembly with se_simplify (create, save_as)."),
         ["Points3D.GetPointByPosition"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the position of a point of the 3D sketch)", "Keep the positions given to se_sketch3d point."),
+        ["NamedViews.Create"] = ("makes every later save of the document fail with RPC_E_SERVERFAULT", "Save the current view of the window with se_view save_view."),
     };
 
     private static void RefuseUnsafe(Type? type, string member)

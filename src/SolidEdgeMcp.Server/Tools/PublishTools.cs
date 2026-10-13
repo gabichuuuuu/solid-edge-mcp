@@ -24,8 +24,9 @@ public sealed class PublishTools(ToolRunner runner)
     [Description("""
         Publishes saved models as 3D PDF documents with the 3D PDF templates of this installation (Application menu > Publish > 3D PDF): pages laid out by the template, with the model in 3D that the reader can turn.
         templates: the installed 3D PDF templates |
-        pdf3d (source = a saved .par/.psm/.asm file or a folder of them, subfolders = with its subfolders; template = a name from 'templates' or a .dft path (default: the part or assembly landscape one); folder = output folder (default: where the source is); name = PDF name for a single file (default: the source name); attachStep, attachJt = embed STEP AP242 and JT files; html = also a self-contained .html page with the 3D model; overwrite).
-        Solid Edge publishes only while no document is open: save and close the ones you opened (se_documents close) first. The result gives each PDF with its pages, embedded files and whether it holds 3D.
+        pdf3d (source = a saved .par/.psm/.asm file or a folder of them, subfolders = with its subfolders; template = a name from 'templates' or a .dft path (default: the part or assembly landscape one); folder = output folder (default: where the source is); name = PDF name for a single file (default: the source name); attachStep, attachJt = embed STEP AP242 and JT files; html = also a self-contained .html page with the 3D model; overwrite;
+        modelViews = every PMI model view (se_model_view) as a 3D view of the PDF; buttons = next/previous view buttons).
+        Solid Edge publishes only while no document is open: save and close the ones you opened (se_documents close) first. The result gives each PDF with its pages, embedded files, whether it holds 3D, its 3D views and its widgets (buttons).
         Example: {"action":"pdf3d","source":"C:\\Work\\bracket.par","attachStep":true}.
         """)]
     public Task<CallToolResult> Publish(
@@ -39,6 +40,8 @@ public sealed class PublishTools(ToolRunner runner)
         [Description("pdf3d: embed a JT file of the model in the PDF.")] bool attachJt = false,
         [Description("pdf3d: also write a self-contained .html page with the 3D model next to each PDF.")] bool html = false,
         [Description("pdf3d: replace PDF (and .html) files that already exist.")] bool overwrite = false,
+        [Description("pdf3d: add next and previous view buttons.")] bool buttons = false,
+        [Description("pdf3d: include every PMI model view of the model as a 3D view (Solid Edge takes all or none).")] bool modelViews = false,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_publish";
@@ -47,7 +50,7 @@ public sealed class PublishTools(ToolRunner runner)
         {
             PublishAction.Templates => runner.RunAsync(tool, act, PublishService.Templates, cancellationToken),
             PublishAction.Pdf3d => runner.RunAsync(tool, act, c => PublishService.Pdf3d(c, source, template, folder, name, subfolders, attachStep,
-                attachJt, html, overwrite), cancellationToken, timeout: TimeSpan.FromMinutes(10)),
+                attachJt, html, overwrite, modelViews, buttons), cancellationToken, timeout: TimeSpan.FromMinutes(10)),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

@@ -1,5 +1,7 @@
 # A53: PMI model views (se_model_view) with section views, sheet metal checker sensors (se_sensor add_checker), and the
-# generic routes for complex strings, block views and labels, copied constructions and the Teamcenter mode.
+# generic routes for complex strings, block views and labels, copied constructions, the Teamcenter mode and inter-part links;
+# the generic layer refuses AutoSimplifyFeatures.AddAutoSimplify, which closed Solid Edge; named views saved from the window and
+# 3D PDF files with every model view and navigation buttons.
 # 1) Block 40 x 20 x 10 cut by a section view; model views take the section views shown when they are made
 @p = se_documents {"action":"new","kind":"part"}
 @k = se_sketch {"action":"create","plane":"1"}
@@ -98,3 +100,39 @@ se_documents {"action":"close","saveChanges":false}
 @pp = se_documents {"action":"new","kind":"part"}
 ! [not_supported] se_sensor {"action":"add_checker","features":["holes","exterior_edges"],"threshold":5}
 se_documents {"action":"close","saveChanges":false}
+# 4) Inter-part links of the document of an occurrence (none), and the refused automatic simplification
+@as = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a53_src.par"}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\a53_src.par","origin":[0,0,20]}
+@od = se_com_get {"target":"{{o1.handle}}","member":"OccurrenceDocument"}
+@hl = se_com_invoke {"target":"{{od.value.handle}}","method":"HasInterpartLinks","arguments":[false]}
+?= hl.outputs.pbHasInterpartLinks false
+@oms = se_com_get {"target":"{{od.value.handle}}","member":"Models"}
+@om = se_com_invoke {"target":"{{oms.value.handle}}","method":"Item","arguments":[1]}
+@asf = se_com_get {"target":"{{om.result.handle}}","member":"AutoSimplifyFeatures"}
+! [unsafe_member] se_com_invoke {"target":"{{asf.value.handle}}","method":"AddAutoSimplify","arguments":[1,[{"handle":"{{o2.handle}}"}],false,"Simple",null]}
+se_documents {"action":"close","saveChanges":false}
+# 5) A named view saved from the window leaves the part savable (NamedViews.Create made every later save fail, so the generic
+#    layer refuses it) and is there when the part is opened again; a 3D PDF of the part with every model view holds a 3D view
+#    per model view ("Cut A" and "Front") besides "Default", and next/previous buttons add 13 widgets to the 67 of the template
+se_documents {"action":"open","path":"{{work}}\\a53_src.par"}
+se_view {"action":"orient","orientation":"right"}
+@sv = se_view {"action":"save_view","name":"Side"}
+?= sv.saved.direction[0] -1 0.0001
+@nvs = se_com_get {"target":"active_document","member":"NamedViews"}
+! [unsafe_member] se_com_invoke {"target":"{{nvs.value.handle}}","method":"Create","arguments":["Other"]}
+se_documents {"action":"save"}
+se_documents {"action":"close","saveChanges":false}
+se_documents {"action":"open","path":"{{work}}\\a53_src.par"}
+@nv = se_view {"action":"named_views"}
+?= nv.count 7
+?~ nv.views Side
+se_documents {"action":"close","saveChanges":false}
+@pl = se_publish {"action":"pdf3d","source":"{{work}}\\a53_src.par","folder":"{{work}}\\a53_pdf","name":"plain","overwrite":true}
+?= pl.files[0].views3D[0] Default
+?= pl.files[0].widgets 67
+@pv = se_publish {"action":"pdf3d","source":"{{work}}\\a53_src.par","folder":"{{work}}\\a53_pdf","name":"views","modelViews":true,"buttons":true,"overwrite":true}
+?= pv.files[0].has3D true
+?~ pv.files[0].views3D Cut A
+?~ pv.files[0].views3D Front
+?= pv.files[0].widgets 80

@@ -9,7 +9,7 @@ namespace SolidEdgeMcp.Core;
 
 /// <summary>
 /// What a PDF file holds, read without a PDF library to check what Solid Edge wrote: the page count of its page tree, the
-/// names of embedded files, whether it has 3D annotations and the page sizes. Dictionaries are looked for in the file and
+/// names of embedded files, whether it has 3D annotations, the names of its 3D views, its widget annotations and the page sizes. Dictionaries are looked for in the file and
 /// inside its Flate-compressed streams (object streams), where Solid Edge 2026 keeps most of them.
 /// </summary>
 public static partial class PdfFile
@@ -17,8 +17,12 @@ public static partial class PdfFile
     /// <summary>Largest stream that is decompressed, so a damaged or hostile file cannot exhaust memory.</summary>
     private const int MaxStream = 64 * 1024 * 1024;
 
-    /// <summary>Contents of a PDF. <paramref name="PageSizes"/>: the distinct page sizes [width, height] in mm (MediaBox).</summary>
-    public sealed record Info(int? Pages, IReadOnlyList<string> EmbeddedFiles, bool Has3D, IReadOnlyList<double[]> PageSizes);
+    /// <summary>
+    /// Contents of a PDF. <paramref name="PageSizes"/>: the distinct page sizes [width, height] in mm (MediaBox);
+    /// <paramref name="Views3D"/>: the distinct external names (/XN) of its 3D views, in file order; <paramref name="Widgets"/>:
+    /// its widget annotations (form fields and buttons).
+    /// </summary>
+    public sealed record Info(int? Pages, IReadOnlyList<string> EmbeddedFiles, bool Has3D, IReadOnlyList<double[]> PageSizes, IReadOnlyList<string> Views3D, int Widgets);
 
     /// <summary>Whether the file starts with the PDF header.</summary>
     public static bool IsPdf(string path)
@@ -38,6 +42,8 @@ public static partial class PdfFile
         var files = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         bool has3D = false;
         var sizes = new List<double[]>();
+        var views = new List<string>();
+        int widgets = 0;
         foreach (string text in texts)
         {
             foreach (Match match in MediaBox().Matches(text))
@@ -72,9 +78,18 @@ public static partial class PdfFile
             }
 
             has3D |= ThreeD().IsMatch(text);
+            widgets += Widget().Count(text);
+            foreach (Match match in ViewName().Matches(text))
+            {
+                string view = Decode(match.Groups["name"].Value).TrimEnd('\0').Trim();
+                if (view.Length > 0 && !views.Contains(view, StringComparer.Ordinal))
+                {
+                    views.Add(view);
+                }
+            }
         }
 
-        return new Info(pages, [.. files], has3D, sizes);
+        return new Info(pages, [.. files], has3D, sizes, views, widgets);
     }
 
     /// <summary>Contents of the streams that decompress with zlib (FlateDecode); others are skipped.</summary>
@@ -218,6 +233,12 @@ public static partial class PdfFile
 
     [GeneratedRegex(@"/Subtype\s*/3D\b", RegexOptions.CultureInvariant)]
     private static partial Regex ThreeD();
+
+    [GeneratedRegex(@"/Subtype\s*/Widget\b", RegexOptions.CultureInvariant)]
+    private static partial Regex Widget();
+
+    [GeneratedRegex(@"/XN\s*(?<name>\((?:\\.|[^\\)]){1,400}\)|<[0-9A-Fa-f\s]{2,1600}>)", RegexOptions.CultureInvariant)]
+    private static partial Regex ViewName();
 
     [GeneratedRegex(@"/MediaBox\s*\[\s*(?<x0>-?\d+(?:\.\d+)?)\s+(?<y0>-?\d+(?:\.\d+)?)\s+(?<x1>-?\d+(?:\.\d+)?)\s+(?<y1>-?\d+(?:\.\d+)?)\s*\]", RegexOptions.CultureInvariant)]
     private static partial Regex MediaBox();

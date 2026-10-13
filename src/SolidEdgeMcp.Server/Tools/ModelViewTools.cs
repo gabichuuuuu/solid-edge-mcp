@@ -49,7 +49,7 @@ public sealed class ModelViewTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_model_view", Title = "PMI model views", Destructive = false, OpenWorld = false)]
     [Description("""
-        PMI model views of a part, sheet metal or assembly: a named orientation with a render mode and the section views, PMI dimensions and annotations it shows. Drawings place them (se_drawing base_view modelView) and 3D PDF publishing takes those with pdf = true.
+        PMI model views of a part, sheet metal or assembly: a named orientation with a render mode and the section views, PMI dimensions and annotations it shows. Drawings place them (se_drawing base_view modelView) and se_publish pdf3d modelViews puts them all in a 3D PDF.
         list (name, render, pdf, section captions, dimension and annotation counts) |
         add (orientation = front | back | left | right | top | bottom | dimetric | isometric | trimetric, or none = the window's current orientation with 'name'; render; name; replace = an existing view of that orientation) |
         set (view; name, render, pdf) | include, exclude (view, items = section view handles from se_section_view, or PMI dimension and annotation handles from se_pmi; the counts are read back) |
@@ -63,7 +63,7 @@ public sealed class ModelViewTools(ToolRunner runner)
         [Description("add, set: how the view is drawn (default shaded_with_visible_edges).")] ModelViewRender? render = null,
         [Description("add, set: name of the view.")] string? name = null,
         [Description("add: replace the view that has this orientation already.")] bool replace = false,
-        [Description("set: true = 3D PDF publishing takes this view.")] bool? pdf = null,
+        [Description("set: the view's 3D PDF flag (as in Solid Edge; se_publish takes every model view whatever the flag).")] bool? pdf = null,
         [Description("include, exclude: section view, PMI dimension or annotation handles.")] string[]? items = null,
         [Description("Part, sheet metal or assembly document handle; default: the active one.")] string? document = null,
         CancellationToken cancellationToken = default)

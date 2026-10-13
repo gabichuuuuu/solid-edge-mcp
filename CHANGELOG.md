@@ -6,6 +6,21 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_publish pdf3d`: `modelViews` puts every PMI model view of the model in the 3D PDF as a 3D view, and `buttons` adds
+  next/previous view buttons; the result gives the 3D views of each PDF by name and its widgets.
+- `docs/COVERAGE.md` gives a tested state for inter-part links and copies, `Duplicates`, automatic simplification of
+  assemblies and groove welds, and for 3D PDF options that leave no trace in the PDF (views chosen by name, the default
+  view, named views, custom properties), which do not work here.
+
+### Fixed
+
+- `se_view save_view` saves the view of the window with `View.SaveCurrentView`: a view added with `NamedViews.Create` made
+  every later save of the document fail with RPC_E_SERVERFAULT. The generic layer now refuses `NamedViews.Create` and
+  `AutoSimplifyFeatures.AddAutoSimplify`, which closed Solid Edge.
+- `se_model_view` no longer says that 3D PDF publishing takes only the views marked for it: Solid Edge takes them all.
+
 ## [0.8.2] - 2026-10-13
 
 ### Added

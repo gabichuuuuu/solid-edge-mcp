@@ -13,7 +13,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// <summary>
 /// PMI model views of a part, sheet metal or assembly (PMI > Model Views): a named orientation with a render mode and the
 /// section views, PMI dimensions and annotations it shows; drawings place them with se_drawing base_view modelView, and 3D PDF
-/// publishing takes the ones marked for it. Verified: AddByStandardViewOrientation(front) is named "Front"; a section view
+/// publishing (se_publish modelViews) takes them all: the IncludeIn3dPdfPublish flag did not change what it takes. Verified: AddByStandardViewOrientation(front) is named "Front"; a section view
 /// added with SectionView.AddToModelView counts in SectionCount and RemoveFromModelView takes it out.
 /// </summary>
 public static class ModelViewService
@@ -57,7 +57,7 @@ public static class ModelViewService
             : throw new ToolException("model_view_failed", "Solid Edge did not add the model view: the document has one of that orientation already.", "Pass replace = true, or another orientation.");
     }
 
-    /// <summary>Renames a view, changes its render mode or whether 3D PDF publishing takes it.</summary>
+    /// <summary>Renames a view, changes its render mode or its 3D PDF flag.</summary>
     public static object Set(SeContext context, string? documentHandle, string? viewName, string? name, string? render, bool? pdf)
     {
         (SolidEdgeDocument document, PMIModelView view) = Find(context, documentHandle, viewName);

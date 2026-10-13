@@ -15,13 +15,16 @@ public sealed class PdfFileTests
         byte[] pdf = Pdf(
             "1 0 obj <</Type/Catalog/Pages 2 0 R>> endobj\n",
             "<</Type/Pages/Kids[3 0 R 4 0 R]/Count 2>> <</Type/Filespec/F (part.step)/UF <FEFF0070006100720074002E006A0074>/EF <</F 7 0 R>>>> "
-            + "<</Type/Filespec/F (my \\(1\\).stp)>> <</Type/Annot/Subtype/3D/3DD 8 0 R/F 4>>");
+            + "<</Type/Filespec/F (my \\(1\\).stp)>> <</Type/Annot/Subtype/3D/3DD 8 0 R/F 4>> "
+            + "<</Type/3DView/XN (Default)/IN (Default)>> <</Type/3DView/XN <FEFF00490073006F>>> <</Type/3DView/XN (Default)>>");
 
         PdfFile.Info info = PdfFile.Inspect(pdf);
 
         Assert.Equal(2, info.Pages);
         Assert.Equal(["my (1).stp", "part.jt", "part.step"], info.EmbeddedFiles);
         Assert.True(info.Has3D);
+        Assert.Equal(["Default", "Iso"], info.Views3D);
+        Assert.Equal(0, info.Widgets);
     }
 
     [Fact]
@@ -37,6 +40,8 @@ public sealed class PdfFileTests
         Assert.Equal(5, info.Pages);
         Assert.Empty(info.EmbeddedFiles);
         Assert.False(info.Has3D);
+        Assert.Empty(info.Views3D);
+        Assert.Equal(1, info.Widgets);
     }
 
     [Fact]

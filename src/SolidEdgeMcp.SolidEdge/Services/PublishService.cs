@@ -20,7 +20,11 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 ///   land in the one output folder, so Solid Edge writes into a new empty folder and the server moves the results: it
 ///   never meets an existing file;
 /// - STEP AP242 and JT files are embedded named after the source; the HTML option writes a self-contained .html next to
-///   the PDF; ListOfAttachments embedded nothing (an array of paths, an object array or one path).
+///   the PDF; ListOfAttachments embedded nothing (an array of paths, an object array or one path);
+/// - with every PMI model view selected the PDF holds a 3D view per model view (named after it) besides "Default", whatever
+///   their IncludeIn3dPdfPublish flags; lists of model or named view names (strings or objects), the default model view, all
+///   named views and the custom properties option changed nothing that can be found in the PDF; next/previous buttons add
+///   widget annotations (80 instead of 67 with the part landscape template).
 /// </summary>
 public static class PublishService
 {
@@ -41,7 +45,7 @@ public static class PublishService
 
     /// <summary>Publishes a saved model, or the models of a folder, as 3D PDF files.</summary>
     public static object Pdf3d(SeContext context, string? source, string? template, string? folder, string? name, bool subfolders,
-        bool attachStep, bool attachJt, bool html, bool overwrite)
+        bool attachStep, bool attachJt, bool html, bool overwrite, bool modelViews = false, bool buttons = false)
     {
         if (string.IsNullOrWhiteSpace(source))
         {
@@ -117,8 +121,8 @@ public static class PublishService
             bool published;
             try
             {
-                published = app.Publish3DPDFEx(inbox, templatePath, isFolder && subfolders, outbox, "", false, html, false, false, false, "",
-                    attachStep, attachJt);
+                published = app.Publish3DPDFEx(inbox, templatePath, isFolder && subfolders, outbox, "", false, html, buttons, false,
+                    modelViews, "", attachStep, attachJt);
             }
             catch (COMException ex) when (!ComErrors.IsGone(ex))
             {
@@ -165,6 +169,11 @@ public static class PublishService
                     warnings.Add($"{Path.GetFileName(output.Pdf)} has no embedded {string.Join(" or ", absent)} file.");
                 }
 
+                if (modelViews && info.Views3D.Count < 2)
+                {
+                    warnings.Add($"{Path.GetFileName(output.Pdf)} has no 3D view besides the default one: the model may have no PMI model views (se_model_view).");
+                }
+
                 if (!info.Has3D)
                 {
                     warnings.Add($"{Path.GetFileName(output.Pdf)} has no 3D view: the template may not be a 3D PDF template.");
@@ -177,6 +186,8 @@ public static class PublishService
                     bytes = new FileInfo(output.Pdf).Length,
                     pages = info.Pages,
                     has3D = info.Has3D,
+                    views3D = info.Views3D.Count > 0 ? info.Views3D : null,
+                    widgets = info.Widgets > 0 ? info.Widgets : (int?)null,
                     attachments = info.EmbeddedFiles.Count > 0 ? info.EmbeddedFiles : null,
                     html = page,
                 });
