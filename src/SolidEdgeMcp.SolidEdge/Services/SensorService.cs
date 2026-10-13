@@ -13,7 +13,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// <summary>What se_sensor does: the action and its inputs, in the units of the tools (mm, mm², degrees).</summary>
 public sealed record SensorSpec(string Action, string? Sensor = null, string? Name = null, string? Description = null, string? Variable = null,
     string[]? Elements = null, string[]? Faces = null, string? Operator = null, double? Threshold = null, double[]? Range = null,
-    double[]? DisplayRange = null, string? Display = null, string? Update = null);
+    double[]? DisplayRange = null, string? Display = null, string? Update = null, string[]? Features = null);
 
 /// <summary>
 /// Sensors of a part, sheet metal or assembly document: they watch a variable, the minimum distance between two elements or
@@ -40,7 +40,9 @@ public sealed record SensorSpec(string Action, string? Sensor = null, string? Na
 /// </summary>
 public static class SensorService
 {
-    public static readonly IReadOnlyList<string> Actions = ["list", "add_variable", "add_distance", "add_area", "update", "set"];
+    public static readonly IReadOnlyList<string> Actions = ["list", "add_variable", "add_distance", "add_area", "add_checker", "update", "set"];
+    public static readonly IReadOnlyList<string> CheckerFeatures =
+        ["exterior_edges", "interior_edges", "cutouts", "holes", "dimples", "louvers", "drawn_cutouts", "beads"];
     public static readonly IReadOnlyList<string> Operators = ["greater_than", "less_than", "equal_to", "not_equal_to", "between", "not_between"];
 
     private const string AttributeSetName = "SolidEdgeMcp";
@@ -56,12 +58,16 @@ public static class SensorService
     /// <summary>SensorType of a surface area sensor (missing from SensorTypeConstants).</summary>
     private const int SurfaceAreaType = 4;
 
+    /// <summary>SensorType of a sheet metal checker sensor (missing from SensorTypeConstants).</summary>
+    private const int CheckerType = 8;
+
     public static object Run(SeContext context, string? documentHandle, SensorSpec spec) => spec.Action switch
     {
         "list" => List(context, Document(context, documentHandle, spec)),
         "add_variable" => AddVariable(context, Document(context, documentHandle, spec), spec),
         "add_distance" => AddDistance(context, Document(context, documentHandle, spec), spec),
         "add_area" => AddArea(context, Document(context, documentHandle, spec), spec),
+        "add_checker" => AddChecker(context, Document(context, documentHandle, spec), spec),
         "update" => Update(context, Document(context, documentHandle, spec), spec),
         "set" => Set(context, Document(context, documentHandle, spec), spec),
         _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", Actions)}."),
@@ -110,6 +116,13 @@ public static class SensorService
             SensorUpdateMechanismConstants update, ref object element) => sensors is not null
             ? sensors.AddSurfaceAreaSensor(areaType, selection, name, description, lower, upper, minimum, maximum, op, display, update, ref element)
             : sheetMetal!.AddSurfaceAreaSensor(areaType, selection, name, description, lower, upper, minimum, maximum, op, display, update, ref element);
+
+        public object AddCheckerSensor(SheetMetalSensorFeatureTypeConstants left, SheetMetalSensorFeatureTypeConstants right, string name, string description,
+            double threshold, SensorUpdateMechanismConstants update, object on)
+        {
+            object element = on;
+            return sheetMetal!.AddSheetMetalCheckerSensor(left, right, name, description, threshold, update, ref element);
+        }
     }
 
     private static SensorSet SensorsOf(SolidEdgeDocument document)
@@ -246,6 +259,57 @@ public static class SensorService
             }
         });
         return Created(context, document, (Sensor)created, units, null);
+    }
+
+    /// <summary>
+    /// A sheet metal checker sensor: the smallest distance between two kinds of features (edges, cutouts, holes, dimples,
+    /// louvers, beads) against a threshold in mm.
+    /// </summary>
+    private static object AddChecker(SeContext context, SolidEdgeDocument document, SensorSpec spec)
+    {
+        if (spec.Features is not [string left, string right])
+        {
+            throw ToolException.InvalidArgument("add_checker requires 'features': the two kinds of features to keep apart.", $"Use two of: {string.Join(", ", CheckerFeatures)}.");
+        }
+
+        SensorSet sensors = SensorsOf(document);
+        if (!sensors.IsSheetMetal)
+        {
+            throw new ToolException("not_supported", $"Checker sensors belong to sheet metal parts; '{SeContext.SafeName(document)}' is a {DocumentKinds.Describe(document)}.",
+                "Use add_distance between faces or edges.");
+        }
+
+        if (spec.Faces is not [string face])
+        {
+            throw ToolException.InvalidArgument("add_checker requires 'faces': one face of the sheet (se_geometry faces); without it Solid Edge leaves the sensor in error.");
+        }
+
+        object element = context.Handles.Resolve(face, "faces");
+        int first = Feature(left);
+        int second = Feature(right);
+        double threshold = Units.MmToM(Units.RequirePositive(spec.Threshold ?? throw ToolException.InvalidArgument("add_checker requires 'threshold': the smallest distance allowed, in mm."), "threshold"));
+        string name = NameFor(document, spec.Name, "Checker");
+        object created = Add(document, "sheet metal checker", () =>
+        {
+            try
+            {
+                return sensors.AddCheckerSensor((SheetMetalSensorFeatureTypeConstants)first, (SheetMetalSensorFeatureTypeConstants)second, name,
+                    DescriptionOf(spec, name), threshold, UpdateOf(spec.Update), element);
+            }
+            catch (COMException ex) when (ex.HResult == BadCallee)
+            {
+                // As with area sensors, Solid Edge makes the sensor and then fails handing the face back.
+                return Read(document).FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.Ordinal))
+                    ?? throw new ToolException("feature_failed", $"Solid Edge did not make the checker sensor: {ex.Message}", "Pass one face of the sheet.", ex);
+            }
+        });
+        return Created(context, document, (Sensor)created, (int)UnitTypeConstants.igUnitDistance, null);
+    }
+
+    private static int Feature(string feature)
+    {
+        int index = CheckerFeatures.ToList().IndexOf(feature.Trim().ToLowerInvariant());
+        return index >= 0 ? index : throw ToolException.InvalidArgument($"Unknown feature kind '{feature}'.", $"Use one of: {string.Join(", ", CheckerFeatures)}.");
     }
 
     private static object Add(SolidEdgeDocument document, string what, Func<object> add)
@@ -584,7 +648,9 @@ public static class SensorService
         int? units = UnitsOf(sensor);
         SensorOperatorConstants op = sensor.Operator;
         bool range = op is SensorOperatorConstants.seSensorOperatorBetween or SensorOperatorConstants.seSensorOperatorNotBetween;
-        bool alert = sensor.IsInRange;
+        // A checker sensor reads IsInRange true while the distance is at least its threshold, the opposite of the other sensors.
+        bool checker = (int)sensor.SensorType == CheckerType;
+        bool alert = checker ? !sensor.IsInRange : sensor.IsInRange;
         return new
         {
             index = index > 0 ? index : (int?)null,
@@ -594,7 +660,7 @@ public static class SensorService
             variable = Remembered(sensor, VariableAttribute) as string,
             value = Value(sensor.CurrentValue, units),
             unit = units is { } u ? VariableService.UnitLabel(u) : "database units (m, rad, m2)",
-            @operator = OperatorName(op),
+            @operator = checker ? "not_less_than" : OperatorName(op),
             threshold = range ? null : Value(sensor.MinimumThreshold, units),
             range = range ? new[] { Value(sensor.MinimumThreshold, units), Value(sensor.MaximumThreshold, units) } : null,
             met = !alert,
@@ -621,6 +687,7 @@ public static class SensorService
         SensorTypeConstants.seSensorTypeVariable => "variable",
         SensorTypeConstants.seSensorTypeMinimumDistance => "minimum_distance",
         (SensorTypeConstants)SurfaceAreaType => "surface_area",
+        (SensorTypeConstants)CheckerType => "sheet_metal_checker",
         SensorTypeConstants.seSensorTypeUser => "user",
         _ => type.ToString(),
     };

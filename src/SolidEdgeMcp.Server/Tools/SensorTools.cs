@@ -16,6 +16,7 @@ public enum SensorAction
     AddVariable,
     AddDistance,
     AddArea,
+    AddChecker,
     Update,
     Set,
 }
@@ -50,7 +51,7 @@ public sealed class SensorTools(ToolRunner runner)
     [Description("""
         Sensors of a part, sheet metal or assembly document: a watched value and a condition; Solid Edge flags the sensor when the value leaves it. Lengths in mm, areas in mm2, a variable in its own units.
         list (index, name, type, value, unit, operator, threshold or range, met, alert, status, display, update, handle) |
-        add_variable (variable = name from se_variables) | add_distance (elements = two faces, edges or vertices; in an assembly also occurrences or faces from se_geometry with source = an occurrence; not in sheet metal, where Solid Edge cannot make it) | add_area (faces) |
+        add_variable (variable = name from se_variables) | add_distance (elements = two faces, edges or vertices; in an assembly also occurrences or faces from se_geometry with source = an occurrence; not in sheet metal, where Solid Edge cannot make it) | add_area (faces) | add_checker (sheet metal: features = two of exterior_edges, interior_edges, cutouts, holes, dimples, louvers, drawn_cutouts, beads; faces = [a face of the sheet]; threshold = smallest distance allowed, mm) |
         update (manual sensors: read the value again; one 'sensor' or all) | set (sensor: change operator, threshold, range, displayRange, name, description, display, update).
         Condition: operator greater_than | less_than | equal_to | not_equal_to with 'threshold', or between | not_between with 'range' [min, max]. met = the value meets it; alert = Solid Edge flags the sensor (met false).
         Sensors are not deleted here: deleting one through the API breaks every sensor of the document, also in the saved file.
@@ -62,6 +63,7 @@ public sealed class SensorTools(ToolRunner runner)
         [Description("add_*: the variable or dimension to watch (add_variable).")] string? variable = null,
         [Description("add_distance: two handles (faces, edges, vertices; occurrences in an assembly).")] string[]? elements = null,
         [Description("add_area: face handles whose area is watched.")] string[]? faces = null,
+        [Description("add_checker: the two kinds of sheet metal features to keep apart.")] string[]? features = null,
         [Description("add_*, set: the condition the value should meet.")] SensorOperator? @operator = null,
         [Description("greater_than, less_than, equal_to, not_equal_to: the threshold (mm, mm2 or the variable's units).")] double? threshold = null,
         [Description("between, not_between: [min, max].")] double[]? range = null,
@@ -75,7 +77,7 @@ public sealed class SensorTools(ToolRunner runner)
     {
         string act = Snake(action);
         var spec = new SensorSpec(act, sensor, name, description, variable, elements, faces, @operator is { } o ? Snake(o) : null, threshold, range,
-            displayRange, display is { } d ? Snake(d) : null, update is { } u ? Snake(u) : null);
+            displayRange, display is { } d ? Snake(d) : null, update is { } u ? Snake(u) : null, features);
         return runner.RunAsync("se_sensor", act, c => SensorService.Run(c, document, spec), cancellationToken);
     }
 }

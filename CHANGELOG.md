@@ -6,6 +6,18 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_model_view`: PMI model views of parts, sheet metal and assemblies, by standard orientation or the window's current
+  one, with their render mode, the section views, PMI dimensions and annotations they show (read back) and whether 3D PDF
+  publishing takes them; apply one to the window, rename and delete.
+- `se_sensor add_checker`: sheet metal checker sensors, the smallest distance between two kinds of features (edges, cutouts,
+  holes, dimples, louvers, beads) against a threshold in mm.
+- `docs/COVERAGE.md` gives a tested state for complex strings, block views and labels and copied constructions (through the
+  generic layer), and for optimization, Design Manager, Teamcenter, property tables, section planes, cutaway views,
+  stretch, component images, the `Blends` collection, the feature library, Engineering Reference, point clouds and
+  surface analysis, which do not work here or need the person; 20 functions are left untested.
+
 ## [0.8.1] - 2026-10-13
 
 ### Added

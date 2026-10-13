@@ -1,0 +1,100 @@
+# A53: PMI model views (se_model_view) with section views, sheet metal checker sensors (se_sensor add_checker), and the
+# generic routes for complex strings, block views and labels, copied constructions and the Teamcenter mode.
+# 1) Block 40 x 20 x 10 cut by a section view; model views take the section views shown when they are made
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[10,-10,50,10]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":10}
+@ka = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{ka.sketch}}","points":[35,-5,60,15]}
+se_sketch {"action":"close","sketch":"{{ka.sketch}}"}
+@a = se_section_view {"action":"add","sketch":"{{ka.sketch}}","caption":"RightPart"}
+@l0 = se_model_view {"action":"list"}
+?= l0.count 0
+@v = se_model_view {"action":"add","orientation":"isometric","name":"Cut"}
+?~ v.name Cut
+?~ v.sections[0] RightPart
+?= v.pdf true
+@f = se_model_view {"action":"add","orientation":"front"}
+?~ f.name Front
+! [model_view_failed] se_model_view {"action":"add","orientation":"front"}
+@f2 = se_model_view {"action":"add","orientation":"front","replace":true,"render":"visible_edges"}
+?~ f2.render visible_edges
+# Take the section out of Cut and put it back; render and 3D PDF publishing changed and read back
+@x = se_model_view {"action":"exclude","view":"Cut","items":["{{a.section.handle}}"]}
+@i = se_model_view {"action":"include","view":"{{v.handle}}","items":["{{a.section.handle}}"]}
+?~ i.sections[0] RightPart
+! [model_view_failed] se_model_view {"action":"include","view":"Cut","items":["{{a.section.handle}}"]}
+@s = se_model_view {"action":"set","view":"Cut","render":"shaded","pdf":false,"name":"Cut A"}
+?~ s.render shaded
+?= s.pdf false
+?~ s.name Cut A
+@ap = se_model_view {"action":"apply","view":"Cut A"}
+?~ ap.applied Cut A
+@cur = se_model_view {"action":"add","name":"Mine"}
+@l1 = se_model_view {"action":"list"}
+?= l1.count 3
+@d = se_model_view {"action":"delete","view":"Mine"}
+?= d.count 2
+! [not_found] se_model_view {"action":"apply","view":"Nope"}
+# 2) Generic routes: a complex string of two lines of a block view, a second block view and a block label
+@kb = se_sketch {"action":"create","plane":"xy"}
+@r = se_sketch {"action":"rectangle","sketch":"{{kb.sketch}}","points":[100,0,140,20]}
+se_sketch {"action":"create_block","sketch":"{{kb.sketch}}","name":"Tag","elements":{{r.elements}},"center":[100,0]}
+@bls = se_com_get {"target":"active_document","member":"Blocks"}
+@bk = se_com_invoke {"target":"{{bls.value.handle}}","method":"Item","arguments":[1]}
+@dv = se_com_get {"target":"{{bk.result.handle}}","member":"DefaultView"}
+@ln = se_com_get {"target":"{{dv.value.handle}}","member":"Lines2d"}
+@l1e = se_com_invoke {"target":"{{ln.value.handle}}","method":"Item","arguments":[1]}
+@l2e = se_com_invoke {"target":"{{ln.value.handle}}","method":"Item","arguments":[2]}
+@cs = se_com_get {"target":"{{dv.value.handle}}","member":"ComplexStrings2d"}
+se_com_invoke {"target":"{{cs.value.handle}}","method":"AddByObjects","arguments":[2,[{"handle":"{{l1e.result.handle}}"},{"handle":"{{l2e.result.handle}}"}]]}
+@csn = se_com_get {"target":"{{cs.value.handle}}","member":"Count"}
+?= csn.value 1
+@vws = se_com_get {"target":"{{bk.result.handle}}","member":"Views"}
+se_com_invoke {"target":"{{vws.value.handle}}","method":"Add","arguments":["Side",0,0]}
+@vwn = se_com_get {"target":"{{vws.value.handle}}","member":"Count"}
+?= vwn.value 2
+@lbs = se_com_get {"target":"{{dv.value.handle}}","member":"BlockLabels"}
+@lb = se_com_invoke {"target":"{{lbs.value.handle}}","method":"Add","arguments":["PartNo","A-1","Part number",0.005,0.005,0,true,false,false,false,0]}
+@lbv = se_com_get {"target":"{{lb.result.handle}}","member":"value"}
+?~ lbv.value A-1
+# A construction copy of a saved part: its body comes in as a construction body; the design body stays
+se_documents {"action":"save_copy_as","path":"{{work}}\\a53_src.par","overwrite":true}
+@cc = se_com_get {"target":"active_document","member":"Constructions"}
+@ccs = se_com_get {"target":"{{cc.value.handle}}","member":"CopyConstructions"}
+@c1 = se_com_invoke {"target":"{{ccs.value.handle}}","method":"Add","arguments":["{{work}}\\a53_src.par"]}
+@c1s = se_com_get {"target":"{{c1.result.handle}}","member":"Status"}
+?~ c1s.value igFeatureOK
+@bd = se_body {"action":"list"}
+?= bd.construction[0].volume 8000 0.01
+?= bd.design[0].volume 8000 0.01
+@tce = se_com_get {"target":"app","member":"SolidEdgeTCE"}
+@tcm = se_com_invoke {"target":"{{tce.value.handle}}","method":"GetTeamCenterMode","arguments":[false]}
+?= tcm.outputs.bIsTeamCenterMode false
+se_documents {"action":"close","saveChanges":false}
+# 3) Sheet metal checker sensors: a hole of 6 at (10, 10) on a 100 x 60 tab is 7 mm from the outer edges; at least 5 is met,
+#    at least 8 raises the alert; without a face Solid Edge leaves the sensor in error, so a face is required
+@m = se_documents {"action":"new","kind":"sheet_metal"}
+@km = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{km.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{km.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{km.sketch}}"}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{top.items[0].handle}}","centers":[10,10,1],"diameter":6}
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@c = se_sensor {"action":"add_checker","features":["exterior_edges","holes"],"threshold":5,"name":"EdgeToHole","faces":["{{top2.items[0].handle}}"]}
+?~ c.sensor.type sheet_metal_checker
+?= c.sensor.value 7 0.0001
+?= c.sensor.met true
+@top3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@c2 = se_sensor {"action":"add_checker","features":["holes","exterior_edges"],"threshold":8,"faces":["{{top3.items[0].handle}}"]}
+?= c2.sensor.alert true
+! [invalid_argument] se_sensor {"action":"add_checker","features":["holes","exterior_edges"],"threshold":5}
+! [invalid_argument] se_sensor {"action":"add_checker","features":["holes","rivets"],"threshold":5,"faces":["{{top3.items[0].handle}}"]}
+se_documents {"action":"save_as","path":"{{work}}\\a53_checker.psm","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@pp = se_documents {"action":"new","kind":"part"}
+! [not_supported] se_sensor {"action":"add_checker","features":["holes","exterior_edges"],"threshold":5}
+se_documents {"action":"close","saveChanges":false}

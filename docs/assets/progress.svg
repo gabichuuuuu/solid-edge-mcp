@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="870" height="426" viewBox="0 0 870 426" role="img" aria-labelledby="title desc">
-  <title id="title">Progress: 69 % of the functions work through the MCP</title>
-  <desc id="desc">One square per function. 227 of 328 Solid Edge functions in the coverage map work through the MCP, 65 fail in Solid Edge 2026 and 36 are not tested yet. By area: Application, documents and data 42 of 62; Sketches and reference planes 21 of 27; Part (ordered modeling) 40 of 59; Synchronous modeling and surfaces 20 of 29; Sheet metal 14 of 27; Assemblies 26 of 47; Drawings 42 of 51; Program configuration 22 of 26.</desc>
+  <title id="title">Progress: 70 % of the functions work through the MCP</title>
+  <desc id="desc">One square per function. 233 of 331 Solid Edge functions in the coverage map work through the MCP, 78 fail in Solid Edge 2026 and 20 are not tested yet. By area: Application, documents and data 45 of 64; Sketches and reference planes 23 of 27; Part (ordered modeling) 41 of 60; Synchronous modeling and surfaces 20 of 29; Sheet metal 14 of 27; Assemblies 26 of 47; Drawings 42 of 51; Program configuration 22 of 26.</desc>
   <g font-family="Bahnschrift, 'DIN Alternate', 'DIN 1451', D-DIN, Barlow, 'Roboto Condensed', 'Arial Narrow', sans-serif">
-    <text x="0" y="40" font-size="36" font-weight="600" fill="#1f2328">69 %</text>
-    <text x="92" y="40" font-size="16" fill="#59636e">of the 328 Solid Edge functions in the coverage map work through the MCP</text>
+    <text x="0" y="40" font-size="36" font-weight="600" fill="#1f2328">70 %</text>
+    <text x="92" y="40" font-size="16" fill="#59636e">of the 331 Solid Edge functions in the coverage map work through the MCP</text>
     <text x="0" y="95" font-size="14" fill="#1f2328">Application, documents and data</text>
     <rect x="270" y="84" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="286" y="84" width="12" height="12" rx="2" fill="#0969da"/>
@@ -47,28 +47,30 @@
     <rect x="414" y="100" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="430" y="100" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="446" y="100" width="12" height="12" rx="2" fill="#0969da"/>
-    <rect x="462" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <rect x="478" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <rect x="494" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="462" y="100" width="12" height="12" rx="2" fill="#0969da"/>
+    <rect x="478" y="100" width="12" height="12" rx="2" fill="#0969da"/>
+    <rect x="494" y="100" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="510" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="526" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="542" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="558" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="574" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="590" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <rect x="606.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="622.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="638.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="654.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="670.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="686.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="702.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="718.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="734.5" y="100.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <rect x="606" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="622" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="638" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="654" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="670" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="686" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="702" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="718" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="734" y="100" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="270.5" y="116.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
     <rect x="286.5" y="116.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <text x="812" y="95" font-size="13" text-anchor="end" fill="#59636e">42 / 62</text>
-    <text x="870" y="95" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">67 %</text>
+    <rect x="302.5" y="116.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <rect x="318.5" y="116.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <text x="812" y="95" font-size="13" text-anchor="end" fill="#59636e">45 / 64</text>
+    <text x="870" y="95" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">70 %</text>
     <text x="0" y="155" font-size="14" fill="#1f2328">Sketches and reference planes</text>
     <rect x="270" y="144" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="286" y="144" width="12" height="12" rx="2" fill="#0969da"/>
@@ -91,14 +93,14 @@
     <rect x="558" y="144" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="574" y="144" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="590" y="144" width="12" height="12" rx="2" fill="#0969da"/>
-    <rect x="606" y="144" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <rect x="622" y="144" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <rect x="638.5" y="144.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="654.5" y="144.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="670.5" y="144.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="686.5" y="144.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <text x="812" y="155" font-size="13" text-anchor="end" fill="#59636e">21 / 27</text>
-    <text x="870" y="155" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">77 %</text>
+    <rect x="606" y="144" width="12" height="12" rx="2" fill="#0969da"/>
+    <rect x="622" y="144" width="12" height="12" rx="2" fill="#0969da"/>
+    <rect x="638" y="144" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="654" y="144" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="670" y="144" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="686" y="144" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <text x="812" y="155" font-size="13" text-anchor="end" fill="#59636e">23 / 27</text>
+    <text x="870" y="155" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">85 %</text>
     <text x="0" y="183" font-size="14" fill="#1f2328">Part (ordered modeling)</text>
     <rect x="270" y="172" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="286" y="172" width="12" height="12" rx="2" fill="#0969da"/>
@@ -140,7 +142,7 @@
     <rect x="382" y="188" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="398" y="188" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="414" y="188" width="12" height="12" rx="2" fill="#0969da"/>
-    <rect x="430" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="430" y="188" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="446" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="462" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="478" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
@@ -152,15 +154,16 @@
     <rect x="574" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="590" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="606" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <rect x="622.5" y="188.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="638.5" y="188.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="654.5" y="188.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="670.5" y="188.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <rect x="622" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="638" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="654" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="670" y="188" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="686.5" y="188.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
     <rect x="702.5" y="188.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
     <rect x="718.5" y="188.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <text x="812" y="183" font-size="13" text-anchor="end" fill="#59636e">40 / 59</text>
-    <text x="870" y="183" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">67 %</text>
+    <rect x="734.5" y="188.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <text x="812" y="183" font-size="13" text-anchor="end" fill="#59636e">41 / 60</text>
+    <text x="870" y="183" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">68 %</text>
     <text x="0" y="227" font-size="14" fill="#1f2328">Synchronous modeling and surfaces</text>
     <rect x="270" y="216" width="12" height="12" rx="2" fill="#0969da"/>
     <rect x="286" y="216" width="12" height="12" rx="2" fill="#0969da"/>
@@ -189,8 +192,8 @@
     <rect x="654" y="216" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="670" y="216" width="12" height="12" rx="2" fill="#bc4c00"/>
     <rect x="686" y="216" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <rect x="702.5" y="216.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <rect x="718.5" y="216.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
+    <rect x="702" y="216" width="12" height="12" rx="2" fill="#bc4c00"/>
+    <rect x="718" y="216" width="12" height="12" rx="2" fill="#bc4c00"/>
     <text x="812" y="227" font-size="13" text-anchor="end" fill="#59636e">20 / 29</text>
     <text x="870" y="227" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">68 %</text>
     <text x="0" y="255" font-size="14" fill="#1f2328">Sheet metal</text>
@@ -357,10 +360,10 @@
     <text x="812" y="371" font-size="13" text-anchor="end" fill="#59636e">22 / 26</text>
     <text x="870" y="371" font-size="14" font-weight="600" text-anchor="end" fill="#1f2328">84 %</text>
     <rect x="0" y="403" width="12" height="12" rx="2" fill="#0969da"/>
-    <text x="20" y="414" font-size="13" fill="#59636e">Works through the MCP (227)</text>
+    <text x="20" y="414" font-size="13" fill="#59636e">Works through the MCP (233)</text>
     <rect x="250" y="403" width="12" height="12" rx="2" fill="#bc4c00"/>
-    <text x="270" y="414" font-size="13" fill="#59636e">Fails in Solid Edge 2026, documented (65)</text>
+    <text x="270" y="414" font-size="13" fill="#59636e">Fails in Solid Edge 2026, documented (78)</text>
     <rect x="590.5" y="403.5" width="11" height="11" rx="2" fill="none" stroke="#d1d9e0"/>
-    <text x="610" y="414" font-size="13" fill="#59636e">Not tested yet (36)</text>
+    <text x="610" y="414" font-size="13" fill="#59636e">Not tested yet (20)</text>
   </g>
 </svg>

@@ -100,6 +100,7 @@ public static class Program
         typeof(SketchTools),
         typeof(SketchEditTools),
         typeof(Sketch3dTools),
+        typeof(ModelViewTools),
         typeof(RegionTools),
         typeof(FeatureTools),
         typeof(PartTools),
