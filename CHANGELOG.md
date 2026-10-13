@@ -6,6 +6,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-13
+
 ### Added
 
 - `se_model_view`: PMI model views of parts, sheet metal and assemblies, by standard orientation or the window's current
