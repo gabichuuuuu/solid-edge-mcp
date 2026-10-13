@@ -1,0 +1,30 @@
+# A51: assembly layouts (se_sketch create layout), drawn, closed and deleted like sketches; refused in a part. The generic
+# layer refuses EndCaps.Add, which left Solid Edge unstable.
+@p = se_documents {"action":"new","kind":"part"}
+! [invalid_argument] se_sketch {"action":"create","plane":"1","layout":true}
+se_documents {"action":"close","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@ly = se_com_get {"target":"active_document","member":"Layouts"}
+@k = se_sketch {"action":"create","plane":"xy","layout":true}
+?= k.frame.normal[2] 1
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,80,40]}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[40,20],"radius":10}
+@c = se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+?= c.elements.lines 4
+?= c.elements.circles 1
+@n1 = se_com_get {"target":"{{ly.value.handle}}","member":"Count"}
+?= n1.value 1
+@k2 = se_sketch {"action":"create","plane":"2","layout":true}
+se_sketch {"action":"line","sketch":"{{k2.sketch}}","points":[0,0,50,0]}
+@n2 = se_com_get {"target":"{{ly.value.handle}}","member":"Count"}
+?= n2.value 2
+se_sketch {"action":"delete","sketch":"{{k.sketch}}"}
+@n3 = se_com_get {"target":"{{ly.value.handle}}","member":"Count"}
+?= n3.value 1
+# A sketch for assembly features is not a layout
+@k3 = se_sketch {"action":"create","plane":"1"}
+@n4 = se_com_get {"target":"{{ly.value.handle}}","member":"Count"}
+?= n4.value 1
+@ec = se_com_get {"target":"active_document","member":"EndCaps"}
+! [unsafe_member] se_com_invoke {"target":"{{ec.value.handle}}","method":"Add","arguments":[1,[1]]}
+se_documents {"action":"close","saveChanges":false}

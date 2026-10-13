@@ -309,6 +309,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_assembly_config", """{"action":"apply","name":"Without covers","document":"doc:3"}""")]
     [InlineData("se_assembly_family", """{"action":"create","kind":"alternate_positions","members":["Closed","Open"]}""")]
     [InlineData("se_assembly", """{"action":"copy_assembly","path":"C:\\Work\\frame.asm","plane":"2"}""")]
+    [InlineData("se_sketch", """{"action":"create","plane":"xy","layout":true}""")]
     [InlineData("se_simplify", """{"action":"create","occurrences":["occurrence:3"],"ratio":0.1}""")]
     [InlineData("se_simplify", """{"action":"save_as","path":"C:\\Work\\simple.par"}""")]
     [InlineData("se_assembly_family", """{"action":"exclude","member":"NoPin","occurrences":["occurrence:4"]}""")]

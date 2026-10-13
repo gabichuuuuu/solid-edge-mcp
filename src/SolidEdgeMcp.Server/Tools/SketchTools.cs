@@ -94,10 +94,10 @@ public sealed class SketchTools(ToolRunner runner)
     [McpServerTool(Name = "se_sketch", Title = "Sketch (profile)", Destructive = true, OpenWorld = false)]
     [Description("""
         2D sketches (profiles) for part features, in mm, in the sketch's own x/y coordinates. Drawing sheets take the same 2D geometry: pass a sheet handle (se_drawing sheets) or a drawing document handle (its active sheet) as 'sketch', with x/y in mm from the lower-left corner of the sheet; create, axis, close, project and delete apply only to model sketches.
-        create (plane: 'xy', 'yz', 'xz' = the base plane through the origin with that orientation, in any template; '1'-'3' = the template's base planes in its order (default templates: XY/top, YZ/right, XZ/front); or a refplane / planar face handle; in an assembly the same or an assembly plane, for se_assembly_feature) returns the sketch handle and its frame (origin, xAxis, yAxis, normal in model coordinates): on a face the origin is not the model origin, so model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis |
+        create (plane: 'xy', 'yz', 'xz' = the base plane through the origin with that orientation, in any template; '1'-'3' = the template's base planes in its order (default templates: XY/top, YZ/right, XZ/front); or a refplane / planar face handle; in an assembly the same or an assembly plane, for se_assembly_feature; layout = true: an assembly layout drawing instead) returns the sketch handle and its frame (origin, xAxis, yAxis, normal in model coordinates): on a face the origin is not the model origin, so model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis |
         line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners) | polyline (points [x1,y1,x2,y2,...]; closed, default true) | circle (center, radius) | arc (center, start, end; counter-clockwise) | ellipse (center, radius, minorRadius, angle) | spline (cubic through points, >= 3; closed, default false) | conic (points [start, end, control: where the end tangents meet], rho 0-1: 0.5 parabola) | point (points [x,y]) |
-        fillet (elements = two elements meeting at a corner, radius; trims both) | chamfer (elements = two lines meeting at a corner, setbacks; trims both) | project (elements = model edge handles from se_geometry, linked into the sketch) |
-        axis (element = line handle; revolution axis for se_revolve, set it before close; a side of the profile can be used: a copy becomes the axis) | close (validates closed loops, or one open chain with open=true for contour flanges, bend/jog lines and paths; required before a feature) | info (frame, counts and every element with its handle and geometry) | delete.
+        fillet (elements = two elements meeting at a corner, radius; trims both) | chamfer (elements = two lines meeting at a corner, setbacks; trims both) | project (elements = model edge handles from se_geometry, linked in) |
+        axis (element = line handle; revolution axis for se_revolve, set it before close; a side of the profile can be used: a copy becomes the axis) | close (validates closed loops, or one open chain with open=true for flanges, bend lines and paths; required before a feature) | info (frame, counts and every element with its handle and geometry) | delete.
         Example: create {"plane":"1"} → rectangle {"sketch":"sketch:5","points":[0,0,100,50]} → close → se_extrude.
         """)]
     public Task<CallToolResult> Sketch(
@@ -117,6 +117,7 @@ public sealed class SketchTools(ToolRunner runner)
         [Description("For chamfer: one setback in mm from the corner (equal) or two (along the first and the second line).")] double[]? setbacks = null,
         [Description("For polyline (default true) and spline (default false): close the shape.")] bool? closed = null,
         [Description("For close: validate one open chain instead of closed loops.")] bool open = false,
+        [Description("For create in an assembly: make a 2D layout (a layout drawing of the assembly) instead of a sketch for assembly features.")] bool layout = false,
         [Description("For create: document handle; default: active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -125,7 +126,7 @@ public sealed class SketchTools(ToolRunner runner)
         if (action == SketchAction.Create)
         {
             string target = ToolRunner.Require(plane, "plane", "create");
-            return runner.RunAsync(tool, name, c => SketchService.Create(c, document, target), cancellationToken);
+            return runner.RunAsync(tool, name, c => SketchService.Create(c, document, target, layout), cancellationToken);
         }
 
         string handle = ToolRunner.Require(sketch, "sketch", name.ToLowerInvariant());

@@ -21,12 +21,17 @@ public static partial class SketchService
     private const int LineStart = 0;
     private const int LineEnd = 1;
 
-    public static object Create(SeContext context, string? documentHandle, string plane)
+    public static object Create(SeContext context, string? documentHandle, string plane, bool layout = false)
     {
         SolidEdgeFramework.SolidEdgeDocument document = context.GetDocument(documentHandle);
         if (document is SolidEdgeAssembly.AssemblyDocument assembly)
         {
-            return CreateInAssembly(context, assembly, plane);
+            return CreateInAssembly(context, assembly, plane, layout);
+        }
+
+        if (layout)
+        {
+            throw ToolException.InvalidArgument("'layout' makes a 2D layout of an assembly; this is a part.");
         }
 
         ModelDocument model = ModelDocument.From(document);
@@ -59,11 +64,15 @@ public static partial class SketchService
     /// <summary>
     /// Sketch of an assembly, on one of its reference planes ('1'-'3' or a handle), for assembly features (se_assembly_feature).
     /// </summary>
-    private static object CreateInAssembly(SeContext context, SolidEdgeAssembly.AssemblyDocument assembly, string plane)
+    private static object CreateInAssembly(SeContext context, SolidEdgeAssembly.AssemblyDocument assembly, string plane, bool layout)
     {
         object refPlane = AssemblyPlane(context, assembly, plane);
         var document = (SolidEdgeFramework.SolidEdgeDocument)assembly;
-        Profile profile = assembly.ProfileSets.Add().Profiles.Add(refPlane);
+        // A layout is the assembly's 2D layout drawing (shown as a sketch in the PathFinder; verified: its Profile takes the same
+        // 2D elements, closes like a sketch and is deleted with the layout).
+        Profile profile = layout
+            ? (Profile)assembly.Layouts.Add((SolidEdgeAssembly.AsmRefPlane)refPlane, false, out _).Profile
+            : assembly.ProfileSets.Add().Profiles.Add(refPlane);
         return new
         {
             sketch = context.Register(profile, "sketch", document),
@@ -258,6 +267,11 @@ public static partial class SketchService
         {
             owner.Delete();
         }
+        else if (LayoutOf(profile) is { } layout)
+        {
+            // Verified: deleting the profile of an assembly layout leaves the (empty) layout behind.
+            layout.Delete();
+        }
         else
         {
             profile.Delete();
@@ -266,6 +280,12 @@ public static partial class SketchService
         context.Handles.Remove(sketch, "the sketch was deleted");
         return new { deleted = sketch, name };
     }
+
+    /// <summary>The assembly layout drawn on <paramref name="profile"/> (its parent is a profile set of the assembly), if any.</summary>
+    private static SolidEdgeAssembly.Layout? LayoutOf(Profile profile) =>
+        Com.Late.Get(profile.Parent, "Parent") is SolidEdgeAssembly.AssemblyDocument assembly
+            ? Com.Late.Items(assembly.Layouts).OfType<SolidEdgeAssembly.Layout>().FirstOrDefault(l => ReferenceEquals(l.Profile, profile))
+            : null;
 
     /// <summary>Drawing profile of the sketch. Also accepts the handle of a sketch in the tree (se_feature_tree).</summary>
     public static Profile Resolve(SeContext context, string sketch) => context.Handles.Resolve(sketch, "sketch") switch

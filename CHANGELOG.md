@@ -12,7 +12,14 @@ Relevant changes to this project are recorded here. The format follows
   mirrored about an assembly plane.
 - `se_simplify` on an assembly: its simplified model without chosen components or those smaller than a share of its
   size (status, create, delete), written as a part (`save_as`).
-- Acceptance script `A50`.
+- `se_sketch create layout`: in an assembly, a 2D layout drawing on an assembly plane, drawn, closed and deleted like a
+  sketch.
+- Acceptance scripts `A50` and `A51`.
+
+### Fixed
+
+- The generic layer refuses `EndCaps.Add`: after capping the members of a frame, Solid Edge failed with
+  RPC_E_SERVERFAULT on the next call and had to be restarted.
 
 ## [0.7.1] - 2026-10-13
 
