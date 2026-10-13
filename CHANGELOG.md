@@ -6,6 +6,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-13
+
 ### Added
 
 - `se_assembly copy_assembly`: the components of another saved assembly copied in and kept in step with it, plain or
