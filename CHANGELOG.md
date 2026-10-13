@@ -6,6 +6,15 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-13
+
+This release closes the drawings and annotations: on top of the dimension tolerances and the drawing tables of 0.6, a
+drawing can now show a PMI model view saved in the model and the 2D model sheet, and carry corner annotations, GOST weld
+symbols, smart frames, symbols placed from other drawings and the saved notes of the note library. The few drawing
+functions still open wait for the assembly work of the next milestone (alternate positions, harness tables) or are left
+to the designer on purpose (adding saved notes, training the AI drawing models). 74 tools in all. As before, it is
+source only: the interop is generated from your own Solid Edge installation, so no binaries are published.
+
 ### Added
 
 - `se_drawing base_view modelView`: a view of a PMI model view saved in the model, with its orientation and PMI; the
