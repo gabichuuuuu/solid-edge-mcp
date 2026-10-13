@@ -6,6 +6,13 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-13
+
+This release adds what a review of the functions left open after 1.0.0 found workable: tubes routed in assemblies, mounting
+bosses, decals, mirrored components and queries by document status, all read back from Solid Edge. The functions that
+still do not work are documented with what was tried (harness wires, movies, tube trims, weldment documents, vents), and
+three more calls that left Solid Edge unstable are refused by the generic layer. 80 tools in all.
+
 ### Added
 
 - `se_tube`: tubes routed in an assembly (XpresRoute) along a path of straight segments, bent at the corners with the

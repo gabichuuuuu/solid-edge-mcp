@@ -14,7 +14,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![80 tools](https://img.shields.io/badge/tools-80-2F6FEB)
 
-![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-2F6FEB)
+![Version 1.1.0](https://img.shields.io/badge/version-1.1.0-2F6FEB)
 [![Progress: 71 % of functions work through the MCP](https://img.shields.io/badge/progress-71%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
@@ -67,7 +67,7 @@ for approval.
 </table>
 
 > [!NOTE]
-> Current version (1.0.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
+> Current version (1.1.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
 > works and has been validated end to end with Claude Code and Codex. Tool names and parameters are
 > stable: an incompatible change waits for a major version (listed in the changelog).
 
@@ -568,7 +568,7 @@ what the commit contains.
 
 ## Project status
 
-- **Current version (1.0.0).** The first complete version: working, registered in Claude Code and Codex,
+- **Current version (1.1.0).** The first complete version: working, registered in Claude Code and Codex,
   and validated end to end, by the acceptance suite and by sessions in which Claude uses Solid Edge from requests in
   plain language. Change history in [CHANGELOG.md](CHANGELOG.md).
 - **Next:** more high-level tools for the functions that today go through COM (see
