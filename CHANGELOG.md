@@ -13,6 +13,8 @@ Relevant changes to this project are recorded here. The format follows
 - `se_part_feature cut_by_plane`: removes what lies on one side of a plane, as an extruded cutout through all of a
   rectangle drawn on the plane around the body (the Boolean feature with a plane tool fails through the API).
 - `se_loft_sweep helix` with `taper`: conical helices, widening or narrowing towards the end.
+- `se_curve helix`: helical construction curves about a cylindrical face or a straight edge, starting on a planar face, with
+  their length checked; a path for a spring (`se_loft_sweep tube`).
 - `se_geometry draft`: draft analysis along a pull direction, computed from the face normals: each face's least and
   greatest draft and whether it is positive, negative, insufficient or mixed against a minimum draft.
 

@@ -133,6 +133,7 @@ public enum CurveAction
     Contour,
     Wrap,
     Isocline,
+    Helix,
     Split,
     Delete,
 }
@@ -411,6 +412,7 @@ public sealed class PartTools(ToolRunner runner)
         contour (a curve on one face, 'faces': [face], through 'points' that lie on it; closed: true returns to the first point) |
         wrap (a 'sketch' drawn on a plane tangent to cylindrical or conical 'faces', wrapped onto them; its length equals the sketch's) |
         isocline (on 'faces', where the face normal makes 'angle' degrees with 'plane'; 0 = the silhouette; direction normal: where the normal tilts towards the side the plane normal points to, reverse: the other side) |
+        helix (axis = faces [a cylindrical face] or edges [a straight edge]; plane = the planar face or plane across it where it starts; diameter, default the cylinder's; two of pitch, turns, height; hand; it climbs into the axis element, reverse: away) |
         split ('curve' split where 'tools' cross it: reference planes or curves; its length stays, it gets more edges) | delete ('name').
         Each curve is checked by its status and edges (points: it ends at the first and last points; contour: it passes through every point; derived: its length equals the edges') and deleted if it fails.
         Example: {"action":"points","points":[0,0,30,50,30,50,100,60,30]}; {"action":"intersection","first":"surface:5","second":"body"}.
@@ -425,9 +427,15 @@ public sealed class PartTools(ToolRunner runner)
         [Description("project: face, surface or feature handle, or 'body', to project onto.")] string? onto = null,
         FeatureDirection direction = FeatureDirection.Normal,
         [Description("cross: two sketch handles on planes that are not parallel.")] string[]? sketches = null,
-        [Description("derived: edge handles forming a chain (se_geometry edges).")] string[]? edges = null,
-        [Description("contour: the one face the curve is drawn on; wrap: cylindrical or conical faces; isocline: the faces (se_geometry faces).")] string[]? faces = null,
-        [Description("isocline: '1'-'3', 'xy', 'yz', 'xz' or a reference plane handle.")] string? plane = null,
+        [Description("derived: edge handles forming a chain (se_geometry edges); helix: [the straight edge of its axis].")] string[]? edges = null,
+        [Description("contour: the one face the curve is drawn on; wrap: cylindrical or conical faces; isocline: the faces (se_geometry faces); helix: [the cylindrical face of its axis].")] string[]? faces = null,
+        [Description("isocline: '1'-'3', 'xy', 'yz', 'xz' or a reference plane handle; helix: the planar face or plane it starts on.")] string? plane = null,
+        [Description("helix: diameter in mm (default: the cylinder's).")] double? diameter = null,
+        [Description("helix: pitch in mm (rise per turn).")] double? pitch = null,
+        [Description("helix: number of turns.")] double? turns = null,
+        [Description("helix: height in mm.")] double? height = null,
+        HelixHand hand = HelixHand.Right,
+        [Description("helix: climb away from the axis element instead of into it.")] bool reverse = false,
         [Description("isocline: degrees between the face normal and the plane, from 0 to less than 90.")] double? angle = null,
         [Description("split: the curve handle (action 'list').")] string? curve = null,
         [Description("split: reference planes ('1'-'3', 'xy', 'yz', 'xz' or handles) or curves that cross the curve.")] string[]? tools = null,
@@ -448,6 +456,7 @@ public sealed class PartTools(ToolRunner runner)
             CurveAction.Contour => runner.RunAsync(tool, act, c => FeatureService.ContourCurve(c, document, faces, points, closed), cancellationToken),
             CurveAction.Wrap => runner.RunAsync(tool, act, c => FeatureService.WrapCurve(c, document, sketch, faces), cancellationToken),
             CurveAction.Isocline => runner.RunAsync(tool, act, c => FeatureService.IsoclineCurve(c, document, faces, plane, angle, Snake(direction)), cancellationToken),
+            CurveAction.Helix => runner.RunAsync(tool, act, c => FeatureService.HelixCurve(c, document, faces, edges, plane, diameter, pitch, turns, height, Snake(hand), reverse), cancellationToken),
             CurveAction.Split => runner.RunAsync(tool, act, c => FeatureService.SplitCurve(c, document, curve, tools), cancellationToken),
             CurveAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteCurve(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),

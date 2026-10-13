@@ -362,6 +362,7 @@ public sealed class ToolRegistrationTests
     [InlineData("se_part_feature", """{"action":"cut_by_plane","plane":"refplane:5","side":"reverse"}""")]
     [InlineData("se_geometry", """{"action":"draft","direction":[0,0,1],"minDraft":3,"limit":20}""")]
     [InlineData("se_loft_sweep", """{"action":"helix","sketches":["sketch:2"],"axis":"refaxis:5","pitch":8,"turns":5,"taper":-10}""")]
+    [InlineData("se_curve", """{"action":"helix","edges":["edge:12"],"plane":"face:7","diameter":30,"pitch":8,"height":40,"hand":"left","reverse":true}""")]
     [InlineData("se_section_view", """{"action":"add","sketch":"sketch:3","keep":"outside","depth":12,"direction":"front","caption":"Half","cutHardware":true,"display":"cut_faces_with_original_bodies","showPlane":false}""")]
     [InlineData("se_section_view", """{"action":"hide","section":"sectionview:4"}""")]
     [InlineData("se_section_view", """{"action":"edit","section":"Half","caption":"A-A","display":"only_cut_faces","opacity":0.5,"showPlane":true}""")]
