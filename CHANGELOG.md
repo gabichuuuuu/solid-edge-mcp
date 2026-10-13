@@ -6,6 +6,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-13
+
+Five functions that the Solid Edge API does not offer, or offers broken, now work through routes built from features that
+do work, each checked by its measured result: physical threads, counterbores made in an assembly, technical requirements
+on a drawing, 3D sections by a plane and tubes in parts.
+
 ### Added
 
 - `se_thread`: physical ISO metric threads (60° profile, standard depth) cut as a helix into a cylindrical face, outside
