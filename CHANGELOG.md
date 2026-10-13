@@ -6,6 +6,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-13
+
 ### Added
 
 - `se_sketch3d`: 3D sketches of parts, drawn in model space: polylines tied end to end, arcs, circles, splines through points
