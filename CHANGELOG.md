@@ -6,6 +6,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-13
+
 ### Added
 
 - `se_assembly_family`: alternate positions and families of assemblies. A saved assembly becomes one with named members;
