@@ -19,6 +19,7 @@ public enum LinkAction
     WhereUsed,
     TopLevel,
     Search,
+    Pack,
 }
 
 /// <summary>Links between files: references of a document, replacing them, where a file is used and the document search.</summary>
@@ -35,7 +36,8 @@ public sealed class LinkTools(ToolRunner runner, PathGuard guard)
         break (part: unlink copied parts of 'from'; the geometry stays and no longer updates, it cannot be undone) |
         where_used (path: the documents in 'folders' (default the file's folder; subfolders) that refer to it; indirect = also their users, up to the top) |
         top_level (files, or the .asm files of 'folder': the assemblies no other one of the set uses) |
-        search (folder: Solid Edge documents with title, subject and date of change; filter = file patterns separated by ';'; text = part of the title, subject or file name; contents=true: text inside the documents, through the Windows Search index).
+        search (folder: Solid Edge documents with title, subject and date of change; filter = file patterns separated by ';'; text = part of the title, subject or file name; contents=true: text inside the documents, through the Windows Search index) |
+        pack (Pack and Go: path = a closed document and every file it refers to, at every level, copied into 'folder' and linked to one another; checked by reading the links of each copy; overwrite).
         The document is changed in memory: save it with se_documents. Only folders allowed by the path policy are searched.
         Example: {"action":"replace","from":"bracket.par","to":"D:\\CAD\\bracket_v2.par"}; {"action":"where_used","path":"D:\\CAD\\bracket.par","subfolders":true}.
         """)]
@@ -43,16 +45,17 @@ public sealed class LinkTools(ToolRunner runner, PathGuard guard)
         LinkAction action,
         [Description("replace, break: the referenced file to change, full path or file name (action 'list').")] string? from = null,
         [Description("replace: the new file (allowed folders).")] string? to = null,
-        [Description("where_used: the file whose users are searched.")] string? path = null,
+        [Description("where_used: the file whose users are searched; pack: the document to pack.")] string? path = null,
         [Description("where_used: folders to search (default: the file's folder).")] string[]? folders = null,
         [Description("top_level: assembly files to check.")] string[]? files = null,
-        [Description("search, top_level: folder to search.")] string? folder = null,
+        [Description("search, top_level: folder to search; pack: the folder the copies go to (not the document's own).")] string? folder = null,
         [Description("where_used, top_level, search: include subfolders.")] bool subfolders = false,
         [Description("where_used: also the documents that use the users, up to the top.")] bool indirect = false,
         [Description("list: include the components inside subassemblies.")] bool recursive = false,
         [Description("search: file patterns separated by ';' (default all Solid Edge documents), e.g. '*.par;*.psm'.")] string? filter = null,
         [Description("search: keep the documents whose title, subject or file name contains this text.")] string? text = null,
         [Description("search: look for 'text' inside the documents (texts, notes) instead, through the Windows Search index.")] bool contents = false,
+        [Description("pack: replace files of the same name in the folder.")] bool overwrite = false,
         int offset = 0,
         int limit = 100,
         [Description("list, replace, break: document handle; default: the active document.")] string? document = null,
@@ -71,6 +74,8 @@ public sealed class LinkTools(ToolRunner runner, PathGuard guard)
             LinkAction.TopLevel => runner.RunAsync(tool, act, c => LinkService.TopLevel(c, files, folder, subfolders), cancellationToken),
             LinkAction.Search => runner.RunAsync(tool, act, c => LinkService.Search(c, ToolRunner.Require(folder, "folder", "search"), filter, subfolders, text, offset, limit, contents),
                 cancellationToken, precheck: folder is null ? null : () => guard.Check(folder, "folder")),
+            LinkAction.Pack => runner.RunAsync(tool, act, c => LinkService.Pack(c, path, folder, overwrite), cancellationToken, timeout: TimeSpan.FromMinutes(10),
+                precheck: path is null || folder is null ? null : () => { guard.Check(path); guard.Check(folder, "folder"); }),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

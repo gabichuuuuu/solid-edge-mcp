@@ -189,6 +189,8 @@ function Get-Progress([string]$root) {
 
     # Rows by section ("## " headers) outside the progress block; header and separator rows are skipped.
     $areas = [ordered]@{}
+    # Why each ✘ does not work: the word in bold right after it.
+    $reasons = [ordered]@{ API = 0; Unsafe = 0; Installation = 0; Interactive = 0; External = 0 }
     $area = $null
     $tables = $coverage.Substring(0, $start) + $coverage.Substring($end + $endMarker.Length)
     foreach ($line in ($tables -split "`n")) {
@@ -209,6 +211,14 @@ function Get-Progress([string]$root) {
             default { throw "Unknown status '$status' in: $line" }
         }
 
+        if ($kind -eq 'not_viable') {
+            if ($status -notmatch '^✘\s*\*\*(API|Unsafe|Installation|Interactive|External)\*\*') {
+                throw "A ✘ row has no reason (**API**, **Unsafe**, **Installation**, **Interactive** or **External**) after the ✘: $line"
+            }
+
+            $reasons[$Matches[1]]++
+        }
+
         if (-not $areas.Contains($area)) {
             $areas[$area] = @{ done = 0; not_viable = 0; pending = 0 }
         }
@@ -221,6 +231,8 @@ function Get-Progress([string]$root) {
     $pending = ($areas.Values | ForEach-Object { $_.pending } | Measure-Object -Sum).Sum
     $total = $done + $notViable + $pending
     $percent = Percent $done $total
+    # Highest reachable on the tested installation: what works plus the separate programs planned for a later update.
+    $reachable = Percent ($done + $reasons.External) $total
 
     # The charts come first: their URLs carry their fingerprint.
     $charts = [ordered]@{}
@@ -245,6 +257,14 @@ function Get-Progress([string]$root) {
         "and are documented, with an alternative when there is one (✘), and $pending are still to be tested (·)."
         'Every function, tested or not, can also be reached through the generic COM layer and `se_command`.'
         ''
+        "Why the $notViable do not work: **$($reasons.API) API** (Solid Edge's API fails and no other route gives the same result),"
+        "**$($reasons.Unsafe) unsafe** (they close or damage Solid Edge, so the MCP refuses them), **$($reasons.Installation) installation**"
+        "(they need a licence, add-on, template, mail profile or server that the tested installation lacks),"
+        "**$($reasons.Interactive) interactive** (commands that wait for the mouse) and **$($reasons.External) external** (separate programs"
+        'installed with Solid Edge, such as Design Manager, planned for a later update).'
+        "**Highest reachable on the tested installation: $reachable %**, the working functions plus those separate programs; the"
+        'rest depends on Siemens fixing its API, on what is installed and licensed, or on the person working in Solid Edge.'
+        ''
         '| Area | ✔ | ✘ | · | Working |'
         '|---|---|---|---|---|'
     )
@@ -268,6 +288,14 @@ function Get-Progress([string]$root) {
     }
 
     $newReadme = [regex]::Replace($readme, $badgePattern, $badge)
+    # The README's line with the progress and the highest reachable.
+    $reachPattern = '(?m)^\*\*\d+ % of the functions work today\*\*[^\r\n]*'
+    if ($newReadme -notmatch $reachPattern) {
+        throw 'README.md has no "**N % of the functions work today**" line to update.'
+    }
+
+    $newReadme = [regex]::Replace($newReadme, $reachPattern,
+        "**$percent % of the functions work today**; the highest reachable on the tested installation is **$reachable %** (why the rest do not: [progress](docs/COVERAGE.md#progress)).")
     # Progress chart of the README (light and dark): the same fingerprinted URLs.
     $chartPattern = '(?<=(?:src|srcset)="docs/assets/)progress(-dark)?\.svg(?:\?v=[0-9a-f]+)?(?=")'
     if ($newReadme -notmatch $chartPattern) {
@@ -303,7 +331,7 @@ function Get-Progress([string]$root) {
 
     [pscustomobject]@{
         Files = $files
-        Summary = "$percent % working: $done ✔, $notViable ✘, $pending · of $total functions; $($tools.Count) tools; version $version"
+        Summary = "$percent % working (highest reachable $reachable %): $done ✔, $notViable ✘ ($($reasons.API) API, $($reasons.Unsafe) unsafe, $($reasons.Installation) installation, $($reasons.Interactive) interactive, $($reasons.External) external), $pending · of $total functions; $($tools.Count) tools; version $version"
         Undescribed = @($tools | Where-Object { $readme -notmatch "``$([regex]::Escape($_))``" })
         Unlisted = $unlisted
     }

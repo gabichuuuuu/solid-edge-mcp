@@ -409,7 +409,7 @@ public sealed class PartTools(ToolRunner runner)
         intersection (where 'first' and 'second' meet; each a face handle, a surface (se_surface) or feature handle = its faces, or 'body') |
         project (a 'sketch' projected onto 'onto' = a face, surface or feature handle, or 'body', along the sketch normal (direction normal) or against it (reverse)) |
         cross (two 'sketches' on planes that are not parallel: where their extrusions meet) | derived (one curve from a chain of 'edges') |
-        contour (a curve on one face, 'faces': [face], through 'points' that lie on it; closed: true returns to the first point) |
+        contour (a curve on 'faces' through 'points' that lie on them; closed: true returns to the first point; across faces, a point on the edge where it passes to the next face: one curve per face joined into one) |
         wrap (a 'sketch' drawn on a plane tangent to cylindrical or conical 'faces', wrapped onto them; its length equals the sketch's) |
         isocline (on 'faces', where the face normal makes 'angle' degrees with 'plane'; 0 = the silhouette; direction normal: where the normal tilts towards the side the plane normal points to, reverse: the other side) |
         helix (axis = faces [a cylindrical face] or edges [a straight edge]; plane = the planar face or plane across it where it starts; diameter, default the cylinder's; two of pitch, turns, height; hand; it climbs into the axis element, reverse: away) |
@@ -428,7 +428,7 @@ public sealed class PartTools(ToolRunner runner)
         FeatureDirection direction = FeatureDirection.Normal,
         [Description("cross: two sketch handles on planes that are not parallel.")] string[]? sketches = null,
         [Description("derived: edge handles forming a chain (se_geometry edges); helix: [the straight edge of its axis].")] string[]? edges = null,
-        [Description("contour: the one face the curve is drawn on; wrap: cylindrical or conical faces; isocline: the faces (se_geometry faces); helix: [the cylindrical face of its axis].")] string[]? faces = null,
+        [Description("contour: the faces the curve is drawn on; wrap: cylindrical or conical faces; isocline: the faces (se_geometry faces); helix: [the cylindrical face of its axis].")] string[]? faces = null,
         [Description("isocline: '1'-'3', 'xy', 'yz', 'xz' or a reference plane handle; helix: the planar face or plane it starts on.")] string? plane = null,
         [Description("helix: diameter in mm (default: the cylinder's).")] double? diameter = null,
         [Description("helix: pitch in mm (rise per turn).")] double? pitch = null,

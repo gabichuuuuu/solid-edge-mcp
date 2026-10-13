@@ -162,30 +162,103 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Curve drawn on one face through points that lie on it (model mm); open, or closed back to the first point. It must pass
-    /// through every point and, if open, end at the first and last. Solid Edge rejects several faces (E_FAIL, even tangent ones).
+    /// Curve drawn on faces through points that lie on them (model mm); open, or closed back to the first point. It must pass
+    /// through every point and, if open, end at the first and last. Solid Edge rejects a contour curve on several faces (E_FAIL,
+    /// even tangent ones), so across faces it makes one contour curve per face, from point to point, and joins them into one
+    /// composite derived curve; consecutive points must share a face, so a point on the edge between two faces marks the crossing.
     /// </summary>
     public static object ContourCurve(SeContext context, string? documentHandle, string[]? faces, double[]? points, bool closed)
     {
-        if (faces is not { Length: 1 })
+        if (faces is not { Length: > 0 })
         {
-            throw ToolException.InvalidArgument("contour needs one face in 'faces' (se_geometry faces); Solid Edge rejects several faces.",
-                "Make one curve per face, or a points curve (action 'points') across them.");
+            throw ToolException.InvalidArgument("contour needs 'faces': the faces the curve is drawn on (se_geometry faces).");
         }
 
         List<(double X, double Y, double Z)> list = Geo.Points3(points, "points", closed ? 3 : 2);
         ModelDocument model = ModelDocument.For(context, documentHandle, faces[0]);
-        Face face = context.Handles.Resolve<Face>(faces[0], "faces");
-        int far = list.FindIndex(p => DistanceToFace(face, [p.X, p.Y, p.Z]) > 1e-5);
+        Face[] faceList = faces.Select(h => context.Handles.Resolve<Face>(h, "faces")).ToArray();
+        double[][] nodes = list.Select(p => new[] { p.X, p.Y, p.Z }).ToArray();
+        // The faces each point lies on.
+        bool[][] on = nodes.Select(p => faceList.Select(f => DistanceToFace(f, p) <= 1e-5).ToArray()).ToArray();
+        int far = Array.FindIndex(on, o => !o.Contains(true));
         if (far >= 0)
         {
-            (double x, double y, double z) = list[far];
-            throw ToolException.InvalidArgument($"Point {far + 1} is {Geo.Mm(DistanceToFace(face, [x, y, z]))} mm away from the face; the points must lie on it.");
+            double distance = faceList.Min(f => DistanceToFace(f, nodes[far]));
+            throw ToolException.InvalidArgument($"Point {far + 1} is {Geo.Mm(distance)} mm away from the faces; the points must lie on them.");
         }
 
-        double[][] nodes = list.Select(p => new[] { p.X, p.Y, p.Z }).ToArray();
+        // Runs of consecutive points on one face, in order along the curve (closed: back to the first point).
+        int count = closed ? nodes.Length + 1 : nodes.Length;
+        var runs = new List<(int Face, List<int> Points)>();
+        for (int i = 0; i + 1 < count; i++)
+        {
+            int a = i, b = (i + 1) % nodes.Length;
+            int[] common = [.. Enumerable.Range(0, faceList.Length).Where(k => on[a][k] && on[b][k])];
+            if (common.Length == 0)
+            {
+                throw ToolException.InvalidArgument($"Points {a + 1} and {b + 1} do not lie on the same face.",
+                    "Where the curve passes to another face, add a point on the edge between the two faces.");
+            }
+
+            int face = runs.Count > 0 && common.Contains(runs[^1].Face) ? runs[^1].Face : common[0];
+            if (runs.Count == 0 || runs[^1].Face != face)
+            {
+                runs.Add((face, [a]));
+            }
+
+            runs[^1].Points.Add(b);
+        }
+
         bool switched = model.EnsureOrdered();
         var errors = new List<string>();
+        if (runs.Count == 1)
+        {
+            object curve = Contour(model, faceList[runs[0].Face], nodes, closed, errors) ?? throw ContourFailed(context, model, errors);
+            return CheckedCurve(context, model, curve, "contour", switched, null);
+        }
+
+        var parts = new List<object>();
+        try
+        {
+            foreach ((int face, List<int> run) in runs)
+            {
+                parts.Add(Contour(model, faceList[face], [.. run.Select(k => nodes[k])], false, errors) ?? throw ContourFailed(context, model, errors));
+            }
+
+            Array set = parts.SelectMany(CurveEdges).Cast<object>().ToArray();
+            double expected = parts.Sum(p => CurveEdges(p).Sum(EdgeLength));
+            object joined = MakeCurve("contour curve across the faces",
+                () => ConstructionsOf(model).DerivedCurves.Add(set.Length, ref set, DerivedCurveTypeConstants.igDCComposite),
+                "Give the points in order along the curve.");
+            object result = CheckedCurve(context, model, joined, "contour", switched, c =>
+                Math.Abs(CurveEdges(c).Sum(EdgeLength) - expected) > 1e-6 * Math.Max(1, expected)
+                    ? "its length differs from the curves on each face" : ContourProblem(c, nodes, closed));
+            // The curves on each face stay as the parents of the joined curve, hidden.
+            foreach (object part in parts)
+            {
+                try
+                {
+                    Late.Set(part, "Visible", false);
+                }
+                catch (Exception ex) when (Late.IsMemberFailure(ex))
+                {
+                    // Only their display.
+                }
+            }
+
+            return result;
+        }
+        catch
+        {
+            parts.ForEach(TryDeleteCurve);
+            context.ModelChanged(model.Document, "the model changed (contour curve attempts)");
+            throw;
+        }
+    }
+
+    /// <summary>A contour curve on one face through the points (model m), checked; null if Solid Edge does not make it.</summary>
+    private static object? Contour(ModelDocument model, Face face, double[][] nodes, bool closed, List<string> errors)
+    {
         foreach (bool spareAtEnd in new[] { true, false })
         {
             object? curve = MakeContour(model, face, nodes, closed, spareAtEnd, errors);
@@ -197,16 +270,21 @@ public static partial class FeatureService
             string? problem = StatusOf(curve) is not ("ok" or "warning") ? $"status {StatusOf(curve)}" : ContourProblem(curve, nodes, closed);
             if (problem is null)
             {
-                return CheckedCurve(context, model, curve, "contour", switched, null);
+                return curve;
             }
 
             errors.Add(problem);
             TryDeleteCurve(curve);
         }
 
+        return null;
+    }
+
+    private static ToolException ContourFailed(SeContext context, ModelDocument model, List<string> errors)
+    {
         context.ModelChanged(model.Document, "the model changed (contour curve attempts)");
-        throw new ToolException("feature_failed", "Solid Edge did not make the contour curve: " + string.Join("; ", errors.Distinct()),
-            "Give points inside the face, in order along the curve; a closed curve must not leave the face.");
+        return new ToolException("feature_failed", "Solid Edge did not make the contour curve: " + string.Join("; ", errors.Distinct()),
+            "Give points inside the faces, in order along the curve; a closed curve on one face must not leave it.");
     }
 
     /// <summary>

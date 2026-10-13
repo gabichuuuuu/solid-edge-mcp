@@ -18,7 +18,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// drawing, copied parts of a part), replacing a referenced file, where a file is used, the top-level assemblies of a set
 /// and the document search of File > Open.
 /// </summary>
-public static class LinkService
+public static partial class LinkService
 {
     /// <summary>Most files a search or a where-used scan walks.</summary>
     private const int MaxFiles = 5000;

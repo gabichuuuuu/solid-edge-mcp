@@ -1,0 +1,51 @@
+# A75: contour curves across several faces (se_curve contour): one curve per face joined into one. Box 100x60x20 (x 0..100,
+#   y 0..60, z 0..20), volume 120000, unchanged by the curves.
+#   top -> front: (30,30,20) -> (50,0,20) on the edge -> (70,0,10): sqrt(20^2+30^2) + sqrt(20^2+10^2) = 36.056 + 22.361 = 58.416
+#   top -> front -> right: (80,30,20) -> (90,0,20) -> (100,0,10) -> (100,30,10): 31.623 + 14.142 + 30 = 75.765
+#   closed top -> front -> top: (40,20,20) -> (40,0,20) -> (50,0,10) -> (60,0,20) -> back: closed, no ends
+#   one face still makes a single contour curve: (10,10,20) -> (90,50,20) = sqrt(80^2+40^2) = 89.443
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+?= b.volume 120000 0.001
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@front = se_geometry {"action":"faces","direction":[0,-1,0]}
+@right = se_geometry {"action":"faces","direction":[1,0,0]}
+@c1 = se_curve {"action":"contour","faces":["{{top.items[0].handle}}","{{front.items[0].handle}}"],"points":[30,30,20,50,0,20,70,0,10]}
+?~ c1.curve.type contour
+?~ c1.curve.status ok
+?= c1.curve.edges 2 0
+?= c1.curve.length 58.416 0.001
+?~ c1.curve.closed false
+?= c1.curve.boundingBox.min[0] 30 0.001
+?= c1.curve.boundingBox.max[0] 70 0.001
+?= c1.curve.boundingBox.min[2] 10 0.001
+?= c1.curve.boundingBox.max[1] 30 0.001
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@front2 = se_geometry {"action":"faces","direction":[0,-1,0]}
+@right2 = se_geometry {"action":"faces","direction":[1,0,0]}
+@c2 = se_curve {"action":"contour","faces":["{{top2.items[0].handle}}","{{front2.items[0].handle}}","{{right2.items[0].handle}}"],"points":[80,30,20,90,0,20,100,0,10,100,30,10]}
+?= c2.curve.edges 3 0
+?= c2.curve.length 75.765 0.001
+?= c2.curve.boundingBox.min[0] 80 0.001
+?= c2.curve.boundingBox.max[0] 100 0.001
+?= c2.curve.boundingBox.min[2] 10 0.001
+@top3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@front3 = se_geometry {"action":"faces","direction":[0,-1,0]}
+@c3 = se_curve {"action":"contour","faces":["{{top3.items[0].handle}}","{{front3.items[0].handle}}"],"points":[40,20,20,40,0,20,50,0,10,60,0,20],"closed":true}
+?~ c3.curve.closed true
+?= c3.curve.edges 3 0
+?= c3.curve.boundingBox.min[0] 40 0.001
+?= c3.curve.boundingBox.max[0] 60 0.001
+?= c3.curve.boundingBox.max[1] 20 0.001
+@top4 = se_geometry {"action":"faces","direction":[0,0,1]}
+@front4 = se_geometry {"action":"faces","direction":[0,-1,0]}
+@c4 = se_curve {"action":"contour","faces":["{{top4.items[0].handle}}","{{front4.items[0].handle}}"],"points":[10,10,20,90,50,20]}
+?= c4.curve.edges 1 0
+?= c4.curve.length 89.443 0.001
+@top5 = se_geometry {"action":"faces","direction":[0,0,1]}
+@front5 = se_geometry {"action":"faces","direction":[0,-1,0]}
+! [invalid_argument] se_curve {"action":"contour","faces":["{{top5.items[0].handle}}","{{front5.items[0].handle}}"],"points":[30,30,20,70,0,10]}
+! [invalid_argument] se_curve {"action":"contour","faces":["{{top5.items[0].handle}}","{{front5.items[0].handle}}"],"points":[30,30,25,70,0,10]}
+@v = se_physical {}
+?= v.volume 120000 0.001
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

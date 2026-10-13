@@ -173,10 +173,17 @@ public static class GenericCom
 
     /// <summary>
     /// Arguments verified to bring Solid Edge 2026 down: SplitCurves.Add and AreCurvesValid with a curve feature in the curves
-    /// array (instead of its edges) fail with RPC_E_SERVERFAULT.
+    /// array (instead of its edges), and QueryByProperty with arrays of names, types and values, fail with RPC_E_SERVERFAULT.
     /// </summary>
     private static void RefuseUnsafeArguments(Type? type, string member, object?[] args)
     {
+        if (member.Trim().Equals("QueryByProperty", StringComparison.OrdinalIgnoreCase) && args.Any(a => a is Array))
+        {
+            throw new ToolException("unsafe_member",
+                "QueryByProperty with an array argument brings Solid Edge 2026 down (RPC_E_SERVERFAULT), so it is not called.",
+                "Pass one property as plain values: [3, table name, 1, property name, property type, value].");
+        }
+
         int description = type?.Name is not ("Sensors" or "SheetMetalSensors") ? -1 : member.ToUpperInvariant() switch
         {
             "ADDVARIABLESENSOR" => 2,
@@ -269,7 +276,9 @@ public static class GenericCom
                 throw new ToolException("member_not_found", $"{type.FullName} has no method '{method}'.",
                     "Use se_com_describe to list the members.");
             default:
-                object? dispatchResult = InvokeDispatch(obj, method, BindingFlags.InvokeMethod, InferArguments(context, method, arguments));
+                object?[] inferred = [.. InferArguments(context, method, arguments)];
+                RefuseUnsafeArguments(type, method, inferred);
+                object? dispatchResult = InvokeDispatch(obj, method, BindingFlags.InvokeMethod, inferred);
                 return new { result = ComValues.ToJson(context, dispatchResult, owner) };
         }
     }

@@ -6,6 +6,20 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_links pack`: Pack and Go, a closed document and every file it refers to (components at every level, drawing models,
+  copied parts) copied into one folder and linked to one another; each copy's links are read back.
+- `se_curve contour` on several faces: one contour curve per face, from point to point, joined into one composite curve
+  (open or closed); a point on the edge between two faces marks where the curve passes to the next one (Solid Edge's
+  contour curve fails on more than one face through the API).
+- Property tables on faces, features and edges through the generic layer, documented in the coverage map with the typed
+  select filter they need and checked by an acceptance script.
+
+### Fixed
+
+- The generic layer refuses `QueryByProperty` with array arguments, which bring Solid Edge down (RPC_E_SERVERFAULT).
+
 ## [1.5.0] - 2026-10-13
 
 More of what the Solid Edge API leaves broken now works: faces turned about an edge, a part cut by a plane, the draft

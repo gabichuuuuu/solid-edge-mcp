@@ -508,7 +508,7 @@ public static class DocumentService
     private static readonly System.Text.RegularExpressions.Regex FamilyMember =
         new(@"^(.+\.(?:asm|par|psm))!([^\x00-\x1f]+)[\x00-\x1f]*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-    private static SolidEdgeDocument? FindOpen(SeContext context, string path)
+    internal static SolidEdgeDocument? FindOpen(SeContext context, string path)
     {
         Documents documents = context.Application.Documents;
         for (int i = 1; i <= documents.Count; i++)

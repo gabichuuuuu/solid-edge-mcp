@@ -74,13 +74,15 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=b4949975">
-  <img src="docs/assets/progress.svg?v=2b3fe26d" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=ece1687b">
+  <img src="docs/assets/progress.svg?v=f4f6995a" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
 in Solid Edge 2026 itself (documented, with an alternative when there is one) or it is not tested yet.
 `scripts/update-progress.ps1` redraws the chart from the coverage tables.
+
+**76 % of the functions work today**; the highest reachable on the tested installation is **77 %** (why the rest do not: [progress](docs/COVERAGE.md#progress)).
 
 ## What you can ask for
 
@@ -232,7 +234,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_material` | Material libraries: current material, properties and assignment (updates density and mass). |
 | | `se_appearance` | Colours (face styles): list, create and delete styles; colour the body, faces, features or assembly components by style or #RRGGBB with opacity, read them back and remove them. |
 | | `se_layer` | Layers of models and drawing sheets: list, create, activate, show or hide, make selectable or not, delete empty ones and move sketch geometry, drawing views, dimensions and annotations between them. |
-| | `se_links` | Links between files: what a document refers to (components, drawing models, copied parts) and whether they are found, replace a referenced file, break copied parts, where a file is used (directly or up to the top), top-level assemblies, the document search of File > Open (title, subject, date) and the search of the text inside documents through the Windows Search index. |
+| | `se_links` | Links between files: what a document refers to (components, drawing models, copied parts) and whether they are found, replace a referenced file, break copied parts, where a file is used (directly or up to the top), top-level assemblies, the document search of File > Open (title, subject, date) the search of the text inside documents through the Windows Search index, and Pack and Go (a document and all its files copied to one folder, linked to one another). |
 | **Query** | `se_feature_tree` | Features in order with their status, the modeling mode and the volume. |
 | | `se_geometry` | Summary, faces and edges with handles and filters; in assemblies, per occurrence and in assembly coordinates; draft analysis of the faces along a pull direction. |
 | | `se_measure` | Minimum distance and angle between faces, edges, planes or occurrences, also in assemblies. |
@@ -272,7 +274,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_pmi` | 3D (PMI) dimensions of a part or sheet metal document, the ones synchronous features carry (the height, width and length of a box, the height and diameter of a cylinder): list them with their value, type, lock and status; drive the model to a new value with the measured end, the origin end or both ends moving (the value the model reaches is read back, and the old one is put back if Solid Edge does not reach it); lock and unlock them; delete them (the model stays as it is); show or hide the PMI dimensions and annotations in the window. |
 | | `se_primitive` | Box (optionally turned about the plane normal), cylinder or sphere placed by its centre on a plane or face, added or cut, without a sketch. |
 | | `se_surface` | Construction surfaces: extruded or revolved from a sketch (open or closed, with end caps), offset from a face, lofted through sections, swept along a sketch or a 3D curve, stitched, filling a closed chain of edges, copied from faces, and BlueSurf through section edges with guides; trim a surface where surfaces or curves cross it, extend it from its edges (natural, linear or reflective), close surfaces that enclose a volume into a solid construction body, and blend two surfaces with a constant radius (trimmed to it); list and delete. Each result is checked by its area or volume. |
-| | `se_curve` | Construction curves: through 3D points, intersections of faces, surfaces and the body, sketches projected onto faces, crossings of two sketches, chains of edges, contours drawn on a face through points on it, sketches wrapped onto cylindrical or conical faces, isoclines (where the face normal makes an angle with a plane, e.g. a silhouette) and helices about a cylinder or an axis (e.g. the path of a spring); split a curve where planes or other curves cross it (its length is checked); list and delete. |
+| | `se_curve` | Construction curves: through 3D points, intersections of faces, surfaces and the body, sketches projected onto faces, crossings of two sketches, chains of edges, contours drawn on faces through points on them (across faces, joined into one curve), sketches wrapped onto cylindrical or conical faces, isoclines (where the face normal makes an angle with a plane, e.g. a silhouette) and helices about a cylinder or an axis (e.g. the path of a spring); split a curve where planes or other curves cross it (its length is checked); list and delete. |
 | | `se_feature_edit` | Suppress, unsuppress, delete or rename a feature or a group; group features and dissolve a group; move a feature before or after another; roll the model back to a feature (new features go after it) and forward to its end. |
 | | `se_simplify` | The simplified model of a part or sheet metal part, which assemblies can show instead of the design body: make it, delete holes up to a diameter, rounds, chosen faces and regions bounded by edges from it (each change checked on its body, the design body untouched), switch between the design and the simplified model, list and delete its features; the simplified model of an assembly (without chosen or small components), written as a part. |
 | **Sheet metal** | `se_sheetmetal` | Settings (thickness, radius, reliefs, K-factor), gauges of a material library, tab, contour flange, flange, hem, corner break, flat pattern with cut size, changes of the angle and radius of existing bends, a flange matched to a parallel plane (onto it, short of it or beyond it), louvers (lanced or formed, with rounded ends) placed on a flat face, and conversion of a thin-walled part into sheet metal. |
