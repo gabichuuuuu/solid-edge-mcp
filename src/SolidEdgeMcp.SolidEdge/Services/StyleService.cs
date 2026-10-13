@@ -121,6 +121,106 @@ public static class StyleService
         };
     }
 
+    /// <summary>
+    /// The 8 lights of a view style (numbered 1-8 here, 0-7 in the API): colour, intensity (its brightest channel) and direction
+    /// (theta, phi in degrees). Verified: SetLight with (1, 0.5, 0.25) reads back #FF8040, and SetLightIntensity(0.8) turns the
+    /// light grey at 0.8, so a colour and an intensity are not set together.
+    /// </summary>
+    public static object Lights(SeContext context, string? documentHandle, string name)
+    {
+        (SolidEdgeDocument document, ViewStyle style, string styleName) = OpenView(context, documentHandle, name);
+        object[] lights = Enumerable.Range(1, style.NumLights).Select(n => DescribeLight(style, n)).ToArray();
+        return new { document = context.DocumentHandle(document), name = styleName, count = lights.Length, lights };
+    }
+
+    /// <summary>Changes one light of a view style: colour '#RRGGBB' or grey intensity 0-1, and direction [theta, phi] in degrees.</summary>
+    public static object SetLight(SeContext context, string? documentHandle, string name, int light, string? color, double? intensity, double[]? direction)
+    {
+        (SolidEdgeDocument document, ViewStyle style, string styleName) = OpenView(context, documentHandle, name);
+        if (light < 1 || light > style.NumLights)
+        {
+            throw ToolException.InvalidArgument($"'light' must be 1 to {style.NumLights}.");
+        }
+
+        if (color is not null && intensity is not null)
+        {
+            throw ToolException.InvalidArgument("Give 'color' or 'intensity', not both: Solid Edge sets the intensity as a grey light.");
+        }
+
+        if (color is null && intensity is null && direction is null)
+        {
+            throw ToolException.InvalidArgument("set_light needs 'color', 'intensity' or 'direction'.");
+        }
+
+        int n = light - 1;
+        object previous = DescribeLight(style, light);
+        style.GetLight(n, out float red, out float green, out float blue, out float theta, out float phi);
+        if (color is not null)
+        {
+            (red, green, blue) = ParseColor(color);
+        }
+        else if (intensity is { } level)
+        {
+            if (!double.IsFinite(level) || level < 0 || level > 1)
+            {
+                throw ToolException.InvalidArgument("'intensity' must be between 0 and 1.");
+            }
+
+            red = green = blue = (float)level;
+        }
+
+        if (direction is not null)
+        {
+            if (direction is not [double t, double p] || !double.IsFinite(t) || !double.IsFinite(p))
+            {
+                throw ToolException.InvalidArgument("'direction' must be [theta, phi] in degrees.");
+            }
+
+            (theta, phi) = ((float)Units.DegToRad(t), (float)Units.DegToRad(p));
+        }
+
+        style.SetLight(n, red, green, blue, theta, phi);
+        style.GetLight(n, out float r2, out float g2, out float b2, out float t2, out float p2);
+        if (Math.Abs(r2 - red) > 0.005 || Math.Abs(g2 - green) > 0.005 || Math.Abs(b2 - blue) > 0.005
+            || Math.Abs(t2 - theta) > 1e-3 || Math.Abs(p2 - phi) > 1e-3)
+        {
+            throw new ToolException("style_not_changed", $"Solid Edge did not set light {light} of the view style '{styleName}' as asked.",
+                "Read it with action 'lights'.");
+        }
+
+        ViewService.ModelView(document)?.Update();
+        return new { document = context.DocumentHandle(document), name = styleName, previous, light = DescribeLight(style, light) };
+    }
+
+    private static (SolidEdgeDocument Document, ViewStyle Style, string Name) OpenView(SeContext context, string? documentHandle, string name)
+    {
+        (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, "view");
+        (object style, string styleName) = Find(document, kind, collection, name);
+        return (document, (ViewStyle)style, styleName);
+    }
+
+    private static object DescribeLight(ViewStyle style, int light)
+    {
+        style.GetLight(light - 1, out float red, out float green, out float blue, out float theta, out float phi);
+        return new
+        {
+            light,
+            color = $"#{Channel(red):X2}{Channel(green):X2}{Channel(blue):X2}",
+            intensity = Math.Round(Math.Max(red, Math.Max(green, blue)), 4),
+            direction = new[] { Math.Round(Units.RadToDeg(theta), 3), Math.Round(Units.RadToDeg(phi), 3) },
+        };
+    }
+
+    private static int Channel(float value) => (int)Math.Round(Math.Clamp(value, 0, 1) * 255);
+
+    private static (float Red, float Green, float Blue) ParseColor(string color)
+    {
+        string hex = color.Trim().TrimStart('#');
+        return hex.Length == 6 && int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int rgb)
+            ? (((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f)
+            : throw ToolException.InvalidArgument($"'{color}' is not a colour '#RRGGBB'.");
+    }
+
     /// <summary>Makes a style the active one of its type (for view styles: the style of the document's window).</summary>
     public static object Activate(SeContext context, string? documentHandle, string type, string name)
     {

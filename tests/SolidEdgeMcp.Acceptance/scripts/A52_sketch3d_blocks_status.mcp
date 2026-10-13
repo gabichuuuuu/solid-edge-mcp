@@ -1,0 +1,178 @@
+# A52: 3D sketches (se_sketch3d) and a sweep along one, sketch blocks of parts, document status, view style lights, and the
+# generic routes for intersection points, subdivision boxes, component sketches and relief patches.
+# 1) 3D sketch: a polyline (0,0,0)-(0,0,100)-(80,0,100) is tied by a connect relation; a fillet of 20 between its lines.
+@p = se_documents {"action":"new","kind":"part"}
+@s = se_sketch3d {"action":"create","name":"Path"}
+@l = se_sketch3d {"action":"line","sketch":"{{s.handle}}","points":[0,0,0,0,0,100,80,0,100]}
+?= l.elements[0].length 100
+?= l.elements[1].start[2] 100
+?= l.sketch.relations 1
+@f = se_sketch3d {"action":"fillet","sketch":"{{s.handle}}","elements":["{{l.elements[0].handle}}","{{l.elements[1].handle}}"],"radius":20}
+?= f.elements[0].radius 20
+?= f.elements[0].center[0] 20
+?= f.elements[0].center[2] 80
+# A circle of 5 on XY at the path start swept along it: pi*25*(80 + 60 + 10*pi) = 13462.975
+@k = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@sw = se_loft_sweep {"action":"sweep","sketches":["{{k.sketch}}"],"path":"{{s.handle}}"}
+?= sw.volume 13462.975 0.01
+# Other elements: an arc turning about +z, a circle, an open and a closed spline, points, relations
+@s2 = se_sketch3d {"action":"create"}
+@a = se_sketch3d {"action":"arc","sketch":"{{s2.handle}}","points":[200,0,0,200,20,0,200,10,0],"normal":[0,0,1]}
+?= a.elements[0].radius 10
+?= a.elements[0].end[1] 20
+@c = se_sketch3d {"action":"circle","sketch":"{{s2.handle}}","points":[0,100,0],"normal":[0,0,1],"radius":20}
+?~ c.elements[0].type circle
+@sp = se_sketch3d {"action":"spline","sketch":"{{s2.handle}}","points":[0,200,0,50,220,10,100,200,20,150,250,0]}
+?= sp.elements[0].end[0] 150
+se_sketch3d {"action":"spline","sketch":"{{s2.handle}}","points":[0,400,0,50,450,10,100,400,20],"closed":true}
+@pt = se_sketch3d {"action":"point","sketch":"{{s2.handle}}","points":[300,300,300,310,300,300]}
+?= pt.sketch.points 2
+@l2 = se_sketch3d {"action":"line","sketch":"{{s2.handle}}","points":[0,300,0,50,350,20]}
+@l3 = se_sketch3d {"action":"line","sketch":"{{s2.handle}}","points":[0,500,0,40,500,0]}
+# l2 locked, so the parallel relation turns l3 (40 long from (0,500,0)) along l2's direction (50,50,20)/73.485 and the
+# connect relation moves the arc to l2's end
+se_sketch3d {"action":"relation","sketch":"{{s2.handle}}","relation":"lock","elements":["{{l2.elements[0].handle}}"]}
+@pr = se_sketch3d {"action":"relation","sketch":"{{s2.handle}}","relation":"parallel","elements":["{{l3.elements[0].handle}}","{{l2.elements[0].handle}}"]}
+?~ pr.relation.status ok
+?= pr.elements[0].end[0] 27.216553 0.0001
+?= pr.elements[0].end[2] 10.886621 0.0001
+?= pr.elements[0].length 40
+@cn = se_sketch3d {"action":"relation","sketch":"{{s2.handle}}","relation":"connect","elements":["{{l2.elements[0].handle}}","{{a.elements[0].handle}}"],"keypoints":["end","start"]}
+?= cn.elements[1].start[0] 50
+?= cn.elements[1].start[2] 20
+@i = se_sketch3d {"action":"info","sketch":"{{s2.handle}}"}
+?= i.sketch.lines 2
+?= i.sketch.splines 2
+?= i.sketch.relations 3
+@d = se_sketch3d {"action":"delete","sketch":"{{s2.handle}}","elements":["{{l2.elements[0].handle}}"]}
+?= d.sketch.lines 1
+?= d.sketch.relations 0
+se_sketch3d {"action":"delete","sketch":"{{s2.handle}}"}
+@ls = se_sketch3d {"action":"list"}
+?= ls.count 1
+! [invalid_argument] se_sketch3d {"action":"arc","sketch":"{{s.handle}}","points":[0,0,0,30,0,0,10,0,0]}
+@p3 = se_com_get {"target":"{{s.handle}}","member":"Points3D"}
+! [unsafe_member] se_com_invoke {"target":"{{p3.value.handle}}","method":"GetPointByPosition","arguments":[0,0,0]}
+se_documents {"action":"close","saveChanges":false}
+# 2) Generic routes on a box 100x60x20: an intersection point where the edge along x at y=z=0 crosses a plane at x=50, and a
+#    subdivision box (a construction cage of 50x40x30 about (200,0,0)) that leaves the solid as it was
+@b = se_documents {"action":"new","kind":"part"}
+@kb = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"rectangle","sketch":"{{kb.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kb.sketch}}"}
+se_extrude {"sketch":"{{kb.sketch}}","distance":20}
+@ed = se_geometry {"action":"edges","direction":[1,0,0],"limit":1}
+?= ed.items[0].start[1] 0
+?= ed.items[0].start[2] 0
+@pl = se_ref_plane {"action":"offset","plane":"yz","distance":50}
+@cs = se_com_get {"target":"active_document","member":"Constructions"}
+@ips = se_com_get {"target":"{{cs.value.handle}}","member":"IntersectionPoints"}
+@ip = se_com_invoke {"target":"{{ips.value.handle}}","method":"Add","arguments":[{"handle":"{{ed.items[0].handle}}"},{"handle":"{{pl.handle}}"}]}
+@ips2 = se_com_get {"target":"{{ip.result.handle}}","member":"Status"}
+?~ ips2.value igFeatureOK
+@sd = se_com_get {"target":"{{cs.value.handle}}","member":"SubdivisionFeatures"}
+@sb = se_com_invoke {"target":"{{sd.value.handle}}","method":"AddBox","arguments":[[0.2,0,0],[1,0,0],[0,1,0],[0,0,1],0.05,0.04,0.03,2,2,2]}
+@sbs = se_com_get {"target":"{{sb.result.handle}}","member":"Status"}
+?~ sbs.value igFeatureOK
+@sbr = se_com_invoke {"target":"{{sb.result.handle}}","method":"Range"}
+?= sbr.outputs.x1 0.175 0.000001
+?= sbr.outputs.Z2 0.015 0.000001
+@ph = se_physical {}
+?= ph.volume 120000 0.01
+se_documents {"action":"close","saveChanges":false}
+# 3) Sketch blocks of a part: a 40x20 rectangle made into a block, two more occurrences (at scale 2 turned 30 degrees, the
+#    box 89.282 x 74.641); the profile with the three occurrences extrudes to (800 + 800 + 3200) * 10 = 48000
+@q = se_documents {"action":"new","kind":"part"}
+@kq = se_sketch {"action":"create","plane":"xy"}
+@r = se_sketch {"action":"rectangle","sketch":"{{kq.sketch}}","points":[0,0,40,20]}
+@cb = se_sketch {"action":"create_block","sketch":"{{kq.sketch}}","name":"Plate","elements":{{r.elements}},"center":[0,0]}
+?= cb.occurrence.range.max[0] 40
+?= cb.occurrence.range.max[1] 20
+@o2 = se_sketch {"action":"place_block","sketch":"{{kq.sketch}}","name":"Plate","center":[100,0]}
+?= o2.range.max[0] 140
+@o3 = se_sketch {"action":"place_block","sketch":"{{kq.sketch}}","name":"Plate","center":[200,0],"scale":2,"angle":30}
+?= o3.range.max[0] 269.282 0.001
+?= o3.range.max[1] 74.641 0.001
+@bl = se_sketch {"action":"blocks","sketch":"{{kq.sketch}}"}
+?= bl.blocks[0].occurrences 3
+! [not_found] se_sketch {"action":"place_block","sketch":"{{kq.sketch}}","name":"Nope","center":[0,0]}
+se_sketch {"action":"close","sketch":"{{kq.sketch}}"}
+@eq = se_extrude {"sketch":"{{kq.sketch}}","distance":10}
+?= eq.volume 48000 0.01
+# A component sketch: added empty, then a profile on the XY plane with a line drawn in it
+@css = se_com_get {"target":"active_document","member":"ComponentSketches"}
+@cs1 = se_com_invoke {"target":"{{css.value.handle}}","method":"Add"}
+@csn = se_com_get {"target":"{{css.value.handle}}","member":"Count"}
+?= csn.value 1
+@csp = se_com_get {"target":"{{cs1.result.handle}}","member":"Profiles"}
+@rps = se_com_get {"target":"active_document","member":"RefPlanes"}
+@rp1 = se_com_invoke {"target":"{{rps.value.handle}}","method":"Item","arguments":[1]}
+@cpr = se_com_invoke {"target":"{{csp.value.handle}}","method":"Add","arguments":[{"handle":"{{rp1.result.handle}}"}]}
+@cln = se_com_get {"target":"{{cpr.result.handle}}","member":"Lines2d"}
+@cl = se_com_invoke {"target":"{{cln.value.handle}}","method":"AddBy2Points","arguments":[0,0,0.05,0]}
+@cll = se_com_get {"target":"{{cl.result.handle}}","member":"Length"}
+?= cll.value 0.05 0.0000001
+# 4) Document status: available -> in review -> released; released does not go back
+@st = se_documents {"action":"status"}
+?~ st.status available
+@st2 = se_documents {"action":"status","value":"in_review"}
+?~ st2.status in_review
+@st3 = se_documents {"action":"status","value":"released"}
+?~ st3.previous in_review
+! [status_refused] se_documents {"action":"status","value":"available"}
+# 5) Lights of the view style "Medium": 8 lights; light 2 set to #FF8040 from [30, -45] degrees, then a grey light of 0.6
+@lt = se_styles {"action":"lights","name":"Medium"}
+?= lt.count 8
+@sl = se_styles {"action":"set_light","name":"Medium","light":2,"color":"#FF8040","direction":[30,-45]}
+?~ sl.light.color #FF8040
+?= sl.light.direction[1] -45 0.01
+@sl2 = se_styles {"action":"set_light","name":"Medium","light":2,"intensity":0.6}
+?~ sl2.light.color #999999
+! [invalid_argument] se_styles {"action":"set_light","name":"Medium","light":9,"intensity":0.5}
+# Skybox images of the view style (generic route): with the type set to skybox, an image on side 1 reads back its path
+se_view {"action":"capture","path":"{{work}}\\a52_sky.png","width":64,"height":64}
+@vss = se_com_get {"target":"active_document","member":"ViewStyles"}
+@vs1 = se_com_invoke {"target":"{{vss.value.handle}}","method":"Item","arguments":[1]}
+se_com_set {"target":"{{vs1.result.handle}}","member":"SkyboxType","value":0}
+se_com_invoke {"target":"{{vs1.result.handle}}","method":"SetSkyboxSideFilename","arguments":[1,"{{work}}\\a52_sky.png"]}
+@sky = se_com_invoke {"target":"{{vs1.result.handle}}","method":"GetSkyboxSideFilename","arguments":[1]}
+?~ sky.result a52_sky.png
+@skt = se_com_get {"target":"{{vs1.result.handle}}","member":"SkyboxType"}
+?~ skt.value seSkyboxTypeSkybox
+se_documents {"action":"close","saveChanges":false}
+# 3b) Blocks in a 2D layout of an assembly: the same rectangle as block Frame, a second occurrence turned 90 degrees
+@asm = se_documents {"action":"new","kind":"assembly"}
+@ka = se_sketch {"action":"create","plane":"xy","layout":true}
+@ra = se_sketch {"action":"rectangle","sketch":"{{ka.sketch}}","points":[0,0,40,20]}
+@ba = se_sketch {"action":"create_block","sketch":"{{ka.sketch}}","name":"Frame","elements":{{ra.elements}},"center":[0,0]}
+@oa = se_sketch {"action":"place_block","sketch":"{{ka.sketch}}","name":"Frame","center":[100,0],"angle":90}
+?= oa.range.min[0] 80 0.001
+?= oa.range.max[1] 40 0.001
+se_documents {"action":"close","saveChanges":false}
+# 6) Relief patches of a flat pattern: two flanges of 20 on adjacent edges of a 100x60 tab leave a corner relief; AddAll fills
+#    it, so the flat body grows by its area times the thickness (about 4.2 mm3)
+@m = se_documents {"action":"new","kind":"sheet_metal"}
+@km = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{km.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{km.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{km.sketch}}"}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@ex = se_geometry {"action":"edges","source":"{{top.items[0].handle}}","direction":[1,0,0]}
+@ey = se_geometry {"action":"edges","source":"{{top.items[0].handle}}","direction":[0,1,0]}
+se_sheetmetal {"action":"flange","edges":["{{ex.items[0].handle}}","{{ey.items[0].handle}}"],"length":20}
+se_sheetmetal {"action":"flatten"}
+@fm = se_com_get {"target":"active_document","member":"FlatPatternModels"}
+@m1 = se_com_invoke {"target":"{{fm.value.handle}}","method":"Item","arguments":[1]}
+@fb = se_com_get {"target":"{{m1.result.handle}}","member":"Body"}
+@v0 = se_com_get {"target":"{{fb.value.handle}}","member":"Volume"}
+?= v0.value 0.0000090119 0.0000000001
+@rp = se_com_get {"target":"{{m1.result.handle}}","member":"ReliefPatchFeatures"}
+@ra = se_com_invoke {"target":"{{rp.value.handle}}","method":"AddAll"}
+@rs = se_com_get {"target":"{{ra.result.handle}}","member":"Status"}
+?~ rs.value igFeatureOK
+@fb2 = se_com_get {"target":"{{m1.result.handle}}","member":"Body"}
+@v1 = se_com_get {"target":"{{fb2.value.handle}}","member":"Volume"}
+?= v1.value 0.0000090161 0.0000000001
+se_documents {"action":"close","saveChanges":false}

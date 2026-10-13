@@ -324,6 +324,50 @@ public static class DocumentService
         return new { closed = name, saved = save, active = active is null ? null : context.DocumentHandle(active) };
     }
 
+    private static readonly string[] Statuses = ["available", "in_work", "in_review", "released", "baselined", "obsolete", "unknown"];
+
+    /// <summary>
+    /// Life-cycle status of a document (File > Properties > Status). Without <paramref name="value"/> it is read; with it, set
+    /// and read back. Verified: a new part is available and goes to in review and released; released to available gives E_FAIL.
+    /// </summary>
+    public static object Status(SeContext context, string? handle, string? value)
+    {
+        SolidEdgeDocument document = context.GetDocument(handle);
+        string before = StatusName(document);
+        if (value is null)
+        {
+            return new { document = context.DocumentHandle(document), status = before };
+        }
+
+        int code = Array.IndexOf(Statuses, value);
+        if (code is < 0 or > (int)DocumentStatus.igStatusObsolete)
+        {
+            throw ToolException.InvalidArgument($"Unknown status '{value}'.", "Use available, in_work, in_review, released, baselined or obsolete.");
+        }
+
+        try
+        {
+            document.Status = (DocumentStatus)code;
+        }
+        catch (COMException ex)
+        {
+            throw new ToolException("status_refused", $"Solid Edge did not change the status of '{document.Name}' to {value}: {ex.Message.Trim()}",
+                "Solid Edge's workflow moves forward: a released document does not go back to available (E_FAIL).", ex);
+        }
+
+        string after = StatusName(document);
+        return after == value
+            ? new { document = context.DocumentHandle(document), status = after, previous = before, readOnly = document.ReadOnly }
+            : throw new ToolException("status_refused", $"Solid Edge kept '{document.Name}' {after} instead of {value}.",
+                "Some changes need the document saved or another status first (Solid Edge's workflow).");
+    }
+
+    private static string StatusName(SolidEdgeDocument document)
+    {
+        int code = (int)document.Status;
+        return code >= 0 && code < Statuses.Length ? Statuses[code] : code.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     /// <summary>Undo, redo or recalculate (the document must support it).</summary>
     public static object Edit(SeContext context, string? handle, string action, int steps)
     {

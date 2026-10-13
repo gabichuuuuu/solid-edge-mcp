@@ -254,7 +254,7 @@ public sealed class PartTools(ToolRunner runner)
     [Description($$"""
         Solid through sections drawn with se_sketch (each closed with 'close'): operation add (protrusion; also the first feature of a part) or cut (cutout).
         loft: blends 'sketches' (>= 2 sections on different planes, in order); 'origins' [x1,y1,x2,y2,...] (mm, each sketch's own x/y) picks the matching start point of each section to control twist (default: first vertex of each section; a circle starts at +x).
-        sweep: moves 'sketches' (>= 1 sections) along 'path' (a sketch with a chain of lines/arcs closed with 'close', open: true for an open chain, or a 3D curve from se_curve; the section usually lies on a plane across the path start).
+        sweep: moves 'sketches' (>= 1 sections) along 'path' (a sketch with a chain of lines/arcs closed with 'close', open: true for an open chain, a 3D curve from se_curve or a 3D sketch from se_sketch3d; the section usually lies on a plane across the path start).
         helix: coils one section around 'axis' (se_sketch 'axis' on a line of the same sketch, before 'close'); give two of pitch (mm), turns and height (mm); it starts at the section and rises towards the end point of the axis line; hand right (default) | left.
         {{VerifiedNote}} The sketches are kept if it fails.
         Example: {"action":"loft","sketches":["sketch:3","sketch:7"]}; {"action":"helix","sketches":["sketch:2"],"axis":"axis:4","pitch":8,"turns":5}.
@@ -263,7 +263,7 @@ public sealed class PartTools(ToolRunner runner)
         SweepAction action,
         [Description("Closed section sketch handles, in order.")] string[] sketches,
         FeatureOperation operation = FeatureOperation.Add,
-        [Description("Sweep: path sketch handle, or a curve handle from se_curve (3D path).")] string? path = null,
+        [Description("Sweep: path sketch handle, a curve handle from se_curve or a 3D sketch handle from se_sketch3d.")] string? path = null,
         [Description("Loft/sweep: start point of each section [x1,y1,x2,y2,...] in mm, sketch coordinates.")] double[]? origins = null,
         [Description("Helix: axis handle from se_sketch 'axis'.")] string? axis = null,
         [Description("Helix: pitch in mm (rise per turn).")] double? pitch = null,

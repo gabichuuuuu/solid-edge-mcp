@@ -3,8 +3,11 @@
 
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
+using Edge = SolidEdgeGeometry.Edge;
+using TopologyQuery = SolidEdgeGeometry.FeatureTopologyQueryTypeConstants;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
@@ -75,6 +78,12 @@ public static partial class FeatureService
                 string pathHandle = spec.Path ?? throw ToolException.InvalidArgument("A sweep requires 'path'.",
                     "Draw the path as an open or closed chain with se_sketch and close it with 'close' (open: true for an open chain), or make a 3D curve with se_curve.");
                 object resolvedPath = context.Handles.Resolve(pathHandle, "path");
+                if (resolvedPath is Sketch3D sketch3d)
+                {
+                    // The edges of a 3D sketch belong to its feature.
+                    resolvedPath = sketch3d.Sketch3DFeature;
+                }
+
                 if (resolvedPath is Profile or Sketch)
                 {
                     pathProfile = SketchService.Resolve(context, pathHandle);
@@ -136,7 +145,7 @@ public static partial class FeatureService
             {
                 "loft" => Loft(model, existing, cut, sections, types, starts),
                 "sweep" => Sweep(model, existing, cut,
-                    path is null ? [.. CurveEdges(pathCurve!)] : [path.Profile], path is null ? EdgeSection : ProfileSection, sections, types, starts),
+                    path is null ? EdgePath(pathCurve!) : [path.Profile], path is null ? EdgeSection : ProfileSection, sections, types, starts),
                 _ => Helix(model, existing, cut, axis!, sections, helix, hand),
             });
 
@@ -191,6 +200,15 @@ public static partial class FeatureService
         return existing.LoftedProtrusions.AddSimple(sections.Length, sections, types, origins, side, none, none);
     }
 
+    /// <summary>
+    /// The trace curve of an edge-based path: one edge as it is; a path of several edges (a 3D sketch, a composite curve) as its
+    /// Edges collection, because each item of the array is taken as a path of its own (three edges gave E_FAIL as three paths).
+    /// </summary>
+    private static object[] EdgePath(object curve)
+    {
+        Edge[] edges = CurveEdges(curve);
+        return edges.Length == 1 ? [edges[0]] : [Late.Get(curve, "Edges", TopologyQuery.igQueryAll)!];
+    }
     private static object Sweep(ModelDocument model, Model? existing, bool cut, object[] paths, int pathType, object[] sections, int[] types, object[] origins)
     {
         const FeaturePropertyConstants none = FeaturePropertyConstants.igNone;

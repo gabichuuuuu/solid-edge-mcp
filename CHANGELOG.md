@@ -6,6 +6,28 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_sketch3d`: 3D sketches of parts, drawn in model space: polylines tied end to end, arcs, circles, splines through points
+  (open or closed), points, fillets between lines and 3D relations (connect, parallel, perpendicular, collinear, equal,
+  tangent, concentric, coaxial, horizontal/vertical, lock, on a plane, symmetric, rigid set); every element is read back
+  with its ends, centre, length or radius. A 3D sketch is a sweep path for `se_loft_sweep`.
+- `se_sketch` sketch blocks in part sketches and assembly layouts: `blocks`, `create_block` (an occurrence takes the place of
+  the elements), `place_block` (scale and angle) and `delete_block`; features take the profile with its blocks.
+- `se_documents status`: read and set the status of a document (available, in work, in review, released, baselined,
+  obsolete).
+- `se_styles lights` and `set_light`: the 8 lights of a view style, with colour, intensity and direction, read back.
+- `docs/COVERAGE.md` gives a tested state for intersection points, subdivision boxes, component sketches, relief patches of
+  flat patterns and skybox images (through the generic layer), and for blanks and built-in revisions, which do not work.
+
+### Fixed
+
+- `se_loft_sweep sweep` along a path of several edges: the edges go as one path (as three paths Solid Edge refused them).
+
+### Changed
+
+- The generic layer refuses `Points3D.GetPointByPosition`, which brings Solid Edge down.
+
 ## [0.8.0] - 2026-10-13
 
 This release closes the assemblies: since 0.7 an assembly can have alternate positions or be a family of assemblies

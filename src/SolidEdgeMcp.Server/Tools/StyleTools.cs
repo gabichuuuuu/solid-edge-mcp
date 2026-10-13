@@ -21,6 +21,8 @@ public enum StyleAction
     Add,
     Remove,
     Import,
+    Lights,
+    SetLight,
 }
 
 public enum StyleType
@@ -48,7 +50,8 @@ public sealed class StyleTools(ToolRunner runner)
         Styles of a document, as in its Styles dialog. types (the style types the document has, how many and the active one) |
         list (type; filter, offset, limit) | get (type, name: every property and its value) | set (type, name, property, value; returns the previous value) |
         activate (type, name: the style new elements take; for view, the style of the window) | add (type, name, basedOn default the active one) |
-        remove (type, name; not the active one) | import (type, from = handle of another open document; replace = true overwrites styles with the same name).
+        remove (type, name; not the active one) | import (type, from = handle of another open document; replace = true overwrites styles with the same name) |
+        lights (name of a view style: its 8 lights with colour, intensity and direction [theta, phi] in degrees) | set_light (name, light 1-8; color '#RRGGBB' or intensity 0-1 (a grey light), direction).
         Types: dimension, text, character, line, fill, hatch, dash, drawing_view, table, frame (drafts); view and face (parts, sheet metal, assemblies).
         Values are in API units: lengths in metres (a 3.5 mm text height is 0.0035), angles in radians; colours '#RRGGBB'; enumerations by name or its end (e.g. 'gradient').
         Styles are saved with the document and every element that uses one changes with it: change the person's styles only when asked.
@@ -64,6 +67,10 @@ public sealed class StyleTools(ToolRunner runner)
         [Description("For import: handle of the open document to copy the styles from.")] string? from = null,
         [Description("For import: overwrite the styles that have the same name.")] bool replace = false,
         [Description("For list: text contained in the name.")] string? filter = null,
+        [Description("For set_light: light number 1-8.")] int? light = null,
+        [Description("For set_light: colour '#RRGGBB'.")] string? color = null,
+        [Description("For set_light: grey light 0-1 (instead of color).")] double? intensity = null,
+        [Description("For set_light: [theta, phi] in degrees.")] double[]? direction = null,
         [Description("Document handle; default: active document.")] string? document = null,
         int offset = 0,
         [Description("For list: maximum number of styles (default 100).")] int limit = 100,
@@ -85,6 +92,9 @@ public sealed class StyleTools(ToolRunner runner)
             StyleAction.Remove => runner.RunAsync(tool, actionName, c => StyleService.Remove(c, document, Type(), Name()), cancellationToken),
             StyleAction.Import => runner.RunAsync(tool, actionName, c => StyleService.Import(c, document, Type(),
                 ToolRunner.Require(from, "from", actionName), replace), cancellationToken),
+            StyleAction.Lights => runner.RunAsync(tool, actionName, c => StyleService.Lights(c, document, Name()), cancellationToken),
+            StyleAction.SetLight => runner.RunAsync(tool, actionName, c => StyleService.SetLight(c, document, Name(),
+                ToolRunner.RequireValue(light, "light", actionName), color, intensity, direction), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

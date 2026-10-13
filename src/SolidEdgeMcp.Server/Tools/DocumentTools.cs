@@ -26,6 +26,17 @@ public enum DocumentAction
     Redo,
     Recompute,
     Templates,
+    Status,
+}
+
+public enum DocumentLifeStatus
+{
+    Available,
+    InWork,
+    InReview,
+    Released,
+    Baselined,
+    Obsolete,
 }
 
 public enum DocumentKind
@@ -42,7 +53,7 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
 {
     [McpServerTool(Name = "se_documents", Title = "Solid Edge documents", Destructive = true, OpenWorld = false)]
     [Description("""
-        Documents. list | info | activate | new (kind, optional template) | open (path) | import (path of a STEP, IGES, Parasolid, JT, SAT, STL, OBJ, 3MF, DXF or DWG file: a new unsaved document translated from it; kind and template optional, default part, or draft for DXF/DWG; returns the volume) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | close (saveChanges required if there are unsaved changes) | templates (this installation's default template of each kind and the templates in its folders; optional kind) | undo | redo (steps; only what Solid Edge recorded: holes, deletes, suppressions... but not features made from sketches, and creating a sketch clears the history; nothing to undo is an error) | recompute.
+        Documents. list | info | activate | new (kind, optional template) | open (path) | import (path of a STEP, IGES, Parasolid, JT, SAT, STL, OBJ, 3MF, DXF or DWG file: a new unsaved document translated from it; kind and template optional, default part, or draft for DXF/DWG; returns the volume) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | close (saveChanges required if there are unsaved changes) | templates (this installation's default template of each kind and the templates in its folders; optional kind) | status (value = available | in_work | in_review | released | baselined | obsolete: set and read back; none: read) | undo | redo (steps; only what Solid Edge recorded: holes, deletes, suppressions... but not features made from sketches, and creating a sketch clears the history; nothing to undo is an error) | recompute.
         Without 'document' the active document is used. Paths must be absolute and inside the allowed folders (se_server_info). save_as keeps the native format (.par .psm .asm .dft .pwd); use se_export for other formats.
         Example: {"action":"new","kind":"part"} then {"action":"save_as","path":"D:\\CAD\\block.par"}.
         """)]
@@ -55,6 +66,7 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
         [Description("For 'save_as'/'save_copy_as': replace an existing file.")] bool overwrite = false,
         [Description("For 'close': true saves, false discards unsaved changes.")] bool? saveChanges = null,
         [Description("For 'undo'/'redo': number of steps (default 1).")] int steps = 1,
+        [Description("For 'status': the new life-cycle status; omitted = read it.")] DocumentLifeStatus? value = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_documents";
@@ -79,6 +91,7 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
             DocumentAction.Close => runner.RunAsync(tool, name, c => DocumentService.Close(c, document, saveChanges), cancellationToken),
             DocumentAction.Undo => runner.RunAsync(tool, name, c => DocumentService.Edit(c, document, "undo", steps), cancellationToken),
             DocumentAction.Redo => runner.RunAsync(tool, name, c => DocumentService.Edit(c, document, "redo", steps), cancellationToken),
+            DocumentAction.Status => runner.RunAsync(tool, name, c => DocumentService.Status(c, document, value is { } v ? FeatureTools.Snake(v) : null), cancellationToken),
             DocumentAction.Recompute => runner.RunAsync(tool, name, c => DocumentService.Edit(c, document, "recompute", 1), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
