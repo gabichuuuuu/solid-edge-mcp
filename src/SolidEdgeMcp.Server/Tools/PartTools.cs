@@ -262,7 +262,7 @@ public sealed class PartTools(ToolRunner runner)
         Solid through sections drawn with se_sketch (each closed with 'close'): operation add (protrusion; also the first feature of a part) or cut (cutout).
         loft: blends 'sketches' (>= 2 sections on different planes, in order); 'origins' [x1,y1,x2,y2,...] (mm, each sketch's own x/y) picks the matching start point of each section to control twist (default: first vertex of each section; a circle starts at +x).
         sweep: moves 'sketches' (>= 1 sections) along 'path' (a sketch with a chain of lines/arcs closed with 'close', open: true for an open chain, a 3D curve from se_curve or a 3D sketch from se_sketch3d; the section usually lies on a plane across the path start).
-        helix: coils one section around 'axis' (se_sketch 'axis' on a line of the same sketch, before 'close'); give two of pitch (mm), turns and height (mm); it starts at the section and rises towards the end point of the axis line; hand right (default) | left.
+        helix: coils one section around 'axis' (se_sketch 'axis' on a line of the same sketch, before 'close'); give two of pitch (mm), turns and height (mm); it starts at the section and rises towards the end point of the axis line; hand right (default) | left; taper (degrees) makes it conical, positive widens towards the end.
         wall (add): a thin wall of that thickness in mm along the sections instead of a solid (a pipe from a swept circle); wallSide inside | outside | symmetric; endCaps closes both ends.
         tube: no sketches; a circle of outerDiameter (with wall: a pipe of that wall) on a plane normal to the start of 'path' (a sketch chain of lines and arcs, a curve or a 3D sketch), swept along it; expectedVolume = section area x path length.
         {{VerifiedNote}} The sketches are kept if it fails.
@@ -279,6 +279,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Helix: number of turns.")] double? turns = null,
         [Description("Helix: height in mm.")] double? height = null,
         HelixHand hand = HelixHand.Right,
+        [Description("Helix: taper angle in degrees for a conical helix, positive widens towards the end, negative narrows.")] double? taper = null,
         [Description("tube: outer diameter in mm.")] double? outerDiameter = null,
         [Description("add: thin wall thickness in mm (omitted = solid); tube: the pipe wall (omitted = a solid rod).")] double? wall = null,
         [Description("wall: inside (default) | outside | symmetric of the section lines.")] WallSide wallSide = WallSide.Inside,
@@ -289,7 +290,7 @@ public sealed class PartTools(ToolRunner runner)
             ? FeatureService.Tube(c, document, path, outerDiameter, wall, Snake(operation))
             : FeatureService.LoftSweep(c, document,
                 new SweepSpec(Snake(action), Snake(operation), sketches, path, origins, axis, pitch, turns, height, Snake(hand),
-                    wall is { } thickness ? new ThinWallSpec(thickness, Snake(wallSide), endCaps) : null)), cancellationToken);
+                    wall is { } thickness ? new ThinWallSpec(thickness, Snake(wallSide), endCaps) : null, taper)), cancellationToken);
 
     [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part / fillet weld", Destructive = false, OpenWorld = false)]
     [Description($$"""

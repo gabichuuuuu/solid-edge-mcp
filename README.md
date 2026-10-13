@@ -15,7 +15,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![81 tools](https://img.shields.io/badge/tools-81-2F6FEB)
 
 ![Version 1.4.0](https://img.shields.io/badge/version-1.4.0-2F6FEB)
-[![Progress: 75 % of functions work through the MCP](https://img.shields.io/badge/progress-75%25-yellow)](docs/COVERAGE.md#progress)
+[![Progress: 76 % of functions work through the MCP](https://img.shields.io/badge/progress-76%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
 [Quick start](#quick-start) · [Examples](#what-you-can-ask-for) · [Tools](#tools) · [Coverage](docs/COVERAGE.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -74,8 +74,8 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=65244742">
-  <img src="docs/assets/progress.svg?v=d15d3359" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=f0cd4c2b">
+  <img src="docs/assets/progress.svg?v=3ff40715" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
@@ -234,7 +234,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_layer` | Layers of models and drawing sheets: list, create, activate, show or hide, make selectable or not, delete empty ones and move sketch geometry, drawing views, dimensions and annotations between them. |
 | | `se_links` | Links between files: what a document refers to (components, drawing models, copied parts) and whether they are found, replace a referenced file, break copied parts, where a file is used (directly or up to the top), top-level assemblies, the document search of File > Open (title, subject, date) and the search of the text inside documents through the Windows Search index. |
 | **Query** | `se_feature_tree` | Features in order with their status, the modeling mode and the volume. |
-| | `se_geometry` | Summary, faces and edges with handles and filters; in assemblies, per occurrence and in assembly coordinates. |
+| | `se_geometry` | Summary, faces and edges with handles and filters; in assemblies, per occurrence and in assembly coordinates; draft analysis of the faces along a pull direction. |
 | | `se_measure` | Minimum distance and angle between faces, edges, planes or occurrences, also in assemblies. |
 | | `se_physical` | Volume, area, mass, center of gravity and inertia of a part (with the given density or the material's) or of an assembly (with the material of each part). |
 | | `se_selection` | Read, replace, extend or clear the active selection. |
@@ -264,7 +264,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_decal` | Decals: a picture wrapped on a face of a part, with a name and an offset; list and delete. |
 | | `se_draft` | Face draft relative to a neutral plane. |
 | | `se_thread` | Physical ISO metric threads cut into a shaft or a hole, from either end, right or left hand; the volume removed is checked against the profile. |
-| | `se_loft_sweep` | Loft, sweep (along a sketch, a 3D curve or a 3D sketch) and helix, as a boss or a cut; a boss can be a thin wall (a pipe from a swept circle); tubes and rods of a diameter and wall along a path, with no section to draw. |
+| | `se_loft_sweep` | Loft, sweep (along a sketch, a 3D curve or a 3D sketch) and helix (also conical), as a boss or a cut; a boss can be a thin wall (a pipe from a swept circle); tubes and rods of a diameter and wall along a path, with no section to draw. |
 | | `se_part_feature` | Rib from an open sketch (up to the part or to a finite depth), thicken faces and mirror the whole body; direct edits: delete faces (the solid heals), holes up to a diameter and rounds, offset faces, replace faces with a plane or a surface, turn a face about one of its edges, cut the part by a plane keeping one side, merge adjacent faces into one B-spline face, delete a region bounded by a loop of edges, and resize holes and rounds; slots along an open path, web networks and lips in shelled parts, normal protrusions and cutouts (the region inside or outside closed curves projected or wrapped onto faces, raised or recessed, e.g. a logo), scaling of the body, copies of saved parts (scaled or mirrored), splitting a body by a plane into design bodies and uniting them again (`se_geometry` and `se_physical` measure every body), and fillet weld beads between faces of the part, with equal or unequal legs. |
 | | `se_body` | Bodies of a part: list the design and construction bodies; subtract and intersect design bodies (with a closed body as the tool, or an open surface that keeps the side its normal points to or the other one); unite closed construction bodies (end-capped surfaces) with a design body, the tools staying as construction bodies; emboss closed bodies into another (thickened or as a cut only, with a clearance, on either side); turn design bodies into construction bodies and closed construction bodies (end-capped surfaces) into design bodies; divide a saved part into one part file per piece by a reference plane or a surface. Each result is checked by the volume and the bodies. |
 | | `se_face_relation` | 3D relations between faces of a part, as the Relate commands of synchronous modelling: coplanar, offset at a distance, parallel, perpendicular, tangent and concentric (the faces move and the target stays; each relation is checked on the geometry, and one that Solid Edge cannot meet is deleted), and fixed faces; list relations, edit the distance of an offset and delete relations; read and set the live rules of the session, restore their defaults and put them back. |

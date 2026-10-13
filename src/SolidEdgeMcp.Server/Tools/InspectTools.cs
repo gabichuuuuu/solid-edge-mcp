@@ -14,6 +14,7 @@ public enum GeometryAction
     Summary,
     Faces,
     Edges,
+    Draft,
 }
 
 public enum MeasureAction
@@ -31,6 +32,7 @@ public sealed class InspectTools(ToolRunner runner)
         Geometry of a part or sheet metal body, in mm. summary (volume mm3, bounding box, face/edge/vertex counts) |
         faces (handle, type, area mm2, bounding box, outward normal of planes, radius and axis of cylinders) |
         edges (handle, type, start/end points, length, direction of lines, centre and radius of circles).
+        draft (direction = the pull direction of the mould; minDraft degrees, default 1: each face's least and greatest draft, asin(normal . direction), and its class positive | negative | insufficient | mixed, with counts).
         'source' limits faces/edges to a feature (handle from se_feature_tree) or, for edges, to a face; 'direction' selects by orientation (e.g. [0,0,1]: top faces / vertical edges).
         In an assembly, 'source' = an occurrence handle (se_assembly) gives the summary or the faces/edges of its part in assembly coordinates, with handles tied to that occurrence: use them for se_relations and se_measure (they stay valid when the occurrence moves; query again for new coordinates).
         Face and edge handles expire when the model changes.
@@ -42,6 +44,7 @@ public sealed class InspectTools(ToolRunner runner)
         [Description("Filter [x,y,z]: faces = planar faces whose outward normal points this way; edges = straight edges parallel to it.")] double[]? direction = null,
         int offset = 0,
         int limit = 100,
+        [Description("draft: least draft in degrees a face needs (default 1).")] double minDraft = 1,
         [Description("Document handle; default: active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -52,6 +55,7 @@ public sealed class InspectTools(ToolRunner runner)
             GeometryAction.Summary => runner.RunAsync(tool, name, c => InspectService.Summary(c, document, source), cancellationToken),
             GeometryAction.Faces => runner.RunAsync(tool, name, c => InspectService.Faces(c, document, source, type, direction, offset, limit), cancellationToken),
             GeometryAction.Edges => runner.RunAsync(tool, name, c => InspectService.Edges(c, document, source, type, direction, offset, limit), cancellationToken),
+            GeometryAction.Draft => runner.RunAsync(tool, name, c => InspectService.Draft(c, document, source, direction, minDraft, offset, limit), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

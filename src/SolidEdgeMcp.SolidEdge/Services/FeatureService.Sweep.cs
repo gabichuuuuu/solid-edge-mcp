@@ -23,7 +23,8 @@ public sealed record SweepSpec(
     double? Turns = null,
     double? Height = null,
     string Hand = "right",
-    ThinWallSpec? ThinWall = null);
+    ThinWallSpec? ThinWall = null,
+    double? Taper = null);
 
 public static partial class FeatureService
 {
@@ -71,6 +72,10 @@ public static partial class FeatureService
         object? pathCurve = null;
         RefAxis? axis = null;
         (double Height, double Pitch, double Turns) helix = default;
+        if (spec.Taper is { } taper && (spec.Action != "helix" || !double.IsFinite(taper) || Math.Abs(taper) >= 90))
+        {
+            throw ToolException.InvalidArgument("'taper' is the angle of a conical helix in degrees, between -90 and 90 (positive widens towards the end).");
+        }
         FeaturePropertyConstants hand = FeaturePropertyConstants.igRight;
         switch (spec.Action)
         {
@@ -148,7 +153,7 @@ public static partial class FeatureService
                 "loft" => Loft(model, existing, cut, sections, types, starts),
                 "sweep" => Sweep(model, existing, cut,
                     path is null ? EdgePath(pathCurve!) : [path.Profile], path is null ? EdgeSection : ProfileSection, sections, types, starts),
-                _ => Helix(model, existing, cut, axis!, sections, helix, hand),
+                _ => Helix(model, existing, cut, axis!, sections, helix, hand, spec.Taper),
             });
 
             // The section copies are deleted by the catch below if the wall does not take.
@@ -169,7 +174,7 @@ public static partial class FeatureService
                 feature = Describe(context, model, feature),
                 volume = Geo.Mm3(after),
                 volumeChange = Geo.Mm3(after - before),
-                helix = axis is null ? null : new { height = Geo.Mm(helix.Height), pitch = Geo.Mm(helix.Pitch), turns = Geo.R(helix.Turns), hand = spec.Hand },
+                helix = axis is null ? null : new { height = Geo.Mm(helix.Height), pitch = Geo.Mm(helix.Pitch), turns = Geo.R(helix.Turns), hand = spec.Hand, taper = spec.Taper },
                 warnings = Warnings(switched, status == "warning"),
             };
         }
@@ -233,25 +238,31 @@ public static partial class FeatureService
         return existing.SweptProtrusions.Add(paths.Length, paths, pathTypes, sections.Length, sections, types, origins, null, side, none, 0, null, none, 0, null);
     }
 
-    /// <summary>Helix from the start of the axis line (igStart) toward its end; the profile sets the radius.</summary>
+    /// <summary>
+    /// Helix from the start of the axis line (igStart) toward its end; the profile sets the radius. A taper (degrees) makes it
+    /// conical. Verified: TaperSide igOutside widens it towards the end and igInside narrows it (a circle r2 at 10 mm from the
+    /// axis, 40 high, 10°: 19.05 mm out at the end = 10 + 40 tan 10° + 2); igLeft and igRight give E_FAIL.
+    /// </summary>
     private static object Helix(ModelDocument model, Model? existing, bool cut, RefAxis axis, object[] sections,
-        (double Height, double Pitch, double Turns) size, FeaturePropertyConstants hand)
+        (double Height, double Pitch, double Turns) size, FeaturePropertyConstants hand, double? taper)
     {
         const FeaturePropertyConstants start = FeaturePropertyConstants.igStart;
         const FeaturePropertyConstants side = FeaturePropertyConstants.igRight;
         Array profiles = sections;
+        object angle = taper is { } t ? Units.DegToRad(Math.Abs(t)) : Type.Missing;
+        object taperSide = taper is { } s ? (s >= 0 ? FeaturePropertyConstants.igOutside : FeaturePropertyConstants.igInside) : Type.Missing;
         if (cut)
         {
-            return existing!.HelixCutouts.AddFinite(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand);
+            return existing!.HelixCutouts.AddFinite(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand, angle, taperSide);
         }
 
         if (existing is null)
         {
-            Model created = model.Models.AddFiniteBaseHelix(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand);
+            Model created = model.Models.AddFiniteBaseHelix(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand, angle, taperSide);
             return created.HelixProtrusions.Item(created.HelixProtrusions.Count);
         }
 
-        return existing.HelixProtrusions.AddFinite(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand);
+        return existing.HelixProtrusions.AddFinite(axis, start, 1, ref profiles, side, size.Height, size.Pitch, size.Turns, hand, angle, taperSide);
     }
 
     /// <summary>Height, pitch and turns (m, m, -) from two of them; if all three are given they must match.</summary>

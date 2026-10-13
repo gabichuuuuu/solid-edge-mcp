@@ -12,6 +12,13 @@ Relevant changes to this project are recorded here. The format follows
   the edge that replaces the face (Solid Edge's face rotate feature fails through the API).
 - `se_part_feature cut_by_plane`: removes what lies on one side of a plane, as an extruded cutout through all of a
   rectangle drawn on the plane around the body (the Boolean feature with a plane tool fails through the API).
+- `se_loft_sweep helix` with `taper`: conical helices, widening or narrowing towards the end.
+- `se_geometry draft`: draft analysis along a pull direction, computed from the face normals: each face's least and
+  greatest draft and whether it is positive, negative, insufficient or mixed against a minimum draft.
+
+### Changed
+
+- `docs/COVERAGE.md`: the draft face analysis has its own row, apart from the curvature and zebra displays.
 
 ## [1.4.0] - 2026-10-13
 

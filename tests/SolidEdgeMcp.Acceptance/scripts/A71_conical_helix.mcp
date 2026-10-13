@@ -1,0 +1,25 @@
+# A71: conical helices (se_loft_sweep helix with taper). A circle r2 drawn 10 mm from the axis on the front plane, coiled 5 turns
+# of 8 mm (40 high): with no taper it reaches 12 mm out; tapered 10° it widens to 10 + 40 tan 10° + 2 = 19.053 mm at the end, and
+# -10° narrows it (still 12 mm out at the start, the end 2.947 mm from the axis). A taper on a loft is refused.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[10,0],"radius":2}
+@l = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[0,0,0,40]}
+@a = se_sketch {"action":"axis","sketch":"{{k.sketch}}","element":"{{l.element}}"}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+! [invalid_argument] se_loft_sweep {"action":"loft","sketches":["{{k.sketch}}","{{k.sketch}}"],"taper":10}
+@h = se_loft_sweep {"action":"helix","sketches":["{{k.sketch}}"],"axis":"{{a.axis}}","pitch":8,"turns":5,"taper":10}
+?= h.helix.taper 10
+@s = se_geometry {"action":"summary"}
+?= s.boundingBox.max[0] 19.053 0.05
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@d2 = se_documents {"action":"new","kind":"part"}
+@k2 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"circle","sketch":"{{k2.sketch}}","center":[10,0],"radius":2}
+@l2 = se_sketch {"action":"line","sketch":"{{k2.sketch}}","points":[0,0,0,40]}
+@a2 = se_sketch {"action":"axis","sketch":"{{k2.sketch}}","element":"{{l2.element}}"}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@h2 = se_loft_sweep {"action":"helix","sketches":["{{k2.sketch}}"],"axis":"{{a2.axis}}","pitch":8,"turns":5,"taper":-10}
+@s2 = se_geometry {"action":"summary"}
+?= s2.boundingBox.max[0] 12 0.05
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}

@@ -12,7 +12,7 @@ using SolidEdgePart;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>Model queries: geometry (body, faces, edges), physical properties and measurements. In mm.</summary>
-public static class InspectService
+public static partial class InspectService
 {
     public static readonly IReadOnlyList<string> FaceTypes = ["all", "plane", "cylinder", "cone", "sphere", "torus"];
     public static readonly IReadOnlyList<string> EdgeTypes = ["all", "line", "circle", "spline"];
