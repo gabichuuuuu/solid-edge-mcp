@@ -153,6 +153,79 @@ public static class AssemblyPatternService
         return new { pattern = Describe(context, assembly, created), added, occurrences = assembly.Occurrences.Count };
     }
 
+    public static readonly IReadOnlyList<string> CloneRelations = ["ground", "none", "repair"];
+
+    /// <summary>
+    /// Clone Component: copies of occurrences on every place of other occurrences that matches the faces they sit on.
+    /// Verified in Solid Edge 2026: a pin on the first of three Ø10 holes of a plate, CreateCloneComponents([pin],
+    /// [reference of that hole's face], [the plate], ground relations, automatic match) added pins on the other two holes
+    /// (x = 50 and 80); the same with no relations, or with the other holes' faces as the environment.
+    /// </summary>
+    public static object Clone(SeContext context, string[]? occurrenceHandles, string[]? faceHandles, string[]? targetHandles, string relations, bool exact, bool group)
+    {
+        if (occurrenceHandles is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("'occurrences' must list the occurrences to clone (e.g. the pin placed in the first hole).");
+        }
+
+        if (faceHandles is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("'faces' must list the faces the occurrences sit on (e.g. the first hole's face).",
+                "Read them with se_geometry 'faces' and 'source' = the occurrence they belong to.");
+        }
+
+        if (targetHandles is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("'targets' must list the occurrences to search for matching places (e.g. the plate).");
+        }
+
+        CloneComponentOptions option = relations switch
+        {
+            "ground" => CloneComponentOptions.seCreateGroundRelationships,
+            "none" => CloneComponentOptions.seDoNotCreateRelationships,
+            "repair" => CloneComponentOptions.seRepairUnsatisfiedRelationships,
+            _ => throw ToolException.InvalidArgument($"Unknown relations '{relations}'.", $"Use one of: {string.Join(", ", CloneRelations)}."),
+        };
+        Occurrence[] sources = occurrenceHandles.Select(h => Occurrence(context, h, "occurrences")).ToArray();
+        AssemblyDocument assembly = sources[0].TopLevelDocument;
+        object[] references = faceHandles.Select(h => context.Handles.Resolve(h, "faces") is OccurrenceElement element
+            ? element.Reference(assembly)
+            : throw ToolException.InvalidArgument($"'{h}' is not a face read from an occurrence.", "Read the faces with se_geometry 'faces' and 'source' = the occurrence.")).ToArray();
+        Occurrence[] targets = targetHandles.Select(h => Occurrence(context, h, "targets")).ToArray();
+
+        HashSet<int> existing = Items<Occurrence>(assembly.Occurrences).Select(o => o.OccurrenceID).ToHashSet();
+        Array components = sources.Cast<object>().ToArray();
+        Array faces = references;
+        Array environment = targets.Cast<object>().ToArray();
+        int status;
+        try
+        {
+            assembly.CreateCloneComponents(ref components, ref faces, ref environment, option, group,
+                exact ? CloneMatchTypeOptions.CloneMatchTypeExact : CloneMatchTypeOptions.CloneMatchTypeAutomatic, out status);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("pattern_failed", $"Solid Edge did not clone the occurrences ({ex.Message.Trim()}).",
+                "'faces' must be faces the occurrences sit on, and 'targets' the occurrences with matching faces.");
+        }
+
+        Occurrence[] added = Items<Occurrence>(assembly.Occurrences).Where(o => !existing.Contains(o.OccurrenceID)).ToArray();
+        if (added.Length == 0)
+        {
+            throw new ToolException("pattern_failed", $"Solid Edge found no place to clone the occurrences (status {status}).",
+                "The targets need faces of the same kind and size as 'faces' (exact=false matches by type).");
+        }
+
+        HashSet<int> grounded = GroundedIds(assembly);
+        return new
+        {
+            added = added.Length,
+            status,
+            clones = added.Select(o => AssemblyService.Describe(context, assembly, o, grounded)).ToArray(),
+            occurrences = assembly.Occurrences.Count,
+        };
+    }
+
     /// <summary>
     /// Repeats <paramref name="occurrenceHandles"/> along an element of an assembly layout, <paramref name="count"/> in all
     /// (the originals included) every <paramref name="spacing"/> mm measured along the curve from its start (or its end with

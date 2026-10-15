@@ -149,6 +149,18 @@ public static class ModelViewService
         return new { applied = view.Name, view = Describe(context, document, view), note = "See it with se_view capture." };
     }
 
+    /// <summary>
+    /// Update Model View: the view takes the window's current orientation (SetViewOrientationToCurrentView) and is updated.
+    /// The orientation is checked by applying the view and reading the camera with se_view camera.
+    /// </summary>
+    public static object Update(SeContext context, string? documentHandle, string? viewName)
+    {
+        (SolidEdgeDocument document, PMIModelView view) = Find(context, documentHandle, viewName);
+        view.SetViewOrientationToCurrentView();
+        view.Update();
+        return new { updated = view.Name, view = Describe(context, document, view), note = "The view now has the window's orientation: apply it and read se_view camera to check." };
+    }
+
     public static object Delete(SeContext context, string? documentHandle, string? viewName)
     {
         (SolidEdgeDocument document, PMIModelView view) = Find(context, documentHandle, viewName);

@@ -67,12 +67,29 @@ public static partial class RefPlaneService
     }
 
     /// <summary>
-    /// Plane turned <paramref name="radians"/> from the parent about the line where it meets the pivot. Checked: it contains
-    /// that line and its normal makes the angle with the parent's.
+    /// Plane turned <paramref name="radians"/> from the parent about the line where it meets the pivot, or about a straight
+    /// edge of an occurrence. Checked: it contains that line (the edge's ends) and its normal makes the angle with the parent's.
     /// </summary>
-    private static object AssemblyAngle(SeContext context, AssemblyDocument assembly, string parent, string pivot, double radians, bool flip)
+    private static object AssemblyAngle(SeContext context, AssemblyDocument assembly, string parent, string pivot, double radians, bool flip,
+        ReferenceElementConstants origin)
     {
         AssemblyParent from = ResolveAssemblyParent(context, assembly, parent, "plane");
+        if (!int.TryParse(pivot, out _) && !OrientedPlanes.TryAxis(pivot, out _)
+            && context.Handles.Resolve(pivot, "pivot") is OccurrenceElement { Element: Edge edge } element)
+        {
+            (double[] s, double[] e) = StraightEdge(edge, pivot);
+            Placement? placement = InspectService.GeometryPlacement(element.Occurrence);
+            (s, e) = (placement?.Point(s) ?? s, placement?.Point(e) ?? e);
+            RequireOnParent((from.Root, from.Normal), s, e, pivot);
+            object reference = element.Reference(assembly);
+            ReferenceElementConstants normalSide = flip ^ (radians < 0) ? ReferenceElementConstants.igReverseNormalSide : ReferenceElementConstants.igNormalSide;
+            AsmRefPlanes all = assembly.AsmRefPlanes;
+            AsmRefPlane onEdge = CreatedInAssembly(all, () => all.AddAngularByAngle(from.Element, Math.Abs(radians), reference, origin, normalSide));
+            return OnHinge(onEdge, from.Normal, radians, s, e)
+                ? DescribeAssembly(context, assembly, onEdge, all.Count)
+                : DiscardAssembly(onEdge, "angle");
+        }
+
         AssemblyParent hinge = ResolveAssemblyParent(context, assembly, pivot, "pivot");
         double[] axis = Geo.Cross(from.Normal, hinge.Normal);
         if (Geo.Length(axis) < 1e-6)
@@ -250,6 +267,7 @@ public static partial class RefPlaneService
             name = plane.Name,
             normal = normal.Select(Geo.R).ToArray(),
             rootPoint = root.Select(Geo.Mm).ToArray(),
+            xAxis = XAxis(plane),
             visible = plane.Visible,
         };
     }

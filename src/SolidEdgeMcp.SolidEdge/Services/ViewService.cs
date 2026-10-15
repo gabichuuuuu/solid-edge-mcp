@@ -10,7 +10,7 @@ using SolidEdgeMcp.SolidEdge.Session;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 public sealed record CapturedImage(byte[] Data, string MimeType, string? SavedTo, int Width, int Height, string Document,
-    IReadOnlyDictionary<string, string>? Samples = null);
+    IReadOnlyDictionary<string, string>? Samples = null, string? Warning = null);
 
 /// <summary>View: fit, orient, display mode and image capture.</summary>
 public static partial class ViewService
@@ -323,14 +323,14 @@ public static partial class ViewService
         }
 
         object target = FirstWindow(document);
-        Dictionary<string, string>? colours = null;
+        Dictionary<string, string>? colours;
+        string? single;
         using (new ShownWindow(context.Application, target))
         {
             Save(target, file, width, height, fit);
-            if (samples)
-            {
-                colours = Sample(context, target, width, height);
-            }
+            byte[] sample = SampleBmp(context, target, width, height);
+            colours = samples ? Pixels(sample) : null;
+            single = SingleColour(sample);
         }
 
         if (!File.Exists(file))
@@ -350,11 +350,16 @@ public static partial class ViewService
             ".bmp" => "image/bmp",
             _ => "image/png",
         };
-        return new CapturedImage(data, mime, keep, width, height, document.Name, colours);
+        string? warning = single is null
+            ? null
+            : NativeMethods.InputDesktopUnavailable()
+                ? $"The image is a single colour ({single}): Solid Edge drew nothing. The Windows session is locked (or a secure prompt is open), and meanwhile Solid Edge may not draw (drawings were never drawn in tests); capture again once it is unlocked."
+                : $"The image is a single colour ({single}): nothing was drawn. Fit the view (fit true) or check that the document shows something.";
+        return new CapturedImage(data, mime, keep, width, height, document.Name, colours, warning);
     }
 
     /// <summary>The same view, without fitting again, as a BMP 160 pixels wide with the proportions of the capture.</summary>
-    private static Dictionary<string, string> Sample(SeContext context, object target, int width, int height)
+    private static byte[] SampleBmp(SeContext context, object target, int width, int height)
     {
         const int sampleWidth = 160;
         int sampleHeight = Math.Max(16, (int)Math.Round(sampleWidth * (double)height / width));
@@ -364,7 +369,7 @@ public static partial class ViewService
         try
         {
             Save(target, file, sampleWidth, sampleHeight, fit: false);
-            return File.Exists(file) ? Pixels(File.ReadAllBytes(file)) : throw new ToolException("capture_failed", "Solid Edge did not write the sample image.");
+            return File.Exists(file) ? File.ReadAllBytes(file) : throw new ToolException("capture_failed", "Solid Edge did not write the sample image.");
         }
         finally
         {

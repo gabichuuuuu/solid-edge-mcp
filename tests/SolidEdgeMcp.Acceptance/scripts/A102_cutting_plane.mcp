@@ -1,0 +1,67 @@
+# A102: Cutting Plane (se_drawing cutting_plane): the cutting line of a section drawn without its view, with its caption and
+#   side; listed by 'views'; its section view made later (section_view with the cutting plane as 'view'); the section view
+#   deleted (the cutting plane stays and takes a new one); a cutting plane deleted alone and with its section view.
+# Block 100 x 60 x 20 with a through hole of 10 at (50, 30); top view 1:1 at (160, 290), 112.7 x 72.7 mm. The cutting
+# line goes through the hole and is extended across the view: 0.55 x the view diagonal (134.115) = 73.763 mm each side.
+@b = se_documents {"action":"new","kind":"part"}
+@bs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{bs.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{bs.sketch}}"}
+se_extrude {"sketch":"{{bs.sketch}}","distance":20}
+@bt = se_geometry {"action":"faces","direction":[0,0,1]}
+@bh = se_hole {"plane":"{{bt.items[0].handle}}","centers":[50,30,20],"diameter":10}
+?= bh.volume 118429.204 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a102_blk.par","overwrite":true}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\a102_blk.par","orientation":"top","position":[160,290],"scale":1}
+?= bv.view.size[0] 112.7
+# 1) A cutting plane along x through the hole, no view yet: caption A (the first letter), left of the line.
+@cp = se_drawing {"action":"cutting_plane","view":"{{bv.view.handle}}","line":[0,30,10,100,30,10]}
+?= cp.count 1
+?= cp.cuttingPlane.caption A
+?= cp.cuttingPlane.view {{bv.view.handle}}
+?= cp.cuttingPlane.line[0] 86.237 0.01
+?= cp.cuttingPlane.line[1] 290 0.01
+?= cp.cuttingPlane.line[2] 233.763 0.01
+?= cp.cuttingPlane.line[3] 290 0.01
+?= cp.cuttingPlane.looking[1] -1
+# 2) A second one along y, flipped and captioned B.
+@cq = se_drawing {"action":"cutting_plane","view":"{{bv.view.handle}}","line":[50,0,10,50,60,10],"flip":true,"name":"B"}
+?= cq.count 2
+?= cq.cuttingPlane.caption B
+?= cq.cuttingPlane.line[0] 160 0.01
+?= cq.cuttingPlane.line[1] 216.237 0.01
+?= cq.cuttingPlane.line[3] 363.763 0.01
+?= cq.cuttingPlane.looking[0] -1
+@v1 = se_drawing {"action":"views"}
+?= v1.cuttingPlanes[?caption="A"].handle {{cp.cuttingPlane.handle}}
+?= v1.cuttingPlanes[?caption="B"].handle {{cq.cuttingPlane.handle}}
+# 3) The section view of A, made from the cutting plane: no line or flip of its own.
+@s = se_drawing {"action":"section_view","view":"{{cp.cuttingPlane.handle}}"}
+?= s.view.type section
+@v2 = se_drawing {"action":"views"}
+?= v2.cuttingPlanes[?caption="A"].sectionView {{s.view.handle}}
+se_drawing {"action":"update"}
+se_view {"action":"capture","width":800,"height":566,"path":"{{work}}\\a102_cutting_planes.png"}
+# Refused: a second view of the same cutting plane, a cutting plane with its own line, no line.
+! [invalid_argument] se_drawing {"action":"section_view","view":"{{cp.cuttingPlane.handle}}"}
+! [invalid_argument] se_drawing {"action":"section_view","view":"{{cq.cuttingPlane.handle}}","line":[0,30,10,100,30,10]}
+! [invalid_argument] se_drawing {"action":"cutting_plane","view":"{{bv.view.handle}}"}
+# 4) The section view deleted: the cutting plane stays and takes a new section view.
+se_drawing {"action":"delete_view","view":"{{s.view.handle}}"}
+@s2 = se_drawing {"action":"section_view","view":"{{cp.cuttingPlane.handle}}"}
+?= s2.view.type section
+# 5) B deleted alone, then A with its section view: both handles end.
+@db = se_drawing {"action":"delete_view","view":"{{cq.cuttingPlane.handle}}"}
+?~ db.deleted cutting plane B
+?= db.count 1
+@da = se_drawing {"action":"delete_view","view":"{{cp.cuttingPlane.handle}}"}
+?~ da.deleted cutting plane A
+?~ da.sectionView {{s2.view.name}}
+?= da.count 0
+! [handle_expired] se_drawing {"action":"move_view","view":"{{s2.view.handle}}","delta":[10,0]}
+! [handle_expired] se_drawing {"action":"section_view","view":"{{cp.cuttingPlane.handle}}"}
+@v3 = se_drawing {"action":"views"}
+?= v3.views[0].handle {{bv.view.handle}}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

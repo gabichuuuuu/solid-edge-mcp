@@ -1,0 +1,118 @@
+# A95: internal components (se_internal_component), alternate components (se_assembly_family), the performance mode
+#   (se_assembly_config), missing component files and CAD Direct (se_links), and the visible-faces simplified assembly (se_simplify).
+# Block 100 x 60 x 20 (120000): a95_block.par, its copy a95_alt.par, a copy that goes missing and a STEP file of it.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\a95_alt.par","overwrite":true}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a95_gone_{{run}}.par"}
+se_export {"path":"{{work}}\\runs\\a95_cad_{{run}}.stp"}
+se_documents {"action":"save_as","path":"{{work}}\\a95_block.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# A longer block, 150 x 60 x 20 (180000), exported later over the CAD Direct file
+@q = se_documents {"action":"new","kind":"part"}
+@kq = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kq.sketch}}","points":[0,0,150,60]}
+se_sketch {"action":"close","sketch":"{{kq.sketch}}"}
+se_extrude {"sketch":"{{kq.sketch}}","distance":20}
+# Assembly of three blocks, saved
+@a = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a95_block.par"}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\runs\\a95_gone_{{run}}.par","origin":[300,0,0]}
+@o3 = se_assembly {"action":"insert","path":"{{work}}\\a95_block.par","origin":[0,300,0]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a95_asm_{{run}}.asm"}
+# Large Assembly Performance mode
+@pf = se_assembly_config {"action":"performance"}
+?= pf.performanceMode false
+@pt = se_assembly_config {"action":"performance","enabled":true}
+?= pt.performanceMode true
+?= pt.previous false
+@pb = se_assembly_config {"action":"performance","enabled":false}
+?= pb.performanceMode false
+# Alternate components of the first block
+@al0 = se_assembly_family {"action":"alternates","occurrence":"{{o1.handle}}"}
+?= al0.count 0
+@al1 = se_assembly_family {"action":"add_alternate","occurrence":"{{o1.handle}}","path":"{{work}}\\a95_alt.par"}
+?= al1.count 1
+?~ al1.alternates a95_alt.par
+! [invalid_argument] se_assembly_family {"action":"add_alternate","occurrence":"{{o1.handle}}","path":"{{work}}\\a95_alt.par"}
+! [invalid_argument] se_assembly_family {"action":"add_alternate","occurrence":"{{o1.handle}}","path":"{{work}}\\runs\\a95_cad_{{run}}.stp"}
+@al2 = se_assembly_family {"action":"remove_alternate","occurrence":"{{o1.handle}}","path":"a95_alt.par"}
+?= al2.count 0
+! [no_alternates] se_assembly_family {"action":"remove_alternate","occurrence":"{{o1.handle}}"}
+# Internal components: a grounded part and a free sheet metal part, listed as links that exist
+@ic0 = se_internal_component {"action":"list"}
+?= ic0.count 0
+@icp = se_internal_component {"action":"create","name":"a95_plate"}
+?= icp.component.name a95_plate.par
+?= icp.component.occurrence.grounded true
+@ics = se_internal_component {"action":"create","name":"a95_cover","kind":"sheet_metal","ground":false}
+?= ics.component.kind sheet_metal
+?= ics.component.occurrence.grounded false
+! [invalid_argument] se_internal_component {"action":"create","name":"a95_plate"}
+! [invalid_argument] se_internal_component {"action":"create","name":"a95_plate.par"}
+@icl = se_internal_component {"action":"list"}
+?= icl.count 2
+@lk = se_links {"action":"list"}
+?= lk.missing 0
+@icd = se_internal_component {"action":"delete","name":"a95_cover"}
+?= icd.count 1
+! [not_found] se_internal_component {"action":"delete","name":"a95_cover"}
+@icu = se_internal_component {"action":"publish","folder":"{{work}}\\runs\\a95_pub_{{run}}"}
+?= icu.left 0
+?~ icu.files a95_plate.par
+?~ icu.occurrences[0].file a95_pub_
+! [nothing_to_publish] se_internal_component {"action":"publish","folder":"{{work}}\\runs\\a95_pub_{{run}}"}
+# Visible-faces simplified assembly without the third block, whole bodies: the part written holds two blocks (240000)
+@vf = se_simplify {"action":"visible_faces","occurrences":["{{o3.handle}}"],"bodies":true}
+?= vf.mode visible_faces
+?= vf.copies bodies
+@vu = se_simplify {"action":"update"}
+?= vu.simplified true
+se_simplify {"action":"save_as","path":"{{work}}\\runs\\a95_vis_{{run}}.par"}
+@vd = se_simplify {"action":"delete"}
+?= vd.simplified false
+! [no_simplified_model] se_simplify {"action":"update"}
+@vp = se_documents {"action":"open","path":"{{work}}\\runs\\a95_vis_{{run}}.par"}
+@vph = se_physical {"document":"{{vp.handle}}"}
+?= vph.volume 240000 1
+se_documents {"action":"close","document":"{{vp.handle}}","saveChanges":false}
+se_documents {"action":"save","document":"{{a.handle}}"}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# Missing files: the second block's file moved away, the assembly reopened, the file put back and found again
+%move runs\a95_gone_{{run}}.par runs\a95_gone_{{run}}.bak
+@a2 = se_documents {"action":"open","path":"{{work}}\\runs\\a95_asm_{{run}}.asm"}
+@m1 = se_links {"action":"missing"}
+?= m1.hasMissing true
+?~ m1.missing a95_gone_
+%move runs\a95_gone_{{run}}.bak runs\a95_gone_{{run}}.par
+@m2 = se_links {"action":"missing","recheck":true}
+?= m2.hasMissing false
+?~ m2.found a95_gone_
+se_documents {"action":"close","document":"{{a2.handle}}","saveChanges":false}
+# CAD Direct: the STEP file placed in a saved assembly, then the file replaced by the longer block and read again
+@c = se_documents {"action":"new","kind":"assembly"}
+! [unsaved_changes] se_links {"action":"cad_direct","path":"{{work}}\\runs\\a95_cad_{{run}}.stp"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a95_cadasm_{{run}}.asm"}
+! [invalid_argument] se_links {"action":"cad_direct","path":"{{work}}\\a95_block.par"}
+! [no_links] se_links {"action":"cad_update"}
+# The translated part takes the product name in the STEP file (that of a95_gone) and lives inside the assembly file, so its
+# box shows the geometry: the assembly's physical properties leave it out and its part cannot be opened.
+@cd = se_links {"action":"cad_direct","path":"{{work}}\\runs\\a95_cad_{{run}}.stp"}
+?~ cd.source a95_cad_
+?~ cd.occurrences[0].file a95_cadasm_
+?~ cd.occurrences[0].file _stp.par
+?= cd.occurrences[0].box.size[0] 100 0.01
+?= cd.occurrences[0].box.size[1] 60 0.01
+?= cd.occurrences[0].box.size[2] 20 0.01
+! [not_supported] se_geometry {"action":"summary","source":"{{cd.occurrences[0].handle}}"}
+se_export {"document":"{{q.handle}}","path":"{{work}}\\runs\\a95_cad_{{run}}.stp","overwrite":true}
+se_documents {"action":"activate","document":"{{c.handle}}"}
+@cu = se_links {"action":"cad_update"}
+?~ cu.updated a95_cad_
+?= cu.occurrences[0].box.size[0] 150 0.01
+?= cu.occurrences[0].box.size[1] 60 0.01
+se_documents {"action":"close","document":"{{c.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}

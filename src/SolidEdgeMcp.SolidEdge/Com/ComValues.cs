@@ -103,8 +103,9 @@ public static partial class ComValues
                 return Enum.ToObject(type, json.GetInt64());
             }
 
-            string? name = json.GetString();
-            if (name is not null && Enum.TryParse(type, name, ignoreCase: true, out object? parsed))
+            // A name sent JSON-encoded twice ("\"seModelingModeSynchronous\"") is accepted without its inner quotes.
+            string name = json.ValueKind == JsonValueKind.String ? json.GetString()!.Trim().Trim('"', '\'') : json.GetRawText();
+            if (Enum.TryParse(type, name, ignoreCase: true, out object? parsed))
             {
                 return parsed;
             }

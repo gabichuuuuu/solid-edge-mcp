@@ -1,0 +1,56 @@
+# A110: a drawing view turned on the sheet (se_drawing rotate_view) and cropped to a rectangle of the sheet (crop_view),
+#   as in View Properties.
+# A block 100 x 60 x 20 seen from the top at scale 2: its box is the 200 x 120 mm drawing plus the 12.7 mm margin Solid
+# Edge gives a view's box, 212.7 x 132.7 mm. Turned 30 degrees: (200 cos 30 + 120 sin 30) + 12.7 = 245.905 mm wide and
+# (200 sin 30 + 120 cos 30) + 12.7 = 216.623 mm high.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a110_{{run}}\\blk.par"}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a110_{{run}}\\blk.par","orientation":"top","position":[200,150],"scale":2}
+?= bv.view.size[0] 212.7 0.001
+?= bv.view.size[1] 132.7 0.001
+# 1) Cropped to a rectangle of the sheet: the view's box is that rectangle.
+@c1 = se_drawing {"action":"crop_view","view":"{{bv.view.handle}}","area":[180,140,230,165]}
+?= c1.view.size[0] 50 0.001
+?= c1.view.size[1] 25 0.001
+?= c1.view.center[0] 205 0.001
+?= c1.view.center[1] 152.5 0.001
+# 2) Cropped again from the cropped view, to a rectangle that reaches past the drawing on top and bottom.
+@c2 = se_drawing {"action":"crop_view","view":"{{bv.view.handle}}","area":[150,60,260,240]}
+?= c2.view.size[0] 110 0.001
+?= c2.view.size[1] 180 0.001
+?= c2.view.center[0] 205 0.001
+?= c2.view.center[1] 150 0.001
+# 3) A cropped view is not turned (Solid Edge would reset the crop); shown whole again, it is.
+! [invalid_argument] se_drawing {"action":"rotate_view","view":"{{bv.view.handle}}","angle":30}
+@c3 = se_drawing {"action":"crop_view","view":"{{bv.view.handle}}"}
+?= c3.view.size[0] 212.7 0.001
+?= c3.view.center[0] 200 0.001
+# 4) Turned 30 degrees, counter-clockwise, about its centre.
+@r1 = se_drawing {"action":"rotate_view","view":"{{bv.view.handle}}","angle":30}
+?= r1.angle 30 0.000001
+?= r1.previous 0 0.000001
+?= r1.view.size[0] 245.905 0.001
+?= r1.view.size[1] 216.623 0.001
+?= r1.view.center[0] 200 0.001
+# A turned view is cropped in its own axes: refused.
+! [invalid_argument] se_drawing {"action":"crop_view","view":"{{bv.view.handle}}","area":[180,140,230,165]}
+# 5) 390 degrees reads back as 30; -90 as 270, the view standing up.
+@r2 = se_drawing {"action":"rotate_view","view":"{{bv.view.handle}}","angle":390}
+?= r2.angle 30 0.000001
+@r3 = se_drawing {"action":"rotate_view","view":"{{bv.view.handle}}","angle":-90}
+?= r3.angle 270 0.000001
+?= r3.view.size[0] 132.7 0.001
+?= r3.view.size[1] 212.7 0.001
+@r4 = se_drawing {"action":"rotate_view","view":"{{bv.view.handle}}","angle":0}
+?= r4.view.size[0] 212.7 0.001
+# Refused: no angle, an area that is not a rectangle.
+! [invalid_argument] se_drawing {"action":"rotate_view","view":"{{bv.view.handle}}"}
+! [invalid_argument] se_drawing {"action":"crop_view","view":"{{bv.view.handle}}","area":[180,140,230]}
+! [invalid_argument] se_drawing {"action":"crop_view","view":"{{bv.view.handle}}","area":[180,140,180,165]}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

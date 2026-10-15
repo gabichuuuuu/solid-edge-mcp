@@ -1,7 +1,9 @@
 // Copyright (c) 2026 Gabriel Spoleto Couto
 // SPDX-License-Identifier: AGPL-3.0-only
 
+using System.Globalization;
 using System.Runtime.InteropServices;
+using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
@@ -58,9 +60,52 @@ public static class MaterialService
     public static object Current(SeContext context, string? documentHandle)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
+        if (document is AssemblyDocument assembly)
+        {
+            return assembly.WeldmentAssembly ? Beads(context, assembly, null)
+                : new
+                {
+                    document = context.DocumentHandle(document),
+                    note = "An assembly has no material of its own: each part has its own (se_physical lists them with their density).",
+                };
+        }
+
         MatTable table = Table(context);
         table.GetCurrentMaterialName(document, out string name);
         return Describe(context, table, document, name);
+    }
+
+    /// <summary>The density of the document's material in kg/m³, or null (no material, or not readable).</summary>
+    internal static double? Density(SeContext context, SolidEdgeDocument document)
+    {
+        if (MaterialName(context, document) is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            object? value = Late.CallByRef(Table(context), "GetMaterialPropValueFromDoc", [document, (int)MatTablePropIndex.seDensity, null], 2)[2];
+            return value is null ? null : Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The material assigned to a part or sheet metal document, or null (none, or not readable).</summary>
+    internal static string? MaterialName(SeContext context, SolidEdgeDocument document)
+    {
+        try
+        {
+            Table(context).GetCurrentMaterialName(document, out string name);
+            return string.IsNullOrWhiteSpace(name) ? null : name;
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Applies a library material to the document and checks that it was assigned.</summary>
@@ -69,6 +114,11 @@ public static class MaterialService
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         MatTable table = Table(context);
         (string lib, name) = FindLibrary(table, name, library);
+        if (document is AssemblyDocument assembly)
+        {
+            return ApplyToBeads(context, table, assembly, name, lib);
+        }
+
         // The material changes density and appearance, not the topology: faces and edges stay valid (verified).
         table.ApplyMaterialToDoc(document, name, lib);
         table.GetCurrentMaterialName(document, out string applied);
@@ -79,6 +129,55 @@ public static class MaterialService
         }
 
         return Describe(context, table, document, applied, lib);
+    }
+
+    /// <summary>
+    /// The material of a weldment's weld beads: its name and the density of the library material, which the mass of the
+    /// beads uses. Verified: a new weldment has no bead material and a density of 0, so se_physical gives no mass once it has
+    /// a bead; ApplyMaterialToDoc gives E_INVALIDARG on an assembly.
+    /// </summary>
+    private static object ApplyToBeads(SeContext context, MatTable table, AssemblyDocument assembly, string name, string library)
+    {
+        if (!assembly.WeldmentAssembly)
+        {
+            throw new ToolException("wrong_document_type", "An assembly has no material of its own: each part has its own, and only the weld beads of a weldment take one.",
+                "Apply the material to the part documents (se_material apply with document = the part).");
+        }
+
+        object? value = Late.CallByRef(table, "GetMaterialPropValueFromLibrary", [name, library, (int)MatTablePropIndex.seDensity, null], 3)[3];
+        double density = value is null ? 0 : Convert.ToDouble(value, CultureInfo.InvariantCulture);
+        if (!(density > 0))
+        {
+            throw new ToolException("material_not_applied", $"The material '{name}' has no density in '{library}', so the beads would have no mass.",
+                "Pick a material with a density (se_material info).");
+        }
+
+        assembly.WeldmentAssemblyBeadMaterial = name;
+        assembly.WeldmentAssemblyBeadDensity = density;
+        if (!string.Equals(assembly.WeldmentAssemblyBeadMaterial, name, StringComparison.Ordinal)
+            || Math.Abs(assembly.WeldmentAssemblyBeadDensity - density) > 1e-9 * density)
+        {
+            throw new ToolException("material_not_applied", $"Solid Edge did not keep '{name}' as the material of the weld beads.",
+                "Check that the weldment is not read-only.");
+        }
+
+        return Beads(context, assembly, library);
+    }
+
+    private static object Beads(SeContext context, AssemblyDocument assembly, string? library)
+    {
+        string material = assembly.WeldmentAssemblyBeadMaterial;
+        double density = assembly.WeldmentAssemblyBeadDensity;
+        return new
+        {
+            document = context.DocumentHandle((SolidEdgeDocument)assembly),
+            material = string.IsNullOrEmpty(material) ? null : material,
+            library,
+            appliesTo = "weld_beads",
+            beadDensityKgM3 = density > 0 ? Geo.R(density) : (double?)null,
+            note = density > 0 ? "The material of the weld beads; each part keeps its own (se_physical gives the mass)."
+                : "The weld beads have no material, so the weldment has no mass: use action 'apply' on this document.",
+        };
     }
 
     /// <summary>Sheet metal gauge of the document, or <c>null</c> when it has none.</summary>
@@ -134,7 +233,7 @@ public static class MaterialService
         double? mass = null;
         if (ModelDocument.TryGet(document) is { } model && model.TryModel() is { } solid)
         {
-            (double stored, _) = InspectService.StoredSettings(solid);
+            double stored = InspectService.Density(context, model, solid).Density;
             density = stored > 0 ? stored : null;
             double volume = model.Volume();
             mass = density is { } d && volume > 0 ? Math.Round(d * volume, 9) : null;

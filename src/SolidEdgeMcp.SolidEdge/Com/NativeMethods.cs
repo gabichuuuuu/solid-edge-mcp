@@ -12,6 +12,7 @@ internal static class NativeMethods
 {
     internal const int SwShowNoActivate = 4;
     internal const int SwShowMinNoActive = 7;
+    private const uint DesktopReadObjects = 0x0001;
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -20,6 +21,29 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr OpenInputDesktop(uint flags, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint desiredAccess);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseDesktop(IntPtr desktop);
+
+    /// <summary>
+    /// Whether the desktop that takes the input cannot be opened: the Windows session is locked (verified: OpenInputDesktop
+    /// fails with access denied) or a secure prompt is shown. Meanwhile Solid Edge draws nothing and its images come out empty.
+    /// </summary>
+    internal static bool InputDesktopUnavailable()
+    {
+        IntPtr desktop = OpenInputDesktop(0, false, DesktopReadObjects);
+        if (desktop == IntPtr.Zero)
+        {
+            return true;
+        }
+
+        CloseDesktop(desktop);
+        return false;
+    }
 
     [DllImport("ole32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
     internal static extern void CLSIDFromProgID(string progId, out Guid clsid);

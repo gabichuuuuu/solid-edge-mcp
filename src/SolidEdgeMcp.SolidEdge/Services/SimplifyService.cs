@@ -21,19 +21,19 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class SimplifyService
 {
-    public static readonly IReadOnlyList<string> Actions = ["status", "create", "delete_holes", "delete_rounds", "delete_faces", "delete_region", "activate", "delete", "save_as"];
+    public static readonly IReadOnlyList<string> Actions = ["status", "create", "delete_holes", "delete_rounds", "delete_faces", "delete_region", "activate", "delete", "save_as", "visible_faces", "update"];
 
     private const int FaceCollection = 1;
     private const int EdgeCollection = 2;
 
     public static object Run(SeContext context, string? documentHandle, string action, double? diameter, string[]? faces, string? model, string? feature,
-        string[]? edges = null, string[]? occurrences = null, double? ratio = null, string? path = null) =>
+        string[]? edges = null, string[]? occurrences = null, double? ratio = null, string? path = null, bool bodies = false) =>
         AssemblyTarget(context, documentHandle, faces, feature) is { } assembly
-            ? RunAssembly(context, assembly, action, occurrences, ratio, path)
-            : RunPart(context, documentHandle, action, diameter, faces, model, feature, edges);
+            ? RunAssembly(context, assembly, action, occurrences, ratio, path, bodies)
+            : RunPart(context, documentHandle, action, diameter, faces, model, feature, edges, path);
 
     private static object RunPart(SeContext context, string? documentHandle, string action, double? diameter, string[]? faces, string? model, string? feature,
-        string[]? edges) => action switch
+        string[]? edges, string? path) => action switch
     {
         "status" => Status(context, Document(context, documentHandle, faces, feature)),
         "create" => Create(context, Document(context, documentHandle, faces, feature)),
@@ -43,6 +43,7 @@ public static partial class SimplifyService
         "delete_region" => DeleteRegion(context, Document(context, documentHandle, faces, feature), faces, edges),
         "activate" => Activate(context, Document(context, documentHandle, faces, feature), model),
         "delete" => DeleteFeature(context, Document(context, documentHandle, faces, feature), feature),
+        "save_as" => SavePart(context, Document(context, documentHandle, faces, feature), path),
         _ => throw ToolException.InvalidArgument($"Unknown action '{action}'.", $"Use one of: {string.Join(", ", Actions)}."),
     };
 

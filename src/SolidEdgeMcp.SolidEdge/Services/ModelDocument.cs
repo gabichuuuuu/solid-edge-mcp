@@ -77,7 +77,7 @@ public sealed class ModelDocument
         }
         catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
         {
-            throw new ToolException("no_brep_body", $"Solid Edge cannot read the body of '{Document.Name}' as faces and edges (it fails this way after the body is converted to a mesh).",
+            throw new ToolException("no_brep_body", $"Solid Edge cannot read the body of '{Document.Name}' as faces and edges (it fails this way after the body is converted to a mesh, or after a failed operation broke it).",
                 "Use se_physical for its mass properties. Solid Edge does not undo, suppress or delete the conversion through the API (verified): convert a copy of the part.");
         }
     }
@@ -163,8 +163,9 @@ public sealed class ModelDocument
     }
 
     /// <summary>
-    /// The operations of this server are ordered-modelling operations: if the document is in synchronous mode,
-    /// it switches to ordered (as a person would). Returns whether it changed.
+    /// Most operations of this server are ordered-modelling operations: if the document is in synchronous mode, it switches
+    /// to ordered (as a person would). Rounds, chamfers and face edits are made in the document's mode instead
+    /// (FeatureService.InDocumentMode). Returns whether it changed.
     /// </summary>
     public bool EnsureOrdered() => SetMode(ModelingModeConstants.seModelingModeOrdered);
 
@@ -202,6 +203,32 @@ public sealed class ModelDocument
         else
         {
             ((SheetMetalDocument)Document).MinimumDistance(first, second, out distance, ref point1, ref point2);
+        }
+    }
+
+    public void MaximumDistance(object first, object second, out double distance, ref Array point1, ref Array point2)
+    {
+        const MeasureDistanceTypeConstants maximum = MeasureDistanceTypeConstants.MeasureDistanceTypeConstants_MaximumDistance;
+        if (Document is PartDocument part)
+        {
+            part.MeasureDistance(first, second, maximum, out distance, out _, out _, out _, ref point1, ref point2);
+        }
+        else
+        {
+            ((SheetMetalDocument)Document).MeasureDistance(first, second, maximum, out distance, out _, out _, out _, ref point1, ref point2);
+        }
+    }
+
+    /// <summary>Distance along the normal of a plane or planar face to a vertex, and its components (metres).</summary>
+    public void NormalDistance(object plane, object vertex, out double distance, out double dx, out double dy, out double dz)
+    {
+        if (Document is PartDocument part)
+        {
+            part.NormalDistance(plane, vertex, out distance, out _, out dx, out dy, out dz);
+        }
+        else
+        {
+            ((SheetMetalDocument)Document).NormalDistance(plane, vertex, out distance, out _, out dx, out dy, out dz);
         }
     }
 

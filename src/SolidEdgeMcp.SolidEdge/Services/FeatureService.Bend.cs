@@ -22,6 +22,65 @@ public sealed record GussetSpec(string[]? Faces, string[]? Edges, double? Depth,
 /// <summary>Edits of existing bends and flanges in sheet metal (ordered modeling): bend angle, bend radius, match face and unbend.</summary>
 public static partial class FeatureService
 {
+    /// <summary>
+    /// Bend table of a sheet metal part (Bend Table command): the bends in their sequence, and a bend moved to another place
+    /// of it. Verified in Solid Edge 2026 on a part with two flanges: SheetMetalDocument.BendTable.BendCount 2,
+    /// GetBendDataEx(1..n) = feature, radius, angle, direction, included angle (index 0 fails); ChangeBendSequence(1, 2) swaps them.
+    /// In a document built in this session the first call names the rows "Bend 1", "Bend 2"... and the next calls "Flange 1",
+    /// "Flange 2" (neither waiting, DoIdle, pumping nor a new BendTable object changes it within the call).
+    /// </summary>
+    public static object BendTable(SeContext context, string? documentHandle, int[]? sequence)
+    {
+        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        RequireSheet(model);
+        SolidEdgePart.BendTable table = ((SheetMetalDocument)model.Document).BendTable;
+        int count = table.BendCount;
+        if (sequence is not null)
+        {
+            if (sequence.Length != 2 || sequence.Any(i => i < 1 || i > count))
+            {
+                throw ToolException.InvalidArgument($"'sequence' must be [from, to], two positions from 1 to {count}.", "List the bends with action bend_table first.");
+            }
+
+            string[] before = BendNames(table, count);
+            table.ChangeBendSequence(sequence[0], sequence[1]);
+            string[] after = BendNames(table, count);
+            // The first read of a document built in this session can give "Bend 1", "Bend 2"... and a later one the features'
+            // names: the move is checked when the names stay the same.
+            if (before.Order().SequenceEqual(after.Order()) && after[sequence[1] - 1] != before[sequence[0] - 1])
+            {
+                throw new ToolException("setting_rejected", $"Solid Edge did not move '{before[sequence[0] - 1]}' to place {sequence[1]} of the bend sequence.");
+            }
+
+            context.ModelChanged(model.Document, "the bend sequence changed");
+        }
+
+        return new
+        {
+            document = context.DocumentHandle(model.Document),
+            count,
+            bends = Enumerable.Range(1, count).Select(i => Bend(table, i)).ToArray(),
+        };
+    }
+
+    private static string[] BendNames(SolidEdgePart.BendTable table, int count) =>
+        [.. Enumerable.Range(1, count).Select(i =>
+        {
+            table.GetBendDataEx(i, out string feature, out _, out _, out _, out _);
+            return feature;
+        })];
+
+    private sealed record BendRow(int Sequence, string Feature, double Radius, double Angle, string Direction, double IncludedAngle, string Calculation, double CalculationValue);
+
+    private static BendRow Bend(SolidEdgePart.BendTable table, int index)
+    {
+        table.GetBendDataEx(index, out string feature, out double radius, out double angle, out BendDirectionConstants direction, out double included);
+        table.GetBendCalculationMethodAndValue(index, out BendCalculationMethodConstants method, out double value);
+        static string Plain(string text, string prefix) => System.Text.Json.JsonNamingPolicy.SnakeCaseLower.ConvertName(text.StartsWith(prefix, StringComparison.Ordinal) ? text[prefix.Length..] : text);
+        return new BendRow(index, feature, Geo.Mm(radius), Math.Round(Units.RadToDeg(angle), 6), Plain(direction.ToString(), "seBendDirection"),
+            Math.Round(Units.RadToDeg(included), 6), Plain(method.ToString(), "BendCalculationMethod"), value);
+    }
+
     // Not offered (verified in Solid Edge 2026): CrossBrakes.Add gives E_NOINTERFACE with any face and E_FAIL without
     // faces; BendBulgeReliefFeatures.Add leaves a failed feature at the ends of a flange's bend (both bend faces, either end, the
     // three shapes, several sizes, ordered and synchronous); DelSMFaces.Add, which takes no faces, adds with the faces selected a

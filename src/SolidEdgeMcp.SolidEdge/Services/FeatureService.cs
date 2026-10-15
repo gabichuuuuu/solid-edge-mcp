@@ -307,12 +307,96 @@ public static partial class FeatureService
         }
 
         double r = Units.MmToM(Units.RequirePositive(radius!.Value, "radius"));
-        bool switched = model.EnsureOrdered();
-        Model target = model.RequireModel();
-        double before = model.Volume();
         double[] constant = Enumerable.Repeat(r, edgeObjects.Length).ToArray();
-        object feature = Create("round", () => target.Rounds.Add(edgeObjects.Length, edgeObjects, constant));
-        return Verify(context, model, feature, before, 0, switched);
+        return InDocumentMode(context, model, null, "round", 0, target => target.Rounds.Add(edgeObjects.Length, edgeObjects, constant));
+    }
+
+    /// <summary>
+    /// Creates a feature that Solid Edge makes in either mode in the mode of the document: in a synchronous part it stays
+    /// synchronous, as a person working there would make it (verified on a synchronous 80 x 50 x 30 block: Rounds.Add on the
+    /// four vertical edges, 4 mm, gives a synchronous round, 120000 - 4 (16 - 4 pi) 30 = 119587.964 mm3, recorded for undo,
+    /// and Chamfers.AddEqualSetback a synchronous chamfer; a round Solid Edge rejects, E_FAIL, leaves the body as it was).
+    /// A synchronous feature that fails the check is undone rather than deleted: deleting it does not give back the faces it
+    /// trimmed. An ordered document, or a synchronous one whose body cannot be read there (only ordered features), gets the
+    /// ordered feature. <paramref name="owner"/>: the model of the faces (a split part has one per body); default the first.
+    /// <paramref name="featureless"/>: in synchronous mode the call edits the body without making a feature and Solid Edge
+    /// answers E_POINTER or E_NOINTERFACE (verified: FaceOffsets.Add moved the right face of the block 15 mm out, + 22500 mm3;
+    /// DeleteFaces.Add of a hole face filled the hole, + 3392.92; DeleteBlends.Add took two 4 mm rounds off, back to 120000),
+    /// so the change is checked by the volume alone.
+    /// </summary>
+    private static object InDocumentMode(SeContext context, ModelDocument model, Model? owner, string what, int expectedSign,
+        Func<Model, object> create, string? direction = null, string? hint = null, bool featureless = false)
+    {
+        if (model.ModelingMode == "synchronous" && (owner ?? model.TryModel()) is { } synchronous && model.TryVolume() is > 0)
+        {
+            double start = model.Volume();
+            int undoStart = UndoCount(model);
+            object made;
+            try
+            {
+                made = Create(what, () => create(synchronous));
+            }
+            catch (Exception ex) when (featureless && ex is NullReferenceException or InvalidCastException
+                && ex.HResult is unchecked((int)0x80004003) or unchecked((int)0x80004002))
+            {
+                return Featureless(context, model, what, expectedSign, start, undoStart, direction, hint);
+            }
+
+            try
+            {
+                (double after, string? status) = Check(context, model, made, start, expectedSign, null, null, undoneByCaller: true, hint: hint);
+                return new
+                {
+                    feature = Describe(context, model, made),
+                    volume = Geo.Mm3(after),
+                    volumeChange = Geo.Mm3(after - start),
+                    direction,
+                    modelingMode = model.ModelingMode,
+                    warnings = Warnings(false, status == "warning"),
+                };
+            }
+            catch (ToolException ex) when (ex.Code == "feature_failed")
+            {
+                UndoSince(model, undoStart);
+                context.ModelChanged(model.Document, "the model changed (call undone)");
+                throw;
+            }
+        }
+
+        bool switched = model.EnsureOrdered();
+        Model target = owner ?? model.RequireModel();
+        double before = model.Volume();
+        object feature = Create(what, () => create(target));
+        return Verify(context, model, feature, before, expectedSign, switched, direction: direction, hint: hint);
+    }
+
+    /// <summary>A synchronous edit that made no feature: checked by the volume, and undone if it did not change the body as expected.</summary>
+    private static object Featureless(SeContext context, ModelDocument model, string what, int expectedSign, double start, int undoStart,
+        string? direction, string? hint)
+    {
+        context.ModelChanged(model.Document, $"the model changed ({what})");
+        double after = model.Volume();
+        double delta = after - start;
+        string? problem = expectedSign > 0 && delta <= VolumeTolerance ? "it did not add material"
+            : expectedSign < 0 && delta >= -VolumeTolerance ? "it did not remove material"
+            : expectedSign == 0 && Math.Abs(delta) <= VolumeTolerance ? "it did not change the solid"
+            : null;
+        if (problem is not null)
+        {
+            bool undone = UndoSince(model, undoStart);
+            context.ModelChanged(model.Document, "the model changed (call undone)");
+            throw new ToolException("feature_failed", $"The {what} was {(undone ? "undone" : "not applied")} because {problem}.",
+                hint ?? "Check the elements, sizes and direction against the part (se_geometry).");
+        }
+
+        return new
+        {
+            volume = Geo.Mm3(after),
+            volumeChange = Geo.Mm3(after - start),
+            direction,
+            modelingMode = model.ModelingMode,
+            note = $"In synchronous modelling the {what} changes the body directly: it is not a feature of the tree.",
+        };
     }
 
     private static object VariableRound(SeContext context, ModelDocument model, object[] edgeObjects, double[] radii)
@@ -346,6 +430,8 @@ public static partial class FeatureService
             }
         }
 
+        // Ordered even in a synchronous part: there Rounds.AddVariable on an edge of a block left the body unchanged once and
+        // rounded it another time (verified), so it is not reliable.
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
         double before = model.Volume();
@@ -386,18 +472,14 @@ public static partial class FeatureService
         }
 
         double d2 = distance2 is { } second ? Units.MmToM(Units.RequirePositive(second, "distance2")) : 0;
-        bool switched = model.EnsureOrdered();
-        Model target = model.RequireModel();
-        double before = model.Volume();
-        object feature = Create("chamfer", () => distance2 is not null
+        return InDocumentMode(context, model, null, "chamfer", 0, target => distance2 is not null
             ? target.Chamfers.AddUnequalSetback(reference, edgeObjects.Length, edgeObjects, d, d2)
             : angle is { } degrees
                 ? target.Chamfers.AddSetbackAngle(reference, edgeObjects.Length, edgeObjects, d, Units.DegToRad(degrees))
                 : target.Chamfers.AddEqualSetback(edgeObjects.Length, edgeObjects, d));
-        return Verify(context, model, feature, before, 0, switched);
     }
 
-    public static readonly IReadOnlyList<string> FeatureEditActions = ["suppress", "unsuppress", "delete", "rename", "group", "ungroup", "reorder", "roll_to", "roll_to_end"];
+    public static readonly IReadOnlyList<string> FeatureEditActions = ["suppress", "unsuppress", "delete", "rename", "group", "ungroup", "reorder", "roll_to", "roll_to_end", "move_to_synchronous"];
 
     /// <summary>
     /// Suppress, unsuppress, delete or rename a feature; group features and dissolve a group; move a feature next to another
@@ -432,6 +514,8 @@ public static partial class FeatureService
                 return Reorder(context, model, feature, label, target, insertBefore);
             case "roll_to":
                 return RollTo(context, model, feature, label);
+            case "move_to_synchronous":
+                return MoveToSynchronous(context, model, feature, label);
         }
 
         double before = model.Volume();
@@ -610,7 +694,18 @@ public static partial class FeatureService
         try
         {
             Profile profile = model.ProfileSets.CreateIncludedProfile(sketchProfile);
-            return new IncludedProfile(profile, Late.TryGet(profile, "Parent"));
+            var included = new IncludedProfile(profile, Late.TryGet(profile, "Parent"));
+            try
+            {
+                DropConstruction(sketchProfile, included);
+            }
+            catch (COMException)
+            {
+                DeleteIncluded(included);
+                throw;
+            }
+
+            return included;
         }
         catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
@@ -637,6 +732,33 @@ public static partial class FeatureService
 
     /// <summary>Linked copy of a sketch profile and the set (ProfileSet) that contains it.</summary>
     private sealed record IncludedProfile(Profile Profile, object? Set);
+
+    /// <summary>
+    /// The copy of a sketch with construction elements puts them in another profile of the same set, and the operation then
+    /// fails (E_FAIL). When the copy holds every normal element, the other profiles hold only construction copies and are
+    /// deleted (verified: a 50 x 10 slot round a construction centerline extrudes 10 deep to 5785.398 mm3, a 90 x 40 rectangle
+    /// with a construction line inside to 36000 mm3).
+    /// </summary>
+    private static void DropConstruction(Profile sketchProfile, IncludedProfile included)
+    {
+        object[] elements = [.. Elements(sketchProfile)];
+        int normal = elements.Count(e => !sketchProfile.IsConstructionElement(e));
+        if (normal == elements.Length || included.Set is null || Late.Get(included.Set, "Profiles") is not { } profiles
+            || Late.Count(profiles) < 2 || Elements(included.Profile).Count() != normal)
+        {
+            return;
+        }
+
+        object? keep = Late.TryGet(included.Profile, "Name");
+        foreach (object other in Late.Items(profiles).Where(p => !Equals(Late.TryGet(p, "Name"), keep)).ToList())
+        {
+            Late.Call(other, "Delete");
+        }
+    }
+
+    private static IEnumerable<object> Elements(Profile profile) =>
+        new object[] { profile.Lines2d, profile.Arcs2d, profile.Circles2d, profile.Ellipses2d, profile.EllipticalArcs2d, profile.BSplineCurves2d }
+            .SelectMany(collection => Late.Items(collection));
 
     /// <summary>Verifies the feature with <see cref="Check"/> and describes the result.</summary>
     private static object Verify(SeContext context, ModelDocument model, object feature, double before, int expectedSign, bool switched,

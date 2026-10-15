@@ -161,8 +161,10 @@ public static partial class ViewService
         }
         else
         {
+            // Verified in Solid Edge 2026: the camera of a new window reads all zeros (scale 0) until it is first oriented or
+            // fitted, and a scale of 0 is not kept, so any scale is given and the fit sets it.
             scaleOrAngle = angle is null
-                ? before.Perspective ? 1.0 : before.Scale
+                ? before.Perspective || before.Scale <= 0 ? 1.0 : before.Scale
                 : throw ToolException.InvalidArgument("'angle' is the field of view of a perspective camera: pass perspective = true.");
         }
 
@@ -180,7 +182,7 @@ public static partial class ViewService
         view.SetCamera(e[0], e[1], e[2], t[0], t[1], t[2], u[0], u[1], u[2], persp, scaleOrAngle);
 
         // From perspective to parallel the zoom has no meaning, so the model is fitted.
-        if (fit || (before.Perspective && !persp))
+        if (fit || (before.Perspective && !persp) || (!before.Perspective && before.Scale <= 0))
         {
             FitView(view);
         }
@@ -196,6 +198,52 @@ public static partial class ViewService
         }
 
         return new { document = document.Name, camera = DescribeCamera(after), previous = DescribeCamera(before) };
+    }
+
+    /// <summary>
+    /// Sketch View: the camera looks square at a sketch, a reference plane or a planar face, from the side its normal points
+    /// to (a face from outside the body), and the model is fitted (SetCamera, read back). A sketch keeps its x axis to the right, as Sketch View does;
+    /// another plane keeps the model's z axis up, or its y axis when the plane is horizontal.
+    /// </summary>
+    public static object OrientToPlane(SeContext context, string? handle, string plane)
+    {
+        SolidEdgeDocument document = Activate(context, handle);
+        double[] root, normal, up;
+        bool named = int.TryParse(plane, out _) || OrientedPlanes.TryAxis(plane, out _);
+        if (!named && context.Handles.Resolve(plane, "plane") is SolidEdgePart.Profile profile)
+        {
+            profile.Convert2DCoordinate(0, 0, out double ox, out double oy, out double oz);
+            profile.Convert2DCoordinate(1, 0, out double xx, out double xy, out double xz);
+            profile.Convert2DCoordinate(0, 1, out double yx, out double yy, out double yz);
+            root = [ox, oy, oz];
+            double[] xAxis = Minus([xx, xy, xz], root), yAxis = Minus([yx, yy, yz], root);
+            normal = Unit(Cross(xAxis, yAxis));
+            up = Unit(yAxis);
+        }
+        else
+        {
+            object source = document is SolidEdgeAssembly.AssemblyDocument assembly
+                ? SketchService.AssemblyPlane(context, assembly, plane)
+                : ModelDocument.From(document).ResolvePlaneSource(context, plane);
+            (root, normal) = RefPlaneService.PlaneData(source);
+            if (source is SolidEdgeGeometry.Face face)
+            {
+                // A face is seen from outside the body: its plane's normal may point inward.
+                double[] outward = InspectService.FaceNormal(face);
+                normal = Dot(outward, normal) < 0 ? [-normal[0], -normal[1], -normal[2]] : normal;
+            }
+
+            double[] axis = Math.Abs(normal[2]) > 0.99 ? [0, 1, 0] : [0, 0, 1];
+            double along = Dot(axis, normal);
+            up = Unit([axis[0] - along * normal[0], axis[1] - along * normal[1], axis[2] - along * normal[2]]);
+        }
+
+        Camera before = CameraOf(Window3D(document).View);
+        double distance = Math.Max(Length(Minus(before.Eye, before.Target)), 1.0);
+        double[] target = root.Select(Units.MToMm).ToArray();
+        double[] eye = root.Select((c, k) => Units.MToMm(c + normal[k] * distance)).ToArray();
+        object view = SetCamera(context, handle, eye, target, up, null, null, fit: true);
+        return new { plane, normal = normal.Select(Geo.R).ToArray(), up = up.Select(Geo.R).ToArray(), view };
     }
 
     /// <summary>
@@ -516,6 +564,41 @@ public static partial class ViewService
     /// <summary>Colour (#RRGGBB) of some pixels of a 24 or 32 bit BMP: corners, middle of the top and bottom edges, centre.</summary>
     internal static Dictionary<string, string> Pixels(byte[] bmp)
     {
+        (int width, int height, Func<int, int, string> At) = Bmp(bmp);
+        const int m = 2;
+        return new Dictionary<string, string>
+        {
+            ["topLeft"] = At(m, m),
+            ["top"] = At(width / 2, m),
+            ["topRight"] = At(width - 1 - m, m),
+            ["center"] = At(width / 2, height / 2),
+            ["bottomLeft"] = At(m, height - 1 - m),
+            ["bottom"] = At(width / 2, height - 1 - m),
+            ["bottomRight"] = At(width - 1 - m, height - 1 - m),
+        };
+    }
+
+    /// <summary>The colour of a BMP whose pixels are all the same (nothing was drawn), or null.</summary>
+    internal static string? SingleColour(byte[] bmp)
+    {
+        (int width, int height, Func<int, int, string> At) = Bmp(bmp);
+        string first = At(0, 0);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (At(x, y) != first)
+                {
+                    return null;
+                }
+            }
+        }
+
+        return first;
+    }
+
+    private static (int Width, int Height, Func<int, int, string> At) Bmp(byte[] bmp)
+    {
         if (bmp.Length < 54 || bmp[0] != 'B' || bmp[1] != 'M')
         {
             throw new ToolException("capture_failed", "The sample image is not a BMP.");
@@ -531,24 +614,14 @@ public static partial class ViewService
         }
 
         bool bottomUp = height > 0;
-        height = Math.Abs(height);
+        int rows = Math.Abs(height);
         int stride = ((width * bits) + 31) / 32 * 4;
         string At(int x, int y)
         {
-            int i = offset + ((bottomUp ? height - 1 - y : y) * stride) + (x * (bits / 8));
+            int i = offset + ((bottomUp ? rows - 1 - y : y) * stride) + (x * (bits / 8));
             return i + 2 < bmp.Length ? $"#{bmp[i + 2]:X2}{bmp[i + 1]:X2}{bmp[i]:X2}" : throw new ToolException("capture_failed", "The sample image is truncated.");
         }
 
-        const int m = 2;
-        return new Dictionary<string, string>
-        {
-            ["topLeft"] = At(m, m),
-            ["top"] = At(width / 2, m),
-            ["topRight"] = At(width - 1 - m, m),
-            ["center"] = At(width / 2, height / 2),
-            ["bottomLeft"] = At(m, height - 1 - m),
-            ["bottom"] = At(width / 2, height - 1 - m),
-            ["bottomRight"] = At(width - 1 - m, height - 1 - m),
-        };
+        return (width, rows, At);
     }
 }

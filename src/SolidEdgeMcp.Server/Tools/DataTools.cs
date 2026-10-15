@@ -21,6 +21,8 @@ public enum VariableAction
     Comment,
     Expose,
     Limits,
+    GoalSeek,
+    Adjustable,
 }
 
 public enum VariableKind
@@ -28,6 +30,7 @@ public enum VariableKind
     All,
     User,
     Dimension,
+    Physical,
 }
 
 public enum VariableUnits
@@ -76,11 +79,13 @@ public sealed class DataTools(ToolRunner runner)
     [McpServerTool(Name = "se_variables", Title = "Variables and dimensions", Destructive = true, OpenWorld = false)]
     [Description("""
         Variable table (user variables and dimensions). Values in mm, degrees, mm2, mm3 (formulas use Solid Edge syntax).
-        list (filter with * wildcards, kind all|user|dimension) | get (name) | set (name; value or formula; the model updates and the volume change is returned) |
+        list (filter with * wildcards, kind all|user|dimension|physical = Mass, Volume, Surface_Area... of a part) | get (name) | set (name; value or formula; the model updates and the volume change is returned) |
         add (name, value or formula, units distance|angle|area|volume|mass|scalar) | delete (user variable) | rename (name, newName; formulas follow) | comment (name, comment) |
         expose (name, expose true/false, exposeName: publishes it for assemblies and part families) | limits (name; min and max = range, minExclusive/maxExclusive optional; or values = allowed values; neither = remove the limits).
+        goal_seek (name = the variable that must reach 'value', or Mass (kg), Volume (mm3) or Surface_Area (mm2) of a part, measured at each step; change = the variable Solid Edge varies; timeLimit s, default 10; iterations, default 100; if the value is not reached 'change' is put back) |
+        adjustable (part/sheet metal: names = the variables an assembly may adjust, notes optional; names [] = none; neither = read them).
         A value outside the limits is rejected (value_rejected). get/list return the formula, comment, exposed name and limits.
-        Example: {"action":"set","name":"Length","value":120}.
+        Example: {"action":"set","name":"Length","value":120}; {"action":"goal_seek","name":"Mass","value":2.5,"change":"Thickness"}.
         """)]
     public Task<CallToolResult> Variables(
         VariableAction action,
@@ -101,6 +106,11 @@ public sealed class DataTools(ToolRunner runner)
         [Description("For limits: the only allowed values (tool units).")] double[]? values = null,
         [Description("For limits: the range excludes min.")] bool minExclusive = false,
         [Description("For limits: the range excludes max.")] bool maxExclusive = false,
+        [Description("For goal_seek: the variable or dimension Solid Edge changes.")] string? change = null,
+        [Description("For goal_seek: time limit in seconds (default 10).")] double? timeLimit = null,
+        [Description("For goal_seek: iteration limit (default 100).")] int? iterations = null,
+        [Description("For adjustable: variable or dimension names; [] removes them all.")] string[]? names = null,
+        [Description("For adjustable: one note per name (shown when the part is adjusted).")] string[]? notes = null,
         [Description("Document handle; default: active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -126,6 +136,9 @@ public sealed class DataTools(ToolRunner runner)
                 ToolRunner.Require(name, "name", "expose"), expose, exposeName), cancellationToken),
             VariableAction.Limits => runner.RunAsync(tool, actionName, c => VariableService.Limits(c, document,
                 ToolRunner.Require(name, "name", "limits"), min, max, values, minExclusive, maxExclusive), cancellationToken),
+            VariableAction.GoalSeek => runner.RunAsync(tool, actionName, c => VariableService.GoalSeek(c, document,
+                ToolRunner.Require(name, "name", "goal_seek"), ToolRunner.Require(change, "change", "goal_seek"), value, timeLimit, iterations), cancellationToken),
+            VariableAction.Adjustable => runner.RunAsync(tool, actionName, c => VariableService.Adjustable(c, document, names, notes), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }
@@ -210,7 +223,7 @@ public sealed class DataTools(ToolRunner runner)
     [McpServerTool(Name = "se_material", Title = "Material", Destructive = false, OpenWorld = false)]
     [Description("""
         Materials from the Solid Edge libraries. current: material of a part or sheet metal document, its properties, the document density and the mass |
-        apply (name, optional library; default: the first library that has it): assigns it, which updates density and mass |
+        apply (name, optional library; default: the first library that has it): assigns it, which updates density and mass; on a weldment, to its weld beads (their material and density) |
         libraries | list (optional library and filter text) | info (name, optional library): properties of a library material.
         Properties: density kg/m3, elastic modulus and stresses MPa, Poisson ratio, thermal expansion 1/K, conductivity W/(m*K), specific heat J/(kg*K).
         Example: {"action":"apply","name":"Aluminum, 6061-T6"}.

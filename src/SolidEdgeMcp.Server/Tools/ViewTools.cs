@@ -64,7 +64,7 @@ public sealed class ViewTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_view", Title = "Solid Edge view", ReadOnly = false, Destructive = false, OpenWorld = false)]
     [Description("""
-        Window view of a document. capture: image of the current view (width/height in pixels; path to also save it as .png/.jpg/.bmp in an allowed folder; samples = true adds the colours of its corners, edges and centre). fit: zoom to fit (drawings: the whole sheet with its title block). orient: standard view (iso, front, top...) and fit. render_mode: SeRenderModeType name (seRenderModeSmooth, seRenderModeSmoothVHL, seRenderModeVHL, seRenderModeOutline, seRenderModeWireframe, seRenderModePhong).
+        Window view of a document. capture: image of the current view (width/height in pixels; path to also save it as .png/.jpg/.bmp in an allowed folder; samples = true adds the colours of its corners, edges and centre). fit: zoom to fit (drawings: the whole sheet with its title block). orient: standard view (iso, front, top...) and fit, or plane = a sketch, reference plane or planar face seen square (Sketch View). render_mode: SeRenderModeType name (seRenderModeSmooth, seRenderModeSmoothVHL, seRenderModeVHL, seRenderModeOutline, seRenderModeWireframe, seRenderModePhong).
         named_views | save_view (name, description: the current view of a 3D window) | apply_view (name) | delete_view (name, a saved one).
         3D windows: style (name = view style to apply; without it, the current one and the list) |
         background (without kind: the current one and the images that come with Solid Edge; kind solid|gradient|image, colors = one or two '#RRGGBB', gradient horizontal|vertical|diagonal_up|..., path = image; returns the previous one, to put it back) |
@@ -95,6 +95,7 @@ public sealed class ViewTools(ToolRunner runner)
         [Description("For set_camera: field of view of a perspective camera in degrees (default 30); for rotate: the angle in degrees.")] double? angle = null,
         [Description("For rotate: axis [x,y,z] through the target; default the up direction of the camera.")] double[]? axis = null,
         [Description("For zoom: scale factor (above 1 zooms in, below 1 zooms out).")] double? factor = null,
+        [Description("For orient, instead of 'orientation': a sketch, reference plane ('1'-'3' or a handle) or planar face to look square at (Sketch View).")] string? plane = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_view";
@@ -104,9 +105,12 @@ public sealed class ViewTools(ToolRunner runner)
             ViewAction.Capture => runner.RunAsync(tool, op, c =>
             {
                 CapturedImage image = ViewService.Capture(c, document, width, height, path, fit, samples);
-                return new ToolImage(image.Data, image.MimeType, new { image.Document, image.Width, image.Height, image.SavedTo, image.Samples });
+                return new ToolImage(image.Data, image.MimeType, new { image.Document, image.Width, image.Height, image.SavedTo, image.Samples, image.Warning });
             }, cancellationToken),
             ViewAction.Fit => runner.RunAsync(tool, op, c => ViewService.Fit(c, document), cancellationToken),
+            ViewAction.Orient when !string.IsNullOrWhiteSpace(plane) => runner.RunAsync(tool, op, c => orientation is null
+                ? ViewService.OrientToPlane(c, document, plane)
+                : throw ToolException.InvalidArgument("Give 'orientation' or 'plane', not both."), cancellationToken),
             ViewAction.Orient => runner.RunAsync(tool, op, c => ViewService.Orient(c, document,
                 ToolRunner.RequireValue(orientation, "orientation", "orient").ToString().ToLowerInvariant()), cancellationToken),
             ViewAction.RenderMode => runner.RunAsync(tool, op, c => ViewService.SetRenderMode(c, document,

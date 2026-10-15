@@ -30,6 +30,7 @@ public enum SheetMetalAction
     TabSlot,
     Unbend,
     Gusset,
+    BendTable,
 }
 
 public enum GussetShape
@@ -153,23 +154,24 @@ public sealed class SheetMetalTools(ToolRunner runner)
     [McpServerTool(Name = "se_sheetmetal", Title = "Sheet metal", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Sheet metal (.psm), mm and degrees; radius defaults to the document bend radius.
-        settings | set_settings (thickness, bend radius, relief, neutral factor) | gauge (from a material library).
+        settings | set_settings (thickness, bend radius, relief, neutral factor) | gauge (material library).
         tab: closed sketch with ONE outline -> base tab, tab on a sheet face's plane or (newBody) another body; direction = thickness side.
         contour_flange: open sketch (close open=true) -> a tab plus a flange per further segment; width along the sketch normal.
         flange: one per straight edge of a sheet face, rising away from the material; length, angle, side, radius, dimension.
         hem: one per edge (usually a flange's free edge); hemType, length of the folded part, radius.
         break_corner: cornerType with 'size' on corner edges through the thickness.
-        flatten: flat pattern and cut size (x, y); export with se_export flatPattern=true.
+        flatten: flat pattern and cut size (x, y); export: se_export flatPattern=true.
         bend_angle: faces = a bend face, fixedFace = planar face that stays, angle | bend_radius: faces = bend faces, radius = inside radius.
         unbend: fixedFace, faces = bend faces (default all) -> flat; delete the feature to bend again.
         gusset: faces = a bend face, depth, width; distance from an end arc edge (edges; default middle), count or spacing.
-        convert: thin-walled part copied in (se_part_feature copy_part) -> sheet metal; faces = base face, edges = corners to rip; set_settings thickness = wall first.
-        match_face: faces = a flange's outer or inner face, plane = a parallel plane or face -> the flange moves onto it, or distance mm short.
-        louver: faces = a flat sheet face, point = middle of the opening edge, along = its direction (opens to the left seen from the normal).
+        convert: thin part (se_part_feature copy_part) -> sheet metal; faces = base face, edges = corners to rip; set thickness = wall first.
+        match_face: faces = a flange face, plane = a parallel plane or face -> the flange moves onto it (distance mm short).
+        louver: faces = a flat sheet face, point = middle of the opening edge, along = its direction (opens left seen from the normal).
         tab_slot: edges of one sheet body on faces of another -> tabs and slots; count or spacing, length, depth, gap, distance.
-        tab, edge features and louvers: synchronous (the document returns to ordered); flanges and hems need edges of synchronous features.
-        Sketch-based features: se_sheetmetal_form. A feature that fails or does nothing is undone and reported.
-        Example: {"action":"flange","edges":["edge:12","edge:15"],"length":20}.
+        bend_table: bends in sequence (feature, radius, angle, direction); sequence [from, to] moves a bend.
+        tab, edge features, louvers: made in synchronous (then ordered again); flanges and hems need edges of synchronous features.
+        Sketch-based features: se_sheetmetal_form. A feature that fails or does nothing is undone.
+        Example: {"action":"flange","edges":["edge:12"],"length":20}.
         """)]
     public Task<CallToolResult> SheetMetal(
         SheetMetalAction action,
@@ -209,6 +211,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
         [Description("tab_slot: slot clearance around each tab in mm (default 0).")] double gap = 0,
         [Description("gauge: gauge name as in the material library, e.g. '16 gage'.")] string? gauge = null,
         [Description("gauge: material library (se_material libraries); default: the first one that has the gauge.")] string? library = null,
+        [Description("bend_table: [from, to] positions (1-based) in the bend sequence: the bend at 'from' moves to 'to'.")] int[]? sequence = null,
         [Description("Document handle; default: the document of the sketch/edges, or the active one.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
@@ -240,6 +243,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
             SheetMetalAction.Unbend => runner.RunAsync(tool, name, c => FeatureService.Unbend(c, document, fixedFace, faces), cancellationToken),
             SheetMetalAction.Gusset => runner.RunAsync(tool, name, c => FeatureService.Gusset(c, document,
                 new GussetSpec(faces, edges, depth, width, Snake(gussetShape), radius, count, spacing, distance)), cancellationToken),
+            SheetMetalAction.BendTable => runner.RunAsync(tool, name, c => FeatureService.BendTable(c, document, sequence), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }
@@ -247,7 +251,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
     [McpServerTool(Name = "se_sheetmetal_form", Title = "Sheet metal forming and cutting", Destructive = false, OpenWorld = false)]
     [Description($$"""
         Sketch-based sheet metal features (ordered modeling), in mm and degrees. Draw the sketch on the sheet (se_sketch 'create' on a sheet face or a plane of it) and close it.
-        dimple (closed sketch; depth) | drawn_cutout (closed sketch; depth) | normal_cutout (closed sketch; cuts through the thickness; method thickness | mid_plane | clearance; extent through_all | through_next | finite (depth) | from_to (to)) | etch (lines marked on the face) |
+        dimple (closed sketch; depth) | drawn_cutout (closed sketch; depth) | normal_cutout (closed sketch; cuts through the thickness; method thickness | mid_plane | clearance; extent through_all | through_next | finite (depth) | from_to (to)) | etch (lines marked on the face; also in a part) |
         jog (one line across the sheet; height; side inside | outside | bend_outside) | bend (one line; angle between the bent part and the sheet: 90 = perpendicular, 60 folds it back over the sheet; position of the bend relative to the line: inside = outer face of the bent part on the line | outside | symmetric) | bead (open path; beadType u | v | circular; height, width; beadEnd lanced | punched | formed).
         direction: auto (default; normal_cutout cuts into the material when the sketch lies on a sheet face, otherwise tries the sketch normal and then the other side; the rest use normal) | normal (towards the sketch normal returned by se_sketch create; for dimple, drawn_cutout, jog, bend and bead it is the side the form rises to) | reverse.
         movingSide (jog, bend): the part of the sheet that moves, right | left of the line walking from its first to its second point, seen from the side the sketch normal points to (right = line direction x normal).

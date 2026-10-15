@@ -18,6 +18,7 @@ public enum ModelViewAction
     Include,
     Exclude,
     Apply,
+    Update,
     Delete,
 }
 
@@ -53,12 +54,12 @@ public sealed class ModelViewTools(ToolRunner runner)
         list (name, render, pdf, section captions, dimension and annotation counts) |
         add (orientation = front | back | left | right | top | bottom | dimetric | isometric | trimetric, or none = the window's current orientation with 'name'; render; name; replace = an existing view of that orientation) |
         set (view; name, render, pdf) | include, exclude (view, items = section view handles from se_section_view, or PMI dimension and annotation handles from se_pmi; the counts are read back) |
-        apply (view: the window shows it) | delete (view).
+        apply (view: the window shows it) | update (view: it takes the window's current orientation, Update Model View) | delete (view).
         view = handle or name. Example: {"action":"add","orientation":"isometric","name":"Cut"}; {"action":"include","view":"Cut","items":["sectionview:7"]}.
         """)]
     public Task<CallToolResult> ModelView(
         ModelViewAction action,
-        [Description("set, include, exclude, apply, delete: model view handle or name.")] string? view = null,
+        [Description("set, include, exclude, apply, update, delete: model view handle or name.")] string? view = null,
         [Description("add: standard orientation; omitted = the current orientation of the window (needs 'name').")] ModelViewOrientation? orientation = null,
         [Description("add, set: how the view is drawn (default shaded_with_visible_edges).")] ModelViewRender? render = null,
         [Description("add, set: name of the view.")] string? name = null,
@@ -79,6 +80,7 @@ public sealed class ModelViewTools(ToolRunner runner)
             ModelViewAction.Include => runner.RunAsync(tool, act, c => ModelViewService.Items(c, document, view, items, true), cancellationToken),
             ModelViewAction.Exclude => runner.RunAsync(tool, act, c => ModelViewService.Items(c, document, view, items, false), cancellationToken),
             ModelViewAction.Apply => runner.RunAsync(tool, act, c => ModelViewService.Apply(c, document, view), cancellationToken),
+            ModelViewAction.Update => runner.RunAsync(tool, act, c => ModelViewService.Update(c, document, view), cancellationToken),
             ModelViewAction.Delete => runner.RunAsync(tool, act, c => ModelViewService.Delete(c, document, view), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

@@ -1,0 +1,111 @@
+# A101: moving PMI (se_pmi_annotation move, se_pmi move: the Move command of the PMI tab), the Coincident Plane
+#   (se_ref_plane offset at 0) and Optimize with Full body optimization (se_body heal fullBody) on an imported body.
+# A block 100 x 60 x 20 (120000 mm3).
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@v = se_physical {}
+?= v.volume 120000 0.01
+# 1) Coincident Plane: a plane on the top face, at distance 0.
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@cp = se_ref_plane {"action":"offset","plane":"{{top.items[0].handle}}","distance":0}
+?= cp.normal[2] 1
+?= cp.rootPoint[2] 20
+# 2) Annotations in the front plane ('3'), then moved: each leader end goes to the new position projected onto the plane.
+@b = se_pmi_annotation {"action":"balloon","plane":"3","points":[50,0,20],"text":"7","position":[80,0,45]}
+@mb = se_pmi_annotation {"action":"move","annotation":"{{b.annotation.handle}}","position":[90,5,50]}
+?= mb.annotation.at[0] 50
+?= mb.annotation.at[2] 20
+?= mb.annotation.position[0] 90
+?= mb.annotation.position[1] 0
+?= mb.annotation.position[2] 50
+?= mb.annotation.text 7
+# A leader keeps its vertex for SetVertex: it is moved by the difference.
+@l = se_pmi_annotation {"action":"leader","plane":"3","points":[100,0,10],"position":[115,0,30]}
+@ml = se_pmi_annotation {"action":"move","annotation":"{{l.annotation.handle}}","position":[125,0,40]}
+?= ml.annotation.position[0] 125
+?= ml.annotation.position[2] 40
+@f = se_pmi_annotation {"action":"feature_control_frame","plane":"3","points":[60,0,20],"characteristic":"flatness","tolerance":"0.05","position":[60,0,40]}
+@mf = se_pmi_annotation {"action":"move","annotation":"{{f.annotation.handle}}","position":[70,0,45]}
+?= mf.annotation.position[0] 70
+?= mf.annotation.position[2] 45
+?= mf.annotation.characteristic flatness
+@w = se_pmi_annotation {"action":"weld","plane":"3","points":[90,0,0],"weld":"fillet","text":"a5"}
+@mw = se_pmi_annotation {"action":"move","annotation":"{{w.annotation.handle}}","position":[110,0,-10]}
+?= mw.annotation.position[0] 110
+?= mw.annotation.position[2] -10
+?= mw.annotation.text a5
+@s = se_pmi_annotation {"action":"surface_finish","plane":"3","points":[30,0,20],"text":"Ra 3.2","position":[35,0,35]}
+@ms = se_pmi_annotation {"action":"move","annotation":"{{s.annotation.handle}}","position":[20,0,40]}
+?= ms.annotation.position[0] 20
+?= ms.annotation.position[2] 40
+# A datum frame's leader stays square to its edge, as long as asked: |(10, 25)| = 26.926 straight up from the top edge.
+@dh = se_pmi_annotation {"action":"datum","plane":"3","points":[50,0,20],"text":"C","position":[60,0,35]}
+@md = se_pmi_annotation {"action":"move","annotation":"{{dh.annotation.handle}}","position":[60,0,45]}
+?= md.annotation.position[0] 50
+?= md.annotation.position[2] 46.925824 0.001
+@dt = se_pmi_annotation {"action":"datum_target","plane":"3","points":[70,0,0],"text":"A1","position":[75,0,-15]}
+@mdt = se_pmi_annotation {"action":"move","annotation":"{{dt.annotation.handle}}","position":[60,0,-20]}
+?= mdt.annotation.position[0] 60
+?= mdt.annotation.position[2] -20
+?= mdt.annotation.text A1
+@g = se_pmi_annotation {"action":"gost_weld","plane":"3","points":[0,0,15],"text":"GOST 5264|T1","position":[-20,0,35]}
+@mg = se_pmi_annotation {"action":"move","annotation":"{{g.annotation.handle}}","position":[-30,0,30]}
+?= mg.annotation.position[0] -30
+?= mg.annotation.position[2] 30
+@cr = se_pmi_annotation {"action":"corner","plane":"3","points":[40,0,0],"text":"+0.3|-0.1","position":[40,0,-15]}
+@mc = se_pmi_annotation {"action":"move","annotation":"{{cr.annotation.handle}}","position":[45,0,-25]}
+?= mc.annotation.position[0] 45
+?= mc.annotation.position[2] -25
+?= mc.annotation.text +0.3|-0.1
+# 3) A text moves in its plane (here the top plane '1'): position projected onto it.
+@t = se_pmi_annotation {"action":"text","plane":"1","text":"NOTE","position":[0,70,0]}
+@mt = se_pmi_annotation {"action":"move","annotation":"{{t.annotation.handle}}","plane":"1","position":[20,80,5]}
+?= mt.annotation.at[0] 20
+?= mt.annotation.at[1] 80
+?= mt.annotation.at[2] 0
+?= mt.annotation.text NOTE
+# 4) Refused, changing nothing: a datum frame without a leader, a centre mark, a position on the edge point, no position.
+@d = se_pmi_annotation {"action":"datum","plane":"3","points":[0,0,10],"text":"A"}
+! [not_supported] se_pmi_annotation {"action":"move","annotation":"{{d.annotation.handle}}","position":[20,0,30]}
+! [invalid_argument] se_pmi_annotation {"action":"move","annotation":"{{b.annotation.handle}}","position":[50,30,20]}
+! [invalid_argument] se_pmi_annotation {"action":"move","annotation":"{{b.annotation.handle}}"}
+@ls = se_pmi_annotation {"action":"list"}
+?= ls.count 11
+# 5) A PMI dimension moved: its line stands off the edge along the plane's normal; the value stays.
+@d1 = se_pmi {"action":"dimension","type":"linear","plane":"3","points":[0,0,20,100,0,20]}
+@m1 = se_pmi {"action":"move","dimensions":["{{d1.dimension.handle}}"],"distance":12}
+?= m1.distance 12
+?= m1.previous 0
+?= m1.dimension.value 100
+@m2 = se_pmi {"action":"move","dimensions":["{{d1.dimension.handle}}"],"distance":-8}
+?= m2.distance -8
+?= m2.previous 12
+! [invalid_argument] se_pmi {"action":"move","dimensions":["{{d1.dimension.handle}}"]}
+@v2 = se_physical {}
+?= v2.volume 120000 0.01
+se_view {"action":"orient","orientation":"front"}
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a101_pmi_move.png"}
+se_export {"path":"{{work}}\\a101_block.stp","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# 6) Optimize with Full body optimization on the block imported from STEP: nothing to repair, 6 faces before and after.
+@i = se_documents {"action":"import","path":"{{work}}\\a101_block.stp"}
+@h = se_body {"action":"heal","fullBody":true}
+?= h.fullBody true
+?= h.volume 120000 0.01
+?= h.volumeChange 0 0.01
+?= h.faces.before 6
+?= h.faces.after 6
+se_documents {"action":"close","document":"{{i.document.handle}}","saveChanges":false}
+# 7) The PMI dimensions of a synchronous box move too, keeping their values.
+@q = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"box","center":[0,0,0],"size":[40,30],"depth":20}
+@pl = se_pmi {"action":"list"}
+@mq = se_pmi {"action":"move","dimensions":["1"],"distance":10}
+?= mq.distance 10
+?= mq.dimension.value {{pl.dimensions[0].value}}
+@vq = se_physical {}
+?= vq.volume 24000 0.01
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}

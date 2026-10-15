@@ -20,6 +20,9 @@ public enum LinkAction
     TopLevel,
     Search,
     Pack,
+    Missing,
+    CadDirect,
+    CadUpdate,
 }
 
 /// <summary>Links between files: references of a document, replacing them, where a file is used and the document search.</summary>
@@ -37,15 +40,17 @@ public sealed class LinkTools(ToolRunner runner, PathGuard guard)
         where_used (path: the documents in 'folders' (default the file's folder; subfolders) that refer to it; indirect = also their users, up to the top) |
         top_level (files, or the .asm files of 'folder': the assemblies no other one of the set uses) |
         search (folder: Solid Edge documents with title, subject and date of change; filter = file patterns separated by ';'; text = part of the title, subject or file name; contents=true: text inside the documents, through the Windows Search index) |
-        pack (Pack and Go: path = a closed document and every file it refers to, at every level, copied into 'folder' and linked to one another; checked by reading the links of each copy; overwrite).
+        pack (Pack and Go: path = a closed document and every file it refers to, at every level, copied into 'folder' and linked to one another; checked by reading the links of each copy; overwrite) |
+        missing (assembly: the component files it cannot find; recheck = look again once they are back, as Repair Missing Files) |
+        cad_direct (saved assembly; path = a file of another CAD program (STEP, IGES, Parasolid…) placed as a component that stays linked to it; its part lives inside the assembly file, so each occurrence comes with its box in mm) | cad_update (read the CAD Direct files again: all, or from = one source; gives the boxes again).
         The document is changed in memory: save it with se_documents. Only folders allowed by the path policy are searched.
         Example: {"action":"replace","from":"bracket.par","to":"D:\\CAD\\bracket_v2.par"}; {"action":"where_used","path":"D:\\CAD\\bracket.par","subfolders":true}.
         """)]
     public Task<CallToolResult> Links(
         LinkAction action,
-        [Description("replace, break: the referenced file to change, full path or file name (action 'list').")] string? from = null,
+        [Description("replace, break: the referenced file to change, full path or file name (action 'list'); cad_update: the source file to read again.")] string? from = null,
         [Description("replace: the new file (allowed folders).")] string? to = null,
-        [Description("where_used: the file whose users are searched; pack: the document to pack.")] string? path = null,
+        [Description("where_used: the file whose users are searched; pack: the document to pack; cad_direct: the file of the other CAD program.")] string? path = null,
         [Description("where_used: folders to search (default: the file's folder).")] string[]? folders = null,
         [Description("top_level: assembly files to check.")] string[]? files = null,
         [Description("search, top_level: folder to search; pack: the folder the copies go to (not the document's own).")] string? folder = null,
@@ -56,6 +61,7 @@ public sealed class LinkTools(ToolRunner runner, PathGuard guard)
         [Description("search: keep the documents whose title, subject or file name contains this text.")] string? text = null,
         [Description("search: look for 'text' inside the documents (texts, notes) instead, through the Windows Search index.")] bool contents = false,
         [Description("pack: replace files of the same name in the folder.")] bool overwrite = false,
+        [Description("missing: look for the missing files again.")] bool recheck = false,
         int offset = 0,
         int limit = 100,
         [Description("list, replace, break: document handle; default: the active document.")] string? document = null,
@@ -76,6 +82,10 @@ public sealed class LinkTools(ToolRunner runner, PathGuard guard)
                 cancellationToken, precheck: folder is null ? null : () => guard.Check(folder, "folder")),
             LinkAction.Pack => runner.RunAsync(tool, act, c => LinkService.Pack(c, path, folder, overwrite), cancellationToken, timeout: TimeSpan.FromMinutes(10),
                 precheck: path is null || folder is null ? null : () => { guard.Check(path); guard.Check(folder, "folder"); }),
+            LinkAction.Missing => runner.RunAsync(tool, act, c => LinkService.Missing(c, document, recheck), cancellationToken),
+            LinkAction.CadDirect => runner.RunAsync(tool, act, c => LinkService.CadDirect(c, document, path), cancellationToken, timeout: TimeSpan.FromMinutes(5),
+                precheck: path is null ? null : () => guard.Check(path)),
+            LinkAction.CadUpdate => runner.RunAsync(tool, act, c => LinkService.CadUpdate(c, document, from), cancellationToken, timeout: TimeSpan.FromMinutes(5)),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

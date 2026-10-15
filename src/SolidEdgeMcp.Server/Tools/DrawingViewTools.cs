@@ -24,6 +24,12 @@ public enum DrawingViewAction
     Alternates,
     AddAlternate,
     RemoveAlternate,
+    Centerlines,
+    RemoveCenterlines,
+    Activation,
+    HideEdges,
+    ShowEdges,
+    ClearEdges,
 }
 
 public enum BreakDirection
@@ -48,8 +54,7 @@ public sealed class DrawingViewTools(ToolRunner runner)
     [McpServerTool(Name = "se_drawing_view", Title = "Drawing view display", Destructive = true, OpenWorld = false)]
     [Description("""
         Display of a drawing view (handle from se_drawing views), as in its Properties dialog.
-        display (view: its properties, its model members (parts, assemblies, reference planes) with the member properties
-        that can be set, and 'edges' = segments drawn by line style, e.g. {"Visible":4,"Hidden":2}) |
+        display (view: its properties, its model members with the member properties that can be set, and 'edges' = segments drawn by line style, e.g. {"Visible":4,"Hidden":2}) |
         set_display (view, property, value: a view property such as Shading or DisplayCaption, read back; or a model member
         property such as ShowHiddenEdges, ShowTangentEdges, DisplayAsReference, DisplayType (seHidePart hides a part) or
         VisibleEdgeStyleName, set on the top member (it reaches the parts of an assembly) or on 'member' = number or name
@@ -57,8 +62,11 @@ public sealed class DrawingViewTools(ToolRunner runner)
         only apply to members added later) | breaks | add_break (direction of the break lines; from and to = their
         positions on the sheet in mm; shape, gap) | set_broken (broken = true shows the breaks, false the whole view) |
         remove_break (index) | broken_out (points = the corners of an outline as model points of the view, depth = mm from the front of the part: that area is cut away and shown hatched) |
-        to2d (turns the view into plain 2D elements: it no longer follows the model) |
-        alternates (view of an assembly with alternate positions: the positions shown and those it can show) | add_alternate / remove_alternate (member: another position drawn as a phantom).
+        to2d (the view as plain 2D elements that no longer follow the model) |
+        alternates (view of an assembly with alternate positions: the positions shown and those it can show) | add_alternate / remove_alternate (member: another position drawn as a phantom) |
+        centerlines (Automatic Centerlines: centre lines of the cylinders and centre marks of the circles and arcs the view shows; connect = join marks in line; returns the added ones) | remove_centerlines (those of the view) |
+        activation (whether the drawing's views are active; active = true / false sets it, as Activate / Inactivate Drawing Views) |
+        hide_edges / show_edges (points = a model point on each edge) | clear_edges (all back to the view's display).
         Values: booleans, numbers in API units (metres), colours '#RRGGBB', enumerations by name or its end.
         Example: {"action":"set_display","view":"drawing_view:3","property":"ShowHiddenEdges","value":false}.
         """)]
@@ -75,8 +83,11 @@ public sealed class DrawingViewTools(ToolRunner runner)
         [Description("add_break: gap in mm left between the two halves on the sheet.")] double? gap = null,
         [Description("set_broken: true shows the breaks, false shows the whole view.")] bool? broken = null,
         [Description("remove_break: break number from breaks (1-based).")] int? index = null,
-        [Description("broken_out: corners of the outline [x1, y1, z1, ...] in mm, model points seen in the view (3 or more).")] double[]? points = null,
+        [Description("broken_out: corners of the outline [x1, y1, z1, ...] in mm, model points seen in the view (3 or more); hide_edges, show_edges: a model point on each edge.")] double[]? points = null,
         [Description("broken_out: depth of the cut in mm from the front of the part.")] double? depth = null,
+        [Description("centerlines: also join centre marks in line with centre lines (default false).")] bool connect = false,
+        [Description("activation: true activates the drawing views, false inactivates them; omit to read.")] bool? active = null,
+        [Description("activation: draft document handle; default: the document of 'view' or the active one.")] string? document = null,
         int offset = 0,
         int limit = 100,
         CancellationToken cancellationToken = default)
@@ -100,6 +111,12 @@ public sealed class DrawingViewTools(ToolRunner runner)
             DrawingViewAction.AddAlternate => runner.RunAsync(tool, act, c => DrawingService.SetAlternate(c, view, member, add: true), cancellationToken),
             DrawingViewAction.RemoveAlternate => runner.RunAsync(tool, act, c => DrawingService.SetAlternate(c, view, member, add: false), cancellationToken),
             DrawingViewAction.To2d => runner.RunAsync(tool, act, c => DrawingService.To2d(c, view), cancellationToken),
+            DrawingViewAction.Centerlines => runner.RunAsync(tool, act, c => DrawingService.AutoCenterlines(c, view, connect, remove: false), cancellationToken),
+            DrawingViewAction.RemoveCenterlines => runner.RunAsync(tool, act, c => DrawingService.AutoCenterlines(c, view, connect, remove: true), cancellationToken),
+            DrawingViewAction.Activation => runner.RunAsync(tool, act, c => DrawingService.ViewActivation(c, document, view, active), cancellationToken),
+            DrawingViewAction.HideEdges => runner.RunAsync(tool, act, c => DrawingService.EdgeOverride(c, view, points, "hide"), cancellationToken),
+            DrawingViewAction.ShowEdges => runner.RunAsync(tool, act, c => DrawingService.EdgeOverride(c, view, points, "show"), cancellationToken),
+            DrawingViewAction.ClearEdges => runner.RunAsync(tool, act, c => DrawingService.EdgeOverride(c, view, null, "clear"), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

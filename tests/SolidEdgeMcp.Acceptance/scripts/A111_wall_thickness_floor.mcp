@@ -1,0 +1,26 @@
+# A111: wall thickness of faces square to Z. Solid Edge's thickness analysis gives 0 on faces whose normal is the Z axis, so an
+#   open box read the side walls only; se_measure wall_thickness runs it again with the part turned and merges the two.
+# An open box 100 x 60 x 30 (x -50..50, y -30..30) with an 80 x 40 pocket 25 deep from the top: 10 mm side walls and a 5 mm
+# floor (180000 - 80000 = 100000 mm3). Below 6 mm: the floor seen from inside and from below, 2 x 80 x 40 = 6400 mm2, less
+# where the mesh triangles at its edges average a thicker wall.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[-50,-30,50,30]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":30}
+@f = se_geometry {"action":"faces","direction":[0,0,1]}
+@k2 = se_sketch {"action":"create","plane":"{{f.items[0].handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[-40,-20,40,20]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@c = se_extrude {"sketch":"{{k2.sketch}}","operation":"cut","distance":25,"direction":"reverse"}
+?= c.volume 100000 0.001
+@w = se_measure {"action":"wall_thickness","threshold":6}
+?= w.turnedRun true
+?= w.minThickness 5 0.000001
+?= w.thinnestAt[2] 0 0.000001
+?= w.maxThickness 100 0.000001
+?= w.area 27600 0.001
+?= w.areaBelow 5950 450
+@wc = se_measure {"action":"wall_thickness","resolution":"coarse"}
+?= wc.minThickness 5 0.000001
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

@@ -17,6 +17,7 @@ public enum SketchAction
     Line,
     Rectangle,
     Polyline,
+    Polygon,
     Circle,
     Arc,
     Ellipse,
@@ -43,6 +44,7 @@ public enum SketchConstraintAction
     Dimension,
     List,
     Delete,
+    Autoscale,
 }
 
 public enum SketchRelation
@@ -98,11 +100,11 @@ public sealed class SketchTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_sketch", Title = "Sketch (profile)", Destructive = true, OpenWorld = false)]
     [Description("""
-        2D sketches (profiles) for part features, in mm, in the sketch's own x/y. Drawing sheets take the same 2D geometry: pass a sheet (se_drawing sheets) or drawing handle as 'sketch', x/y in mm from its lower-left corner; create, axis, close, project, delete and blocks are for model sketches only.
-        create (plane: 'xy', 'yz', 'xz' = the base plane with that orientation in any template; '1'-'3' = the template's base planes in its order (default: XY, YZ, XZ); or a refplane / planar face handle; in an assembly also an assembly plane, for se_assembly_feature; layout = true: an assembly layout instead) returns the sketch handle and its frame (origin, xAxis, yAxis, normal): on a face the origin is not the model origin, so model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis |
-        line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners) | polyline (points [x1,y1,x2,y2,...]; closed, default true) | circle (center, radius) | arc (center, start, end; counter-clockwise) | ellipse (center, radius, minorRadius, angle) | spline (through points, >= 3; closed, default false) | conic (points [start, end, control: where the end tangents meet], rho 0-1: 0.5 parabola) | point (points [x,y]) |
+        2D sketches (profiles) for part features, in mm, in the sketch's own x/y. On drawing sheets pass a sheet (se_drawing sheets) or drawing handle as 'sketch' (x/y from its lower-left corner); create, axis, close, project, delete and blocks are for model sketches.
+        create (plane: 'xy', 'yz', 'xz' = the base plane with that orientation in any template; '1'-'3' = the template's base planes in order; or a refplane / planar face handle; in an assembly also an assembly plane, for se_assembly_feature; layout = true: an assembly layout instead) returns the sketch handle and its frame (origin, xAxis, yAxis, normal): on a face the origin is not the model origin, so model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis |
+        line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners) | polyline (points [x1,y1,x2,y2,...]; closed, default true) | polygon (center, radius to the vertices, sides, angle of the first vertex; equal sides) | circle (center, radius) | arc (center, start, end; counter-clockwise) | ellipse (center, radius, minorRadius, angle) | spline (through points, >= 3; closed, default false) | conic (points [start, end, control: where the end tangents meet], rho 0-1: 0.5 parabola) | point (points [x,y]) |
         fillet (elements = two meeting at a corner, radius) | chamfer (elements = two lines at a corner, setbacks); both trim | project (elements = model edges from se_geometry, linked) |
-        axis (element = line: revolution axis for se_revolve, set before close; a side of the profile becomes a copy) | close (validates closed loops, or one open chain with open=true; required before a feature) | info (frame, counts, every element with handle and geometry) | delete | tear_off (closed part sketch: a linked copy of its elements, same x/y, on a new sketch on 'plane').
+        axis (element = line: revolution axis for se_revolve, set before close; a side of the profile becomes a copy) | close (validates closed loops, or one open chain with open=true; required before a feature) | info (frame, counts, every element with handle and geometry) | delete | tear_off (closed part sketch: a linked copy, same x/y, on a new sketch on 'plane').
         Blocks: blocks | create_block (name, elements, center = origin; an occurrence replaces them) | place_block (name, center, scale, angle) | delete_block (name).
         Example: create {"plane":"1"} → rectangle {"sketch":"sketch:5","points":[0,0,100,50]} → close → se_extrude
         """)]
@@ -111,12 +113,13 @@ public sealed class SketchTools(ToolRunner runner)
         [Description("Sketch handle (all actions except create), or a drawing sheet / drawing document handle for the drawing actions and info.")] string? sketch = null,
         [Description("For create and tear_off: '1' XY, '2' YZ, '3' XZ, or a refplane / planar face handle.")] string? plane = null,
         [Description("For line, rectangle, polyline, spline, conic, point: flat list of coordinates in mm [x1,y1,x2,y2,...]; for fillet and chamfer: optional point [x,y] inside the corner (default for two lines: their common corner).")] double[]? points = null,
-        [Description("For circle, arc, ellipse: centre [x,y] in mm.")] double[]? center = null,
-        [Description("For circle and fillet: radius in mm; for ellipse: semi-major axis in mm.")] double? radius = null,
+        [Description("For circle, arc, ellipse, polygon: centre [x,y] in mm.")] double[]? center = null,
+        [Description("For circle and fillet: radius in mm; for ellipse: semi-major axis in mm; for polygon: centre to each vertex in mm.")] double? radius = null,
+        [Description("For polygon: number of sides (3-100).")] int? sides = null,
         [Description("For arc: start point [x,y] in mm.")] double[]? start = null,
         [Description("For arc: end point [x,y] in mm.")] double[]? end = null,
         [Description("For ellipse: semi-minor axis in mm (radius is the semi-major axis).")] double? minorRadius = null,
-        [Description("For ellipse: angle of the major axis from the sketch x axis, in degrees (default 0).")] double? angle = null,
+        [Description("For ellipse: angle of the major axis from the sketch x axis; for polygon: angle of the first vertex; in degrees (default 0).")] double? angle = null,
         [Description("For conic: shape between 0 and 1 (0.5 parabola, less an ellipse, more a hyperbola; default 0.5).")] double? rho = null,
         [Description("For axis: handle of a line of the sketch.")] string? element = null,
         [Description("For fillet and chamfer: the two sketch elements; for project: model edge handles.")] string[]? elements = null,
@@ -143,6 +146,7 @@ public sealed class SketchTools(ToolRunner runner)
             SketchAction.Line => runner.RunAsync(tool, op, c => SketchService.Line(c, handle, points), cancellationToken),
             SketchAction.Rectangle => runner.RunAsync(tool, op, c => SketchService.Rectangle(c, handle, points), cancellationToken),
             SketchAction.Polyline => runner.RunAsync(tool, op, c => SketchService.Polyline(c, handle, points, closed ?? true), cancellationToken),
+            SketchAction.Polygon => runner.RunAsync(tool, op, c => SketchService.Polygon(c, handle, center, radius, sides, angle), cancellationToken),
             SketchAction.Circle => runner.RunAsync(tool, op, c => SketchService.Circle(c, handle, center, radius), cancellationToken),
             SketchAction.Arc => runner.RunAsync(tool, op, c => SketchService.Arc(c, handle, center, start, end), cancellationToken),
             SketchAction.Ellipse => runner.RunAsync(tool, op, c => SketchService.Ellipse(c, handle, center, radius, minorRadius, angle), cancellationToken),
@@ -169,8 +173,9 @@ public sealed class SketchTools(ToolRunner runner)
     [Description("""
         Geometric relations and driving dimensions of a sketch (before 'close') or of the 2D geometry of a drawing sheet; Solid Edge moves the geometry to satisfy them. elements: handles returned by se_sketch.
         relation (relation: horizontal | vertical | fix (one element) | parallel | perpendicular | equal | tangent | concentric | colinear (two) | connect (two + keypoints [i1,i2]) | symmetric (symmetry line + two)) |
-        dimension (dimension: length (line) | radius | diameter (circle or arc) | distance (true distance between two elements: parallel lines, point/centre to line, or points; circles/arcs by their centre, or keypoints [i1,i2]) | angle (two lines: the angle inside the corner they form, 0-180; the variable stores Solid Edge's counter-clockwise angle from the first line's direction to the second's, returned as variableValue); value in mm or degrees sets the size, omitted locks the current one; returns the variable name to change it later with se_variables) |
-        list (relations with their type and elements, keypoint and point; dimensions with their variables) | delete (constraint = relation or dimension handle).
+        dimension (dimension: length (line) | radius | diameter (circle or arc) | distance (true distance between two elements: parallel lines, point/centre to line, or points; circles/arcs by their centre, or keypoints [i1,i2]) | angle (two lines: the angle inside the corner they form, 0-180; the variable stores Solid Edge's counter-clockwise angle from the first line's direction to the second's, returned as variableValue); value in mm or degrees sets the size, omitted locks the current one; returns the variable name to change it later or drive it by a formula with se_variables set, e.g. formula 'Dext') |
+        list (relations with their type and elements, keypoint and point; dimensions with their variables) | delete (constraint = relation or dimension handle) |
+        autoscale (constraint = a driving length dimension, value mm: the whole sketch is scaled so that it takes the value, as Auto-Scale Sketch: while it is the sketch's only driving dimension).
         Keypoints: lines 0 start, 1 end, 2 middle; circles 0 centre; arcs 0 centre, 1 start, 2 end.
         Example: {"action":"dimension","sketch":"sketch:5","dimension":"length","elements":["line2d:7"],"value":80}.
         """)]
@@ -181,8 +186,8 @@ public sealed class SketchTools(ToolRunner runner)
         [Description("For dimension: dimension type.")] SketchDimension? dimension = null,
         [Description("Sketch element handles.")] string[]? elements = null,
         [Description("Keypoint index per element (connect; optional for distance).")] int[]? keypoints = null,
-        [Description("For dimension: size in mm (angle: degrees); omitted = keep the current size.")] double? value = null,
-        [Description("For delete: relation or dimension handle.")] string? constraint = null,
+        [Description("For dimension: size in mm (angle: degrees); omitted = keep the current size. For autoscale: the new size in mm.")] double? value = null,
+        [Description("For delete: relation or dimension handle; for autoscale: a driving dimension handle.")] string? constraint = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_sketch_constraint";
@@ -191,6 +196,12 @@ public sealed class SketchTools(ToolRunner runner)
         {
             string target = ToolRunner.Require(constraint, "constraint", "delete");
             return runner.RunAsync(tool, name, c => SketchService.DeleteConstraint(c, target), cancellationToken);
+        }
+
+        if (action == SketchConstraintAction.Autoscale)
+        {
+            string target = ToolRunner.Require(constraint, "constraint", "autoscale");
+            return runner.RunAsync(tool, name, c => SketchService.AutoScale(c, target, value), cancellationToken);
         }
 
         string handle = ToolRunner.Require(sketch, "sketch", name);
@@ -209,7 +220,8 @@ public sealed class SketchTools(ToolRunner runner)
     [Description("""
         Reference planes and coordinate systems of a part, sheet metal or assembly. list (index, handle, name, normal, root point in mm) |
         offset (plane = index, 'xy'/'yz'/'xz' or plane / planar face handle; distance in mm, negative or flip=true for the other side) |
-        angle (plane, pivot = plane whose intersection with 'plane' is the hinge, angle in degrees) |
+        angle (plane, pivot = plane whose intersection with 'plane' is the hinge, or a straight edge, angle in degrees: 90 = Perpendicular,
+        0 = Coincident by Axis) |
         three_points (points = 3 model points in mm: vertices or midpoints of straight edges) | mid (plane + plane2: midway between two parallel planes or faces) |
         normal_to_edge (edge handle; at start|end, optional distance in mm or ratio 0-1 of the edge length along it from that end) |
         tangent (plane = the parallel plane, face = cylindrical or conical face; flip = the other side; or face = any curved face + points = [x,y,z] an edge end on it:
@@ -221,27 +233,27 @@ public sealed class SketchTools(ToolRunner runner)
         delete (a plane or coordinate system nothing is built on; not the base ones).
         In an assembly: offset and angle from assembly planes or planar faces of occurrences, normal_to_edge on an occurrence edge
         (se_geometry with 'source' = the occurrence), coordinate_system by origin and angles; no three_points, mid or tangent.
-        Planes are global, as the Planes commands make them, and checked against the geometry they come from.
+        Planes are global, as the Planes commands make them, and checked.
         New planes return a handle usable as 'plane' in se_sketch create. Example: {"action":"normal_to_edge","edge":"edge:12","at":"start","distance":30}.
         """)]
     public Task<CallToolResult> RefPlane(
         RefPlaneAction action,
         [Description("For offset/angle/tangent: parent plane index ('1'-'3'), 'xy'/'yz'/'xz' or plane / planar face handle; show/hide/rename/delete: the plane or coordinate system.")] string? plane = null,
         [Description("For offset: distance in mm.")] double? distance = null,
-        [Description("For angle: hinge plane index or handle.")] string? pivot = null,
+        [Description("For angle: hinge plane index or handle, or a straight edge handle.")] string? pivot = null,
         [Description("For angle: angle in degrees; tangent: angle about the cylinder axis from 'plane'.")] double? angle = null,
         [Description("Create the plane on the other side of the parent's normal (tangent: the other side of the face).")] bool flip = false,
         [Description("For three_points: [x1,y1,z1, x2,y2,z2, x3,y3,z3] in mm; tangent: the point [x,y,z] on the face.")] double[]? points = null,
         [Description("For mid: the second plane (index or refplane / planar face handle).")] string? plane2 = null,
         [Description("For normal_to_edge: edge handle (se_geometry edges).")] string? edge = null,
-        [Description("For normal_to_edge: the end of the edge (default start).")] EdgeEnd at = EdgeEnd.Start,
+        [Description("For normal_to_edge and angle about an edge (its x axis runs along the edge from this end): the end of the edge (default start).")] EdgeEnd at = EdgeEnd.Start,
         [Description("For normal_to_edge: fraction 0-1 of the edge length from 'at' (instead of distance), e.g. 0.5 = the middle.")] double? ratio = null,
         [Description("For tangent: cylindrical or conical face handle (with points: any curved face).")] string? face = null,
         [Description("For coordinate_system: origin [x,y,z] in mm.")] double[]? origin = null,
         [Description("For coordinate_system: rotations [ax,ay,az] in degrees.")] double[]? angles = null,
         [Description("For coordinate_system: two straight edge handles, the X axis then the Y axis (instead of angles).")] string[]? edges = null,
         [Description("For rename: the new name.")] string? name = null,
-        [Description("Document handle; default: active document.")] string? document = null,
+        [Description("Document handle; default: active document. list: also an occurrence handle (its part's planes in assembly coordinates, for se_relations).")] string? document = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_ref_plane";
@@ -252,7 +264,7 @@ public sealed class SketchTools(ToolRunner runner)
             RefPlaneAction.Offset => runner.RunAsync(tool, actionName, c => RefPlaneService.Offset(c, document,
                 ToolRunner.Require(plane, "plane", "offset"), distance, flip), cancellationToken),
             RefPlaneAction.Angle => runner.RunAsync(tool, actionName, c => RefPlaneService.Angle(c, document,
-                ToolRunner.Require(plane, "plane", "angle"), ToolRunner.Require(pivot, "pivot", "angle"), angle, flip), cancellationToken),
+                ToolRunner.Require(plane, "plane", "angle"), ToolRunner.Require(pivot, "pivot", "angle"), angle, flip, Snake(at)), cancellationToken),
             RefPlaneAction.ThreePoints => runner.RunAsync(tool, actionName, c => RefPlaneService.ThreePoints(c, document, points), cancellationToken),
             RefPlaneAction.Mid => runner.RunAsync(tool, actionName, c => RefPlaneService.Mid(c, document,
                 ToolRunner.Require(plane, "plane", "mid"), ToolRunner.Require(plane2, "plane2", "mid")), cancellationToken),

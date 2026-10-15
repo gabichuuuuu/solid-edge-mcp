@@ -8,6 +8,7 @@ using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
+using Sheet = SolidEdgeDraft.Sheet;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
@@ -158,14 +159,59 @@ public static partial class SketchService
     /// Offset command does. Verified: Offset2d copies the selected chain with its relations and a driving dimension for the
     /// distance, and the chain stays selected. The chain of lines, arcs and circles is found from their ends; ChainLocate,
     /// which picks with a tolerance in pixels and picked a wrong single element with the Solid Edge window minimized
-    /// (verified), is only used for other curves.
+    /// (verified), is only used for other curves. With <paramref name="symmetric"/>, as the Symmetric Offset command (no member
+    /// in the type libraries): a copy on each side (the second towards <paramref name="side"/> mirrored through
+    /// <paramref name="at"/>) and, on an open chain, caps joining the copies' ends round each end of the chain.
     /// </summary>
-    public static object Offset(SeContext context, string sketch, double[]? at, double[]? side, double? distance)
+    public static object Offset(SeContext context, string sketch, double[]? at, double[]? side, double? distance, bool symmetric = false,
+        string cap = "arc")
     {
         Canvas2d canvas = ResolveCanvas(context, sketch);
         (double x, double y) = Geo.Point2(at, "at");
         (double sx, double sy) = Geo.Point2(side, "side");
         double d = Units.MmToM(Units.RequirePositive(distance ?? throw ToolException.InvalidArgument("Action 'offset' requires 'distance' (mm)."), "distance"));
+        if (cap is not ("arc" or "line" or "none"))
+        {
+            throw ToolException.InvalidArgument($"Unknown cap '{cap}'.", "Use arc, line or none.");
+        }
+
+        if (symmetric && Gap((x, y), (sx, sy)) < 1e-9)
+        {
+            throw ToolException.InvalidArgument("'side' must be a point off the chain.", "Give a point a little off the chain, straight across from 'at'.");
+        }
+
+        (int chain, List<object> elements, List<object> created) = OffsetChain(context, canvas, sketch, x, y, sx, sy, d);
+        if (!symmetric)
+        {
+            return new { chain, distance = Geo.Mm(d), created = Registered(context, sketch, created) };
+        }
+
+        List<object> other;
+        try
+        {
+            (_, _, other) = OffsetChain(context, canvas, sketch, x, y, (2 * x) - sx, (2 * y) - sy, d);
+        }
+        catch (ToolException)
+        {
+            DeleteAll(created);
+            throw;
+        }
+
+        List<object> caps = cap == "none" ? [] : Caps(canvas, elements, created, other, d, cap == "arc");
+        return new
+        {
+            chain,
+            distance = Geo.Mm(d),
+            width = Geo.Mm(2 * d),
+            created = Registered(context, sketch, created.Concat(other)),
+            caps = Registered(context, sketch, caps),
+        };
+    }
+
+    /// <summary>Offsets the chain through (x, y) towards (sx, sy) by d (m): how many elements it has, them and the copies.</summary>
+    private static (int Chain, List<object> Elements, List<object> Created) OffsetChain(SeContext context, Canvas2d canvas, string sketch,
+        double x, double y, double sx, double sy, double d)
+    {
         object owner = (object?)canvas.Profile ?? canvas.Sheet!;
         object selection = Late.Get(context.DocumentOf(sketch), "SelectSet")
             ?? throw new ToolException("offset_failed", "The document has no selection to locate the chain with.");
@@ -184,8 +230,8 @@ public static partial class SketchService
                 Late.Call(owner, "ChainLocate", x, y);
             }
 
-            int chain = Late.Count(selection);
-            if (chain == 0)
+            List<object> elements = Late.Items(selection).ToList();
+            if (elements.Count == 0)
             {
                 throw new ToolException("offset_failed", $"There is no element of the sketch at {Mm(x, y)}.",
                     "Pass in 'at' a point on an element of the chain to offset (se_sketch info lists the geometry).");
@@ -200,11 +246,126 @@ public static partial class SketchService
                     "'side' must be a point off the chain, on the side of the copy; the distance must leave room for it (an inner offset smaller than the shape).");
             }
 
-            return new { chain, distance = Geo.Mm(d), created = Registered(context, sketch, created) };
+            return (elements.Count, elements, created);
         }
         finally
         {
             Late.Call(selection, "RemoveAll");
+        }
+    }
+
+    /// <summary>
+    /// Caps of a symmetric offset: at each free end of an open chain, a line or a half circle (centred on the end, bulging away
+    /// from the chain) from the end of one copy to the end of the other, tied to both by connect relations.
+    /// </summary>
+    private static List<object> Caps(Canvas2d canvas, List<object> chain, List<object> first, List<object> second, double d, bool arc)
+    {
+        var caps = new List<object>();
+        List<(object Element, (double X, double Y) Point)> a = FreeEnds(first), b = FreeEnds(second);
+        if (a.Count == 0 || b.Count == 0)
+        {
+            return caps;
+        }
+
+        foreach ((object element, (double X, double Y) end) in FreeEnds(chain))
+        {
+            (object Element, (double X, double Y) Point) ea = a.MinBy(p => Gap(p.Point, end));
+            (object Element, (double X, double Y) Point) eb = b.MinBy(p => Gap(p.Point, end));
+            if (Math.Abs(Gap(ea.Point, end) - d) > 1e-6 || Math.Abs(Gap(eb.Point, end) - d) > 1e-6)
+            {
+                continue;
+            }
+
+            object made;
+            if (arc)
+            {
+                (double X, double Y) middle = Middle(element);
+                (double X, double Y) outward = (end.X - middle.X, end.Y - middle.Y);
+                (double X, double Y) bulge = (-(ea.Point.Y - end.Y), ea.Point.X - end.X);
+                ((double X, double Y) from, (double X, double Y) to) = (bulge.X * outward.X) + (bulge.Y * outward.Y) >= 0
+                    ? (ea.Point, eb.Point)
+                    : (eb.Point, ea.Point);
+                made = canvas.Arcs2d.AddByCenterStartEnd(end.X, end.Y, from.X, from.Y, to.X, to.Y);
+            }
+            else
+            {
+                made = canvas.Lines2d.AddBy2Points(ea.Point.X, ea.Point.Y, eb.Point.X, eb.Point.Y);
+            }
+
+            Relations2d relations = canvas.Relations2d;
+            foreach ((object Element, (double X, double Y) Point) joint in new[] { ea, eb })
+            {
+                if (KeypointAt(made, joint.Point) is { } k1 && KeypointAt(joint.Element, joint.Point) is { } k2)
+                {
+                    relations.AddKeypoint(made, k1, joint.Element, k2);
+                }
+            }
+
+            caps.Add(made);
+        }
+
+        return caps;
+    }
+
+    /// <summary>Ends of the elements that no other element of the set shares (none for a closed chain or a circle).</summary>
+    private static List<(object Element, (double X, double Y) Point)> FreeEnds(List<object> elements)
+    {
+        var ends = new List<(object Element, (double X, double Y) Point)>();
+        foreach (object element in elements)
+        {
+            try
+            {
+                ((double X, double Y) start, (double X, double Y) end) = Termini(element);
+                if (Gap(start, end) > EditTolerance)
+                {
+                    ends.Add((element, start));
+                    ends.Add((element, end));
+                }
+            }
+            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
+            {
+                // Circles and ellipses have no ends.
+            }
+        }
+
+        return [.. ends.Where(p => !ends.Any(q => !ReferenceEquals(q.Element, p.Element) && Gap(q.Point, p.Point) <= EditTolerance))];
+    }
+
+    /// <summary>Start and end of an open 2D element (m), through IDispatch.</summary>
+    private static ((double X, double Y) Start, (double X, double Y) End) Termini(object element)
+    {
+        object?[] s = Late.CallByRef(element, "GetStartPoint", [0.0, 0.0], 0, 1);
+        object?[] e = Late.CallByRef(element, "GetEndPoint", [0.0, 0.0], 0, 1);
+        return ((Convert.ToDouble(s[0], CultureInfo.InvariantCulture), Convert.ToDouble(s[1], CultureInfo.InvariantCulture)),
+            (Convert.ToDouble(e[0], CultureInfo.InvariantCulture), Convert.ToDouble(e[1], CultureInfo.InvariantCulture)));
+    }
+
+    /// <summary>Middle of an arc (m); for other curves the midpoint of its ends.</summary>
+    private static (double X, double Y) Middle(object element)
+    {
+        if (element is Arc2d arc)
+        {
+            arc.GetCenterPoint(out double cx, out double cy);
+            double angle = arc.StartAngle + (arc.SweepAngle / 2);
+            return (cx + (arc.Radius * Math.Cos(angle)), cy + (arc.Radius * Math.Sin(angle)));
+        }
+
+        ((double X, double Y) start, (double X, double Y) end) = Termini(element);
+        return ((start.X + end.X) / 2, (start.Y + end.Y) / 2);
+    }
+
+    private static void DeleteAll(IEnumerable<object> elements)
+    {
+        foreach (object element in elements)
+        {
+            try
+            {
+                Late.Call(element, "Delete");
+            }
+            catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
+            {
+                // The error being reported is the failed offset.
+            }
         }
     }
 
@@ -454,6 +615,128 @@ public static partial class SketchService
 
         return new { deleted, elements = Summary(canvas) };
     }
+
+    public static readonly IReadOnlyList<string> Orders = ["front", "back", "forward", "backward"];
+
+    /// <summary>
+    /// Bring to Front, Send to Back, Bring Forward and Send Backward on elements of a drawing sheet. Verified: they change
+    /// ZOrder (lines at 5, 6, 7; the first brought to front: 7, 5, 6).
+    /// </summary>
+    public static object Order(SeContext context, string sketch, string[]? elements, string? to)
+    {
+        Sheet sheet = SheetOnly(ResolveCanvas(context, sketch), "order");
+        string method = to switch
+        {
+            "front" => "BringToFront",
+            "back" => "SendToBack",
+            "forward" => "BringForward",
+            "backward" => "SendBackward",
+            _ => throw ToolException.InvalidArgument("Action 'order' requires 'to': front, back, forward or backward."),
+        };
+        object[] e = EditedElements(context, elements, "order");
+        var rows = new List<object>();
+        for (int i = 0; i < e.Length; i++)
+        {
+            int before, after;
+            try
+            {
+                before = ZOrder(e[i]);
+                Late.Call(e[i], method);
+                after = ZOrder(e[i]);
+            }
+            catch (Exception ex) when (ComErrors.IsCallFailure(ex))
+            {
+                throw ToolException.InvalidArgument($"'{elements![i]}' has no drawing order on '{sheet.Name}'.", "Give 2D elements, text or annotations of the sheet.");
+            }
+
+            if (to is "front" or "forward" ? after < before : after > before)
+            {
+                throw new ToolException("edit_failed", $"Solid Edge moved '{elements![i]}' the wrong way ({before} to {after}).", "Check the order with se_sketch info.");
+            }
+
+            rows.Add(new { element = elements![i], zOrder = after, previous = before });
+        }
+
+        return new { to, elements = rows };
+    }
+
+    /// <summary>
+    /// Group: the elements become one group of the sheet, selected and moved together. Verified: Groups.Add and
+    /// AddToGroup; grouped elements leave the sheet's collections (three lines, two grouped: Lines2d counts one) and come
+    /// back with Ungroup.
+    /// </summary>
+    public static object Group(SeContext context, string sketch, string[]? elements)
+    {
+        Sheet sheet = SheetOnly(ResolveCanvas(context, sketch), "group");
+        object[] e = EditedElements(context, elements, "group");
+        if (e.Length < 2)
+        {
+            throw ToolException.InvalidArgument("A group needs two or more elements.");
+        }
+
+        SolidEdgeFrameworkSupport.Group group = ((SolidEdgeFrameworkSupport.Groups)sheet.Groups).Add();
+        try
+        {
+            group.AddToGroup(e.Length, e);
+            if (group.Count != e.Length)
+            {
+                throw new ToolException("edit_failed", $"Solid Edge grouped {group.Count} of the {e.Length} elements.", "Give 2D elements of the same sheet that are not in a group yet.");
+            }
+        }
+        catch (Exception ex) when (ex is ToolException || ComErrors.IsCallFailure(ex))
+        {
+            TryUngroup(sheet, group);
+            if (ex is ToolException)
+            {
+                throw;
+            }
+
+            throw new ToolException("edit_failed", $"Solid Edge could not group the elements: {ComErrors.Unwrap(ex).Message.Trim()}", "Give 2D elements of the same sheet.", ex);
+        }
+
+        return new { group = context.Register(group, "group2d", context.DocumentOf(sketch)), members = group.Count, groups = ((SolidEdgeFrameworkSupport.Groups)sheet.Groups).Count };
+    }
+
+    /// <summary>Ungroup (one group) or Ungroup All (every group of the sheet): the members go back to the sheet.</summary>
+    public static object Ungroup(SeContext context, string sketch, string? element)
+    {
+        Sheet sheet = SheetOnly(ResolveCanvas(context, sketch), "ungroup");
+        var groups = (SolidEdgeFrameworkSupport.Groups)sheet.Groups;
+        SolidEdgeFrameworkSupport.Group[] chosen = element is null
+            ? [.. Late.Items(groups).OfType<SolidEdgeFrameworkSupport.Group>()]
+            : [context.Handles.Resolve(element, "element") as SolidEdgeFrameworkSupport.Group
+                ?? throw ToolException.InvalidArgument($"'{element}' is not a group.", "Use the handle returned by action 'group', or no element to ungroup every group of the sheet.")];
+        int members = 0;
+        foreach (SolidEdgeFrameworkSupport.Group group in chosen)
+        {
+            members += group.Count;
+            TryUngroup(sheet, group);
+        }
+
+        if (element is not null)
+        {
+            context.Handles.Remove(element, "the group was ungrouped");
+        }
+
+        int left = groups.Count;
+        return element is null && left > 0
+            ? throw new ToolException("edit_failed", $"{left} group(s) are still on '{sheet.Name}'.", "List them with se_sketch info.")
+            : new { ungrouped = chosen.Length, members, groups = left };
+    }
+
+    private static void TryUngroup(Sheet sheet, SolidEdgeFrameworkSupport.Group group)
+    {
+        group.Ungroup();
+        if (Late.Items(sheet.Groups).Any(g => Late.SameObject(g, group)))
+        {
+            Late.Call(group, "Delete");
+        }
+    }
+
+    private static int ZOrder(object element) => Convert.ToInt32(Late.Get(element, "ZOrder"), System.Globalization.CultureInfo.InvariantCulture);
+
+    private static Sheet SheetOnly(Canvas2d canvas, string action) => canvas.Sheet
+        ?? throw ToolException.InvalidArgument($"Action '{action}' works on drawing sheets.", "Pass a drawing sheet or drawing document handle in 'sketch'.");
 
     /// <summary>Moves, rotates, scales or mirrors elements, or copies of them.</summary>
     private static object Transform(SeContext context, string sketch, string[]? handles, Edit edit, bool copy)

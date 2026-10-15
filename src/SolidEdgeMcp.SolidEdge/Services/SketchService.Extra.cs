@@ -466,6 +466,41 @@ public static partial class SketchService
         return new { deleted = handle };
     }
 
+    /// <summary>
+    /// Auto-Scale Sketch: the whole sketch is scaled so that one driving dimension takes a value. Verified in Solid Edge
+    /// 2026: Dimension.AutoScaleSketch(value m, out ok) on a driving dimension of 50 mm with value 0.1 scaled the sketch by 2
+    /// (a 30 mm line became 60); on a driven dimension, or when the sketch has a second driving dimension (which the scale
+    /// would change), it returns false and changes nothing.
+    /// </summary>
+    public static object AutoScale(SeContext context, string handle, double? value)
+    {
+        if (context.Handles.Resolve(handle, "constraint") is not SolidEdgeFrameworkSupport.Dimension dimension)
+        {
+            throw new ToolException("handle_wrong_type", $"'{handle}' is not a sketch dimension.", "Pass a dimension handle from se_sketch_constraint 'dimension' or 'list'.");
+        }
+
+        if (dimension.DimensionType is SolidEdgeFrameworkSupport.DimTypeConstants.igDimTypeAngular or SolidEdgeFrameworkSupport.DimTypeConstants.igDimTypeArcAngle)
+        {
+            throw ToolException.InvalidArgument("Auto-scale needs a length dimension; an angle does not change with the scale.");
+        }
+
+        if (!dimension.Constraint)
+        {
+            throw ToolException.InvalidArgument($"'{handle}' is a driven dimension.", "Auto-scale works with a driving dimension (se_sketch_constraint dimension).");
+        }
+
+        double target = Units.MmToM(Units.RequirePositive(value ?? throw ToolException.InvalidArgument("autoscale needs 'value': the new size in mm."), "value"));
+        double before = dimension.Value;
+        dimension.AutoScaleSketch(target, out bool scaled);
+        if (!scaled || Math.Abs(dimension.Value - target) > 1e-9)
+        {
+            throw new ToolException("constraint_failed", $"Solid Edge did not scale the sketch (the dimension is {Geo.Mm(dimension.Value)} mm).",
+                "Auto-scale works while this is the only driving dimension of the sketch: scale it before dimensioning the rest, or set the values (se_variables set).");
+        }
+
+        return new { dimension = handle, before = Geo.Mm(before), value = Geo.Mm(dimension.Value), scale = Math.Round(target / before, 9) };
+    }
+
     /// <summary>Geometry of a 2D element in mm (and degrees), in sketch coordinates.</summary>
     internal static object Describe2d(object element)
     {
@@ -524,6 +559,9 @@ public static partial class SketchService
                 return new { type = KindOf(element) };
         }
     }
+
+    /// <summary>Handle kind of a 2D element (line2d, circle2d…), for elements registered by other services.</summary>
+    internal static string ElementKind(object element) => KindOf(element);
 
     private static string KindOf(object element) => element switch
     {
@@ -689,6 +727,13 @@ public static partial class SketchService
         [c => c.Lines2d, c => c.Arcs2d, c => c.Circles2d, c => c.Ellipses2d, c => c.EllipticalArcs2d, c => c.BSplineCurves2d, c => c.Points2d];
 
     private static int[] ElementCounts(Canvas2d canvas) => ElementCollections.Select(c => Late.Count(c(canvas))).ToArray();
+
+    /// <summary>Counts of the 2D element collections of a drawing sheet, to find what an operation adds to it.</summary>
+    internal static int[] SheetElementCounts(SolidEdgeDraft.Sheet sheet) => ElementCounts(Canvas2d.Of(sheet));
+
+    /// <summary>The 2D elements added to a sheet since <paramref name="before"/>, registered beside <paramref name="relatedHandle"/>.</summary>
+    internal static object[] AddedOnSheet(SeContext context, SolidEdgeDraft.Sheet sheet, int[] before, string relatedHandle) =>
+        Registered(context, relatedHandle, NewElements(Canvas2d.Of(sheet), before).ToList());
 
     /// <summary>2D elements added to the sketch since <paramref name="before"/> (the collections grow at the end).</summary>
     private static IEnumerable<object> NewElements(Canvas2d canvas, int[] before)

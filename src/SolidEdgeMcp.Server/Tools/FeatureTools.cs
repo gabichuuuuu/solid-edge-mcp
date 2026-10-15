@@ -64,6 +64,7 @@ public enum FeatureEditAction
     Reorder,
     RollTo,
     RollToEnd,
+    MoveToSynchronous,
 }
 
 public enum ReorderPosition
@@ -163,6 +164,7 @@ public sealed class FeatureTools(ToolRunner runner)
         group: features = features next to each other in the tree (one or more), optional name; suppressing the group suppresses them | ungroup: feature = the group.
         reorder: feature moves before or after target (position); if a feature fails afterwards (it went before what it is built on), it is moved back.
         roll_to: rolls the model back to just after feature (PathFinder Go To): later features are rolled back and new features go after it | roll_to_end: brings them back.
+        move_to_synchronous: an ordered feature (e.g. the body of an imported part) and what depends on it become synchronous (PathFinder Move to Synchronous); the document switches to synchronous, as se_recognize needs.
         Example: {"action":"group","features":["feature:3","feature:4"],"name":"Bolt holes"}; {"action":"reorder","feature":"feature:5","target":"feature:3"}.
         """)]
     public Task<CallToolResult> FeatureEdit(

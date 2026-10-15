@@ -31,17 +31,19 @@ public sealed class AppTools(ToolRunner runner)
     [McpServerTool(Name = "se_export", Title = "Export to neutral formats", Destructive = false, OpenWorld = false)]
     [Description("""
         Writes a copy of a document in another format; the format comes from the extension of 'path' (absolute, in an allowed folder). The document itself is not renamed.
-        Part, sheet metal, assembly: .stp/.step, .igs/.iges, .x_t, .x_b, .stl, .jt, .sat, .3mf, .pdf (a page with a picture of the view; a 3D PDF is se_publish pdf3d). Draft: .pdf (the sheets chosen by the PDF options: the active one by default), .dxf, .dwg, .igs, .tif. PDF results give their pages and page sizes in mm.
+        Part, sheet metal, assembly: .stp/.step, .igs/.iges, .x_t, .x_b, .stl, .jt, .sat, .3mf, .pdf (a page with a picture of the view; a 3D PDF is se_publish pdf3d). Draft: .pdf (the sheets chosen by the PDF options: the active one by default), .dxf, .dwg, .igs, .tif. PDF results give their pages and page sizes in mm; STL files are written in mm (with their triangles and box).
         flatPattern=true (sheet metal): flat pattern as .dxf/.dwg. Images of the view: se_view capture with 'path'.
+        bodies (part, .x_t/.x_b; Save Selected Model): one design body (handle from se_body list) written alone, or all of them.
         """)]
     public Task<CallToolResult> Export(
         [Description("Absolute output path; its extension selects the format.")] string path,
         [Description("Document handle; default: active document.")] string? document = null,
         [Description("Replace the file if it exists.")] bool overwrite = false,
         [Description("Export the sheet metal flat pattern instead of the model (.dxf or .dwg).")] bool flatPattern = false,
+        [Description("Part: one design body handle (se_body list) to write alone, or all of them, as Parasolid (.x_t or .x_b).")] string[]? bodies = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_export", flatPattern ? "flat_pattern" : "export",
-            c => ExportService.Export(c, document, path, overwrite, flatPattern), cancellationToken);
+            c => ExportService.Export(c, document, path, overwrite, flatPattern, bodies), cancellationToken);
 
     [McpServerTool(Name = "se_command", Title = "Run a UI command", Destructive = true, OpenWorld = false)]
     [Description("""

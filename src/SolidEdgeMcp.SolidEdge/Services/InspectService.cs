@@ -15,7 +15,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 public static partial class InspectService
 {
     public static readonly IReadOnlyList<string> FaceTypes = ["all", "plane", "cylinder", "cone", "sphere", "torus"];
-    public static readonly IReadOnlyList<string> EdgeTypes = ["all", "line", "circle", "spline"];
+    public static readonly IReadOnlyList<string> EdgeTypes = ["all", "line", "circle", "spline", "open"];
 
     public static object Summary(SeContext context, string? documentHandle, string? source = null)
     {
@@ -171,7 +171,8 @@ public static partial class InspectService
 
     /// <summary>
     /// Edges of the body, of a feature or of a face, with endpoints, length and radius.
-    /// <paramref name="direction"/> keeps only the straight edges parallel to that vector (in either direction).
+    /// <paramref name="direction"/> keeps only the straight edges parallel to that vector (in either direction); type open keeps
+    /// the edges with one face only: the free edges of a surface, which Show Non-Stitched Edges shows (a solid has none).
     /// </summary>
     public static object Edges(SeContext context, string? documentHandle, string? source, string type, double[]? direction, int offset, int limit)
     {
@@ -190,12 +191,19 @@ public static partial class InspectService
             filter = item =>
             {
                 var edge = (Edge)item;
-                return (type == "all" || CurveType(edge.Geometry) == type)
+                return (type == "all" || (type == "open" ? FaceCount(edge) == 1 : CurveType(edge.Geometry) == type))
                     && (wanted is null || (LineDirection(edge) is { } d && Math.Abs(Cosine(Rotated(placement, d), wanted)) > ParallelCosine));
             };
         }
 
         return Page(context, topology.Collection, offset, limit, filter, item => DescribeEdge(context, topology, (Edge)item));
+    }
+
+    private static int FaceCount(Edge edge)
+    {
+        Array faces = Array.Empty<object>();
+        edge.GetFaces(out int count, ref faces);
+        return count;
     }
 
     /// <summary>Minimum cosine to consider two directions parallel (about 0.08°).</summary>
@@ -249,7 +257,8 @@ public static partial class InspectService
             Units.RequirePositive(density.Value, "density");
         }
 
-        (double documentDensity, double documentAccuracy) = StoredSettings(target);
+        double documentAccuracy = StoredSettings(target).Accuracy;
+        (double documentDensity, string? source) = Density(context, model, target);
         double useDensity = density ?? documentDensity;
         bool hasDensity = useDensity > 0;
         double accuracy = documentAccuracy is > 0 and < 1 ? documentAccuracy : 0.99;
@@ -282,7 +291,7 @@ public static partial class InspectService
             area = Geo.Mm2(r.Area),
             centerOfVolume = r.CenterOfVolume.Select(Geo.Mm).ToArray(),
             density = hasDensity ? useDensity : (double?)null,
-            densitySource = density is not null ? "argument" : hasDensity ? "document" : null,
+            densitySource = density is not null ? "argument" : source,
             mass = hasDensity ? Math.Round(r.Mass, 9) : (double?)null,
             centerOfGravity = hasDensity ? r.CenterOfGravity.Select(Geo.Mm).ToArray() : null,
             inertiaAboutOrigin = hasDensity
@@ -325,6 +334,8 @@ public static partial class InspectService
         // through IDispatch with an empty array of strings (as GetTopLevelAssemblyFileNames).
         object?[] update = Late.CallByRef(properties, "UpdateV2", [Array.Empty<string>()], 0);
         List<string> withoutDensity = update[0] is Array files ? [.. files.OfType<string>().Where(f => f.Length > 0)] : [];
+        // Verified: the beads of a weldment without a bead material are listed by a number (e.g. "384"), not by a file.
+        bool beadsWithoutDensity = assembly.WeldmentAssembly && withoutDensity.RemoveAll(f => !System.IO.Path.HasExtension(f)) > 0;
         Array cog = new double[3];
         Array cov = new double[3];
         Array global = new double[6];
@@ -343,8 +354,9 @@ public static partial class InspectService
                 "Check that its parts load and have solids (se_assembly list, se_geometry summary with 'source').");
         }
 
-        bool hasDensity = withoutDensity.Count == 0;
+        bool hasDensity = withoutDensity.Count == 0 && !beadsWithoutDensity;
         double[] g = [.. Geo.Doubles(global).Select(v => Math.Round(Units.KgM2ToKgMm2(v), 6))];
+        List<object> parts = PartsTable(context, assembly);
         return new
         {
             document = context.DocumentHandle((SolidEdgeDocument)assembly),
@@ -358,10 +370,70 @@ public static partial class InspectService
             principalAxes = hasDensity ? Geo.Doubles(axis1).Concat(Geo.Doubles(axis2)).Concat(Geo.Doubles(axis3)).Select(Geo.R).ToArray() : null,
             radiiOfGyration = hasDensity ? Geo.Doubles(radii).Select(Geo.Mm).ToArray() : null,
             partsWithoutDensity = withoutDensity,
+            weldBeadsWithoutDensity = beadsWithoutDensity ? true : (bool?)null,
+            parts = parts.Take(context.MaxListItems).ToList(),
+            moreParts = parts.Count > context.MaxListItems ? true : (bool?)null,
             units = new { length = "mm", area = "mm2", volume = "mm3", mass = "kg", inertia = "kg*mm2" },
             note = hasDensity ? null
-                : "Some parts have no density (partsWithoutDensity), so mass and inertia are not given: assign them a material (se_material apply).",
+                : string.Join(" ", new[]
+                {
+                    withoutDensity.Count > 0 ? "Some parts have no density (partsWithoutDensity): assign them a material (se_material apply on each part)." : null,
+                    beadsWithoutDensity ? "The weld beads have no material: se_material apply on this weldment gives them one." : null,
+                    "Mass and inertia are given once everything has a density.",
+                }.OfType<string>()),
         };
+    }
+
+    /// <summary>
+    /// The table of the Physical Properties Manager: each part file once, with its material, density, volume and mass, and the
+    /// number of its occurrences that count (those included in physical properties, at every level; the quantity of an
+    /// occurrence counts only in the bill of materials, verified). Mass = volume x density of the part.
+    /// </summary>
+    private static List<object> PartsTable(SeContext context, AssemblyDocument assembly)
+    {
+        var found = new Dictionary<string, (SolidEdgeDocument Document, int Count)>(StringComparer.OrdinalIgnoreCase);
+        void Walk(AssemblyDocument parent)
+        {
+            foreach (Occurrence occurrence in AssemblyService.Items<Occurrence>(parent.Occurrences))
+            {
+                if (!occurrence.IncludeInPhysicalProperties || Late.TryGet(occurrence, "OccurrenceDocument") is not SolidEdgeDocument document)
+                {
+                    continue;
+                }
+
+                if (document is AssemblyDocument subassembly)
+                {
+                    Walk(subassembly);
+                    continue;
+                }
+
+                string file = occurrence.OccurrenceFileName;
+                found[file] = (found.TryGetValue(file, out var seen) ? seen.Document : document, seen.Count + 1);
+            }
+        }
+
+        Walk(assembly);
+        var rows = new List<object>();
+        foreach ((string file, (SolidEdgeDocument document, int count)) in found.OrderBy(f => System.IO.Path.GetFileName(f.Key), StringComparer.OrdinalIgnoreCase))
+        {
+            ModelDocument? model = ModelDocument.TryGet(document);
+            double? volume = model?.TryVolume();
+            double density = model?.TryModel() is { } first ? Density(context, model, first).Density : 0;
+            double? mass = volume is not null && density > 0 ? volume * density : null;
+            rows.Add(new
+            {
+                name = System.IO.Path.GetFileNameWithoutExtension(file),
+                file,
+                material = MaterialService.MaterialName(context, document),
+                density = density > 0 ? density : (double?)null,
+                occurrences = count,
+                volume = volume is null ? (double?)null : Geo.Mm3(volume.Value),
+                mass = mass is null ? (double?)null : Math.Round(mass.Value, 9),
+                totalMass = mass is null ? (double?)null : Math.Round(mass.Value * count, 9),
+            });
+        }
+
+        return rows;
     }
 
     private sealed record PhysicalResult(double Volume, double Area, double Mass, double[] CenterOfGravity, double[] CenterOfVolume,
@@ -402,27 +474,55 @@ public static partial class InspectService
             [.. Geo.Doubles(principal)], [.. Geo.Doubles(axes)], [.. Geo.Doubles(radii)], achieved);
     }
 
-    /// <summary>Minimum distance between two elements (faces, edges, vertices, bodies, planes).</summary>
-    public static object Distance(SeContext context, string? documentHandle, string first, string second)
+    /// <summary>
+    /// Minimum or maximum distance between two elements (faces, edges, vertices, bodies, planes). Verified in Solid Edge 2026:
+    /// MeasureDistance with MaximumDistance gives the farthest pair of points (the box diagonal between two opposite faces).
+    /// </summary>
+    public static object Distance(SeContext context, string? documentHandle, string? first, string? second, string type = "minimum")
     {
-        object a = context.Handles.Resolve(first, "first");
-        object b = context.Handles.Resolve(second, "second");
+        string firstHandle = first ?? throw ToolException.InvalidArgument("distance needs 'first' and 'second': element handles.");
+        string secondHandle = second ?? throw ToolException.InvalidArgument("distance needs 'second': an element handle.");
+        bool maximum = type switch
+        {
+            "minimum" => false,
+            "maximum" => true,
+            _ => throw ToolException.InvalidArgument($"Unknown distance type '{type}'.", "Use minimum or maximum."),
+        };
+        object a = context.Handles.Resolve(firstHandle, "first");
+        object b = context.Handles.Resolve(secondHandle, "second");
         Array p1 = new double[3];
         Array p2 = new double[3];
         double distance;
         if (a is OccurrenceElement or Occurrence || b is OccurrenceElement or Occurrence)
         {
             // In an assembly it is measured between references (occurrence + element), in assembly coordinates.
-            AssemblyDocument assembly = context.GetDocument<AssemblyDocument>(context.Handles.GetScope(first), "assembly");
-            assembly.MinimumDistance(InAssembly(assembly, a, "first"), InAssembly(assembly, b, "second"), out distance, ref p1, ref p2);
+            AssemblyDocument assembly = context.GetDocument<AssemblyDocument>(context.Handles.GetScope(firstHandle), "assembly");
+            object ra = InAssembly(assembly, a, "first");
+            object rb = InAssembly(assembly, b, "second");
+            if (maximum)
+            {
+                assembly.MeasureDistance(ra, rb, MeasureDistanceTypeConstants.MeasureDistanceTypeConstants_MaximumDistance,
+                    out distance, out _, out _, out _, ref p1, ref p2);
+            }
+            else
+            {
+                assembly.MinimumDistance(ra, rb, out distance, ref p1, ref p2);
+            }
         }
         else
         {
-            ModelDocument model = ModelDocument.For(context, documentHandle, first);
-            model.MinimumDistance(a, b, out distance, ref p1, ref p2);
+            ModelDocument model = ModelDocument.For(context, documentHandle, firstHandle);
+            if (maximum)
+            {
+                model.MaximumDistance(a, b, out distance, ref p1, ref p2);
+            }
+            else
+            {
+                model.MinimumDistance(a, b, out distance, ref p1, ref p2);
+            }
         }
 
-        return new { distance = Geo.Mm(distance), pointOnFirst = Geo.Mm(p1), pointOnSecond = Geo.Mm(p2) };
+        return new { type, distance = Geo.Mm(distance), pointOnFirst = Geo.Mm(p1), pointOnSecond = Geo.Mm(p2) };
     }
 
     private static object InAssembly(AssemblyDocument assembly, object value, string argumentName) => value switch
@@ -441,6 +541,36 @@ public static partial class InspectService
         double cos = Math.Clamp(u.Zip(v, (x, y) => x * y).Sum() / (Geo.Length(u) * Geo.Length(v)), -1, 1);
         double angle = Units.RadToDeg(Math.Acos(cos));
         return new { angle = Math.Round(angle, 9), supplement = Math.Round(180 - angle, 9), firstDirection = u.Select(Geo.R), secondDirection = v.Select(Geo.R) };
+    }
+
+    /// <summary>
+    /// Volume (m³), area (m²) and mass (kg) of a part or sheet metal as <see cref="Physical"/> measures them: with the stored
+    /// accuracy, and from the first body when the part has several (see the note there).
+    /// </summary>
+    internal static (double Volume, double Area, double Mass) Measure(ModelDocument model, double density)
+    {
+        Model target = model.RequireModel();
+        double stored = StoredSettings(target).Accuracy;
+        double accuracy = stored is > 0 and < 1 ? stored : 0.99;
+        IReadOnlyList<(Model Model, Body Body)> bodies = model.Models.Count > 1 && model.TryBodies() is { } readable ? readable : [];
+        PhysicalResult r = bodies.Count > 1 ? Compute(bodies[0].Body, density, accuracy, 1) : Compute(target, density, accuracy, 0);
+        return (r.Volume, r.Area, r.Mass);
+    }
+
+    /// <summary>
+    /// Density of a part in kg/m³: the one stored with its physical properties ("document"), else its material's ("material");
+    /// 0 without either. Verified in Solid Edge 2026: a material applied while the part has no solid yet leaves the stored
+    /// density at 0 until the physical properties are stored again (a save stored them), while the material gives its density.
+    /// </summary>
+    internal static (double Density, string? Source) Density(SeContext context, ModelDocument model, Model target)
+    {
+        double stored = StoredSettings(target).Density;
+        if (stored > 0)
+        {
+            return (stored, "document");
+        }
+
+        return MaterialService.Density(context, model.Document) is double material and > 0 ? (material, "material") : (0, null);
     }
 
     internal static (double Density, double Accuracy) StoredSettings(Model model)

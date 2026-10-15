@@ -94,6 +94,89 @@ public static partial class RelationService
         return new { deleted = handle, type };
     }
 
+    /// <summary>
+    /// Changes the offset (mm) or the angle (degrees) of a relation, or suppresses it, as editing its value in the assembly
+    /// does: the occurrences follow, and gear relations drive the parts they connect (verified in Solid Edge 2026). A value
+    /// the relations cannot solve is put back. Returns the relation and the occurrences that moved.
+    /// </summary>
+    public static object Edit(SeContext context, string? handle, double? offset, double? angle, bool? suppress)
+    {
+        if (string.IsNullOrWhiteSpace(handle))
+        {
+            throw ToolException.InvalidArgument("'relation' is required: a handle from se_relations 'list' or 'add'.");
+        }
+
+        if (offset is null && angle is null && suppress is null)
+        {
+            throw ToolException.InvalidArgument("'edit' needs 'offset' (mm), 'angle' (degrees) or 'suppress'.");
+        }
+
+        object relation = context.Handles.Resolve(handle, "relation");
+        Occurrence[] members = Members(relation);
+        AssemblyDocument assembly = members.Length > 0 ? members[0].TopLevelDocument : AssemblyService.Assembly(context, null);
+        var changes = new List<(string Member, object Old, object New)>();
+        if (offset is { } mm)
+        {
+            changes.Add(Late.TryGet(relation, "Offset") is double old && relation is not AngularRelation3d
+                ? ("Offset", old, Units.MmToM(mm))
+                : throw ToolException.InvalidArgument($"A {TypeName(relation)} relation has no offset.",
+                    "Offsets: planar relations and axial ones with a parallel offset; an angle relation takes 'angle'."));
+        }
+
+        if (angle is { } degrees)
+        {
+            changes.Add(relation is AngularRelation3d angular
+                ? ("Angle", angular.Angle, Units.DegToRad(degrees))
+                : throw ToolException.InvalidArgument($"A {TypeName(relation)} relation has no angle: only angle relations do."));
+        }
+
+        if (suppress is { } suppressed)
+        {
+            changes.Add(Late.TryGet(relation, "Suppress") is bool old
+                ? ("Suppress", old, suppressed)
+                : throw ToolException.InvalidArgument($"Solid Edge does not suppress a {TypeName(relation)} relation."));
+        }
+
+        Occurrence[] all = [.. AssemblyService.Items<Occurrence>(assembly.Occurrences)];
+        Dictionary<int, double[]> before = all.ToDictionary(o => o.OccurrenceID, o => Placement.Of(o).Matrix);
+        try
+        {
+            foreach ((string member, _, object value) in changes)
+            {
+                Late.Set(relation, member, value);
+            }
+
+            string status = DetailedStatus(relation);
+            if (suppress is not true && status != "solved")
+            {
+                throw new ToolException("relation_failed", $"With the new value the {TypeName(relation)} relation is {status}.",
+                    "Check the value, and the other relations of its occurrences (se_relations list with 'occurrence'); the old value was put back.");
+            }
+        }
+        catch (Exception ex) when (ex is ToolException || (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex)))
+        {
+            foreach ((string member, object old, _) in Enumerable.Reverse(changes))
+            {
+                try
+                {
+                    Late.Set(relation, member, old);
+                }
+                catch (Exception undo) when (Late.IsMemberFailure(undo) && !ComErrors.IsGone(undo))
+                {
+                    // Best effort: the error below reports the original failure.
+                }
+            }
+
+            throw ex as ToolException ?? new ToolException("relation_failed", $"Solid Edge refused the new value: {ex.Message}",
+                "Check the value; the old one was put back.", ex);
+        }
+
+        HashSet<int> grounded = AssemblyService.GroundedIds(assembly);
+        object[] moved = [.. all.Where(o => Placement.Of(o).Matrix.Zip(before[o.OccurrenceID], (a, b) => Math.Abs(a - b)).Max() > 1e-9)
+            .Select(o => AssemblyService.Describe(context, assembly, o, grounded))];
+        return new { relation = Describe(context, assembly, relation, []), moved };
+    }
+
     public static object Add(SeContext context, string? documentHandle, RelationSpec spec)
     {
         if (!Types.Contains(spec.Type))
@@ -722,6 +805,13 @@ public static partial class RelationService
 
         Side first = Resolve(context, assembly, moving, spec.Element1, "element1");
         Side second = Resolve(context, assembly, target, spec.Element2, "element2");
+        if (second.Element is AsmRefPlane)
+        {
+            // Verified in Solid Edge 2026: AddPoint onto an assembly plane fails (E_NOINTERFACE), also through CreateReference.
+            throw ToolException.InvalidArgument("A connect relation cannot target an assembly plane: Solid Edge refuses it.",
+                "Connect onto a face, an edge or a reference plane of another occurrence's part, or use type 'planar' (or 'align') with a face or plane of this part and the assembly plane.");
+        }
+
         double Gap()
         {
             double[] point = KeyPointOf(first, key1, "element1");
@@ -1025,7 +1115,7 @@ public static partial class RelationService
             return AssemblyService.Occurrence(context, occurrence, occurrenceName);
         }
 
-        return !string.IsNullOrWhiteSpace(element) && !int.TryParse(element, out _)
+        return !string.IsNullOrWhiteSpace(element) && !int.TryParse(element, out _) && !OrientedPlanes.TryAxis(element, out _)
             && context.Handles.Resolve(element, elementName) is OccurrenceElement qualified
             ? qualified.Occurrence
             : null;
@@ -1036,7 +1126,7 @@ public static partial class RelationService
         if (string.IsNullOrWhiteSpace(element))
         {
             throw ToolException.InvalidArgument($"'{argumentName}' is required: a face or reference plane handle"
-                + (argumentName.StartsWith("element", StringComparison.Ordinal) && occurrence is null ? ", or '1'-'3' for the assembly base planes." : "."),
+                + (argumentName.StartsWith("element", StringComparison.Ordinal) && occurrence is null ? ", or 'xy'/'yz'/'xz' ('1'-'3') for the assembly base planes." : "."),
                 "Get faces with se_geometry action 'faces' and 'source' = the occurrence handle (coordinates are assembly coordinates).");
         }
 
@@ -1044,13 +1134,17 @@ public static partial class RelationService
         {
             object plane = int.TryParse(element, out int index)
                 ? Late.Call(assembly.AsmRefPlanes, "Item", index) ?? throw ToolException.NotFound($"The assembly has no plane {index}.")
-                : context.Handles.Resolve(element, argumentName);
+                : OrientedPlanes.TryAxis(element, out int axis)
+                    ? OrientedPlanes.Find(Late.Items(assembly.AsmRefPlanes), axis, element)
+                    : context.Handles.Resolve(element, argumentName);
             return plane is AsmRefPlane
                 ? new Side(plane, plane, null)
-                : throw ToolException.InvalidArgument($"Without its occurrence, '{argumentName}' must be an assembly reference plane ('1'-'3' or a handle).");
+                : throw ToolException.InvalidArgument($"Without its occurrence, '{argumentName}' must be an assembly reference plane ('xy', 'yz', 'xz', '1'-'3' or a handle).");
         }
 
-        object value = context.Handles.Resolve(element, argumentName);
+        object value = int.TryParse(element, out int partIndex) || OrientedPlanes.TryAxis(element, out _)
+            ? PartPlane(occurrence, element, partIndex, argumentName)
+            : context.Handles.Resolve(element, argumentName);
         if (value is OccurrenceElement qualified)
         {
             if (qualified.Occurrence.OccurrenceID != occurrence.OccurrenceID)
@@ -1069,6 +1163,23 @@ public static partial class RelationService
 
         object reference = assembly.CreateReference(occurrence, value);
         return new Side(value, reference, occurrence);
+    }
+
+    /// <summary>A base plane of the occurrence's part: 'xy', 'yz', 'xz' by orientation, or its index in the part.</summary>
+    private static object PartPlane(Occurrence occurrence, string element, int index, string argumentName)
+    {
+        if (occurrence.OccurrenceDocument is not SolidEdgeDocument document || occurrence.Subassembly)
+        {
+            throw ToolException.InvalidArgument($"'{argumentName}' = '{element}' names a plane of a part, and '{occurrence.Name}' is not a part.",
+                "Use a face, or a plane handle from se_ref_plane list with document = the occurrence.");
+        }
+
+        RefPlanes planes = ModelDocument.From(document).RefPlanes;
+        return OrientedPlanes.TryAxis(element, out int axis)
+            ? OrientedPlanes.Find(Late.Items(planes), axis, element)
+            : index >= 1 && index <= planes.Count
+                ? planes.Item(index)
+                : throw ToolException.NotFound($"The part of '{occurrence.Name}' has no plane {index}.", "List them with se_ref_plane list, document = the occurrence.");
     }
 
     /// <summary>Point and outward normal of a plane (m, assembly coordinates).</summary>
@@ -1208,6 +1319,104 @@ public static partial class RelationService
         })
         .OfType<Occurrence>().Where(o => Late.TryGet(o, "OccurrenceID") is not null)
         .DistinctBy(o => o.OccurrenceID).ToArray();
+
+    /// <summary>
+    /// Turns an occurrence about an axis as dragging it does, so that its gear relations drive the parts they connect
+    /// (verified in Solid Edge 2026: a placement written through the API does not drive a gear, an angle relation does). A
+    /// temporary angle relation between a base plane of its part and one of the assembly, measured in the assembly base
+    /// plane normal to the axis, is set to the current angle (nothing moves), changed by the turn and deleted. Returns the
+    /// other occurrences that moved, or null with everything put back when the axis is not along an assembly base axis or
+    /// the occurrence does not end where the turn puts it (an axis that is not the one it turns about, or held).
+    /// </summary>
+    internal static Occurrence[]? TurnThroughAngle(Occurrence occurrence, double[] direction, double radians, double[] expected)
+    {
+        if (occurrence.OccurrenceDocument is not SolidEdgeDocument part || occurrence.Subassembly)
+        {
+            return null;
+        }
+
+        AssemblyDocument assembly = occurrence.TopLevelDocument;
+        double[] axis = Unit(direction);
+        double Along(Side side) => Math.Abs(Dot(PlaneOf(side, "plane").Normal, axis));
+        Side[] bases = [.. OrientedPlanes.Bases(Late.Items(assembly.AsmRefPlanes)).Select(p => new Side(p, p, null))];
+        Side? measure = bases.FirstOrDefault(s => Along(s) >= ParallelCosine);
+        Side? fixedPlane = bases.FirstOrDefault(s => Along(s) <= PerpendicularCosine);
+        Side? partPlane = OrientedPlanes.Bases(Late.Items(ModelDocument.From(part).RefPlanes))
+            .Select(p => new Side(p, assembly.CreateReference(occurrence, p), occurrence))
+            .FirstOrDefault(s => Along(s) <= PerpendicularCosine);
+        if (measure is null || fixedPlane is null || partPlane is null)
+        {
+            return null;
+        }
+
+        Occurrence[] all = [.. AssemblyService.Items<Occurrence>(assembly.Occurrences)];
+        Dictionary<int, double[]> before = all.ToDictionary(o => o.OccurrenceID, o => Placement.Of(o).Matrix);
+        static bool Same(double[] a, double[] b) => a.Zip(b, (x, y) => Math.Abs(x - y)).Max() <= 1e-7;
+        bool At(double[] goal) => Same(Placement.Of(occurrence).Matrix, goal);
+        AngularRelation3d? relation = null;
+        bool turned = false;
+        try
+        {
+            double current = Math.Acos(Math.Clamp(Dot(PlaneOf(partPlane, "plane").Normal, PlaneOf(fixedPlane, "plane").Normal), -1, 1));
+            relation = assembly.Relations3d.AddAngular(partPlane.Reference, fixedPlane.Reference, false, false,
+                measure.Reference, measure.Reference, current, true, true, true);
+            // The relation's own angle runs over the full turn: the value that keeps the part where it is comes first.
+            foreach (double held in new[] { current, (2 * Math.PI) - current, Math.PI - current, Math.PI + current })
+            {
+                relation.Angle = held;
+                if (DetailedStatus(relation) != "solved" || !At(before[occurrence.OccurrenceID]))
+                {
+                    continue;
+                }
+
+                foreach (double value in new[] { held + radians, held - radians })
+                {
+                    relation.Angle = ((value % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
+                    if (DetailedStatus(relation) == "solved" && At(expected))
+                    {
+                        turned = true;
+                        break;
+                    }
+                }
+
+                break;
+            }
+        }
+        catch (Exception ex) when (Rejected(ex))
+        {
+            turned = false;
+        }
+        finally
+        {
+            if (relation is not null)
+            {
+                TryDelete(relation);
+            }
+        }
+
+        Occurrence[] moved = [.. all.Where(o => !Same(Placement.Of(o).Matrix, before[o.OccurrenceID]))];
+        if (turned && At(expected))
+        {
+            return [.. moved.Where(o => o.OccurrenceID != occurrence.OccurrenceID)];
+        }
+
+        foreach (Occurrence other in moved)
+        {
+            Array matrix = before[other.OccurrenceID];
+            other.PutMatrix(ref matrix, true);
+        }
+
+        return null;
+    }
+
+    /// <summary>Names of the occurrences tied to <paramref name="occurrence"/> by a gear relation.</summary>
+    internal static string[] GearPartners(Occurrence occurrence)
+    {
+        int id = occurrence.OccurrenceID;
+        return [.. Late.Items(occurrence.TopLevelDocument.Relations3d).OfType<GearRelation3d>()
+            .Select(Members).Where(members => members.Any(o => o.OccurrenceID == id))
+            .SelectMany(members => members.Where(o => o.OccurrenceID != id).Select(o => o.Name)).Distinct()];
+    }
 
     private static object? ParentOf(object? element) => element is null ? null : Late.TryGet(element, "Parent");
 

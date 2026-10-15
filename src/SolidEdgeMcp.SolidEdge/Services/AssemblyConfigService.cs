@@ -55,7 +55,10 @@ public static class AssemblyConfigService
 
         Configuration saved = Find(assembly, title)
             ?? throw new ToolException("configuration_failed", $"Solid Edge did not save the configuration '{title}'.");
-        return new { saved = Describe(saved), hidden = Hidden(assembly) };
+        string? note = AssemblyExplodeService.IsExploded(assembly)
+            ? $"The assembly is exploded, and this display configuration does not keep the explode. {AssemblyExplodeService.Keep}"
+            : null;
+        return new { saved = Describe(saved), hidden = Hidden(assembly), note };
     }
 
     /// <summary>Applies a configuration: the components it hides are hidden and the others shown.</summary>

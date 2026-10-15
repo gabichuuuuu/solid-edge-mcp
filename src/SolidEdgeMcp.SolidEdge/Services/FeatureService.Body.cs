@@ -37,7 +37,8 @@ public sealed record PartFeatureSpec(
     string WeldSide = "arrow",
     string? Note = null,
     bool AllAround = false,
-    bool Field = false);
+    bool Field = false,
+    bool Coaxial = false);
 
 public static partial class FeatureService
 {
@@ -45,7 +46,7 @@ public static partial class FeatureService
     // shaft or a hole; end faces or edges; HoleData from Add or AddEx with the ISO Metric table, regular, tapped or thread
     // type; reserved arguments missing, null or 0; arrays by value or by reference). Threads are made with se_hole 'tapped'
     // (cosmetic) or se_thread (physical, a helix cutout).
-    public static readonly IReadOnlyList<string> PartFeatureActions = ["rib", "thicken", "mirror_body", "delete_faces", "delete_holes", "delete_rounds", "delete_region", "offset_faces", "replace_faces", "rotate_faces", "redefine_faces", "resize_holes", "resize_rounds", "normal_protrusion", "normal_cutout", "split", "cut_by_plane", "unite", "slot", "web_network", "lip", "scale_body", "copy_part", "fillet_weld", "label_weld"];
+    public static readonly IReadOnlyList<string> PartFeatureActions = ["rib", "thicken", "mirror_body", "delete_faces", "delete_holes", "delete_rounds", "delete_region", "offset_faces", "replace_faces", "rotate_faces", "redefine_faces", "resize_holes", "resize_rounds", "radiate", "normal_protrusion", "normal_cutout", "split", "cut_by_plane", "unite", "slot", "web_network", "lip", "scale_body", "copy_part", "fillet_weld", "label_weld"];
 
     public static object PartFeature(SeContext context, string? documentHandle, PartFeatureSpec spec) => spec.Action switch
     {
@@ -63,6 +64,7 @@ public static partial class FeatureService
         "redefine_faces" => RedefineFaces(context, documentHandle, spec),
         "resize_holes" => ResizeHoles(context, documentHandle, spec),
         "resize_rounds" => ResizeRounds(context, documentHandle, spec),
+        "radiate" => Radiate(context, documentHandle, spec),
         "normal_protrusion" => NormalToFace(context, documentHandle, spec, cut: false),
         "normal_cutout" => NormalToFace(context, documentHandle, spec, cut: true),
         "split" => SplitBody(context, documentHandle, spec),
@@ -126,7 +128,11 @@ public static partial class FeatureService
         throw last!;
     }
 
-    /// <summary>Thickens faces by a distance: outwards by default (adds material), or the other way.</summary>
+    /// <summary>
+    /// Thickens faces by a distance: outwards by default (adds material), or the other way. In a part that has only
+    /// surfaces the thickened surface becomes the first solid (Models.AddThickenFeature; verified: a 120 degree arc of
+    /// radius 40 extruded 60 as a surface and thickened 2 mm gives 10304.42 mm3).
+    /// </summary>
     private static object Thicken(SeContext context, string? documentHandle, PartFeatureSpec spec)
     {
         if (spec.Faces is not { Length: > 0 })
@@ -145,14 +151,23 @@ public static partial class FeatureService
         };
         Array faces = spec.Faces.Select(h => (object)context.Handles.Resolve<Face>(h, "faces")).ToArray();
         bool switched = model.EnsureOrdered();
-        Model target = model.RequireModel();
-        double before = model.Volume();
+        Model? target = model.TryModel();
+        double before = target is null ? 0 : model.Volume();
         ToolException? last = null;
         foreach (FeaturePropertyConstants side in sides)
         {
             try
             {
-                object feature = Create("thicken", () => target.Thickens.Add(side, thickness, faces.Length, ref faces));
+                object feature = Create("thicken", () =>
+                {
+                    if (target is not null)
+                    {
+                        return target.Thickens.Add(side, thickness, faces.Length, ref faces);
+                    }
+
+                    Model created = model.Models.AddThickenFeature(side, thickness, faces.Length, ref faces);
+                    return created.Thickens.Item(created.Thickens.Count);
+                });
                 return Verify(context, model, feature, before, 1, switched,
                     direction: side == FeaturePropertyConstants.igRight ? "normal" : "reverse");
             }

@@ -13,7 +13,8 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_body does: the action and its inputs. Lengths in mm.</summary>
 public sealed record BodySpec(string Action, string[]? Targets = null, string[]? Tools = null, string[]? Bodies = null,
-    string Side = "auto", double? Thickness = null, double Clearance = 0, bool Thicken = true, string[]? Paths = null);
+    string Side = "auto", double? Thickness = null, double Clearance = 0, bool Thicken = true, string[]? Paths = null, string? Report = null,
+    string? Assembly = null, bool Overwrite = false, bool FullBody = false);
 
 /// <summary>
 /// Operations between bodies (ordered modelling): Boolean subtract, intersect and unite, emboss, and design bodies turned
@@ -22,7 +23,7 @@ public sealed record BodySpec(string Action, string[]? Targets = null, string[]?
 /// </summary>
 public static partial class FeatureService
 {
-    public static readonly IReadOnlyList<string> BodyActions = ["list", "subtract", "intersect", "unite", "emboss", "to_construction", "to_design", "divide"];
+    public static readonly IReadOnlyList<string> BodyActions = ["list", "subtract", "intersect", "unite", "emboss", "to_construction", "to_design", "divide", "heal", "publish"];
 
     public static object BodyOperation(SeContext context, string? documentHandle, BodySpec spec) => spec.Action switch
     {
@@ -34,8 +35,114 @@ public static partial class FeatureService
         "to_construction" => ToConstruction(context, documentHandle, spec.Bodies),
         "to_design" => ToDesign(context, documentHandle, spec.Bodies),
         "divide" => Divide(context, documentHandle, spec.Tools, spec.Paths),
+        "heal" => Heal(context, documentHandle, spec.Report, spec.FullBody),
+        "publish" => PublishBodies(context, documentHandle, spec.Bodies, spec.Assembly, spec.Overwrite),
         _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", BodyActions)}."),
     };
+
+    /// <summary>
+    /// Heals and optimizes the design bodies, as the Optimize command (useful on imported bodies): Clean body always, then
+    /// Simplify body only, or Full body optimization with <paramref name="fullBody"/>. Verified in Solid Edge 2026:
+    /// Model.HealAndOptimizeBodyEx(heal, optimize, clean, fullBody, report, file) on a body imported from STEP kept it
+    /// valid and wrote the report, face and edge counts by geometry type before and after. The Geometry Inspector queries
+    /// (Model.GetFaultsOfBody, GetSmallFacesOfBody, GetSliverFacesOfBody) fail through the API: E_POINTER with the
+    /// interop, DISP_E_TYPEMISMATCH through IDispatch whatever the output arrays.
+    /// </summary>
+    private static object Heal(SeContext context, string? documentHandle, string? report, bool fullBody)
+    {
+        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        string? kept = report is null ? null : context.Paths.Check(report, "report");
+        if (kept is not null && File.Exists(kept))
+        {
+            throw new ToolException("file_exists", $"'{kept}' already exists.", "Give a new file for the report.");
+        }
+
+        IReadOnlyList<Model> models = model.MeasuredModels();
+        if (model.TryBodies() is not { Count: > 0 })
+        {
+            throw new ToolException("no_body", "The part has no design body to heal.");
+        }
+
+        double before = model.Volume();
+        var faces = new Dictionary<string, (int Before, int After)>();
+        var edges = new Dictionary<string, (int Before, int After)>();
+        var text = new List<string>();
+        foreach (Model owner in models)
+        {
+            string file = Path.Combine(context.Paths.WorkFolder, $"heal_{Guid.NewGuid():N}.txt");
+            try
+            {
+                owner.HealAndOptimizeBodyEx(true, true, true, fullBody, true, file);
+                if (File.Exists(file))
+                {
+                    string[] lines = File.ReadAllLines(file);
+                    text.AddRange(lines);
+                    HealCounts(lines, faces, edges);
+                }
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+                throw new ToolException("feature_failed", $"Solid Edge could not heal the body: {ex.Message.Trim()}", "Check the body with se_physical; a mesh body cannot be healed.", ex);
+            }
+            finally
+            {
+                File.Delete(file);
+            }
+        }
+
+        if (kept is not null)
+        {
+            File.WriteAllLines(kept, text);
+        }
+
+        context.ModelChanged(model.Document, "the bodies were healed and optimized");
+        double after = model.Volume();
+        static object Rows(Dictionary<string, (int Before, int After)> counts) =>
+            counts.Where(c => c.Value.Before != 0 || c.Value.After != 0).Select(c => new { type = c.Key, before = c.Value.Before, after = c.Value.After }).ToArray();
+        return new
+        {
+            document = context.DocumentHandle(model.Document),
+            bodies = models.Count,
+            fullBody,
+            volume = Geo.Mm3(after),
+            volumeChange = Geo.Mm3(after - before),
+            faces = new { before = faces.Values.Sum(v => v.Before), after = faces.Values.Sum(v => v.After), types = Rows(faces) },
+            edges = new { before = edges.Values.Sum(v => v.Before), after = edges.Values.Sum(v => v.After), types = Rows(edges) },
+            report = kept,
+        };
+    }
+
+    /// <summary>Adds the counts of a heal report (rows "Plane   8   8" under "Face Count" and "Edge Count") to the totals.</summary>
+    internal static void HealCounts(IEnumerable<string> lines, Dictionary<string, (int Before, int After)> faces, Dictionary<string, (int Before, int After)> edges)
+    {
+        Dictionary<string, (int Before, int After)>? section = null;
+        foreach (string line in lines)
+        {
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith("Face Count", StringComparison.OrdinalIgnoreCase))
+            {
+                section = faces;
+                continue;
+            }
+
+            if (trimmed.StartsWith("Edge Count", StringComparison.OrdinalIgnoreCase))
+            {
+                section = edges;
+                continue;
+            }
+
+            System.Text.RegularExpressions.Match row = System.Text.RegularExpressions.Regex.Match(trimmed, @"^([A-Za-z][A-Za-z\- ]*?)\s{2,}(\d+)\s+(\d+)$");
+            if (section is null || !row.Success || row.Groups[1].Value.Equals("Total", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string type = row.Groups[1].Value.Trim().ToLowerInvariant().Replace(' ', '_').Replace('-', '_');
+            (int b, int a) = section.GetValueOrDefault(type);
+            section[type] = (b + int.Parse(row.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture),
+                a + int.Parse(row.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture));
+        }
+    }
 
     /// <summary>The design bodies and the construction bodies (closed solids, surfaces and curves) of a part.</summary>
     private static object ListBodies(SeContext context, string? documentHandle)

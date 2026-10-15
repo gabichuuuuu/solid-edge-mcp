@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Gabriel Spoleto Couto
 // SPDX-License-Identifier: AGPL-3.0-only
 
+using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
@@ -28,11 +29,7 @@ public static partial class FeatureService
     private static object DeleteFaces(SeContext context, string? documentHandle, PartFeatureSpec spec)
     {
         (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "delete_faces", "the faces to delete");
-        bool switched = model.EnsureOrdered();
-        double before = model.Volume();
-        object set = FaceSet(target, faces);
-        object feature = Create("delete faces", () => target.DeleteFaces.Add(set));
-        return Verify(context, model, feature, before, 0, switched);
+        return InDocumentMode(context, model, target, "delete faces", 0, owner => owner.DeleteFaces.Add(FaceSet(owner, faces)), featureless: true);
     }
 
     /// <summary>
@@ -150,11 +147,7 @@ public static partial class FeatureService
     private static object DeleteRounds(SeContext context, string? documentHandle, PartFeatureSpec spec)
     {
         (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "delete_rounds", "the faces of the rounds");
-        bool switched = model.EnsureOrdered();
-        double before = model.Volume();
-        object set = FaceSet(target, faces);
-        object feature = Create("delete rounds", () => target.DeleteBlends.Add(set));
-        return Verify(context, model, feature, before, 0, switched);
+        return InDocumentMode(context, model, target, "delete rounds", 0, owner => owner.DeleteBlends.Add(FaceSet(owner, faces)), featureless: true);
     }
 
     /// <summary>
@@ -171,12 +164,9 @@ public static partial class FeatureService
         }
 
         (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "offset_faces", "the faces to offset");
-        bool switched = model.EnsureOrdered();
-        double before = model.Volume();
-        object set = FaceSet(target, faces);
-        object feature = Create("offset faces", () => target.FaceOffsets.Add(set, FeaturePropertyConstants.igNone,
-            FeaturePropertyConstants.igNormal, Units.MmToM(distance), null, null, 0, FeaturePropertyConstants.igNone));
-        return Verify(context, model, feature, before, Math.Sign(distance), switched, direction: distance > 0 ? "outwards" : "inwards");
+        return InDocumentMode(context, model, target, "offset faces", Math.Sign(distance), owner => owner.FaceOffsets.Add(FaceSet(owner, faces),
+            FeaturePropertyConstants.igNone, FeaturePropertyConstants.igNormal, Units.MmToM(distance), null, null, 0, FeaturePropertyConstants.igNone),
+            direction: distance > 0 ? "outwards" : "inwards", featureless: true);
     }
 
     /// <summary>
@@ -382,6 +372,79 @@ public static partial class FeatureService
         object feature = Create("resize rounds", () => target.ResizeRounds.Add(faces.Length, ref faceArray, radius));
         return Verify(context, model, feature, before, 0, switched,
             hint: "Give the faces of constant-radius rounds (se_geometry faces with source = the round) and a radius that fits; a variable-radius round cannot be resized this way.");
+    }
+
+    /// <summary>
+    /// Radiate on a planar face or on a face of a hole feature (e.g. one made by se_recognize holes) makes Solid Edge reject the
+    /// change with its own modal dialog ("The requested modification cannot be made"), which DisplayAlerts does not suppress and
+    /// which blocks Solid Edge until someone answers it; such faces are refused before the call.
+    /// </summary>
+    private static void CheckRadiateFaces(Model target, object[] faces)
+    {
+        if (faces.OfType<Face>().FirstOrDefault(f => Late.TryGet(f, "Geometry") is not (SolidEdgeGeometry.Cylinder or SolidEdgeGeometry.Cone or SolidEdgeGeometry.Sphere or SolidEdgeGeometry.Torus)) is not null)
+        {
+            throw ToolException.InvalidArgument("radiate changes round faces only (cylinders, cones, spheres, tori); a face given is not round.",
+                "Pick the faces with se_geometry faces, type cylinder (or cone, sphere, torus).");
+        }
+
+        HashSet<int> ids = [.. faces.OfType<Face>().Select(f => f.ID)];
+        foreach (Hole hole in Late.Items(target.Holes).OfType<Hole>())
+        {
+            if (Late.Items(hole.Faces[SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryAll]).OfType<Face>().Any(f => ids.Contains(f.ID)))
+            {
+                throw ToolException.InvalidArgument($"A face given belongs to the hole '{hole.Name}'; Solid Edge does not radiate the faces of a hole feature.",
+                    "Change the hole's size with resize_holes ('diameter'), or radiate faces that are not part of a hole feature.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Radiate, the synchronous command that grows or shrinks round faces about their axes. Verified in Solid Edge 2026:
+    /// Model.SyncRadiate(1, [face], delta, coaxial, ...) adds delta to the radius of a cylindrical face (a 10 mm hole through a
+    /// 20 mm plate with 6 mm: radius 11, volume -6031.858 = pi (11^2 - 5^2) 20; with -2 mm: radius 3). It is not a feature,
+    /// so the document is switched to synchronous and the change is checked by the volume.
+    /// </summary>
+    private static object Radiate(SeContext context, string? documentHandle, PartFeatureSpec spec)
+    {
+        double delta = Units.MmToM(Units.RequireFinite(spec.Distance ?? throw ToolException.InvalidArgument(
+            "radiate requires 'distance': mm added to the radius of the faces (negative makes them smaller)."), "distance"));
+        if (delta == 0)
+        {
+            throw ToolException.InvalidArgument("radiate needs a 'distance' other than 0.");
+        }
+
+        (ModelDocument model, Model target, object[] faces) = FaceEdit(context, documentHandle, spec, "radiate", "cylindrical, conical or round faces");
+        CheckRadiateFaces(target, faces);
+        bool switched = model.EnsureSynchronous();
+        double before = model.Volume();
+        Array faceArray = faces;
+        int groups = 0;
+        Array positions = Array.Empty<double>(), counts = Array.Empty<int>(), entities = Array.Empty<object>();
+        try
+        {
+            target.SyncRadiate(faces.Length, ref faceArray, delta, spec.Coaxial, ref groups, ref positions, ref counts, ref entities);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("feature_failed", $"Solid Edge could not radiate the faces: {ex.Message.Trim()}",
+                "Give round faces (cylinders, cones) of the synchronous body and a distance that keeps them inside the part.", ex);
+        }
+
+        context.ModelChanged(model.Document, "the model changed (radiate)");
+        double after = model.Volume();
+        if (Math.Abs(after - before) <= VolumeTolerance)
+        {
+            throw new ToolException("feature_failed", "Solid Edge did not change the faces: the volume is the same.",
+                "Give round faces of the synchronous body and a distance that keeps them inside the part.");
+        }
+
+        return new
+        {
+            volume = Geo.Mm3(after),
+            volumeChange = Geo.Mm3(after - before),
+            modelingMode = model.ModelingMode,
+            warnings = switched ? new[] { "The document was switched to synchronous modelling: radiate is a synchronous command." } : null,
+        };
     }
 
     /// <summary>The faces to edit, of one design body, and the model that owns it: a split part has one model per body.</summary>

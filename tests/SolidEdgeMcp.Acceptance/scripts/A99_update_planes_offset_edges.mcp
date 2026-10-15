@@ -1,0 +1,129 @@
+# A99: the Update group (Automatic Update off and Update Relationships on a copied part), the Perpendicular and Coincident by
+#   Axis planes (se_ref_plane angle about a straight edge, in a part and in an assembly), Symmetric Offset (se_sketch_edit
+#   offset symmetric, with arc, line or no caps) and Hide / Show Edges of a drawing view (se_drawing_view hide_edges,
+#   show_edges, clear_edges).
+# 1) A block 100 x 60 x 20 (120000 mm3) and a copy of it with Automatic Update off: the copy stays at 120000 when the block
+# goes to 30 high (180000 mm3) until it is recomputed (Update Relationships, Update Active Level).
+@s = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a99_{{run}}\\src.par"}
+@d = se_documents {"action":"new","kind":"part"}
+@cp = se_part_feature {"action":"copy_part","path":"{{work}}\\runs\\a99_{{run}}\\src.par"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a99_{{run}}\\dst.par"}
+@o = se_options {"action":"set","scope":"document","document":"{{d.handle}}","name":"AutomaticUpdate","value":false}
+?= o.previous true
+@og = se_options {"action":"get","scope":"document","document":"{{d.handle}}","name":"AutomaticUpdate"}
+?= og.value false
+se_documents {"action":"activate","document":"{{s.handle}}"}
+se_variables {"action":"set","name":"ExtrudedProtrusion_1_FiniteDepth","value":30}
+se_documents {"action":"save"}
+@vs = se_physical {"document":"{{s.handle}}"}
+?= vs.volume 180000 0.01
+se_documents {"action":"activate","document":"{{d.handle}}"}
+@vd = se_physical {"document":"{{d.handle}}"}
+?= vd.volume 120000 0.01
+se_documents {"action":"recompute","document":"{{d.handle}}"}
+@vd2 = se_physical {"document":"{{d.handle}}"}
+?= vd2.volume 180000 0.01
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# 2) Planes about the front edge of the top (0,0,30)-(100,0,30): Perpendicular (90: through the edge, square to the top),
+# Coincident by Axis (0: on the top, its x axis along the edge from 'at') and 45 degrees between them
+se_documents {"action":"activate","document":"{{s.handle}}"}
+@top = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+@te = se_geometry {"action":"edges","source":"{{top.items[0].handle}}","type":"line","direction":[1,0,0]}
+?= te.items[0].start[1] 0
+@pp = se_ref_plane {"action":"angle","plane":"{{top.items[0].handle}}","pivot":"{{te.items[0].handle}}","angle":90}
+?= pp.normal[1] -1 1e-6
+?= pp.rootPoint[1] 0
+?= pp.rootPoint[2] 60
+@pc = se_ref_plane {"action":"angle","plane":"{{top.items[0].handle}}","pivot":"{{te.items[0].handle}}","angle":0}
+?= pc.normal[2] 1 1e-6
+?= pc.rootPoint[2] 30
+?= pc.xAxis[0] 1 1e-6
+@pe = se_ref_plane {"action":"angle","plane":"{{top.items[0].handle}}","pivot":"{{te.items[0].handle}}","angle":0,"at":"end"}
+?= pe.xAxis[0] -1 1e-6
+@p45 = se_ref_plane {"action":"angle","plane":"{{top.items[0].handle}}","pivot":"{{te.items[0].handle}}","angle":45}
+?= p45.normal[0] 0 1e-6
+?~ p45.normal 0.707106
+se_documents {"action":"close","document":"{{s.handle}}","saveChanges":false}
+# In an assembly: the block (30 high) placed at x 100; about the front edge of its top (100,0,30)-(200,0,30); its bottom
+# front edge is not on the top: refused
+@as = se_documents {"action":"new","kind":"assembly"}
+@oc = se_assembly {"action":"insert","path":"{{work}}\\runs\\a99_{{run}}\\src.par","origin":[100,0,0]}
+@at = se_geometry {"action":"faces","source":"{{oc.handle}}","type":"plane","direction":[0,0,1]}
+@ae = se_geometry {"action":"edges","source":"{{oc.handle}}","type":"line","direction":[1,0,0]}
+?= ae.items[1].start[2] 30
+@ap = se_ref_plane {"action":"angle","plane":"{{at.items[0].handle}}","pivot":"{{ae.items[1].handle}}","angle":90}
+?= ap.normal[1] -1 1e-6
+?= ap.rootPoint[1] 0
+@ac = se_ref_plane {"action":"angle","plane":"{{at.items[0].handle}}","pivot":"{{ae.items[1].handle}}","angle":0}
+?= ac.normal[2] 1 1e-6
+?= ac.rootPoint[2] 30
+?= ac.xAxis[0] 1 1e-6
+! [invalid_argument] se_ref_plane {"action":"angle","plane":"{{at.items[0].handle}}","pivot":"{{ae.items[0].handle}}","angle":0}
+se_documents {"action":"close","document":"{{as.handle}}","saveChanges":false}
+# 3) Symmetric Offset: a line 50 long offset 5 to each side with half circles round its ends, the line made construction:
+# a slot 50 x 10 with R5 ends (500 + 78.539816 = 578.539816 mm2), 10 deep = 5785.39816 mm3; with line caps a 50 x 10
+# rectangle on top of it (5000 mm3 more); a closed rectangle gets an inner and an outer copy and no caps
+@q = se_documents {"action":"new","kind":"part"}
+@k1 = se_sketch {"action":"create","plane":"1"}
+@l1 = se_sketch {"action":"line","sketch":"{{k1.sketch}}","points":[0,0,50,0]}
+@so = se_sketch_edit {"action":"offset","sketch":"{{k1.sketch}}","at":[25,0],"side":[25,3],"distance":5,"symmetric":true}
+?= so.width 10
+?= so.created[0].geometry.start[1] 5
+?= so.created[1].geometry.start[1] -5
+?= so.caps[0].geometry.type arc
+?= so.caps[0].geometry.radius 5
+?= so.caps[1].geometry.center[0] 50
+se_sketch_edit {"action":"construction","sketch":"{{k1.sketch}}","elements":["{{l1.element}}"]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+@x1 = se_extrude {"sketch":"{{k1.sketch}}","distance":10}
+?= x1.volume 5785.39816 0.001
+@k2 = se_sketch {"action":"create","plane":"1"}
+@l2 = se_sketch {"action":"line","sketch":"{{k2.sketch}}","points":[0,0,50,0]}
+@sl = se_sketch_edit {"action":"offset","sketch":"{{k2.sketch}}","at":[25,0],"side":[25,-2],"distance":5,"symmetric":true,"cap":"line"}
+?= sl.caps[0].geometry.type line
+?= sl.caps[0].geometry.length 10
+?= sl.caps[1].geometry.length 10
+se_sketch_edit {"action":"construction","sketch":"{{k2.sketch}}","elements":["{{l2.element}}"]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@x2 = se_extrude {"sketch":"{{k2.sketch}}","distance":10,"direction":"reverse"}
+?= x2.volumeChange 5000 0.001
+@k3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k3.sketch}}","points":[100,0,140,20]}
+@sr = se_sketch_edit {"action":"offset","sketch":"{{k3.sketch}}","at":[120,0],"side":[120,2],"distance":3,"symmetric":true}
+?= sr.chain 4
+?= sr.created[0].geometry.length 34
+?= sr.created[4].geometry.length 46
+?~ sr.caps []
+@l3 = se_sketch {"action":"line","sketch":"{{k3.sketch}}","points":[100,50,150,50]}
+@sn = se_sketch_edit {"action":"offset","sketch":"{{k3.sketch}}","at":[125,50],"side":[125,51],"distance":2,"symmetric":true,"cap":"none"}
+?= sn.width 4
+?~ sn.caps []
+! [invalid_argument] se_sketch_edit {"action":"offset","sketch":"{{k3.sketch}}","at":[125,50],"side":[125,50],"distance":2,"symmetric":true}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+# 4) Hide and show one edge of the front view of the block (100 x 30 seen from the front: 4 visible edges), then clear
+@dr = se_documents {"action":"new","kind":"draft"}
+@fv = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a99_{{run}}\\src.par","orientation":"front","position":[200,200],"scale":1}
+@d0 = se_drawing_view {"action":"display","view":"{{fv.view.handle}}"}
+?= d0.edges.Visible 4
+@he = se_drawing_view {"action":"hide_edges","view":"{{fv.view.handle}}","points":[50,0,30]}
+?= he.edges[0].drawn false
+?= he.edges[0].kind line
+@d1 = se_drawing_view {"action":"display","view":"{{fv.view.handle}}"}
+?= d1.edges.Visible 3
+@se = se_drawing_view {"action":"show_edges","view":"{{fv.view.handle}}","points":[50,0,30]}
+?= se.edges[0].drawn true
+se_drawing_view {"action":"hide_edges","view":"{{fv.view.handle}}","points":[0,0,15,100,0,15]}
+@d2 = se_drawing_view {"action":"display","view":"{{fv.view.handle}}"}
+?= d2.edges.Visible 2
+@ce = se_drawing_view {"action":"clear_edges","view":"{{fv.view.handle}}"}
+?= ce.cleared 3
+@d3 = se_drawing_view {"action":"display","view":"{{fv.view.handle}}"}
+?= d3.edges.Visible 4
+! [not_found] se_drawing_view {"action":"hide_edges","view":"{{fv.view.handle}}","points":[50,0,100]}
+! [invalid_argument] se_drawing_view {"action":"hide_edges","view":"{{fv.view.handle}}"}
+se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}

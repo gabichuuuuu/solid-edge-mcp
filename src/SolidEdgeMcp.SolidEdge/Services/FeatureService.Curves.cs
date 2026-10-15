@@ -432,7 +432,7 @@ public static partial class FeatureService
     /// Distance (m) from a model point to an edge, mapped to the edge's parameter and back; several starting parameters, since
     /// on a winding spline the mapping can stop at a local minimum.
     /// </summary>
-    private static double DistanceToEdge(Edge edge, double[] point)
+    internal static double DistanceToEdge(Edge edge, double[] point)
     {
         try
         {

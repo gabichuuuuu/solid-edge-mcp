@@ -15,9 +15,9 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// Variable table (user variables and dimensions). Values are given in the units of the
 /// tools (mm, degrees, mm², mm³); internally Solid Edge uses meters and radians.
 /// </summary>
-public static class VariableService
+public static partial class VariableService
 {
-    public static readonly IReadOnlyList<string> Kinds = ["all", "user", "dimension"];
+    public static readonly IReadOnlyList<string> Kinds = ["all", "user", "dimension", "physical"];
     public static readonly IReadOnlyList<string> UnitNames = ["distance", "angle", "area", "volume", "mass", "scalar"];
 
     // Values of SolidEdgeConstants.VariableNameBy and VariableVarType (the API receives them as VARIANT).
@@ -40,8 +40,14 @@ public static class VariableService
             "all" => VarTypeBoth,
             "user" => VarTypeVariable,
             "dimension" => VarTypeDimension,
+            "physical" => VarTypePhysical,
             _ => throw ToolException.InvalidArgument($"Unknown kind '{kind}'.", $"Use one of: {string.Join(", ", Kinds)}."),
         };
+        if (varType == VarTypePhysical)
+        {
+            RefreshPhysical(context, document);
+        }
+
         object list = Query(document, string.IsNullOrWhiteSpace(filter) ? "*" : filter, varType);
         int count = Late.Count(list);
         int start = Math.Max(offset, 0);
@@ -55,12 +61,20 @@ public static class VariableService
             }
         }
 
-        return new { document = context.DocumentHandle(document), count, offset = start, returned = items.Count, more = start + items.Count < count, variables = items };
+        string? note = varType == VarTypePhysical && count == 0
+            ? "The physical property variables appear once the part has a density: apply a material (se_material). se_physical measures the model without them."
+            : null;
+        return new { document = context.DocumentHandle(document), count, offset = start, returned = items.Count, more = start + items.Count < count, variables = items, note };
     }
 
     public static object Get(SeContext context, string? documentHandle, string name)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
+        if (IsPhysical(document, name))
+        {
+            RefreshPhysical(context, document);
+        }
+
         return Describe(context, document, Find(document, name));
     }
 
@@ -275,6 +289,187 @@ public static class VariableService
         }
 
         return Describe(context, document, item);
+    }
+
+    /// <summary>
+    /// Goal Seek: Solid Edge changes one variable until another reaches a value. Verified in Solid Edge 2026 on a part:
+    /// GA 10 → 25 so that GB = GA*2 = 50 (44 iterations); a distance GD → 50 mm so that an area GE = GD² = 2500 mm². An
+    /// unknown name fails with E_POINTER and an unreachable value with E_FAIL. Mass, Volume and Surface_Area of a part are
+    /// searched by the server (<see cref="MeasuredGoalSeek"/>).
+    /// </summary>
+    public static object GoalSeek(SeContext context, string? documentHandle, string name, string change, double? value, double? timeLimit,
+        int? iterations)
+    {
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        string? physical = PhysicalTarget(document, name);
+        object? target = physical is null ? Find(document, name) : null;
+        object changed = Find(document, change);
+        if (Late.TryGet(changed, "IsReadOnly") is true)
+        {
+            throw new ToolException("read_only_variable", $"'{change}' is read-only (driven or external), so Goal Seek cannot change it.",
+                "Name the variable or dimension that drives it in 'change'.");
+        }
+
+        double wanted = Units.RequireFinite(value ?? throw ToolException.InvalidArgument("goal_seek needs 'value': the value 'name' must reach."), "value");
+        double seconds = Units.RequirePositive(timeLimit ?? 10, "timeLimit");
+        int limit = iterations ?? 100;
+        if (limit < 1)
+        {
+            throw ToolException.InvalidArgument("'iterations' must be at least 1.");
+        }
+
+        if (target is null)
+        {
+            return MeasuredGoalSeek(context, document, physical!, changed, wanted, seconds, limit);
+        }
+
+        int units = UnitsOf(target);
+        double goal = ToDatabase(wanted, units);
+
+        string targetName = NameOf(target)!;
+        string changeName = NameOf(changed)!;
+        double start = Convert.ToDouble(Late.Get(changed, "Value"), CultureInfo.InvariantCulture);
+        double? volumeBefore = TryVolume(document);
+        double elapsed;
+        int steps;
+        bool timeOut;
+        bool iterationsOut;
+        try
+        {
+            switch (document)
+            {
+                case SolidEdgePart.PartDocument part:
+                    part.GoalSeek(targetName, changeName, goal, seconds, limit, out elapsed, out steps, out timeOut, out iterationsOut);
+                    break;
+                case SolidEdgePart.SheetMetalDocument sheetMetal:
+                    sheetMetal.GoalSeek(targetName, changeName, goal, seconds, limit, out elapsed, out steps, out timeOut, out iterationsOut);
+                    break;
+                case SolidEdgeAssembly.AssemblyDocument assembly:
+                    assembly.GoalSeek(targetName, changeName, goal, seconds, limit, out elapsed, out steps, out timeOut, out iterationsOut);
+                    break;
+                case SolidEdgeDraft.DraftDocument draft:
+                    draft.GoalSeek(targetName, changeName, goal, seconds, limit, out elapsed, out steps, out timeOut, out iterationsOut);
+                    break;
+                default:
+                    throw new ToolException("not_supported", "Goal Seek works in part, sheet metal, assembly and drawing documents.");
+            }
+        }
+        catch (Exception ex) when (ex is COMException or NullReferenceException && !ComErrors.IsGone(ex))
+        {
+            PutBack(changed, start);
+            throw new ToolException("goal_not_reached", $"Solid Edge could not bring '{targetName}' to the value by changing '{changeName}': {ComErrors.Unwrap(ex).Message.Trim()}",
+                "'name' must depend on 'change' through formulas or the model, and the value must be reachable.", ex);
+        }
+
+        double reached = Convert.ToDouble(Late.Get(target, "Value"), CultureInfo.InvariantCulture);
+        if (Math.Abs(reached - goal) > 1e-6 * Math.Max(1, Math.Abs(goal)))
+        {
+            PutBack(changed, start);
+            throw new ToolException("goal_not_reached",
+                $"Goal Seek stopped with '{targetName}' at {Math.Round(FromDatabase(reached, units), 9)} {UnitLabel(units)} after {steps} iterations "
+                + $"({(timeOut ? "time limit reached" : iterationsOut ? "iteration limit reached" : "no closer value found")}); '{changeName}' was put back.",
+                "Raise timeLimit or iterations, or check that the value can be reached.");
+        }
+
+        context.ModelChanged(document, $"Goal Seek changed '{changeName}'");
+        double? volumeAfter = TryVolume(document);
+        return new
+        {
+            target = Describe(context, document, target),
+            changed = Describe(context, document, changed),
+            iterations = steps,
+            seconds = Math.Round(elapsed, 3),
+            volumeChange = volumeAfter is null || volumeBefore is null ? (double?)null : Geo.Mm3(volumeAfter.Value - volumeBefore.Value),
+        };
+    }
+
+    private static void PutBack(object variable, double value)
+    {
+        try
+        {
+            Late.Set(variable, "Value", value);
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            // The variable keeps what Goal Seek left; the error reported names it.
+        }
+    }
+
+    /// <summary>
+    /// Adjustable part: the variables an assembly may adjust in each occurrence (Adjustable Part command). Verified in Solid
+    /// Edge 2026: AdjustableDefinition.SetAdjustables takes the variable objects (names fail) and makes IsAdjustablePart true;
+    /// GetAdjustables returns them with their notes; RemoveAllAdjustables makes the part ordinary again.
+    /// </summary>
+    public static object Adjustable(SeContext context, string? documentHandle, string[]? names, string[]? notes)
+    {
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        SolidEdgePart.AdjustableDefinition definition = document switch
+        {
+            SolidEdgePart.PartDocument part => part.AdjustableDefinition,
+            SolidEdgePart.SheetMetalDocument sheetMetal => sheetMetal.AdjustableDefinition,
+            _ => throw new ToolException("not_supported", "Adjustable variables belong to part and sheet metal documents.",
+                "In an assembly, place the part with se_assembly insert adjustable=true or make an occurrence adjustable."),
+        };
+
+        if (names is not null)
+        {
+            if (names.Length == 0)
+            {
+                definition.RemoveAllAdjustables();
+            }
+            else
+            {
+                if (notes is not null && notes.Length != names.Length)
+                {
+                    throw ToolException.InvalidArgument($"'notes' has {notes.Length} entries for {names.Length} names.", "Give one note per name, or omit notes.");
+                }
+
+                Array variables = names.Select(n => Find(document, n)).ToArray();
+                Array texts = names.Select((n, i) => notes?[i] ?? "").ToArray<object>();
+                definition.SetAdjustables(variables.Length, ref variables, ref texts);
+            }
+
+            context.ModelChanged(document, "the adjustable variables changed");
+        }
+
+        var listed = AdjustablesOf(definition);
+        bool adjustable = document is SolidEdgePart.PartDocument p ? p.IsAdjustablePart : ((SolidEdgePart.SheetMetalDocument)document).IsAdjustablePart;
+        if (names is { Length: > 0 } && (!adjustable || listed.Count != names.Length))
+        {
+            throw new ToolException("setting_rejected", $"Solid Edge kept {listed.Count} adjustable variable(s) instead of {names.Length}.",
+                "Use variables or dimensions of this document (se_variables list).");
+        }
+
+        return new
+        {
+            document = context.DocumentHandle(document),
+            adjustable,
+            variables = listed.Select(a => new { name = NameOf(a.Variable), note = a.Note }).ToArray(),
+        };
+    }
+
+    private static List<(object Variable, string Note)> AdjustablesOf(SolidEdgePart.AdjustableDefinition definition)
+    {
+        Array variables = new object[1];
+        Array notes = new object[1];
+        definition.GetAdjustables(out int count, ref variables, ref notes);
+        if (count > 1 && variables.Length < count)
+        {
+            variables = new object[count];
+            notes = new object[count];
+            definition.GetAdjustables(out count, ref variables, ref notes);
+        }
+
+        var result = new List<(object, string)>();
+        for (int i = 0; i < Math.Min(count, variables.Length); i++)
+        {
+            if (variables.GetValue(i) is { } variable)
+            {
+                result.Add((variable, notes.GetValue(i)?.ToString() ?? ""));
+            }
+        }
+
+        return result;
     }
 
     private static object Query(SolidEdgeDocument document, string criterion, int varType)

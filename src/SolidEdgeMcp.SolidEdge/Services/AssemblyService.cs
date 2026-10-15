@@ -36,7 +36,20 @@ public static partial class AssemblyService
                 "Open the subassembly (se_documents open) to work on its parts, or use a part occurrence of this assembly.");
         }
 
-        return occurrence.OccurrenceDocument is SolidEdgeDocument document
+        object? part;
+        try
+        {
+            part = occurrence.OccurrenceDocument;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Verified: the part of an internal component or of a CAD Direct component (kept inside the assembly file) gives
+            // E_ACCESSDENIED.
+            throw new ToolException("not_supported", $"'{occurrence.Name}' is kept inside the assembly file ({occurrence.OccurrenceFileName}); Solid Edge does not give its part through the API.",
+                "Publish internal components first (se_internal_component publish); for a CAD Direct component, open its source file (se_documents open).", ex);
+        }
+
+        return part is SolidEdgeDocument document
             ? ModelDocument.From(document)
             : throw new ToolException("file_missing", $"The file of '{occurrence.Name}' is not loaded ({occurrence.OccurrenceFileName}).",
                 "Check that the file exists, then reopen the assembly.");
@@ -220,6 +233,17 @@ public static partial class AssemblyService
         // Occurrence.Rotate fails with E_FAIL in Solid Edge 2026 (verified); the rotated matrix is calculated and applied.
         Placement start = Placement.Of(occurrence);
         double[] expected = start.Rotated([points[0].X, points[0].Y, points[0].Z], direction, radians);
+        AssemblyDocument assembly = occurrence.TopLevelDocument;
+        string[] partners = RelationService.GearPartners(occurrence);
+        if (partners.Length > 0 && RelationService.TurnThroughAngle(occurrence, direction, radians, expected) is { } driven)
+        {
+            HashSet<int> grounded = GroundedIds(assembly);
+            Dictionary<string, object?> turned = Describe(context, assembly, occurrence, grounded);
+            turned["driven"] = driven.Select(o => Describe(context, assembly, o, grounded)).ToArray();
+            turned["note"] = $"Turned as dragging it does (through a temporary angle relation), so its gear relations drove {string.Join(", ", partners)}.";
+            return turned;
+        }
+
         Array matrix = expected;
         occurrence.PutMatrix(ref matrix, true);
         double[] actual = Placement.Of(occurrence).Matrix;
@@ -230,7 +254,17 @@ public static partial class AssemblyService
             throw Held(occurrence);
         }
 
-        return Placed(context, occurrence.TopLevelDocument, occurrence);
+        Dictionary<string, object?> placed = Describe(context, assembly, occurrence, GroundedIds(assembly));
+        // Verified in Solid Edge 2026: a placement written through the API does not drive gear relations, while an angle
+        // relation does (and DragComponentRotation fails through COM in every form tried). The turn above goes through one
+        // when the axis is along an assembly base axis and is the one the part turns about.
+        if (partners.Length > 0)
+        {
+            placed["note"] = $"The gear relation did not turn {string.Join(", ", partners)}: the axis is not along an assembly base axis or not the one the part turns about, so the rotation was written directly. "
+                + "To drive the gear, turn this part through an angle relation: se_relations add (type 'angle', a face or plane of this part and one of another part or the assembly), then se_relations edit with the new angle.";
+        }
+
+        return placed;
     }
 
     /// <summary>Grounds or releases an occurrence (grounding relation).</summary>
@@ -313,20 +347,42 @@ public static partial class AssemblyService
     /// Interferences: the given occurrences against each other, or against <paramref name="against"/>; with none, all
     /// top-level occurrences against each other.
     /// </summary>
-    public static object Interference(SeContext context, string? documentHandle, string[]? occurrences, string[]? against)
+    /// <summary>
+    /// Interference check (Inspect > Check Interference). <paramref name="compare"/>: auto ('against', or the set among itself),
+    /// others (the set against every other occurrence) or visible (against the visible ones). The Interference Options that
+    /// ignore threads (InterferenceOptionsConstants, the last arguments of CheckInterference2, 3 and 4) changed nothing in
+    /// Solid Edge 2026 with a plain and a threaded M10 pin in tapped M10 holes (1 and 2, true, 3): not offered.
+    /// </summary>
+    public static object Interference(SeContext context, string? documentHandle, string[]? occurrences, string[]? against,
+        string compare = "auto")
     {
-        AssemblyDocument assembly = occurrences is { Length: > 0 } ? Occurrence(context, occurrences[0], "occurrences").TopLevelDocument : Assembly(context, documentHandle);
-        object[] set1 = occurrences is { Length: > 0 }
-            ? occurrences.Select(h => (object)Occurrence(context, h, "occurrences")).ToArray()
-            : Items<Occurrence>(assembly.Occurrences).Cast<object>().ToArray();
-        object[]? set2 = against is { Length: > 0 } ? against.Select(h => (object)Occurrence(context, h, "against")).ToArray() : null;
-        if (set2 is null && set1.Length < 2)
+        if (compare is not ("auto" or "others" or "visible"))
         {
-            throw ToolException.InvalidArgument("Interference needs at least two occurrences, or 'against'.");
+            throw ToolException.InvalidArgument($"Unknown comparison '{compare}'.", "Use auto, others or visible.");
         }
 
-        // 1: set 1 against set 2; 4: set 1 against itself.
-        int method = set2 is null ? 4 : 1;
+        if (compare != "auto" && (occurrences is not { Length: > 0 } || against is { Length: > 0 }))
+        {
+            throw ToolException.InvalidArgument($"compare {compare} checks 'occurrences' against the {(compare == "others" ? "other" : "visible")} occurrences: give 'occurrences' and no 'against'.");
+        }
+
+        AssemblyDocument assembly = occurrences is { Length: > 0 } ? Occurrence(context, occurrences[0], "occurrences").TopLevelDocument : Assembly(context, documentHandle);
+        // Verified in Solid Edge 2026: CheckInterference gives E_FAIL when a set holds an occurrence excluded from interference
+        // analysis (Occurrence Properties), so those are left out of the default set and refused when named.
+        object[] set1 = occurrences is { Length: > 0 }
+            ? occurrences.Select(h => (object)Checked(Occurrence(context, h, "occurrences"))).ToArray()
+            : Items<Occurrence>(assembly.Occurrences).Where(o => o.IncludeInInterference).Cast<object>().ToArray();
+        object[]? set2 = against is { Length: > 0 } ? against.Select(h => (object)Checked(Occurrence(context, h, "against"))).ToArray() : null;
+        if (set2 is null && set1.Length < 2 && compare == "auto")
+        {
+            throw occurrences is { Length: > 0 }
+                ? ToolException.InvalidArgument("Interference needs at least two occurrences, or 'against'.")
+                : ToolException.InvalidArgument("The assembly has fewer than two occurrences included in interference analysis.",
+                    "Include them with se_assembly set_property (include_in_interference true).");
+        }
+
+        // 1: set 1 against set 2; 2: against all the others; 3: against the visible ones; 4: set 1 against itself.
+        int method = compare switch { "others" => 2, "visible" => 3, _ => set2 is null ? 4 : 1 };
         Array first = set1;
 
         // The output lists of the API come back empty in Solid Edge 2026 (verified): the pairs and the common volume are
@@ -377,6 +433,11 @@ public static partial class AssemblyService
                 : null,
         };
     }
+
+    private static Occurrence Checked(Occurrence occurrence) => occurrence.IncludeInInterference
+        ? occurrence
+        : throw ToolException.InvalidArgument($"'{occurrence.Name}' is excluded from interference analysis.",
+            "Include it with se_assembly set_property (include_in_interference true), or leave it out.");
 
     /// <summary>
     /// Bill of materials. top: top-level occurrences grouped by file (subassemblies count as

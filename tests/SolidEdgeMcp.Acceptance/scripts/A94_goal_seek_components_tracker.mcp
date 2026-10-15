@@ -1,0 +1,196 @@
+# A94: auto-scale of a sketch, Goal Seek, adjustable parts, Save As Mirrored Part, heal and optimize, the bend table, emboss in
+#   sheet metal, clone components, new / adjustable / copied components, Save Model As, and the drawing's dimension tracker and
+#   alignment sets.
+# Part (ordered): a rectangle dimensioned 100 and 60, extruded 20: 120000.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+@r = se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+@dl = se_sketch_constraint {"action":"dimension","sketch":"{{k.sketch}}","dimension":"length","elements":["{{r.elements[0]}}"],"value":100}
+# Auto-scale while the 100 is the only driving dimension: it becomes 200 and the whole sketch follows (the 60 side measures 120)
+@as = se_sketch_constraint {"action":"autoscale","constraint":"{{dl.dimension}}","value":200}
+?= as.before 100
+?= as.value 200
+?= as.scale 2
+! [invalid_argument] se_sketch_constraint {"action":"autoscale","constraint":"{{dl.dimension}}"}
+@dw = se_sketch_constraint {"action":"dimension","sketch":"{{k.sketch}}","dimension":"length","elements":["{{r.elements[1]}}"]}
+?= dw.measured 120
+# With a second driving dimension the sketch cannot be scaled; the values are set instead
+! [constraint_failed] se_sketch_constraint {"action":"autoscale","constraint":"{{dl.dimension}}","value":100}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_variables {"action":"set","name":"{{dl.variable}}","value":100}
+se_variables {"action":"set","name":"{{dw.variable}}","value":60}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":20}
+?= e.volume 120000 0.01
+# Goal Seek: GB = GA * 2 reaches 50 by changing GA (10 -> 25); GC = GA * GA cannot reach -4, so GA is put back
+se_variables {"action":"add","name":"GA","value":10,"units":"scalar"}
+se_variables {"action":"add","name":"GB","formula":"GA*2","units":"scalar"}
+se_variables {"action":"add","name":"GC","formula":"GA*GA","units":"scalar"}
+@gs = se_variables {"action":"goal_seek","name":"GB","value":50,"change":"GA"}
+?= gs.target.value 50
+?= gs.changed.value 25
+! [goal_not_reached] se_variables {"action":"goal_seek","name":"GC","value":-4,"change":"GA"}
+@ga = se_variables {"action":"get","name":"GA"}
+?= ga.value 25
+! [invalid_argument] se_variables {"action":"goal_seek","name":"GB","change":"GA"}
+# Adjustable part: GA and the 60 dimension, with notes; read back; saved as a94_adjustable.par
+@ad = se_variables {"action":"adjustable","names":["GA","{{dw.variable}}"],"notes":["Scale","Width"]}
+?= ad.adjustable true
+?= ad.variables[0].name GA
+?= ad.variables[1].note Width
+@ar = se_variables {"action":"adjustable"}
+?= ar.variables[1].name {{dw.variable}}
+! [invalid_argument] se_variables {"action":"adjustable","names":["GA"],"notes":["a","b"]}
+se_documents {"action":"save_as","path":"{{work}}\\a94_adjustable.par","overwrite":true}
+# Save As Mirrored Part about the YZ plane: a new part, its x range mirrored, the same volume, opened; a second time the file exists
+@g0 = se_geometry {"action":"summary"}
+@sm = se_documents {"action":"save_mirror","path":"{{work}}\\runs\\a94_mirror_{{run}}.par","plane":"yz"}
+?= sm.volume 120000 0.01
+?= sm.sourceVolume 120000 0.01
+?= sm.linked false
+@gm = se_geometry {"action":"summary"}
+?= gm.boundingBox.min[0] -{{g0.boundingBox.max[0]}} 0.001
+?= gm.boundingBox.max[0] -{{g0.boundingBox.min[0]}} 0.001
+se_documents {"action":"close","document":"{{sm.document.handle}}","saveChanges":false}
+se_documents {"action":"activate","document":"{{p.handle}}"}
+! [file_exists] se_documents {"action":"save_mirror","path":"{{work}}\\runs\\a94_mirror_{{run}}.par","plane":"yz"}
+# No adjustable variables any more (the file saved keeps them)
+@ac = se_variables {"action":"adjustable","names":[]}
+?= ac.adjustable false
+se_export {"path":"{{work}}\\a94_block.stp","overwrite":true}
+se_documents {"action":"save_as","path":"{{work}}\\a94_trk.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# Heal and optimize the imported block: nothing to repair, 6 faces, the report written once
+@i = se_documents {"action":"import","path":"{{work}}\\a94_block.stp"}
+@h = se_body {"action":"heal","report":"{{work}}\\runs\\a94_heal_{{run}}.txt"}
+?= h.volume 120000 0.01
+?= h.volumeChange 0 0.01
+?= h.faces.after 6
+?~ h.report a94_heal_
+! [file_exists] se_body {"action":"heal","report":"{{work}}\\runs\\a94_heal_{{run}}.txt"}
+se_documents {"action":"close","document":"{{i.document.handle}}","saveChanges":false}
+# Bend table: tab 100 x 60 (t = 1) with flanges of 20 on y = 0 and 15 on y = 60 (as in A05); the second bend moved first
+@s = se_documents {"action":"new","kind":"sheet_metal"}
+@ks = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ks.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ks.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{ks.sketch}}"}
+@tp = se_geometry {"action":"faces","direction":[0,0,1]}
+@te = se_geometry {"action":"edges","source":"{{tp.items[0].handle}}","direction":[1,0,0]}
+se_sheetmetal {"action":"flange","edges":["{{te.items[0].handle}}"],"length":20}
+@tq = se_geometry {"action":"faces","direction":[0,0,1]}
+@tf = se_geometry {"action":"edges","source":"{{tq.items[?area=5800].handle}}","direction":[1,0,0]}
+se_sheetmetal {"action":"flange","edges":["{{tf.items[?start=[100,60,1]].handle}}"],"length":15}
+@bt0 = se_sheetmetal {"action":"bend_table"}
+?= bt0.count 2
+# A document built in this session: the first listing may name the rows Bend 1, Bend 2; the next one names the features
+@bt = se_sheetmetal {"action":"bend_table"}
+?= bt.count 2
+?= bt.bends[0].sequence 1
+?= bt.bends[0].angle 90
+?~ bt.bends[0].feature Flange
+@bs = se_sheetmetal {"action":"bend_table","sequence":[2,1]}
+?~ bs.bends[0].feature {{bt.bends[1].feature}}
+?~ bs.bends[1].feature {{bt.bends[0].feature}}
+! [invalid_argument] se_sheetmetal {"action":"bend_table","sequence":[3,1]}
+! [invalid_argument] se_sheetmetal {"action":"bend_table","sequence":[1]}
+# Emboss in sheet metal: a closed cylinder of radius 10, 10 high, standing on the tab at (50, 30): walls of 1 around it,
+#   + pi x (121 x 1 + 21 x 9 - 100 x 1) = pi x 210 = 659.734
+@kc = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kc.sketch}}","center":[50,30],"radius":10}
+se_sketch {"action":"close","sketch":"{{kc.sketch}}"}
+@cy = se_surface {"action":"extrude","sketch":"{{kc.sketch}}","depth":10,"endCaps":true}
+@em = se_body {"action":"emboss","tools":["{{cy.surface.handle}}"],"thickness":1}
+?= em.volumeChange 659.734 0.01
+se_documents {"action":"close","document":"{{s.handle}}","saveChanges":false}
+# Clone components: a plate 100 x 60 x 10 with three holes of 10 at x = 20, 50 and 80 (y = 30) and a pin of 10 x 30 in the
+#   first one; cloned onto the faces like the first hole's: two new pins, at x = 50 and 80
+@pp = se_documents {"action":"new","kind":"part"}
+@pk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{pk.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
+se_extrude {"sketch":"{{pk.sketch}}","distance":10}
+@ph = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{ph.sketch}}","center":[20,30],"radius":5}
+se_sketch {"action":"circle","sketch":"{{ph.sketch}}","center":[50,30],"radius":5}
+se_sketch {"action":"circle","sketch":"{{ph.sketch}}","center":[80,30],"radius":5}
+se_sketch {"action":"close","sketch":"{{ph.sketch}}"}
+se_extrude {"sketch":"{{ph.sketch}}","operation":"cut","extent":"through_all"}
+se_documents {"action":"save_as","path":"{{work}}\\a94_plate.par","overwrite":true}
+se_documents {"action":"close","document":"{{pp.handle}}","saveChanges":false}
+@pq = se_documents {"action":"new","kind":"part"}
+@qk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{qk.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{qk.sketch}}"}
+se_extrude {"sketch":"{{qk.sketch}}","distance":30}
+se_documents {"action":"save_as","path":"{{work}}\\a94_pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{pq.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@op = se_assembly {"action":"insert","path":"{{work}}\\a94_plate.par"}
+@oq = se_assembly {"action":"insert","path":"{{work}}\\a94_pin.par","origin":[20,30,0]}
+@hf = se_geometry {"action":"faces","source":"{{op.handle}}","type":"cylinder"}
+! [invalid_argument] se_assembly_pattern {"action":"clone","occurrences":["{{oq.handle}}"],"faces":["{{hf.items[0].handle}}"]}
+?= hf.items[2].axisPoint[0] 20
+@cl = se_assembly_pattern {"action":"clone","occurrences":["{{oq.handle}}"],"faces":["{{hf.items[2].handle}}"],"targets":["{{op.handle}}"]}
+?= cl.added 2
+?~ cl.clones "origin":[50,30,0]
+?~ cl.clones "origin":[80,30,0]
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# Components: the block of a94_adjustable.par placed plain at x = 200 and as an adjustable part, a pin, a new empty part, a
+#   pin replaced by a copy of its file and the new part by another new part; Save Model As of the block at x = 200
+@b = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a94_adjustable.par","origin":[200,0,0]}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\a94_adjustable.par","adjustable":true,"origin":[0,100,0]}
+@o3 = se_assembly {"action":"insert","path":"{{work}}\\a94_pin.par","origin":[0,-100,0]}
+! [not_adjustable] se_assembly {"action":"insert","path":"{{work}}\\a94_pin.par","adjustable":true}
+@mk = se_assembly {"action":"adjustable","occurrence":"{{o1.handle}}"}
+! [not_adjustable] se_assembly {"action":"adjustable","occurrence":"{{o3.handle}}"}
+@nw = se_assembly {"action":"insert","path":"{{work}}\\runs\\a94_new_{{run}}.par","create":true,"origin":[0,200,0]}
+! [file_exists] se_assembly {"action":"insert","path":"{{work}}\\a94_pin.par","create":true}
+@rc = se_assembly {"action":"replace","occurrence":"{{o3.handle}}","path":"{{work}}\\runs\\a94_pincopy_{{run}}.par","source":"copy"}
+?~ rc.created a94_pincopy_
+?~ rc.from a94_pin.par
+! [invalid_argument] se_assembly {"action":"replace","occurrence":"{{o3.handle}}","path":"{{work}}\\runs\\a94_x_{{run}}.psm","source":"copy"}
+@rn = se_assembly {"action":"replace","occurrence":"{{nw.handle}}","path":"{{work}}\\runs\\a94_blank_{{run}}.par","source":"new"}
+?~ rn.created a94_blank_
+# Save Model As: refused until the assembly is saved; then the block at x = 200 becomes a part of its own
+! [unsaved_changes] se_assembly {"action":"save_model","occurrence":"{{o1.handle}}","path":"{{work}}\\runs\\a94_model_{{run}}.par"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a94_asm_{{run}}.asm","overwrite":true}
+@sd = se_assembly {"action":"save_model","occurrence":"{{o1.handle}}","path":"{{work}}\\runs\\a94_model_{{run}}.par"}
+?= sd.volume 120000 0.01
+! [file_exists] se_assembly {"action":"save_model","occurrence":"{{o1.handle}}","path":"{{work}}\\runs\\a94_model_{{run}}.par"}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+# Dimension tracker: a top view of a94_trk.par with its two dimensions retrieved; the part's 100 made 120 and the view
+#   updated: the tracker lists the dimension 100 -> 120, then is emptied. Maintain Alignment Set read, cleared and set again.
+@d = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\a94_trk.par","orientation":"top","position":[160,200],"scale":1}
+@rd = se_drawing {"action":"retrieve_dimensions","view":"{{bv.view.handle}}"}
+?= rd.retrieved 2
+@t0 = se_dimension {"action":"tracker"}
+?= t0.count 0
+@o = se_documents {"action":"open","path":"{{work}}\\a94_trk.par"}
+se_variables {"action":"set","name":"{{dl.variable}}","value":120}
+se_documents {"action":"save"}
+se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
+se_documents {"action":"activate","document":"{{d.handle}}"}
+se_drawing {"action":"update"}
+@t1 = se_dimension {"action":"tracker"}
+?= t1.count 1
+?= t1.changed.dimensions 1
+?= t1.entries[0].dimension {{rd.dimensions[0].handle}}
+?= t1.entries[0].reason value_changed
+?= t1.entries[0].previous 100
+?= t1.entries[0].current 120
+?= t1.entries[0].sheet Sheet1
+@t2 = se_dimension {"action":"tracker","clear":true}
+?= t2.cleared true
+@t3 = se_dimension {"action":"tracker"}
+?= t3.count 0
+@m0 = se_dimension {"action":"alignment_set"}
+?= m0.maintain true
+@m1 = se_dimension {"action":"alignment_set","maintain":false}
+?= m1.maintain false
+?= m1.previous true
+@m2 = se_dimension {"action":"alignment_set","maintain":true}
+?= m2.maintain true
+! [invalid_argument] se_dimension {"action":"get"}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

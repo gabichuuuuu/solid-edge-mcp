@@ -1,0 +1,22 @@
+# A109: closing a document removes its window. Solid Edge 2026 can leave the window of a closed part with features or of a
+#   closed draft with views in Application.Windows, hidden; se_documents close closes it too, so the count does not grow.
+@w0 = se_com_get {"target":"app","member":"Windows"}
+@c0 = se_com_get {"target":"{{w0.value.handle}}","member":"Count"}
+# 1) A part with an extrusion, saved and closed.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":10}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a109_{{run}}\\pin.par"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@w1 = se_com_get {"target":"app","member":"Windows"}
+@c1 = se_com_get {"target":"{{w1.value.handle}}","member":"Count"}
+?= c1.value {{c0.value}}
+# 2) A draft with a base view of that part, closed without saving.
+@d = se_documents {"action":"new","kind":"draft"}
+se_drawing {"action":"base_view","path":"{{work}}\\runs\\a109_{{run}}\\pin.par","orientation":"top","position":[160,200],"scale":1}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@w2 = se_com_get {"target":"app","member":"Windows"}
+@c2 = se_com_get {"target":"{{w2.value.handle}}","member":"Count"}
+?= c2.value {{c0.value}}

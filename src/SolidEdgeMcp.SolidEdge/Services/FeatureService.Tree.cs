@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Gabriel Spoleto Couto
 // SPDX-License-Identifier: AGPL-3.0-only
 
+using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.SolidEdge.Com;
@@ -239,4 +240,119 @@ public static partial class FeatureService
 
     private static HashSet<string> FailedNames(List<object> tree) =>
         [.. tree.Where(f => StatusOf(f) == "failed").Select(f => Late.TryGetString(f, "Name") ?? "")];
+
+    /// <summary>
+    /// Moves an ordered feature (and what depends on it) to synchronous, as the Move to Synchronous command of PathFinder.
+    /// Verified in Solid Edge 2026: PartDocument.MoveToSynchronous(feature, ignore warnings, false, ...) moved the body
+    /// feature of an imported STEP part (no errors, volume difference 0); its out arrays must be passed initialised (a null
+    /// array fails before the call). The document stays in ordered mode, so it is switched to synchronous, where the moved
+    /// features are edited and recognised (se_recognize). The volume before is read in ordered mode: in synchronous mode the
+    /// body leaves the ordered features out.
+    /// Verified: after the synchronous body was edited (a face moved by a face relation, a recognised hole resized), moving
+    /// an ordered round made later failed with E_FAIL, with or without ignoring warnings, and left the body unreadable with
+    /// nothing to undo; once the part had been saved (SaveCopyAs to another file is enough) the same move worked, with no
+    /// volume change. So a copy of the part is saved first in the work folder: it makes the move work and, if Solid Edge
+    /// still breaks the body, it is kept and named in the error. Saving clears Solid Edge's undo list, as saving does.
+    /// </summary>
+    private static object MoveToSynchronous(SeContext context, ModelDocument model, object feature, string label)
+    {
+        model.EnsureOrdered();
+        double before = model.Volume();
+        string? backup = Backup(context, model);
+        int errors = 0, warnings = 0;
+        Array errorMessages = Array.Empty<string>(), warningMessages = Array.Empty<string>();
+        try
+        {
+            if (model.Document is PartDocument part)
+            {
+                part.MoveToSynchronous(feature, true, false, out errors, out errorMessages, out warnings, out warningMessages, out _);
+            }
+            else
+            {
+                ((SheetMetalDocument)model.Document).MoveToSynchronous(feature, true, false, out errors, out errorMessages, out warnings,
+                    out warningMessages);
+            }
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            context.ModelChanged(model.Document, $"the model changed (move {label} to synchronous failed)");
+            if (model.TryModel() is not null && model.TryVolume() is null)
+            {
+                throw new ToolException("body_broken", $"Solid Edge could not move '{label}' to synchronous ({ex.Message.Trim()}) and left the body unreadable; it does not undo this."
+                    + (backup is null ? "" : $" The part as it was is saved in '{backup}'."),
+                    backup is null
+                        ? "Close the document without saving (se_documents close, saveChanges false) and open the saved file again."
+                        : "Close this document without saving (se_documents close, saveChanges false), open the copy (se_documents open) and save it where the part belongs (save_as). Make the feature again in synchronous mode instead (se_documents modeling_mode synchronous, then the tool).",
+                    ex);
+            }
+
+            DeleteBackup(backup);
+            throw new ToolException("feature_failed", $"Solid Edge could not move '{label}' to synchronous: {ex.Message.Trim()}",
+                "Only ordered features move (se_feature_tree); the base feature of a part moves with everything after it.", ex);
+        }
+
+        DeleteBackup(backup);
+        context.ModelChanged(model.Document, $"the model changed (move {label} to synchronous)");
+        string[] Messages(Array? values) => values is null ? [] : [.. values.Cast<object?>().Select(v => v?.ToString() ?? "").Where(v => v.Length > 0)];
+        if (errors > 0)
+        {
+            throw new ToolException("feature_failed", $"Solid Edge did not move '{label}' to synchronous ({errors} feature(s) with errors): "
+                + string.Join("; ", Messages(errorMessages)), "Fix or delete the features named, then try again.");
+        }
+
+        if (Late.TryGet(feature, "ModelingModeType") is { } mode && Convert.ToInt32(mode, CultureInfo.InvariantCulture) == (int)ModelingModeConstants.seModelingModeOrdered)
+        {
+            throw new ToolException("feature_failed", $"'{label}' is still an ordered feature after Move to Synchronous.",
+                "Check the feature in PathFinder; features that synchronous modelling cannot hold stay ordered.");
+        }
+
+        bool switched = model.EnsureSynchronous();
+        double after = model.Volume();
+        return new
+        {
+            moved = label,
+            modelingMode = model.ModelingMode,
+            volume = Geo.Mm3(after),
+            volumeChange = Geo.Mm3(after - before),
+            warnings = Messages(warningMessages) is { Length: > 0 } list ? list : null,
+            note = string.Join(" ", new[]
+            {
+                switched ? "The document was switched to synchronous modelling, where the moved features are." : null,
+                backup is null ? null : "A copy of the part was saved first (Solid Edge needs it for this move after synchronous edits), which cleared the undo list.",
+            }.OfType<string>()) is { Length: > 0 } text ? text : null,
+        };
+    }
+
+    /// <summary>Copy of the part in the work folder (backups), or null if Solid Edge does not save it.</summary>
+    private static string? Backup(SeContext context, ModelDocument model)
+    {
+        string folder = Path.Combine(context.AppPaths.Work, "backups");
+        string name = Path.GetFileNameWithoutExtension(model.Document.Name);
+        string file = Path.Combine(folder, $"{name}-{DateTime.Now:yyyyMMdd-HHmmss}{(model.Document is PartDocument ? ".par" : ".psm")}");
+        try
+        {
+            Directory.CreateDirectory(folder);
+            model.Document.SaveCopyAs(file);
+            return File.Exists(file) ? file : null;
+        }
+        catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static void DeleteBackup(string? file)
+    {
+        try
+        {
+            if (file is not null)
+            {
+                File.Delete(file);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A copy left in the work folder does no harm.
+        }
+    }
 }

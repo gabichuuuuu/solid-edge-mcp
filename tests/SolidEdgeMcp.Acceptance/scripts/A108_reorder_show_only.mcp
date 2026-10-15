@@ -1,0 +1,61 @@
+# A108: the order of the components (se_assembly reorder, as dragged in PathFinder), kept when the assembly is saved and
+#   opened again, and Show Only / Show All / Hide All (show and hide with 'all').
+# A block and a pin; the assembly holds the block, the pin twice and the block again, in that order.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a108_{{run}}\\blk.par"}
+se_documents {"action":"close","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@pk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{pk.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
+se_extrude {"sketch":"{{pk.sketch}}","distance":40}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a108_{{run}}\\pin.par"}
+se_documents {"action":"close","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\runs\\a108_{{run}}\\blk.par"}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\runs\\a108_{{run}}\\pin.par","origin":[150,0,0]}
+@o3 = se_assembly {"action":"insert","path":"{{work}}\\runs\\a108_{{run}}\\pin.par","origin":[200,0,0]}
+@o4 = se_assembly {"action":"insert","path":"{{work}}\\runs\\a108_{{run}}\\blk.par","origin":[0,100,0]}
+# 1) The second block after the first: blk:1, blk:2, pin:1, pin:2.
+@r1 = se_assembly {"action":"reorder","occurrence":"{{o4.handle}}","target":"{{o1.handle}}"}
+?~ r1.order[1] blk.par:2
+?~ r1.order[3] pin.par:2
+# 2) The second pin before the first block: pin:2, blk:1, blk:2, pin:1.
+@r2 = se_assembly {"action":"reorder","occurrence":"{{o3.handle}}","target":"{{o1.handle}}","before":true}
+?~ r2.order[0] pin.par:2
+?~ r2.order[1] blk.par:1
+?~ r2.order[3] pin.par:1
+# 3) Saved and opened again, the order is kept.
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a108_{{run}}\\top.asm"}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+@a2 = se_documents {"action":"open","path":"{{work}}\\runs\\a108_{{run}}\\top.asm"}
+@l = se_assembly {"action":"list"}
+?~ l.occurrences[0].name pin.par:2
+?~ l.occurrences[2].name blk.par:2
+# 4) Show Only the first block, then Hide All and Show All.
+@so = se_assembly {"action":"show","occurrence":"{{l.occurrences[1].handle}}","all":true}
+?= so.shown 1
+?= so.hidden 3
+@l2 = se_assembly {"action":"list"}
+?= l2.occurrences[1].visible true
+?= l2.occurrences[0].visible false
+?= l2.occurrences[3].visible false
+@ha = se_assembly {"action":"hide","all":true}
+?= ha.hidden 4
+@l3 = se_assembly {"action":"list"}
+?= l3.occurrences[1].visible false
+@sa = se_assembly {"action":"show","all":true}
+?= sa.shown 4
+?= sa.changed 4
+@l4 = se_assembly {"action":"list"}
+?= l4.occurrences[0].visible true
+?= l4.occurrences[3].visible true
+# Refused: hide with an occurrence and 'all', no target, the occurrence as its own target.
+! [invalid_argument] se_assembly {"action":"hide","occurrence":"{{l.occurrences[1].handle}}","all":true}
+! [invalid_argument] se_assembly {"action":"reorder","occurrence":"{{l.occurrences[1].handle}}"}
+! [invalid_argument] se_assembly {"action":"reorder","occurrence":"{{l.occurrences[1].handle}}","target":"{{l.occurrences[1].handle}}"}
+se_documents {"action":"close","document":"{{a2.handle}}","saveChanges":false}

@@ -216,6 +216,7 @@ public static partial class DrawingService
             sheet = sheet.Name,
             size = SizeMm(sheet),
             views = ViewsOf(sheet).Select(view => DescribeView(context, draft, view)).ToList(),
+            cuttingPlanes = ViewsOf(sheet).SelectMany(CuttingPlanesOf).Select(plane => DescribeCuttingPlane(context, draft, plane)).ToList(),
         };
     }
 
@@ -225,7 +226,7 @@ public static partial class DrawingService
     {
         DraftDocument draft = Draft(context, documentHandle);
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
-        string file = ModelFile(context, path, modelHandle, out string? warning);
+        string file = ModelFile(context, path, modelHandle, out SolidEdgeDocument? unsaved);
         string extension = System.IO.Path.GetExtension(file).ToLowerInvariant();
         if (flat && extension is not (".psm" or ".par"))
         {
@@ -265,46 +266,67 @@ public static partial class DrawingService
             throw ToolException.InvalidArgument("'member' picks a member of an assembly with alternate positions or a family (.asm).");
         }
 
-        ModelLink link = LinkTo(draft, file, string.IsNullOrWhiteSpace(member) ? null : member.Trim());
-        if (!string.IsNullOrWhiteSpace(modelView))
+        // Making a view clears the model's changed mark (see UnsavedNote): set it again on every path, errors included.
+        try
         {
-            RequireModelView(link, file, modelView);
-        }
-
-        double factor = scale is { } s ? RequireScale(s) : FitScale(link, orient, sheet);
-        (double x, double y) = position is null ? Centre(sheet) : Geo.Point2(position, "position");
-        sheet.Activate();
-        if (!string.IsNullOrWhiteSpace(modelView))
-        {
-            DrawingView pmi = Create(() => sheet.DrawingViews.AddPMIModelView(link, modelView, factor, x, y), "PMI model view",
-                "Check the name of the PMI model view in the model.");
-            CentreAt(pmi, x, y);
-            return Result(context, draft, pmi, warning);
-        }
-
-        if (configFile is not null)
-        {
-            DrawingView configured = Create(() => sheet.DrawingViews.AddWithConfiguration(link, orient, factor, x, y, configFile, configuration!),
-                "base view", "Check the configuration name with se_assembly_config 'list'.");
-            if (!string.Equals(configured.Configuration, configuration, StringComparison.OrdinalIgnoreCase))
+            ModelLink link = LinkTo(draft, file, string.IsNullOrWhiteSpace(member) ? null : member.Trim());
+            if (!string.IsNullOrWhiteSpace(modelView))
             {
-                string kept = configured.Configuration;
-                TryDelete(configured);
-                throw ToolException.NotFound($"The assembly has no display configuration '{configuration}' (the view showed '{kept}').",
-                    "List them with se_assembly_config 'list'.");
+                RequireModelView(link, file, modelView);
             }
 
-            CentreAt(configured, x, y);
-            return Result(context, draft, configured, warning);
-        }
+            double factor = scale is { } s ? RequireScale(s) : FitScale(link, orient, sheet);
+            (double x, double y) = position is null ? Centre(sheet) : Geo.Point2(position, "position");
+            sheet.Activate();
+            if (!string.IsNullOrWhiteSpace(modelView))
+            {
+                DrawingView pmi = Create(() => sheet.DrawingViews.AddPMIModelView(link, modelView, factor, x, y), "PMI model view",
+                    "Check the name of the PMI model view in the model.");
+                CentreAt(pmi, x, y);
+                return Result(context, draft, pmi, UnsavedNote(unsaved));
+            }
 
-        DrawingView view = Create(() => flat
-                ? sheet.DrawingViews.AddSheetMetalView(link, orient, factor, x, y, SheetMetalDrawingViewTypeConstants.seSheetMetalFlatView)
-                : sheet.DrawingViews.Add(link, orient, factor, x, y),
-            "base view", flat ? "Create the flat pattern in the model first (se_sheetmetal 'flatten') and save it." : "Check that the model has geometry and is saved.");
-        CentreAt(view, x, y);
-        return Result(context, draft, view, warning);
+            if (configFile is not null)
+            {
+                DrawingView configured = Create(() => sheet.DrawingViews.AddWithConfiguration(link, orient, factor, x, y, configFile, configuration!),
+                    "base view", "Check the configuration name with se_assembly_config 'list'.");
+                if (!string.Equals(configured.Configuration, configuration, StringComparison.OrdinalIgnoreCase))
+                {
+                    string kept = configured.Configuration;
+                    TryDelete(configured);
+                    throw ToolException.NotFound($"The assembly has no display configuration '{configuration}' (the view showed '{kept}').",
+                        "List them with se_assembly_config 'list'.");
+                }
+
+                CentreAt(configured, x, y);
+                return Result(context, draft, configured, UnsavedNote(unsaved));
+            }
+
+            DrawingView view = Create(() => flat
+                    ? sheet.DrawingViews.AddSheetMetalView(link, orient, factor, x, y, SheetMetalDrawingViewTypeConstants.seSheetMetalFlatView)
+                    : sheet.DrawingViews.Add(link, orient, factor, x, y),
+                "base view", flat ? "Create the flat pattern in the model first (se_sheetmetal 'flatten') and save it." : "Check that the model has geometry and is saved.");
+            CentreAt(view, x, y);
+            return Result(context, draft, view, UnsavedNote(unsaved));
+        }
+        finally
+        {
+            if (unsaved is { Dirty: false })
+            {
+                unsaved.Dirty = true;
+            }
+        }
     }
+
+    /// <summary>
+    /// The note for an open model whose unsaved changes the new view shows: a drawing reads the open document, not its file,
+    /// and making the view clears the model's changed mark, so closing it with saveChanges did not write them (verified in
+    /// Solid Edge 2026: a part saved as a disc, then given a bar, drawn with the bar, closed with saveChanges=true, and its
+    /// file still held the disc). BaseView sets the mark again.
+    /// </summary>
+    private static string? UnsavedNote(SolidEdgeDocument? model) => model is null
+        ? null
+        : $"'{model.Name}' has unsaved changes: the drawing shows them, but its file does not have them until it is saved (se_documents save).";
 
     /// <summary>
     /// Checks that the linked model has a PMI model view of that name (exact case, as AddPMIModelView needs it). Verified: an
@@ -400,39 +422,74 @@ public static partial class DrawingService
     }
 
     /// <summary>
-    /// Section by a plane perpendicular to the source view passing through the given line (two model points). The line
-    /// is extended until it crosses the whole view.
+    /// Cutting plane without its view (the Cutting Plane command): the cutting line through two model points, extended
+    /// across the source view, and the side it looks at. section_view makes its view later.
     /// </summary>
-    public static object SectionView(SeContext context, string? viewHandle, double[]? line, bool flip, double[]? position)
+    public static object AddCuttingPlane(SeContext context, string? viewHandle, double[]? line, bool flip, string? caption)
     {
         DrawingView source = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
-        ((double X, double Y) a, (double X, double Y) b) = SheetLine(source, line);
+        CuttingPlane plane = DrawCuttingPlane(draft, source, line, flip);
+        if (!string.IsNullOrWhiteSpace(caption))
+        {
+            try
+            {
+                plane.Caption = caption;
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+                TryDeleteCuttingPlane(draft, plane);
+                throw new ToolException("view_failed", $"Solid Edge did not take the caption '{caption}': {ex.Message.Trim()}",
+                    "Give a short caption such as B, or leave it out for the next letter.", ex);
+            }
+        }
 
-        // The profile of the cutting plane is in sheet coordinates and extends beyond the view to cut the whole part.
+        return new { cuttingPlane = DescribeCuttingPlane(context, draft, plane), count = source.CuttingPlanes.Count };
+    }
+
+    /// <summary>
+    /// Section by a plane perpendicular to the source view passing through the given line (two model points), extended
+    /// until it crosses the whole view; or the view of an existing cutting plane (cutting_plane, views).
+    /// </summary>
+    public static object SectionView(SeContext context, string? viewHandle, double[]? line, bool flip, double[]? position)
+    {
+        CuttingPlane? existing = CuttingPlaneOf(context, viewHandle);
+        DrawingView source = existing?.SourceDrawingView ?? ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        if (existing is not null)
+        {
+            if (line is not null || flip)
+            {
+                throw ToolException.InvalidArgument("A cutting plane already has its line and side: give it alone as 'view', or give a view with 'line'.");
+            }
+
+            if (existing.SectionView is DrawingView made)
+            {
+                throw ToolException.InvalidArgument(
+                    $"The cutting plane {existing.Caption} already has its section view ({Late.TryGetString(made, "Name")}): add another cutting_plane.");
+            }
+        }
+
         Box from = BoxOf(source);
-        double length = Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y));
-        double ux = (b.X - a.X) / length, uy = (b.Y - a.Y) / length;
-        double mx = (a.X + b.X) / 2, my = (a.Y + b.Y) / 2;
-        double reach = Math.Max(0.55 * Math.Sqrt(from.Width * from.Width + from.Height * from.Height)
-            + Math.Sqrt((mx - from.CentreX) * (mx - from.CentreX) + (my - from.CentreY) * (my - from.CentreY)), length / 2);
-
-        CuttingPlane plane = source.CuttingPlanes.Add();
+        CuttingPlane plane = existing ?? DrawCuttingPlane(draft, source, line, flip);
         DrawingView view;
-        double lookX = -uy, lookY = ux;
+        double lookX = 0, lookY = 0, ux = 1, uy = 0;
         try
         {
-            plane.Profile.Lines2d.AddBy2Points(mx - ux * reach, my - uy * reach, mx + ux * reach, my + uy * reach);
-            plane.Profile.EndEdit();
-            plane.ViewSide = flip ? SectionViewProfileSide.igRightProfileSide : SectionViewProfileSide.igLeftProfileSide;
             view = Create(() => plane.CreateView(DraftSectionViewType.seDraftSectionViewTypeStandard), "section view",
                 "Check that the cutting line crosses the part in the source view.");
-            plane.GetFoldLineWithViewDirection(out _, out _, out _, out _, out lookX, out lookY);
+            plane.GetFoldLineWithViewDirection(out double x1, out double y1, out double x2, out double y2, out lookX, out lookY);
+            double length = Math.Sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+            (ux, uy) = length > 1e-9 ? ((x2 - x1) / length, (y2 - y1) / length) : (1, 0);
             view.Update();
         }
         catch (Exception ex) when (ex is ToolException || (ex is COMException com && !ComErrors.IsGone(com)))
         {
-            TryDelete(plane);
+            if (existing is null)
+            {
+                TryDeleteCuttingPlane(draft, plane);
+            }
+
             if (ex is ToolException)
             {
                 throw;
@@ -534,13 +591,144 @@ public static partial class DrawingService
         return Result(context, draft, view, null);
     }
 
+    /// <summary>
+    /// Turns a view on the sheet to an absolute angle, counter-clockwise (View Properties). Verified in Solid Edge 2026:
+    /// SetRotationAngle takes radians, GetRotationAngle reads them back from 0 to 2 pi, and turning a cropped view resets
+    /// its crop, so a cropped view is refused.
+    /// </summary>
+    public static object RotateView(SeContext context, string? viewHandle, double? angle)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        double degrees = angle is { } a && double.IsFinite(a)
+            ? a
+            : throw ToolException.InvalidArgument("Action 'rotate_view' requires 'angle': the view's angle on the sheet in degrees, counter-clockwise.");
+        if (view.Crop)
+        {
+            throw ToolException.InvalidArgument("The view is cropped, and Solid Edge resets the crop when it turns a view.",
+                "Show it whole first (crop_view without 'area'), turn it, then crop it in View Properties if needed.");
+        }
+
+        view.GetRotationAngle(out double previous);
+        view.SetRotationAngle(Units.DegToRad(degrees));
+        view.GetRotationAngle(out double current);
+        if (Math.Abs(Math.IEEERemainder(current - Units.DegToRad(degrees), 2 * Math.PI)) > 1e-6)
+        {
+            throw new ToolException("view_failed", $"Solid Edge turned the view to {Geo.R(Units.RadToDeg(current))} degrees instead of {Geo.R(degrees)}.",
+                "Turn it in View Properties.");
+        }
+
+        return new
+        {
+            view = DescribeView(context, draft, view),
+            angle = Geo.R(Units.RadToDeg(current)),
+            previous = Geo.R(Units.RadToDeg(previous)),
+            note = SheetNote(view),
+        };
+    }
+
+    /// <summary>
+    /// Crops a view to a rectangle of the sheet (View Properties > Crop), or shows it whole again. Verified in Solid Edge 2026:
+    /// CropLeft, CropRight, CropBottom and CropTop are sheet distances in metres, at any scale, from the centre of the whole
+    /// view to each side; the view's box becomes that rectangle, even past its edges. On a turned view the crop follows the
+    /// view's own axes, so a turned view is refused.
+    /// </summary>
+    public static object CropView(SeContext context, string? viewHandle, double[]? area)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        if (area is null)
+        {
+            view.Crop = false;
+            if (view.Crop)
+            {
+                throw new ToolException("view_failed", "Solid Edge kept the view cropped.", "Clear Crop in View Properties.");
+            }
+
+            return Result(context, draft, view, null);
+        }
+
+        if (area.Length != 4 || !area.All(double.IsFinite))
+        {
+            throw ToolException.InvalidArgument("'area' takes the rectangle of the sheet to keep, [x1, y1, x2, y2] in mm.");
+        }
+
+        view.GetRotationAngle(out double turned);
+        if (Math.Abs(Math.IEEERemainder(turned, 2 * Math.PI)) > 1e-9)
+        {
+            throw ToolException.InvalidArgument("The view is turned, and Solid Edge crops a turned view in its own axes, not the sheet's.",
+                "Crop it in View Properties, or set rotate_view angle 0 first.");
+        }
+
+        double x1 = Units.MmToM(Math.Min(area[0], area[2])), x2 = Units.MmToM(Math.Max(area[0], area[2]));
+        double y1 = Units.MmToM(Math.Min(area[1], area[3])), y2 = Units.MmToM(Math.Max(area[1], area[3]));
+        if (x2 - x1 < 1e-4 || y2 - y1 < 1e-4)
+        {
+            throw ToolException.InvalidArgument("'area' must be a rectangle at least 0.1 mm wide and high.");
+        }
+
+        Box box = BoxOf(view);
+        double cx = box.CentreX, cy = box.CentreY;
+        if (view.Crop)
+        {
+            cx -= (view.CropRight - view.CropLeft) / 2;
+            cy -= (view.CropTop - view.CropBottom) / 2;
+        }
+
+        view.CropLeft = cx - x1;
+        view.CropRight = x2 - cx;
+        view.CropBottom = cy - y1;
+        view.CropTop = y2 - cy;
+        view.Crop = true;
+        Box after = BoxOf(view);
+        if (!view.Crop || Math.Abs(after.X1 - x1) > 1e-6 || Math.Abs(after.X2 - x2) > 1e-6 || Math.Abs(after.Y1 - y1) > 1e-6
+            || Math.Abs(after.Y2 - y2) > 1e-6)
+        {
+            throw new ToolException("view_failed",
+                $"The cropped view spans {Geo.Mm(after.X1)}, {Geo.Mm(after.Y1)} to {Geo.Mm(after.X2)}, {Geo.Mm(after.Y2)} mm instead of the area.",
+                "Check the view with 'views' and crop it in View Properties.");
+        }
+
+        return Result(context, draft, view, null);
+    }
+
     public static object DeleteView(SeContext context, string? viewHandle)
     {
+        if (CuttingPlaneOf(context, viewHandle) is { } plane)
+        {
+            return DeleteCuttingPlane(context, viewHandle!, plane);
+        }
+
         DrawingView view = ResolveView(context, viewHandle);
         string? name = Late.TryGetString(view, "Name");
         view.Delete();
         context.Handles.Remove(viewHandle!, "the drawing view was deleted");
         return new { deleted = name ?? viewHandle };
+    }
+
+    /// <summary>A cutting plane goes with its section view, as in Solid Edge.</summary>
+    private static object DeleteCuttingPlane(SeContext context, string handle, CuttingPlane plane)
+    {
+        DrawingView source = plane.SourceDrawingView;
+        DraftDocument draft = DraftFor(context, null, handle);
+        DrawingView? section = plane.SectionView;
+        string caption = plane.Caption;
+        string? sectionName = section is null ? null : Late.TryGetString(section, "Name");
+        int before = source.CuttingPlanes.Count;
+        DeleteBySelection(draft, plane);
+        if (source.CuttingPlanes.Count >= before)
+        {
+            throw new ToolException("view_failed", $"Solid Edge did not delete the cutting plane {caption}.",
+                "Delete it in Solid Edge (select its line, then Delete).");
+        }
+
+        context.Handles.Remove(handle, "the cutting plane was deleted");
+        if (section is not null && context.Handles.TryGetId(section, out string? sectionHandle) && sectionHandle is not null)
+        {
+            context.Handles.Remove(sectionHandle, "its cutting plane was deleted with it");
+        }
+
+        return new { deleted = $"cutting plane {caption}", sectionView = sectionName, count = source.CuttingPlanes.Count };
     }
 
     // ---------------------------------------------------------------- dimensions, parts list and updating
@@ -573,6 +761,26 @@ public static partial class DrawingService
         };
     }
 
+    /// <summary>
+    /// Activate / Inactivate Drawing Views: whether the drawing views of the drawing are active (DraftDocument.InactiveDrawingViewMode,
+    /// which the two commands set; verified). Without <paramref name="active"/> the mode is only read.
+    /// </summary>
+    public static object ViewActivation(SeContext context, string? documentHandle, string? viewHandle, bool? active)
+    {
+        DraftDocument draft = DraftFor(context, documentHandle, viewHandle);
+        bool previous = !draft.InactiveDrawingViewMode;
+        if (active is bool wanted && wanted != previous)
+        {
+            draft.InactiveDrawingViewMode = !wanted;
+            if (draft.InactiveDrawingViewMode == wanted)
+            {
+                throw new ToolException("setting_rejected", $"Solid Edge left the drawing views {(previous ? "active" : "inactive")}.", "Check the drawing with se_drawing views.");
+            }
+        }
+
+        return new { document = DocumentHandle(context, draft), active = !draft.InactiveDrawingViewMode, previous = active is null ? (bool?)null : previous };
+    }
+
     /// Manual dimension in a view, as a person would place it: each model point (mm) is projected onto the view and selects the
     /// edge, circle or vertex through it. Linear dimensions are moved outside the outline and stacked.
     /// </summary>
@@ -581,7 +789,7 @@ public static partial class DrawingService
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
         List<(double X, double Y, double Z)> model = Geo.Points3(points, "points", 1);
-        List<Graphic> graphics = Graphics(view);
+        List<Graphic> graphics = DimensionGraphics(view);
         if (graphics.Count == 0)
         {
             throw new ToolException("nothing_to_dimension", "The view has no edges to dimension.", "Update the view (action 'update') and try again.");
@@ -596,7 +804,7 @@ public static partial class DrawingService
             case "length":
             {
                 (double X, double Y) p = model.Count >= 2 ? Mid(ModelToView(view, model[0]), ModelToView(view, model[1])) : ModelToView(view, model[0]);
-                Graphic edge = Nearest(graphics, p, model[0], g => g.Shape == Shape.Line, "straight edge");
+                Graphic edge = Nearest(view, graphics, p, model[0], g => g.Shape == Shape.Line, "straight edge");
                 dimension = dimensions.AddLength(edge.Reference);
                 PlaceLinear(view, sheet, dimension, ToSheet(view, edge.Start), ToSheet(view, edge.End), null, graphics, at);
                 break;
@@ -605,7 +813,9 @@ public static partial class DrawingService
             case "diameter":
             case "radius":
             {
-                Graphic curve = Nearest(graphics, ModelToView(view, model[0]), model[0], g => g.Shape is Shape.Circle or Shape.Arc, "circle or arc");
+                // A section shows a hole as two parallel edges, not as a circle.
+                Graphic curve = Nearest(view, graphics, ModelToView(view, model[0]), model[0], g => g.Shape is Shape.Circle or Shape.Arc, "circle or arc",
+                    "A hole or shaft seen from the side (two parallel edges, e.g. in a section): draw its axis with se_annotation centerline and use kind symmetric_diameter; or use a view that looks along it.");
                 dimension = kind == "radius" ? dimensions.AddRadius(curve.Reference)
                     : curve.Shape == Shape.Circle ? dimensions.AddCircularDiameter(curve.Reference)
                     : dimensions.AddRadialDiameter(curve.Reference);
@@ -992,8 +1202,14 @@ public static partial class DrawingService
         return new { sheet = sheet.Name, count = all.Count, offset = start, returned = page.Count, more = start + page.Count < all.Count, dimensions = page };
     }
 
-    /// <summary>Parts list of an assembly view (with balloons if requested).</summary>
-    public static object PartsList(SeContext context, string? viewHandle, double[]? position, bool balloons, string? style)
+    /// <summary>
+    /// Parts list of an assembly view (with balloons if requested). With <paramref name="family"/> or
+    /// <paramref name="members"/>, a family of assemblies parts list: one quantity column per chosen member of the assembly
+    /// family. Verified: a family with members NoPin and WithPin gives the columns "Quantity (WithPin)" and "Quantity (NoPin)"
+    /// once both are chosen and the list updated (block 1 and 1, pin 1 and 0); one member alone gives its column and rows.
+    /// </summary>
+    public static object PartsList(SeContext context, string? viewHandle, double[]? position, bool balloons, string? style,
+        bool family = false, string[]? members = null)
     {
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
@@ -1002,10 +1218,19 @@ public static partial class DrawingService
             throw new ToolException("wrong_view", "A parts list needs a view of an assembly.", "Pass a drawing view created from an .asm file.");
         }
 
+        family |= members is { Length: > 0 };
         PartsList list;
         try
         {
-            list = draft.PartsLists.Add(view, style ?? "", balloons ? 1 : 0, 1);
+            list = family
+                ? draft.PartsLists.AddFamilyOfAssemblyPartsList(view, 0, style ?? "", balloons ? 1 : 0, 1)
+                : draft.PartsLists.Add(view, style ?? "", balloons ? 1 : 0, 1);
+        }
+        catch (NullReferenceException ex) when (family)
+        {
+            // Verified: a view of an assembly without a family gives E_POINTER, which .NET raises as NullReferenceException.
+            throw new ToolException("not_family", "The assembly of the view has no family members.",
+                "Make a family of assemblies (se_assembly_family create), save it and place a view of a member; or leave out 'family'.", ex);
         }
         catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
@@ -1013,10 +1238,60 @@ public static partial class DrawingService
                 style is null ? "Pass 'style' with the name of a saved parts list setting (e.g. 'Normal')." : "Check the saved setting name in 'style'.", ex);
         }
 
+        if (family)
+        {
+            ChooseFamilyMembers(view, list, members);
+        }
+
         (TableAnchorPoint anchor, double x, double y) = TableCorner(view, position);
         list.AnchorPoint = anchor;
         list.SetOrigin(x, y);
         return DescribePartsList(context, draft, list);
+    }
+
+    /// <summary>Chooses the members of a family of assemblies parts list (default all), or deletes the list if that fails.</summary>
+    private static void ChooseFamilyMembers(DrawingView view, PartsList list, string[]? members)
+    {
+        try
+        {
+            Array all = Array.Empty<object>();
+            int count = 0;
+            if (list.IsFamilyOfAssemblyPartsList())
+            {
+                list.GetAllFamilyOfAssemblyPartsListMembers(view, out count, ref all);
+            }
+
+            string[] names = [.. all.Cast<object?>().Take(count).Select(o => o?.ToString() ?? "")];
+            if (names.Length == 0)
+            {
+                throw new ToolException("not_family", "The assembly of the view has no family members.",
+                    "Make a family of assemblies (se_assembly_family create), save it and place a view of a member; or leave out 'family'.");
+            }
+
+            string[] chosen = members is { Length: > 0 }
+                ? [.. members.Select(m => names.FirstOrDefault(n => string.Equals(n, m?.Trim(), StringComparison.OrdinalIgnoreCase))
+                    ?? throw ToolException.InvalidArgument($"The assembly family has no member '{m}'.", $"Use one of: {string.Join(", ", names)}."))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)]
+                : names;
+            Array wanted = chosen.Cast<object>().ToArray();
+            int number = chosen.Length;
+            list.SetSelectedFamilyOfAssemblyPartsListMembers(ref number, ref wanted);
+            list.Update();
+            Array selected = Array.Empty<object>();
+            list.GetSelectedFamilyOfAssemblyPartsListMembers(out int got, ref selected);
+            // The array keeps its old length: only the first 'got' entries are the members chosen.
+            string[] kept = [.. selected.Cast<object?>().Take(got).Select(o => o?.ToString() ?? "")];
+            if (!kept.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(chosen))
+            {
+                throw new ToolException("parts_list_failed", $"Solid Edge kept the members {string.Join(", ", kept)} instead of {string.Join(", ", chosen)}.");
+            }
+        }
+        catch (Exception ex) when (ex is ToolException || ComErrors.Unwrap(ex) is COMException && !ComErrors.IsGone(ex))
+        {
+            list.Delete();
+            throw ex is ToolException ? ex : new ToolException("parts_list_failed",
+                $"Solid Edge could not choose the family members: {ComErrors.Unwrap(ex).Message.Trim()}", "Check the member names (se_assembly_family list).", ex);
+        }
     }
 
     /// <summary>
@@ -1298,13 +1573,23 @@ public static partial class DrawingService
             origin = new Pick(corner, true, ToSheet(view, at));
         }
 
+        List<Graphic> shown = [.. graphics.Where(g => g.Shape == Shape.Circle)];
+        bool stale = model.Count <= 1 && shown.Count > 0 && !view.IsUpToDate;
+        List<Graphic>? holes = model.Count > 1 || stale ? null : HoleCircles(view, shown);
         List<Graphic> circles = model.Count > 1
-            ? [.. model.Skip(1).Select(p => Nearest(graphics, ModelToView(view, p), p, g => g.Shape == Shape.Circle, "circle"))]
-            : [.. graphics.Where(g => g.Shape == Shape.Circle)];
+            ? [.. model.Skip(1).Select(p => Nearest(view, graphics, ModelToView(view, p), p, g => g.Shape == Shape.Circle, "circle"))]
+            : holes ?? shown;
         if (circles.Count == 0)
         {
-            throw ToolException.NotFound("The view shows no circles (holes).", "Use a view that looks along the holes (e.g. the top view of a plate).");
+            throw ToolException.NotFound(shown.Count == 0 ? "The view shows no circles (holes)." : $"None of the {shown.Count} circles of the view is on a hole (a concave cylindrical or conical face of the part along the view): they are the outline, bosses or edges of chamfers and rounds.",
+                shown.Count == 0 ? "Use a view that looks along the holes (e.g. the top view of a plate)." : "Give the holes in 'points' (after the origin) if they should be listed.");
         }
+
+        string? note = stale
+            ? "The view is out of date with its model, so every circle it shows was listed; update it (se_drawing update) to list only the holes."
+            : holes is not null && holes.Count < shown.Count
+            ? $"{shown.Count - holes.Count} circle(s) of the view were left out: not on a hole (the outline, a boss, the edge of a chamfer or a round) or a second circle of a hole listed by its narrowest one (a counterbore, countersink or taper); give the holes in 'points' to choose them."
+            : null;
 
         if (circles.Distinct().Count() != circles.Count)
         {
@@ -1356,7 +1641,102 @@ public static partial class DrawingService
             columns = headers,
             count = table.Rows.Count,
             rows,
+            note,
         };
+    }
+
+    /// <summary>
+    /// The circles of a part view that are holes, one per hole: centred on the axis of a cylindrical or conical face of the
+    /// model whose outward normal points to the axis (the material is outside it), the axis along the view direction, with a
+    /// radius the face has; of the circles of one hole, the narrowest. The outline of a round part, a boss and the edge of a
+    /// chamfer are left out (verified: every circle of the top view of a disc of 80 with a 1 mm chamfer made rows of 78 and
+    /// 80), and so are the second circles of a counterbore, a countersink and a tapered hole (verified: a counterbore of 11
+    /// over 6.6 made two rows). Null when the model cannot be read this way (an assembly, a flat pattern view, a body that is
+    /// a mesh): every circle is then kept.
+    /// </summary>
+    private static List<Graphic>? HoleCircles(DrawingView view, List<Graphic> circles)
+    {
+        if (circles.Count == 0 || circles.Any(c => Late.TryGet(c.Value, "ModelMember") is { } member && Late.TryGet(member, "IsFlat") is true)
+            || LinkOf(view) is not { ModelType: ModelLinkTypeConstants.igPartLink } link
+            || Late.TryGet(link, "ModelDocument") is not SolidEdgeDocument document
+            || ModelDocument.TryGet(document)?.TryBodies() is not { Count: > 0 } bodies)
+        {
+            return null;
+        }
+
+        const double tolerance = 1e-5;
+        var walls = new List<((double X, double Y) Centre, double Least, double Most)>();
+        foreach ((_, SolidEdgeGeometry.Body body) in bodies)
+        {
+            IEnumerable<SolidEdgeGeometry.Face> faces = new[] { SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryCylinder, SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryCone }
+                .SelectMany(query => Late.Items(body.Faces[query]).OfType<SolidEdgeGeometry.Face>());
+            foreach (SolidEdgeGeometry.Face face in faces)
+            {
+                Array axisPoint = new double[3];
+                Array axisDirection = new double[3];
+                switch (face.Geometry)
+                {
+                    case SolidEdgeGeometry.Cylinder cylinder:
+                        cylinder.GetCylinderData(ref axisPoint, ref axisDirection, out _);
+                        break;
+                    case SolidEdgeGeometry.Cone cone:
+                        cone.GetConeData(ref axisPoint, ref axisDirection, out _, out _, out _);
+                        break;
+                    default:
+                        continue;
+                }
+
+                double[] a = [.. Geo.Doubles(axisPoint)];
+                double[] d = [.. Geo.Doubles(axisDirection)];
+                (double X, double Y) centre = ModelToView(view, (a[0], a[1], a[2]));
+                (double X, double Y) further = ModelToView(view, (a[0] + d[0], a[1] + d[1], a[2] + d[2]));
+                if (Distance(centre, further) >= tolerance)
+                {
+                    continue;
+                }
+
+                // The radius at the middle and at the corners of the face's parameter range: a cone's two ends, a cylinder's one.
+                Array min = new double[2];
+                Array max = new double[2];
+                face.GetParamRange(ref min, ref max);
+                double[] lo = [.. Geo.Doubles(min)];
+                double[] hi = [.. Geo.Doubles(max)];
+                double Radial(double[] p, out double[] off)
+                {
+                    double along = (p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1] + (p[2] - a[2]) * d[2];
+                    off = [p[0] - a[0] - along * d[0], p[1] - a[1] - along * d[1], p[2] - a[2] - along * d[2]];
+                    return Math.Sqrt(off.Sum(x => x * x));
+                }
+
+                Array param = new[] { (lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2 };
+                Array point = new double[3];
+                Array normal = new double[3];
+                face.GetPointAtParam(1, ref param, ref point);
+                face.GetNormal(1, ref param, ref normal);
+                double[] n = [.. Geo.Doubles(normal)];
+                Radial([.. Geo.Doubles(point)], out double[] radial);
+                if (Enumerable.Range(0, 3).Sum(i => n[i] * radial[i]) >= 0)
+                {
+                    continue;
+                }
+
+                var radii = new List<double>();
+                double[][] corners = [[lo[0], lo[1]], [lo[0], hi[1]], [hi[0], lo[1]], [hi[0], hi[1]]];
+                foreach (double[] corner in corners)
+                {
+                    Array at = corner;
+                    face.GetPointAtParam(1, ref at, ref point);
+                    radii.Add(Radial([.. Geo.Doubles(point)], out _));
+                }
+
+                walls.Add((centre, radii.Min(), radii.Max()));
+            }
+        }
+
+        return [.. circles
+            .Where(c => walls.Any(w => Distance(c.Centre, w.Centre) < tolerance && c.Radius > w.Least - tolerance && c.Radius < w.Most + tolerance))
+            .GroupBy(c => walls.First(w => Distance(c.Centre, w.Centre) < tolerance).Centre)
+            .Select(hole => hole.MinBy(c => c.Radius)!)];
     }
 
     /// <summary>Key point index of a picked vertex or centre for the Solid Edge calls that take an element and a key point.</summary>
@@ -1508,19 +1888,22 @@ public static partial class DrawingService
         };
     }
 
-    private static object Result(SeContext context, DraftDocument draft, DrawingView view, string? note, string? projection = null)
+    private static object Result(SeContext context, DraftDocument draft, DrawingView view, string? note, string? projection = null) =>
+        new { view = DescribeView(context, draft, view), projection, note = SheetNote(view) is { } fit ? (note is null ? fit : $"{note} {fit}") : note };
+
+    private static string? SheetNote(DrawingView view)
     {
-        if (note is null && view.Parent is Sheet sheet)
+        if (view.Parent is Sheet sheet)
         {
             double width = sheet.SheetSetup.SheetWidth, height = sheet.SheetSetup.SheetHeight;
             if (!BoxOf(view).Within(width, height))
             {
-                note = $"The view does not fit inside the {Geo.Mm(width)} x {Geo.Mm(height)} mm sheet: move it (move_view), "
+                return $"The view does not fit inside the {Geo.Mm(width)} x {Geo.Mm(height)} mm sheet: move it (move_view), "
                     + "reduce its scale (scale_view) or use a larger sheet (setup_sheet).";
             }
         }
 
-        return new { view = DescribeView(context, draft, view), projection, note };
+        return null;
     }
 
     private static object DescribeView(SeContext context, DraftDocument draft, DrawingView view)
@@ -1760,19 +2143,16 @@ public static partial class DrawingService
     }
 
     /// <summary>Model file: saved path (allowed folders) or that of an open, already saved document.</summary>
-    private static string ModelFile(SeContext context, string? path, string? modelHandle, out string? warning)
+    private static string ModelFile(SeContext context, string? path, string? modelHandle, out SolidEdgeDocument? unsaved)
     {
-        warning = null;
+        unsaved = null;
         string file;
         if (!string.IsNullOrWhiteSpace(modelHandle))
         {
             SolidEdgeDocument model = context.GetDocument(modelHandle);
             file = DocumentService.PathOf(model) ?? throw new ToolException("never_saved",
                 $"'{model.Name}' has never been saved; a drawing shows a model file.", "Save it first (se_documents save_as).");
-            if (model.Dirty)
-            {
-                warning = $"'{model.Name}' has unsaved changes; the drawing shows the saved file. Save it, then run action 'update'.";
-            }
+            unsaved = model.Dirty ? model : null;
         }
         else if (!string.IsNullOrWhiteSpace(path))
         {
@@ -1792,6 +2172,20 @@ public static partial class DrawingService
         if (System.IO.Path.GetExtension(file).ToLowerInvariant() is not (".par" or ".psm" or ".asm" or ".pwd"))
         {
             throw ToolException.InvalidArgument($"'{file}' is not a part, sheet metal, assembly or weldment file.");
+        }
+
+        // A model given by its path may be open too: the view shows the open document.
+        if (unsaved is null && string.IsNullOrWhiteSpace(modelHandle))
+        {
+            Documents documents = context.Application.Documents;
+            for (int i = 1; i <= documents.Count; i++)
+            {
+                if (documents.Item(i) is SolidEdgeDocument open && open.Dirty
+                    && string.Equals(DocumentService.PathOf(open), file, StringComparison.OrdinalIgnoreCase))
+                {
+                    unsaved = open;
+                }
+            }
         }
 
         return file;
@@ -2243,9 +2637,18 @@ public static partial class DrawingService
     private sealed record Graphic(Shape Shape, object Value, (double X, double Y) Start, (double X, double Y) End,
         (double X, double Y) Centre, double Radius, double StartAngle, double Sweep)
     {
+        /// <summary>The dependent detail view that shows this element of its source view (see DimensionGraphics).</summary>
+        public DrawingView? Detail { get; init; }
+
         /// <summary>Sheet reference of the element: dimensions created with it stay associated with the view.</summary>
-        public object Reference => Late.Get(Value, "Reference")
-            ?? throw new ToolException("dimension_failed", "Solid Edge returned no reference for the selected edge.");
+        public object Reference => Detail is { } detail ? DetailReference(detail, Value)
+            : Late.Get(Value, "Reference") ?? throw new ToolException("dimension_failed", "Solid Edge returned no reference for the selected edge.");
+
+        private static object DetailReference(DrawingView detail, object value)
+        {
+            detail.GetReferenceToGraphicMember(value, out SolidEdgeFramework.Reference reference);
+            return reference ?? throw new ToolException("dimension_failed", "Solid Edge returned no reference for the selected edge in the detail view.");
+        }
     }
 
     private sealed record Pick(Graphic Graphic, bool KeyPoint, (double X, double Y) Sheet);
@@ -2275,6 +2678,36 @@ public static partial class DrawingService
         }
 
         return list;
+    }
+
+    /// <summary>
+    /// Elements to dimension in a view. A dependent detail view has none of its own (DVLines2d, DVArcs2d... and
+    /// GraphicMembers are empty; verified): it shows its source view's elements, in the same view coordinates, so these are
+    /// the source's elements that reach into its circle, referenced through the detail view (GetReferenceToGraphicMember: a
+    /// radius dimension on it reads 4 mm and stays in the detail; the source element's own reference fails).
+    /// </summary>
+    private static List<Graphic> DimensionGraphics(DrawingView view)
+    {
+        List<Graphic> own = Graphics(view);
+        if (own.Count > 0 || view.DrawingViewType != DrawingViewTypeConstants.igDetailView || view.SourceDrawingView is not { } source)
+        {
+            return own;
+        }
+
+        List<Graphic> shown = [.. Graphics(source).Select(g => g with { Detail = view })];
+        DetailEnvelope? envelope = Late.Items(source.DetailEnvelopes).OfType<DetailEnvelope>()
+            .FirstOrDefault(e => e.DetailView is { } d && Late.SameObject(d, view));
+        if (envelope is null || envelope.Diameter <= 0)
+        {
+            return shown;
+        }
+
+        // The envelope's diameter is on the sheet at the source's scale (18 mm for a radius of 9 at 1:1; DisplayAsCircle
+        // reads false for it); the detail view's centre is that of its circle.
+        double radius = envelope.Diameter / 2 / source.ScaleFactor;
+        view.GetCenterForDetailView(out double sx, out double sy);
+        view.SheetToView(sx, sy, out double cx, out double cy);
+        return [.. shown.Where(g => DistanceTo(g, (cx, cy)) <= radius + 1e-6)];
     }
 
     private static double Distance((double X, double Y) a, (double X, double Y) b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
@@ -2314,7 +2747,8 @@ public static partial class DrawingService
         return arc.Sweep >= 0 ? relative <= arc.Sweep + 1e-9 : relative >= 2 * Math.PI + arc.Sweep - 1e-9;
     }
 
-    private static Graphic Nearest(List<Graphic> graphics, (double X, double Y) p, (double X, double Y, double Z) model, Func<Graphic, bool> filter, string what)
+    private static Graphic Nearest(DrawingView view, List<Graphic> graphics, (double X, double Y) p, (double X, double Y, double Z) model,
+        Func<Graphic, bool> filter, string what, string? hint = null)
     {
         Graphic? best = null;
         double bestDistance = double.MaxValue;
@@ -2330,16 +2764,46 @@ public static partial class DrawingService
         string point = $"({Geo.Mm(model.X)}, {Geo.Mm(model.Y)}, {Geo.Mm(model.Z)})";
         if (best is null)
         {
-            throw ToolException.NotFound($"The view shows no {what}.", "Choose another view.");
+            throw ToolException.NotFound($"The view shows no {what}.", hint ?? "Choose another view.");
         }
 
         if (bestDistance > PickTolerance)
         {
-            throw ToolException.NotFound($"No {what} of the view passes through {point}: the nearest is {Geo.Mm(bestDistance)} mm away (model units).",
-                "Give a model point on the edge as seen in this view (se_geometry lists edges and vertices of the model).");
+            throw ToolException.NotFound($"No {what} of the view passes through {point}: the nearest is {Geo.Mm(bestDistance)} mm away (model units){InModel(view, best)}.",
+                "Give a model point on the edge as seen in this view (se_geometry lists edges and vertices of the model; a flat pattern view shows the flat pattern, whose coordinates are not those of the folded part).");
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// Where an element of the view is in model coordinates, for an error: ModelToView is linear and drops the depth along
+    /// the view direction, so its points are given on the plane through the model origin square to that direction.
+    /// </summary>
+    private static string InModel(DrawingView view, Graphic graphic)
+    {
+        (double X, double Y) o = ModelToView(view, (0, 0, 0));
+        (double X, double Y) a = ModelToView(view, (1, 0, 0)), b = ModelToView(view, (0, 1, 0)), c = ModelToView(view, (0, 0, 1));
+        double[] u = [a.X - o.X, b.X - o.X, c.X - o.X];
+        double[] v = [a.Y - o.Y, b.Y - o.Y, c.Y - o.Y];
+        double uu = u.Sum(x => x * x), vv = v.Sum(x => x * x), uv = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+        double det = uu * vv - uv * uv;
+        if (!(det > 1e-18))
+        {
+            return "";
+        }
+
+        // The least-norm solution of the 2 x 3 system: m = A^T (A A^T)^-1 (p - o), with u and v the rows of A.
+        string Model((double X, double Y) p)
+        {
+            double px = p.X - o.X, py = p.Y - o.Y;
+            double s = (vv * px - uv * py) / det, t = (uu * py - uv * px) / det;
+            return $"({Geo.Mm(s * u[0] + t * v[0])}, {Geo.Mm(s * u[1] + t * v[1])}, {Geo.Mm(s * u[2] + t * v[2])})";
+        }
+
+        return graphic.Shape == Shape.Line
+            ? $": the line from {Model(graphic.Start)} to {Model(graphic.End)}"
+            : $": the {(graphic.Shape == Shape.Arc ? "arc" : "circle")} of radius {Geo.Mm(graphic.Radius)} centred at {Model(graphic.Centre)}";
     }
 
     /// <summary>Element pointed at by a point: an exact vertex or centre if it matches, otherwise the edge through it.</summary>
@@ -2371,7 +2835,7 @@ public static partial class DrawingService
             }
         }
 
-        Graphic edge = Nearest(graphics, p, model, g => !linesOnly || g.Shape == Shape.Line, linesOnly ? "straight edge" : "edge");
+        Graphic edge = Nearest(view, graphics, p, model, g => !linesOnly || g.Shape == Shape.Line, linesOnly ? "straight edge" : "edge");
         return new Pick(edge, false, ToSheet(view, p));
     }
 
@@ -2661,6 +3125,77 @@ public static partial class DrawingService
             Late.Call(target, "Delete");
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex))
+        {
+            // If it cannot be deleted, it remains: the error being reported is the original one.
+        }
+    }
+
+    /// <summary>
+    /// The profile of a cutting plane is in sheet coordinates and extends beyond the source view to cut the whole part;
+    /// left of the line unless flipped.
+    /// </summary>
+    private static CuttingPlane DrawCuttingPlane(DraftDocument draft, DrawingView source, double[]? line, bool flip)
+    {
+        ((double X, double Y) a, (double X, double Y) b) = SheetLine(source, line);
+        Box from = BoxOf(source);
+        double length = Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y));
+        double ux = (b.X - a.X) / length, uy = (b.Y - a.Y) / length;
+        double mx = (a.X + b.X) / 2, my = (a.Y + b.Y) / 2;
+        double reach = Math.Max(0.55 * Math.Sqrt(from.Width * from.Width + from.Height * from.Height)
+            + Math.Sqrt((mx - from.CentreX) * (mx - from.CentreX) + (my - from.CentreY) * (my - from.CentreY)), length / 2);
+
+        CuttingPlane plane = source.CuttingPlanes.Add();
+        try
+        {
+            plane.Profile.Lines2d.AddBy2Points(mx - ux * reach, my - uy * reach, mx + ux * reach, my + uy * reach);
+            plane.Profile.EndEdit();
+            plane.ViewSide = flip ? SectionViewProfileSide.igRightProfileSide : SectionViewProfileSide.igLeftProfileSide;
+            return plane;
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            TryDeleteCuttingPlane(draft, plane);
+            throw new ToolException("view_failed", $"Solid Edge could not draw the cutting plane: {ex.Message.Trim()}",
+                "Check that the cutting line crosses the part in the source view.", ex);
+        }
+    }
+
+    private static IEnumerable<CuttingPlane> CuttingPlanesOf(DrawingView view)
+    {
+        CuttingPlanes planes = view.CuttingPlanes;
+        for (int i = 1; i <= planes.Count; i++)
+        {
+            yield return planes.Item(i);
+        }
+    }
+
+    /// <summary>The cutting plane a handle names, or null when it names something else (a drawing view).</summary>
+    private static CuttingPlane? CuttingPlaneOf(SeContext context, string? handle) =>
+        string.IsNullOrWhiteSpace(handle) ? null : context.Handles.Resolve(handle, "view") as CuttingPlane;
+
+    private static object DescribeCuttingPlane(SeContext context, DraftDocument draft, CuttingPlane plane)
+    {
+        plane.GetFoldLineWithViewDirection(out double x1, out double y1, out double x2, out double y2, out double lookX, out double lookY);
+        DrawingView? section = plane.SectionView;
+        return new
+        {
+            handle = context.Register(plane, "cutting_plane", Document(draft)),
+            caption = plane.Caption,
+            view = context.Register(plane.SourceDrawingView, "drawing_view", Document(draft)),
+            line = new[] { Geo.Mm(x1), Geo.Mm(y1), Geo.Mm(x2), Geo.Mm(y2) },
+            looking = new[] { Geo.R(lookX), Geo.R(lookY) },
+            sectionView = section is null ? null : context.Register(section, "drawing_view", Document(draft)),
+        };
+    }
+
+    /// <summary>A cutting plane has no Delete (verified): it is deleted through the selection, with its section view.</summary>
+    private static void TryDeleteCuttingPlane(DraftDocument draft, CuttingPlane plane)
+    {
+        try
+        {
+            DeleteBySelection(draft, plane);
+        }
+        catch (Exception ex) when (ex is ToolException || (Late.IsMemberFailure(ex) && !(ex is COMException com && ComErrors.IsGone(com))))
         {
             // If it cannot be deleted, the empty cutting plane remains: it does not affect the model.
         }

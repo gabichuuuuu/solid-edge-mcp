@@ -1,0 +1,104 @@
+# A90: maximum and normal distance, wall thickness, etch in a part, Move to Synchronous, recognition of holes, patterns and
+#   chamfers, radiate. A block 100 x 60 x 20 (x 0..100, y -60..0) with three through holes of 10 mm at y -20, x 20 / 50 / 80,
+#   and its two front edges (y -60) chamfered 3 mm: 120000 - 3 pi 25 20 - 900 = 114387.611. The thinnest walls are 15 mm
+#   (the end holes to the sides). The top face runs y -57..0, so the farthest points of the top and bottom faces are
+#   sqrt(100^2 + 57^2 + 20^2) = 116.829 apart.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,-60,100,0]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@kh = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kh.sketch}}","center":[20,-20],"radius":5}
+se_sketch {"action":"circle","sketch":"{{kh.sketch}}","center":[50,-20],"radius":5}
+se_sketch {"action":"circle","sketch":"{{kh.sketch}}","center":[80,-20],"radius":5}
+se_sketch {"action":"close","sketch":"{{kh.sketch}}"}
+se_extrude {"sketch":"{{kh.sketch}}","operation":"cut","extent":"through_all"}
+@xe = se_geometry {"action":"edges","direction":[1,0,0]}
+@ch = se_chamfer {"edges":["{{xe.items[0].handle}}","{{xe.items[1].handle}}"],"distance":3}
+?= ch.volume 114387.611 0.01
+@up = se_geometry {"action":"faces","direction":[0,0,1]}
+@dn = se_geometry {"action":"faces","direction":[0,0,-1]}
+@mn = se_measure {"action":"distance","first":"{{up.items[0].handle}}","second":"{{dn.items[0].handle}}"}
+?= mn.distance 20
+?= mn.type minimum
+@mx = se_measure {"action":"distance","first":"{{up.items[0].handle}}","second":"{{dn.items[0].handle}}","type":"maximum"}
+?= mx.distance 116.829 0.001
+# normal distance from the base plane and from the bottom face to the start of an edge of the top face
+@te = se_geometry {"action":"edges","source":"{{up.items[0].handle}}","type":"line"}
+@n1 = se_measure {"action":"normal_distance","first":"1","second":"{{te.items[0].handle}}"}
+?= n1.distance 20
+?= n1.point[2] 20
+@n2 = se_measure {"action":"normal_distance","first":"{{dn.items[0].handle}}","second":"{{te.items[0].handle}}","at":"end"}
+?= n2.distance 20
+@cy = se_geometry {"action":"faces","type":"cylinder"}
+! [invalid_argument] se_measure {"action":"normal_distance","first":"{{up.items[0].handle}}","second":"{{dn.items[0].handle}}"}
+! [invalid_argument] se_measure {"action":"normal_distance","first":"{{cy.items[0].handle}}","second":"{{te.items[0].handle}}"}
+! [invalid_argument] se_measure {"action":"distance","first":"{{up.items[0].handle}}"}
+# wall thickness
+@wt = se_measure {"action":"wall_thickness","threshold":1}
+?= wt.minThickness 15 0.01
+?= wt.areaBelow 0
+@wc = se_measure {"action":"wall_thickness","resolution":"coarse","threshold":16}
+?= wc.minThickness 15 0.5
+# etch in a part: a line on a plane at the top face
+@pl = se_ref_plane {"action":"offset","plane":"1","distance":20}
+@ke = se_sketch {"action":"create","plane":"{{pl.handle}}"}
+se_sketch {"action":"line","sketch":"{{ke.sketch}}","points":[20,-40,80,-40]}
+se_sketch {"action":"close","sketch":"{{ke.sketch}}","open":true}
+@et = se_sheetmetal_form {"action":"etch","sketch":"{{ke.sketch}}"}
+?= et.feature.status ok
+?= et.volumeChange 0
+# recognition refuses ordered features and leaves the document ordered
+! [not_supported] se_recognize {"action":"holes"}
+@ft0 = se_feature_tree {}
+?= ft0.modelingMode ordered
+se_documents {"action":"save_as","path":"{{work}}\\a90_block.par","overwrite":true}
+se_export {"path":"{{work}}\\a90_block.stp","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# the STEP part: one body feature, moved to synchronous and recognised
+@i = se_documents {"action":"import","path":"{{work}}\\a90_block.stp"}
+@ft = se_feature_tree {}
+@mv = se_feature_edit {"action":"move_to_synchronous","feature":"{{ft.features[?type="BodyFeature"].handle}}"}
+?= mv.modelingMode synchronous
+?= mv.volume 114387.611 0.01
+?= mv.volumeChange 0
+# radiate (before recognition: Solid Edge does not radiate the faces of a hole feature): a hole of radius 5 grows to 7
+#   (pi (7^2 - 5^2) 20 = 1507.964 less) and back to 5
+@cs = se_geometry {"action":"faces","type":"cylinder"}
+@ra = se_part_feature {"action":"radiate","faces":["{{cs.items[0].handle}}"],"distance":2}
+?= ra.volumeChange -1507.964 0.01
+?= ra.modelingMode synchronous
+@cs2 = se_geometry {"action":"faces","type":"cylinder"}
+?= cs2.items[?radius=7].radius 7
+@rb = se_part_feature {"action":"radiate","faces":["{{cs2.items[?radius=7].handle}}"],"distance":-2}
+?= rb.volumeChange 1507.964 0.01
+@tf = se_geometry {"action":"faces","direction":[0,0,1]}
+! [invalid_argument] se_part_feature {"action":"radiate","faces":["{{tf.items[0].handle}}"],"distance":2}
+! [invalid_argument] se_part_feature {"action":"radiate","faces":["{{cs2.items[0].handle}}"],"distance":0}
+# recognition
+@rh = se_recognize {"action":"holes"}
+?= rh.recognized 3
+?= rh.features[0].diameter 10
+?= rh.volumeChange 0
+@rp = se_recognize {"action":"patterns"}
+?= rp.recognized 1
+?= rp.features[0].occurrences 3
+@rc = se_recognize {"action":"chamfers"}
+?= rc.recognized 2
+?= rc.volumeChange 0
+! [nothing_recognized] se_recognize {"action":"chamfers"}
+! [invalid_argument] se_recognize {"action":"patterns","features":["{{rh.features[0].feature.handle}}"]}
+# a face of a recognised hole is refused before Solid Edge (it would answer with a modal dialog)
+@cs3 = se_geometry {"action":"faces","type":"cylinder"}
+! [invalid_argument] se_part_feature {"action":"radiate","faces":["{{cs3.items[0].handle}}"],"distance":2}
+se_documents {"action":"close","document":"{{i.document.handle}}","saveChanges":false}
+# maximum distance in an assembly: the top face of one block and the bottom face of another 200 mm along x
+@a = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a90_block.par","origin":[0,0,0],"ground":true}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\a90_block.par","origin":[200,0,0]}
+@t1 = se_geometry {"action":"faces","source":"{{o1.handle}}","direction":[0,0,1]}
+@b2 = se_geometry {"action":"faces","source":"{{o2.handle}}","direction":[0,0,-1]}
+@am = se_measure {"action":"distance","first":"{{t1.items[0].handle}}","second":"{{b2.items[0].handle}}","type":"maximum"}
+?= am.distance 306.022 0.001
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}

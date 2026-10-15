@@ -25,7 +25,7 @@ public static partial class DrawingService
 {
     private static readonly string[] ImageExtensions = [".bmp", ".jpg", ".jpeg", ".png", ".gif", ".tif", ".tiff", ".emf", ".wmf"];
 
-    /// <summary>Tables of the drawing (with the sheet each is on), images, smart frames and symbols of the sheet.</summary>
+    /// <summary>Tables of the drawing (with the sheet each is on), images, smart frames, symbols and connectors of the sheet.</summary>
     public static object Contents(SeContext context, string? documentHandle, string? sheetRef)
     {
         DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
@@ -34,7 +34,8 @@ public static partial class DrawingService
         object[] images = [.. Late.Items(sheet.Images2d).OfType<Image2d>().Select(i => DescribeImage(context, draft, i))];
         object[] frames = [.. Late.Items(sheet.SmartFrames2d).OfType<SmartFrame2d>().Select(f => DescribeFrame(context, draft, f))];
         object[] symbols = [.. Late.Items(sheet.Symbols).OfType<SolidEdgeFramework.Symbol2d>().Select(s => DescribeSymbol(context, draft, s))];
-        return new { sheet = sheet.Name, tables, images, frames, symbols };
+        object[] connectors = [.. Late.Items(sheet.Connectors).OfType<SolidEdgeFrameworkSupport.Connector>().Select(c => DescribeConnector(context, draft, c))];
+        return new { sheet = sheet.Name, tables, images, frames, symbols, connectors };
     }
 
     /// <summary>
@@ -363,12 +364,12 @@ public static partial class DrawingService
         };
     }
 
-    /// <summary>Deletes a table, an image, a smart frame or a symbol of a sheet.</summary>
+    /// <summary>Deletes a table (also a parts list, bend, hole or other table of se_drawing), an image, a smart frame, a symbol or a connector of a sheet.</summary>
     public static object DeleteContent(SeContext context, string? handle)
     {
         if (string.IsNullOrWhiteSpace(handle))
         {
-            throw ToolException.InvalidArgument("'item' is required: a table, image, frame or symbol handle from action 'list'.");
+            throw ToolException.InvalidArgument("'item' is required: a table, image, frame, symbol or connector handle from action 'list'.");
         }
 
         object item = context.Handles.Resolve(handle, "item");
@@ -415,8 +416,37 @@ public static partial class DrawingService
                 }
 
                 break;
+            case SolidEdgeFrameworkSupport.Connector connector:
+                var connectors = (SolidEdgeFrameworkSupport.Connectors)((Sheet)Late.Get(connector, "Parent")!).Connectors;
+                int drawn = connectors.Count;
+                connector.Delete();
+                if (connectors.Count != drawn - 1)
+                {
+                    throw new ToolException("connector_failed", "Solid Edge did not delete the connector.");
+                }
+
+                break;
+            case SolidEdgeDraft.PartsList or DraftBendTable or SolidEdgeDraft.ToleranceTable or FOPTable or SolidEdgeDraft.BlockTable or HoleTable2:
+                // The tables made by se_drawing (listed by its action 'tables'), each in its own collection of the drawing.
+                object collection = item switch
+                {
+                    SolidEdgeDraft.PartsList => draft.PartsLists,
+                    DraftBendTable => draft.DraftBendTables,
+                    SolidEdgeDraft.ToleranceTable => draft.ToleranceTables,
+                    FOPTable => draft.FOPTables,
+                    SolidEdgeDraft.BlockTable => draft.BlockTables,
+                    _ => draft.HoleTables2,
+                };
+                int listed = Late.Count(collection);
+                Late.Call(item, "Delete");
+                if (Late.Count(collection) != listed - 1)
+                {
+                    throw new ToolException("table_failed", "Solid Edge did not delete the table.");
+                }
+
+                break;
             default:
-                throw ToolException.InvalidArgument($"'{handle}' is not a table, an image, a smart frame or a symbol of a sheet.");
+                throw ToolException.InvalidArgument($"'{handle}' is not a table, an image, a smart frame, a symbol or a connector of a sheet.");
         }
 
         context.Handles.Remove(handle, "it was deleted");
@@ -477,12 +507,12 @@ public static partial class DrawingService
         }
     }
 
-    /// <summary>Image2d has no Delete (verified): the image is selected and the selection deleted.</summary>
-    private static void DeleteBySelection(DraftDocument draft, Image2d image)
+    /// <summary>Image2d and CuttingPlane have no Delete (verified): the item is selected and the selection deleted.</summary>
+    private static void DeleteBySelection(DraftDocument draft, object item)
     {
-        object selection = Late.Get(draft, "SelectSet") ?? throw new ToolException("image_failed", "The drawing has no selection to delete the image with.");
+        object selection = Late.Get(draft, "SelectSet") ?? throw new ToolException("image_failed", "The drawing has no selection to delete with.");
         Late.Call(selection, "RemoveAll");
-        Late.Call(selection, "Add", image);
+        Late.Call(selection, "Add", item);
         Late.Call(selection, "Delete");
     }
 

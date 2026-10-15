@@ -63,13 +63,49 @@ public static class ComponentQueryService
         ["selected"] = QueryScopeConstants.seQueryScopeSelectedParts,
     };
 
+    /// <summary>
+    /// The assembly, made the active document while the query runs: Solid Edge evaluates a query in the active window, and
+    /// on an assembly that is open but not active it fails with 0x80040225 (verified in Solid Edge 2026). The document that
+    /// was active before is activated again afterwards.
+    /// </summary>
+    private sealed class ActiveAssembly : IDisposable
+    {
+        private readonly SolidEdgeDocument? _previous;
+
+        public ActiveAssembly(SeContext context, string? documentHandle)
+        {
+            Assembly = AssemblyService.Assembly(context, documentHandle);
+            if (context.Application.ActiveDocument is not SolidEdgeDocument active
+                || context.DocumentHandle(active) != context.DocumentHandle((SolidEdgeDocument)Assembly))
+            {
+                _previous = context.Application.ActiveDocument as SolidEdgeDocument;
+                Assembly.Activate();
+            }
+        }
+
+        public AssemblyDocument Assembly { get; }
+
+        public void Dispose()
+        {
+            try
+            {
+                _previous?.Activate();
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+                // Best effort: the query's result does not depend on it.
+            }
+        }
+    }
+
     /// <summary>A matched component: top-level occurrence and, for a part inside a subassembly, the names down to it.</summary>
     private sealed record Match(Occurrence Top, string[] Chain, string File);
 
     public static object Find(SeContext context, string? documentHandle, IReadOnlyList<ComponentCriterion>? criteria, string scope,
         bool subassemblies, string? name, string display, int limit)
     {
-        AssemblyDocument assembly = Assembly(context, documentHandle);
+        using var active = new ActiveAssembly(context, documentHandle);
+        AssemblyDocument assembly = active.Assembly;
         (QueryPropertyConstants Property, string Custom, QueryConditionConstants Condition, object Value)[] parsed = Parse(criteria);
         QueryScopeConstants scopeValue = ScopeOf(scope);
         string? title = Clean(name);
@@ -138,7 +174,8 @@ public static class ComponentQueryService
 
     public static object Zone(SeContext context, string? documentHandle, double[]? box, bool overlap, string? name, string display, int limit)
     {
-        AssemblyDocument assembly = Assembly(context, documentHandle);
+        using var active = new ActiveAssembly(context, documentHandle);
+        AssemblyDocument assembly = active.Assembly;
         double[] corners = Box(box);
         string? title = Clean(name);
         if (title is not null)
@@ -200,7 +237,8 @@ public static class ComponentQueryService
     /// <summary>Runs a saved query (on the current selection when its scope is 'selected') or a saved zone.</summary>
     public static object Run(SeContext context, string? documentHandle, string? name, string display, int limit)
     {
-        AssemblyDocument assembly = Assembly(context, documentHandle);
+        using var active = new ActiveAssembly(context, documentHandle);
+        AssemblyDocument assembly = active.Assembly;
         string title = RequireName(name, "run");
         if (FindQuery(assembly, title) is { } query)
         {

@@ -1,0 +1,117 @@
+# A97: Arrange Dimensions (se_dimension arrange), Unblock and Unblock All (se_drawing unblock, unblock_all), connectors
+#   (se_sheet_content connector, list, delete) and the family of assemblies parts list (se_drawing parts_list family,
+#   members).
+# A block 100 x 60 x 20 and a pin Ø10 x 40; an assembly family whose member NoPin leaves the pin out; a plain assembly.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a97_{{run}}\\blk.par"}
+se_documents {"action":"close","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@pk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{pk.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
+se_extrude {"sketch":"{{pk.sketch}}","distance":40}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a97_{{run}}\\pin.par"}
+se_documents {"action":"close","saveChanges":false}
+@pa = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a97_{{run}}\\blk.par"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a97_{{run}}\\plain.asm"}
+se_documents {"action":"close","saveChanges":false}
+@f = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a97_{{run}}\\blk.par"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a97_{{run}}\\pin.par","origin":[200,0,0]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a97_{{run}}\\family.asm"}
+se_assembly_family {"action":"create","kind":"family","members":["WithPin","NoPin"]}
+se_assembly_family {"action":"activate","member":"NoPin"}
+@fl = se_assembly {"action":"list"}
+se_assembly_family {"action":"exclude","member":"NoPin","occurrences":["{{fl.occurrences[1].handle}}"]}
+se_assembly_family {"action":"activate","member":"WithPin"}
+se_documents {"action":"save"}
+se_documents {"action":"close","saveChanges":false}
+# 1) Arrange Dimensions: two dimensions stacked above the top view of the block and one on its right
+@d = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a97_{{run}}\\blk.par","orientation":"top","position":[200,200],"scale":1}
+@q1 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[50,60,20]}
+@q2 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"distance","points":[0,30,20,100,30,20],"measure":"horizontal"}
+@q3 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[100,30,20]}
+! [invalid_argument] se_dimension {"action":"arrange","pitch":0}
+@ar = se_dimension {"action":"arrange","pitch":2}
+?= ar.count 3
+?= ar.moved 3
+?= ar.dimensions[0].value 100
+?= ar.dimensions[1].value 100
+?= ar.dimensions[2].value 60
+@ds = se_drawing {"action":"dimensions"}
+?= ds.count 3
+# 2) Connectors: a free gap connector, then a step connector tied to two lines; its end follows the moved line
+@sh = se_drawing {"action":"sheets"}
+@l1 = se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[100,50,150,50]}
+@l2 = se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[200,100,250,100]}
+! [invalid_argument] se_sheet_content {"action":"connector","points":[50,200,100]}
+! [invalid_argument] se_sheet_content {"action":"connector","points":[149,51,201,99],"targets":["{{l1.element}}"]}
+@cf = se_sheet_content {"action":"connector","points":[30,200,80,250],"type":"gap"}
+?= cf.connector.type gap
+?= cf.connector.start[0] 30
+?= cf.connector.end[1] 250
+@ct = se_sheet_content {"action":"connector","points":[149,51,201,99],"type":"step","targets":["{{l1.element}}","{{l2.element}}"]}
+?= ct.connector.type step
+?= ct.connector.start[0] 150
+?= ct.connector.start[1] 50
+?= ct.connector.end[0] 200
+?= ct.connector.end[1] 100
+?~ ct.tiedAt[0] end
+?~ ct.tiedAt[1] start
+se_sketch_edit {"action":"move","sketch":"{{sh.sheets[0].handle}}","elements":["{{l2.element}}"],"delta":[0,30]}
+@cl = se_sheet_content {"action":"list"}
+?= cl.connectors[1].end[1] 130
+se_sheet_content {"action":"delete","item":"{{cf.connector.handle}}"}
+@cl2 = se_sheet_content {"action":"list"}
+?= cl2.connectors[0].type step
+# 3) Unblock: a block of a rectangle placed twice; one occurrence turns back into its 4 lines
+@r = se_sketch {"action":"rectangle","sketch":"{{sh.sheets[0].handle}}","points":[300,120,340,140]}
+@cb = se_drawing {"action":"create_block","name":"B1","elements":{{r.elements}},"position":[300,120]}
+@pb = se_drawing {"action":"place_block","name":"B1","position":[300,60]}
+! [invalid_argument] se_drawing {"action":"unblock"}
+! [handle_wrong_type] se_drawing {"action":"unblock","occurrence":"{{l1.element}}"}
+@ub = se_drawing {"action":"unblock","occurrence":"{{cb.occurrence.handle}}"}
+?= ub.block B1
+?= ub.nested 0
+?= ub.occurrences 1
+?= ub.elements[3].geometry.type line
+# Unblock All: a block B2 holding a line and the other occurrence of B1; both levels become plain elements
+@ln = se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[360,60,380,60]}
+@cb2 = se_drawing {"action":"create_block","name":"B2","elements":["{{ln.element}}","{{pb.handle}}"],"position":[300,60]}
+@ua = se_drawing {"action":"unblock_all"}
+?= ua.unblocked 2
+?= ua.sheets[0].elements 5
+@bl = se_drawing {"action":"blocks"}
+?~ bl.blocks B2
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# 4) Family of assemblies parts list: a quantity column per member; one member alone; a plain assembly has no members
+@d2 = se_documents {"action":"new","kind":"draft"}
+@fv = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a97_{{run}}\\family.asm","member":"WithPin","orientation":"front","position":[150,150],"scale":0.5}
+! [invalid_argument] se_drawing {"action":"parts_list","view":"{{fv.view.handle}}","members":["Other"],"balloons":false}
+@pl = se_drawing {"action":"parts_list","view":"{{fv.view.handle}}","family":true,"balloons":false}
+?~ pl.columns Quantity (WithPin)
+?~ pl.columns Quantity (NoPin)
+?= pl.count 2
+@pm = se_drawing {"action":"parts_list","view":"{{fv.view.handle}}","members":["nopin"],"balloons":false,"position":[250,250]}
+?~ pm.columns Quantity (NoPin)
+?= pm.count 1
+@pv = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a97_{{run}}\\plain.asm","orientation":"front","position":[300,100],"scale":0.5}
+! [not_family] se_drawing {"action":"parts_list","view":"{{pv.view.handle}}","family":true,"balloons":false}
+@tb = se_drawing {"action":"tables"}
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}
+# 5) Arrange Dimensions on PMI: the height, width and length a box feature carries move and keep their values
+@pp = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@pm3 = se_pmi {"action":"list"}
+@pa3 = se_dimension {"action":"arrange","dimensions":["{{pm3.dimensions[0].handle}}","{{pm3.dimensions[1].handle}}","{{pm3.dimensions[2].handle}}"],"pitch":2}
+?= pa3.count 3
+?= pa3.moved 3
+?= pa3.dimensions[0].value 20
+?= pa3.dimensions[2].value 100
+se_documents {"action":"close","document":"{{pp.handle}}","saveChanges":false}

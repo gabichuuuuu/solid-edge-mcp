@@ -154,6 +154,102 @@ public static partial class DrawingService
             : throw new ToolException("block_failed", $"Solid Edge did not delete the block '{title}'.", "Check it with action 'blocks'.");
     }
 
+    /// <summary>
+    /// Unblock: turns one block occurrence back into plain 2D elements on its sheet; the block definition stays. Verified: the
+    /// occurrence of a block made from a rectangle leaves its 4 lines on the sheet and one occurrence less.
+    /// </summary>
+    public static object Unblock(SeContext context, string? occurrenceHandle)
+    {
+        string handle = string.IsNullOrWhiteSpace(occurrenceHandle)
+            ? throw ToolException.InvalidArgument("unblock requires 'occurrence': a block occurrence handle from action 'blocks'.",
+                "Use 'unblock_all' for every occurrence of the drawing.")
+            : occurrenceHandle;
+        object occurrence = context.Handles.Resolve(handle, "occurrence");
+        if (Late.TryGet(occurrence, "Block") is not { } block || Late.TryGet(occurrence, "Parent") is not Sheet sheet)
+        {
+            throw new ToolException("handle_wrong_type", $"'{handle}' is not a block occurrence on a sheet.", "Pass a block occurrence handle from action 'blocks'.");
+        }
+
+        string? name = Late.TryGetString(block, "Name");
+        object occurrences = Late.Get(sheet, "BlockOccurrences")!;
+        int before = Late.Count(occurrences);
+        int[] elements = SketchService.SheetElementCounts(sheet);
+        int texts = TextCount(sheet);
+        UnblockOne(occurrence, name);
+        // Blocks placed inside the block come out as occurrences of their own.
+        int nested = Late.Count(occurrences) - (before - 1);
+        object[] added = SketchService.AddedOnSheet(context, sheet, elements, handle);
+        int textsAdded = TextCount(sheet) - texts;
+        if (added.Length == 0 && textsAdded <= 0 && nested <= 0)
+        {
+            throw new ToolException("unblock_failed", $"Solid Edge did not unblock the occurrence of '{name}'.", "Check it with action 'blocks'.");
+        }
+
+        context.Handles.Remove(handle, "the block occurrence was unblocked");
+        return new { block = name, sheet = sheet.Name, elements = added, texts = textsAdded, nested, occurrences = Late.Count(occurrences) };
+    }
+
+    /// <summary>
+    /// Unblock All: every block occurrence of the drawing's working, background and 2D model sheets, nested ones too, becomes
+    /// plain 2D elements; the block definitions stay.
+    /// </summary>
+    public static object UnblockAll(SeContext context, string? documentHandle)
+    {
+        DraftDocument draft = Draft(context, documentHandle);
+        var sheets = new List<object>();
+        int total = 0;
+        foreach (Sheet sheet in WorkingSheets(draft).Concat(BackgroundSheets(draft)).Append(draft.Sections.Get2DModelSheet))
+        {
+            object occurrences = Late.Get(sheet, "BlockOccurrences")!;
+            if (Late.Count(occurrences) == 0)
+            {
+                continue;
+            }
+
+            int[] elements = SketchService.SheetElementCounts(sheet);
+            int texts = TextCount(sheet);
+            int unblocked = 0;
+            while (Late.Count(occurrences) > 0)
+            {
+                if (unblocked >= MaxUnblocked)
+                {
+                    throw new ToolException("unblock_failed", $"Sheet '{sheet.Name}' still has block occurrences after {unblocked} were unblocked.",
+                        "Check them with action 'blocks'.");
+                }
+
+                object occurrence = Late.Call(occurrences, "Item", 1)!;
+                UnblockOne(occurrence, Late.Get(occurrence, "Block") is { } block ? Late.TryGetString(block, "Name") : null);
+                unblocked++;
+            }
+
+            int[] after = SketchService.SheetElementCounts(sheet);
+            sheets.Add(new { sheet = sheet.Name, unblocked, elements = after.Sum() - elements.Sum(), texts = TextCount(sheet) - texts });
+            total += unblocked;
+        }
+
+        string document = DocumentHandle(context, draft);
+        context.Handles.InvalidateScope(document, "the block occurrences were unblocked", "block_occurrence");
+        return new { document, unblocked = total, sheets, blocks = Late.Count(BlocksOf(draft)) };
+    }
+
+    /// <summary>Bound of 'unblock_all' per sheet: nested blocks come out as new occurrences, so the loop stops on a count.</summary>
+    private const int MaxUnblocked = 10000;
+
+    private static void UnblockOne(object occurrence, string? name)
+    {
+        try
+        {
+            Late.Call(occurrence, "Unblock");
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsGone(com))
+        {
+            throw new ToolException("unblock_failed", $"Solid Edge did not unblock the occurrence of '{name}': {com.Message.Trim()}",
+                "Check it with action 'blocks'.", ex);
+        }
+    }
+
+    private static int TextCount(Sheet sheet) => Late.Count(Late.Get(sheet, "TextBoxes")!);
+
     private static object Place(DraftDocument draft, Sheet sheet, string title, double x, double y, double scale, double angle)
     {
         try

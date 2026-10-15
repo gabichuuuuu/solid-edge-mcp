@@ -1,0 +1,70 @@
+# A112: Goal Seek on the volume, mass and surface area of a part, and its physical property variables. Solid Edge's own Goal
+#   Seek fails on those variables (E_FAIL for Mass, no iterations for Volume), so the server sets the variable, measures the
+#   body and steps until it is reached; the variables are refreshed when read, since Solid Edge leaves them stale.
+# Part: a 100 x 60 block extruded 20 (120000 mm3); the depth d gives a volume of 6000 d and an area of 12000 + 320 d.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":20}
+?= e.volume 120000 0.01
+# Without a material the part has no physical property variables, and the mass cannot be measured
+@pl0 = se_variables {"action":"list","kind":"physical"}
+?= pl0.count 0
+?~ pl0.note se_material
+! [no_density] se_variables {"action":"goal_seek","name":"Mass","value":0.7,"change":"ExtrudedProtrusion_1_FiniteDepth"}
+# Volume 90000 mm3: depth 15
+@gv = se_variables {"action":"goal_seek","name":"Volume","value":90000,"change":"ExtrudedProtrusion_1_FiniteDepth"}
+?= gv.measured true
+?= gv.target.value 90000 0.01
+?= gv.changed.value 15 0.00001
+?= gv.volumeChange -30000 0.01
+# Steel (7833 kg/m3): 0.563976 kg is 72000 mm3, depth 12; the name in any case
+se_material {"action":"apply","name":"Steel"}
+@gm = se_variables {"action":"goal_seek","name":"mass","value":0.563976,"change":"ExtrudedProtrusion_1_FiniteDepth"}
+?~ gm.target.name Mass
+?= gm.target.value 0.563976 0.0000001
+?= gm.changed.value 12 0.00001
+@ph = se_physical {}
+?= ph.mass 0.563976 0.000001
+?= ph.volume 72000 0.01
+# The physical property variables follow the model (Solid Edge leaves them at the last stored computation)
+@vv = se_variables {"action":"get","name":"Volume"}
+?= vv.value 72000 0.01
+# Area 16800 mm2: depth 15
+@ga = se_variables {"action":"goal_seek","name":"Surface_Area","value":16800,"change":"ExtrudedProtrusion_1_FiniteDepth"}
+?= ga.target.value 16800 0.01
+?= ga.changed.value 15 0.00001
+@pl = se_variables {"action":"list","kind":"physical","filter":"Mass"}
+?= pl.count 1
+?= pl.variables[0].value 0.70497 0.0000001
+# A variable the model does not use cannot move the volume: it is put back and the depth stays 15
+se_variables {"action":"add","name":"Unused","value":10,"units":"scalar"}
+! [goal_not_reached] se_variables {"action":"goal_seek","name":"Volume","value":50000,"change":"Unused"}
+@un = se_variables {"action":"get","name":"Unused"}
+?= un.value 10
+@dp = se_variables {"action":"get","name":"ExtrudedProtrusion_1_FiniteDepth"}
+?= dp.value 15 0.00001
+! [invalid_argument] se_variables {"action":"goal_seek","name":"Volume","value":-5,"change":"ExtrudedProtrusion_1_FiniteDepth"}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# Steel applied before the solid (Solid Edge then stores no density until the part is saved: the material's is used), an
+#   ellipse 20 x 10 extruded 10: 6283.185 mm3, 0.0492162 kg. Measured as se_physical measures (Body.Volume reads about 0.4 %
+#   high on elliptical edges; se_physical, at the stored accuracy 0.99, 0.037 % high): 0.0738243 kg is 9424.778 mm3, a depth
+#   of 15 within that accuracy (14.9944)
+@d2 = se_documents {"action":"new","kind":"part"}
+se_material {"action":"apply","name":"Steel"}
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"ellipse","sketch":"{{k2.sketch}}","center":[0,0],"radius":20,"minorRadius":10}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+se_extrude {"sketch":"{{k2.sketch}}","distance":10}
+@p0 = se_physical {}
+?~ p0.densitySource material
+?= p0.mass 0.0492162 0.00003
+@ge = se_variables {"action":"goal_seek","name":"Mass","value":0.0738243,"change":"ExtrudedProtrusion_1_FiniteDepth"}
+?= ge.changed.value 15 0.01
+@pe = se_physical {}
+?= pe.volume 9424.778 0.01
+?= pe.mass 0.0738243 0.0000001
+@pv = se_variables {"action":"list","kind":"physical","filter":"Volume"}
+?= pv.variables[0].value 9424.778 0.01
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}

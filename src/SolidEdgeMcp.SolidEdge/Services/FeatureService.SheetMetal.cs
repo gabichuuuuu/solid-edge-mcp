@@ -223,18 +223,26 @@ public static partial class FeatureService
             _ => throw ToolException.InvalidArgument($"Unknown materialSide '{materialSide}'.", "Use left or right."),
         };
         double bend = BendRadius(sheet, radius);
+        (int bendMethod, double bendValue) = BendCalculation(sheet);
+        // Verified: a variable on a sketch dimension, and a PMI dimension placed on the result, do not change it.
+        string? note = SketchService.Canvas2d.Of(profile).Dimensions.Count > 0
+            ? "The sketch dimensions no longer drive it: Solid Edge makes a base contour flange as synchronous features (a tab and one flange per segment). To change a height, make it again from the edited sketch."
+            : null;
         // In synchronous mode the base contour flange becomes a tab and one flange for each further segment (not in ContourFlanges).
         HashSet<string> before = FeatureNames(model);
         List<object> parts = [];
         object result = Synchronous(context, model, "contour flange", 1, sketch, [() =>
         {
+            // Without the bend calculation its flanges unfold with a neutral factor of 0 that cannot be changed afterwards
+            // (verified: a U 100 x 40 x 40, 2 mm thick with 2 mm bends, flattened to 170.28 instead of the 172.36 of the same U
+            // made of flanges at the document's 0.33; UseGlobalNeutralFactor and NeutralFactor of its flanges give E_FAIL).
             Model created = model.Models.AddBaseContourFlange(profile, (int)thicknessSide, (int)FeaturePropertyConstants.igFinite,
-                (int)FeaturePropertyConstants.igRight, extent, bend);
+                (int)FeaturePropertyConstants.igRight, extent, bend, bendValue, bendMethod);
             parts = NewFeatures(model, before);
             return parts.FirstOrDefault() ?? LastFeature(model, created.ContourFlanges);
         }],
         "Check that the sketch is one open chain (se_sketch 'close' with open=true) and that the bend radius fits its corners.",
-        () => parts);
+        () => parts, note: note);
         TryHide(profile);
         return result;
     }
@@ -554,7 +562,12 @@ public static partial class FeatureService
     public static object SheetForm(SeContext context, string? documentHandle, SheetFormSpec spec)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, spec.Sketch);
-        RequireSheet(model);
+        if (spec.Action != "etch")
+        {
+            // Etches.Add also marks the lines on a part (verified: an open line on the top face of a block, Etch_1 OK).
+            RequireSheet(model);
+        }
+
         Profile sketchProfile = SketchService.Resolve(context, spec.Sketch);
         bool normal = spec.Direction switch
         {
@@ -857,7 +870,8 @@ public static partial class FeatureService
     /// each operation is a transaction): in synchronous mode, deleting a flange does not return the plate it trimmed.
     /// </summary>
     private static object Synchronous(SeContext context, ModelDocument model, string what, int expectedSign, string? sketch,
-        IReadOnlyList<Func<object?>> steps, string nextStep, Func<IReadOnlyList<object>>? parts = null, Func<object, object?>? box = null)
+        IReadOnlyList<Func<object?>> steps, string nextStep, Func<IReadOnlyList<object>>? parts = null, Func<object, object?>? box = null,
+        string? note = null)
     {
         int undoStart = UndoCount(model);
         bool switched = model.EnsureSynchronous();
@@ -923,6 +937,7 @@ public static partial class FeatureService
             volume = Geo.Mm3(final),
             volumeChange = Geo.Mm3(current - start),
             modelingMode = model.ModelingMode,
+            note,
             warnings = warnings.Count == 0 ? null : warnings,
         };
     }
@@ -1028,6 +1043,22 @@ public static partial class FeatureService
         gauge = MaterialService.GaugeName(context, model.Document),
         modelingMode = model.ModelingMode,
     };
+
+    /// <summary>
+    /// The document's bend calculation: method (0 neutral factor, 1 bend deduction, 2 bend allowance) and its value, as the
+    /// features made through the API take them.
+    /// </summary>
+    private static (int Method, double Value) BendCalculation(SheetMetalDocument sheet)
+    {
+        int method = TryGlobal(sheet, SheetMetalGlobalConstants.seSheetMetalGlobalBendCalculationMethod) is { } m ? Convert.ToInt32(m, CultureInfo.InvariantCulture) : 0;
+        SheetMetalGlobalConstants parameter = method switch
+        {
+            1 => SheetMetalGlobalConstants.seSheetMetalGlobalBendDeduction,
+            2 => SheetMetalGlobalConstants.seSheetMetalGlobalBendAllowance,
+            _ => SheetMetalGlobalConstants.seSheetMetalGlobalNeutralFactor,
+        };
+        return (method is 1 or 2 ? method : 0, GlobalNumber(sheet, parameter));
+    }
 
     private static double GlobalNumber(SheetMetalDocument sheet, SheetMetalGlobalConstants parameter)
     {

@@ -13,7 +13,8 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_pmi does: the action and its inputs. Lengths in mm, angles in degrees.</summary>
 public sealed record PmiSpec(string Action, string[]? Dimensions = null, double? Value = null, string Direction = "measure", bool? Locked = null,
-    bool? ShowDimensions = null, bool? ShowAnnotations = null);
+    bool? ShowDimensions = null, bool? ShowAnnotations = null, string? Feature = null, string Kind = "all", string? Plane = null, string? Edge = null,
+    bool? PixelMode = null, int? PixelSize = null, double[]? Points = null, string? Type = null, double? Distance = null);
 
 /// <summary>
 /// PMI (3D) dimensions of a part or sheet metal document and the PMI display. Verified in Solid Edge 2026 on se_primitive
@@ -29,17 +30,21 @@ public sealed record PmiSpec(string Action, string[]? Dimensions = null, double?
 /// <item>A locked dimension holds its value in later synchronous edits: a coplanar relation that would have stretched a
 /// locked length moved the target face instead.</item>
 /// <item>The variable table does not list PMI dimensions: se_variables cannot reach them.</item>
-/// <item>New PMI dimensions cannot be placed: Dimensions.AddDistanceBetweenObjects (faces or edges), AddLength and
-/// AddDistanceBetweenObjectsEX return nothing, also with PMI.ActivePlane set, and setting Dimensions.Plane fails with
-/// E_FAIL.</item>
+/// <item>Dimensions.AddDistanceBetweenObjects (faces or edges), AddLength, AddDistanceBetweenObjectsEX and AddAngleBetweenObjects
+/// return nothing, also with PMI.ActivePlane set; new dimensions are placed with Dimensions.DimInitData instead (see
+/// PmiService.Dimensions.cs).</item>
+/// <item>CopytoPMI (Copy to PMI) copies the profile dimensions of a feature to PMI dimensions: an extrusion of a 100 x 60
+/// rectangle gave two linear PMI dimensions of 100 and 60. Each call adds them again, and a profile copies nothing.</item>
 /// <item>Delete removes a dimension and leaves the model as it is.</item>
 /// <item>PMI.ShowDimensions = false hides the dimensions in the window (checked on a capture); PMI.Show reads false while
 /// they are shown and setting it to true is ignored, so it is not offered.</item>
 /// </list>
 /// </summary>
-public static class PmiService
+public static partial class PmiService
 {
-    public static readonly IReadOnlyList<string> Actions = ["list", "set", "lock", "unlock", "delete", "display", "set_display"];
+    public static readonly IReadOnlyList<string> Actions = ["list", "set", "lock", "unlock", "delete", "display", "set_display", "copy", "size", "plane", "axis", "dimension", "move"];
+
+    public static readonly IReadOnlyList<string> CopyKinds = ["dimensions", "annotations", "all"];
 
     /// <summary>Metres (0.0001 mm).</summary>
     private const double LengthTolerance = 1e-7;
@@ -59,6 +64,12 @@ public static class PmiService
         "delete" => Delete(context, documentHandle, spec.Dimensions),
         "display" => Display(context, documentHandle),
         "set_display" => SetDisplay(context, documentHandle, spec),
+        "copy" => Copy(context, documentHandle, spec),
+        "size" => Size(context, documentHandle, spec.PixelMode, spec.PixelSize),
+        "plane" => Plane(context, documentHandle, spec.Plane),
+        "axis" => Axis(context, documentHandle, spec.Edge),
+        "dimension" => AddDimension(context, documentHandle, spec),
+        "move" => Move(context, documentHandle, spec),
         _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", Actions)}."),
     };
 
@@ -358,13 +369,181 @@ public static class PmiService
             };
     }
 
+    /// <summary>
+    /// The size of PMI text (Model Size / PMI font size): in screen pixels (pixel mode, then PMIPixelSize applies) or at model
+    /// scale. Verified in Solid Edge 2026: PMIPixelMode toggles and PMIPixelSize takes a new value in pixel mode (20 -> 30 -> 20).
+    /// </summary>
+    private static object Size(SeContext context, string? documentHandle, bool? pixelMode, int? pixelSize)
+    {
+        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        PMI pmi = PmiOf(model);
+        var previous = new { pixelMode = pmi.PMIPixelMode, pixelSize = pmi.PMIPixelSize };
+        if (pixelSize is { } size && size is < 1 or > 200)
+        {
+            throw ToolException.InvalidArgument("'pixelSize' must be from 1 to 200 pixels.");
+        }
+
+        if (pixelMode is { } mode && mode != pmi.PMIPixelMode)
+        {
+            pmi.PMIPixelMode = mode;
+        }
+
+        if (pixelSize is { } wanted)
+        {
+            if (!pmi.PMIPixelMode)
+            {
+                throw ToolException.InvalidArgument("'pixelSize' applies in pixel mode.", "Pass pixelMode=true with it.");
+            }
+
+            pmi.PMIPixelSize = wanted;
+        }
+
+        if ((pixelMode is { } m && pmi.PMIPixelMode != m) || (pixelSize is { } s && pmi.PMIPixelSize != s))
+        {
+            throw new ToolException("setting_rejected", "Solid Edge left the PMI text size unchanged.");
+        }
+
+        return new { document = context.DocumentHandle(model.Document), pixelMode = pmi.PMIPixelMode, pixelSize = pmi.PMIPixelSize, previous };
+    }
+
+    /// <summary>
+    /// The plane new PMI dimensions and annotations are placed on (Lock Dimension Plane), set or cleared. Verified in Solid
+    /// Edge 2026: PMI.ActivePlane takes a reference plane and reads it back; ClearActivePlane leaves it empty.
+    /// </summary>
+    private static object Plane(SeContext context, string? documentHandle, string? plane)
+    {
+        ModelDocument model = ModelDocument.Get(context, documentHandle);
+        PMI pmi = PmiOf(model);
+        bool previous = Late.TryGet(pmi, "ActivePlane") is not null;
+        if (plane is null)
+        {
+            pmi.ClearActivePlane();
+        }
+        else
+        {
+            pmi.ActivePlane = model.ResolvePlaneSource(context, plane) as SolidEdgePart.RefPlane
+                ?? throw ToolException.InvalidArgument($"'{plane}' is not a reference plane.", "Pass '1'-'3' or a plane handle (se_ref_plane list).");
+        }
+
+        object? active = Late.TryGet(pmi, "ActivePlane");
+        if ((active is null) != (plane is null))
+        {
+            throw new ToolException("setting_rejected", "Solid Edge did not change the PMI plane.");
+        }
+
+        return new
+        {
+            document = context.DocumentHandle(model.Document),
+            locked = active is not null,
+            plane = active is null ? null : Late.TryGet(active, "Name") as string,
+            previous,
+        };
+    }
+
+    /// <summary>
+    /// The axis that orients new PMI dimensions (PMI axis), set to an edge or cleared. Verified in Solid Edge 2026: PMI.Axis
+    /// takes a straight edge of the body and reads it back; ClearAxis leaves it empty.
+    /// </summary>
+    private static object Axis(SeContext context, string? documentHandle, string? edge)
+    {
+        ModelDocument model = edge is null ? ModelDocument.Get(context, documentHandle) : DocumentOf(context, documentHandle, [edge]);
+        PMI pmi = PmiOf(model);
+        bool previous = Late.TryGet(pmi, "Axis") is not null;
+        if (edge is null)
+        {
+            pmi.ClearAxis();
+        }
+        else
+        {
+            SolidEdgeGeometry.Edge chosen = context.Handles.Resolve<SolidEdgeGeometry.Edge>(edge, "edge");
+            if (chosen.Geometry is not SolidEdgeGeometry.Line)
+            {
+                throw ToolException.InvalidArgument($"'{edge}' is not a straight edge.", "Pick a straight edge (se_geometry edges with type line).");
+            }
+
+            pmi.Axis = chosen;
+        }
+
+        bool set = Late.TryGet(pmi, "Axis") is not null;
+        if (set != (edge is not null))
+        {
+            throw new ToolException("setting_rejected", "Solid Edge did not change the PMI axis.");
+        }
+
+        return new { document = context.DocumentHandle(model.Document), axis = set, previous };
+    }
+
+    /// <summary>
+    /// Copy to PMI: the profile dimensions (and annotations) of a feature become PMI dimensions (and annotations) of the
+    /// document. Solid Edge adds them again on every call, so the result lists what this call added.
+    /// </summary>
+    private static object Copy(SeContext context, string? documentHandle, PmiSpec spec)
+    {
+        string handle = spec.Feature is { Length: > 0 } f ? f : throw ToolException.InvalidArgument("copy needs 'feature': a feature handle from se_feature_tree or from the action that created it.");
+        SolidEdgePart.seCopytoPMIConstants type = spec.Kind switch
+        {
+            "dimensions" => SolidEdgePart.seCopytoPMIConstants.seCopytoPMIConstantsDimension,
+            "annotations" => SolidEdgePart.seCopytoPMIConstants.seCopytoPMIConstantsAnnotation,
+            "all" => SolidEdgePart.seCopytoPMIConstants.seCopytoPMIConstantsAll,
+            _ => throw ToolException.InvalidArgument($"Unknown kind '{spec.Kind}'.", $"Use one of: {string.Join(", ", CopyKinds)}."),
+        };
+        ModelDocument model = ModelDocument.For(context, documentHandle, handle);
+        object feature = context.Handles.Resolve(handle, "feature");
+        Dimensions dimensions = DimensionsOf(model);
+        int before = dimensions.Count;
+        int annotationsBefore = AnnotationCount(PmiOf(model));
+        try
+        {
+            switch (model.Document)
+            {
+                case SolidEdgePart.PartDocument part:
+                    part.CopytoPMI(feature, type);
+                    break;
+                case SolidEdgePart.SheetMetalDocument sheetMetal:
+                    sheetMetal.CopytoPMI(feature, type);
+                    break;
+                default:
+                    throw new ToolException("not_supported", $"'{model.Document.Name}' has no PMI.", "PMI belongs to part and sheet metal documents.");
+            }
+        }
+        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsGone(com))
+        {
+            throw new ToolException("copy_failed", $"Solid Edge could not copy '{handle}' to PMI: {com.Message.Trim()}",
+                "Give a feature built from a sketch with dimensions (se_feature_tree).", ex);
+        }
+
+        int count = dimensions.Count;
+        int annotations = AnnotationCount(PmiOf(model)) - annotationsBefore;
+        if (count == before && annotations == 0)
+        {
+            throw new ToolException("nothing_copied", $"'{handle}' has no {(spec.Kind == "all" ? "dimensions or annotations" : spec.Kind)} to copy to PMI.",
+                "Copy to PMI takes the dimensions of the feature's sketch: dimension the sketch (se_sketch dimension) first.");
+        }
+
+        return new
+        {
+            document = context.DocumentHandle(model.Document),
+            feature = handle,
+            kind = spec.Kind,
+            copied = count - before,
+            annotations,
+            dimensions = Enumerable.Range(before + 1, count - before).Select(i => Describe(context, model, dimensions.Item(i), i)).ToArray(),
+        };
+    }
+
+    private static int AnnotationCount(PMI pmi) => new[]
+    {
+        pmi.TextBoxes, pmi.Balloons, pmi.Leaders, pmi.CenterLines, pmi.CenterMarks, pmi.SurfaceFinishSymbols,
+        pmi.FeatureControlFrames, pmi.DatumFrames, pmi.WeldSymbols,
+    }.Sum(c => c is null ? 0 : Late.Items(c).Count());
+
     /// <summary>The document of the first dimension handle, or the one given, or the active one.</summary>
     private static ModelDocument DocumentOf(SeContext context, string? documentHandle, string[] keys) =>
         documentHandle is null && keys is [string first, ..] && first.Contains(':', StringComparison.Ordinal)
             ? ModelDocument.For(context, null, first)
             : ModelDocument.Get(context, documentHandle);
 
-    private static PMI PmiOf(ModelDocument model) => Late.Get(model.Document, "PMI") as PMI
+    internal static PMI PmiOf(ModelDocument model) => Late.Get(model.Document, "PMI") as PMI
         ?? throw new ToolException("not_supported", $"'{model.Document.Name}' has no PMI.", "PMI belongs to part and sheet metal documents.");
 
     private static Dimensions DimensionsOf(ModelDocument model) => (Dimensions)PmiOf(model).Dimensions;
@@ -416,7 +595,7 @@ public static class PmiService
         }
     }
 
-    private static object Describe(SeContext context, ModelDocument model, Dimension dimension, int index)
+    internal static object Describe(SeContext context, ModelDocument model, Dimension dimension, int index)
     {
         bool angle = IsAngle(dimension);
         return new

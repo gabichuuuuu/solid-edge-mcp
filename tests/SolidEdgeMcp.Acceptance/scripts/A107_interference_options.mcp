@@ -1,0 +1,45 @@
+# A107: interference comparisons (se_interference compare others | visible). The Interference Options that ignore threads
+#   are not in the API (they changed nothing; COVERAGE): the default check here also shows both pins.
+# A block 100 x 60 x 20 with two tapped M10 through holes at (30, 30) and (70, 30), cut at the tap drill 8.5; a plain
+# pin d10 x 40 in the first and a pin d10 x 40 with an M10 thread in the second, both from z = -10. Each pin overlaps the
+# wall of its hole: pi x (5^2 - 4.25^2) x 20 = 435.895 mm3.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@bt = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{bt.items[0].handle}}","centers":[30,30,20,70,30,20],"type":"tapped","thread":"M10"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a107_{{run}}\\blk.par"}
+se_documents {"action":"close","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@pk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{pk.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
+se_extrude {"sketch":"{{pk.sketch}}","distance":40}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a107_{{run}}\\plain.par"}
+@pc = se_geometry {"action":"faces","type":"cylinder"}
+@th = se_thread {"face":"{{pc.items[0].handle}}","thread":"M10"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a107_{{run}}\\threaded.par"}
+se_documents {"action":"close","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@ob = se_assembly {"action":"insert","path":"{{work}}\\runs\\a107_{{run}}\\blk.par"}
+@op = se_assembly {"action":"insert","path":"{{work}}\\runs\\a107_{{run}}\\plain.par","origin":[30,30,-10]}
+@ot = se_assembly {"action":"insert","path":"{{work}}\\runs\\a107_{{run}}\\threaded.par","origin":[70,30,-10]}
+# Default: both pins interfere with the block.
+@i0 = se_interference {}
+?= i0.status confirmed
+?= i0.interferences 2
+?= i0.pairs[0].volume 435.895 0.01
+# One pin against all the others; the block against the visible occurrences with the threaded pin hidden.
+@c1 = se_interference {"occurrences":["{{op.handle}}"],"compare":"others"}
+?= c1.interferences 1
+?= c1.pairs[0].volume 435.895 0.01
+se_assembly {"action":"hide","occurrence":"{{ot.handle}}"}
+@c2 = se_interference {"occurrences":["{{ob.handle}}"],"compare":"visible"}
+?= c2.interferences 1
+?~ c2.pairs[0].occurrences[1].name plain.par:1
+se_assembly {"action":"show","occurrence":"{{ot.handle}}"}
+! [invalid_argument] se_interference {"compare":"others"}
+! [invalid_argument] se_interference {"occurrences":["{{op.handle}}"],"against":["{{ob.handle}}"],"compare":"visible"}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}

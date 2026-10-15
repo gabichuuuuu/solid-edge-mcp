@@ -515,6 +515,63 @@ public static partial class OptionService
         return new { document = context.DocumentHandle(document), previous = before, current = DescribeUnit(target), note = "Save the document to keep the change." };
     }
 
+    /// <summary>
+    /// A value in tool units as the document displays it (UnitsOfMeasure.FormatUnit: 60 mm reads "2.36 in" with the distance
+    /// unit in inches and precision 2), or, for text, the text read as Solid Edge reads a typed value (ParseUnit: "2.5 in" is
+    /// 63.5 mm; a number alone is in the document's unit).
+    /// </summary>
+    public static object FormatUnits(SeContext context, string? documentHandle, string type, JsonElement value)
+    {
+        SolidEdgeDocument document = context.GetDocument(documentHandle);
+        UnitOfMeasure target = UnitsOf(document).FirstOrDefault(u => string.Equals(TypeName(u.Type), Key(type), StringComparison.Ordinal))
+            ?? throw ToolException.NotFound($"The document has no unit type '{type}'.", "List them with se_options action 'units'.");
+        UnitsOfMeasure units = document.UnitsOfMeasure;
+        (double factor, string toolUnit) = ToolUnit(target.Type);
+        try
+        {
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                string text = value.GetString()!;
+                double parsed = Convert.ToDouble(units.ParseUnit((int)target.Type, text), CultureInfo.InvariantCulture);
+                return new { document = context.DocumentHandle(document), unitType = TypeName(target.Type), text, value = Math.Round(parsed / factor, 9), unit = toolUnit };
+            }
+
+            if (value.ValueKind != JsonValueKind.Number)
+            {
+                throw ToolException.InvalidArgument("'value' must be a number in tool units (to format) or a text with its unit (to read).");
+            }
+
+            double number = SolidEdgeMcp.Core.Units.RequireFinite(value.GetDouble(), "value");
+            string shown = Convert.ToString(units.FormatUnit((int)target.Type, number * factor, Type.Missing), CultureInfo.InvariantCulture) ?? "";
+            return new
+            {
+                document = context.DocumentHandle(document),
+                unitType = TypeName(target.Type),
+                value = number,
+                unit = toolUnit,
+                text = shown,
+                displayUnit = UnitName(target.Type, target.Units),
+                precision = target.Precision,
+            };
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw ToolException.InvalidArgument($"Solid Edge could not read '{value}' as a {TypeName(target.Type)}: {ex.Message.Trim()}",
+                "Give a number with a unit Solid Edge knows, e.g. '2.5 in', '63.5 mm' or '30 deg'.");
+        }
+    }
+
+    /// <summary>Factor from tool units to Solid Edge's database units (SI) and the name of the tool unit.</summary>
+    private static (double Factor, string Unit) ToolUnit(UnitTypeConstants type) => type switch
+    {
+        UnitTypeConstants.igUnitDistance => (1e-3, "mm"),
+        UnitTypeConstants.igUnitAngle => (Math.PI / 180, "deg"),
+        UnitTypeConstants.igUnitArea => (1e-6, "mm2"),
+        UnitTypeConstants.igUnitVolume => (1e-9, "mm3"),
+        UnitTypeConstants.igUnitMass => (1, "kg"),
+        _ => (1, "SI"),
+    };
+
     private static Catalog CatalogOf(SeContext context, string scope, string? documentHandle)
     {
         if (scope == "application")

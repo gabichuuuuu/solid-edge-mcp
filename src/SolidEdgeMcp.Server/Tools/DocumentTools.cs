@@ -27,6 +27,8 @@ public enum DocumentAction
     Recompute,
     Templates,
     Status,
+    SaveMirror,
+    ModelingMode,
 }
 
 public enum DocumentLifeStatus
@@ -37,6 +39,12 @@ public enum DocumentLifeStatus
     Released,
     Baselined,
     Obsolete,
+}
+
+public enum DocumentModelingMode
+{
+    Synchronous,
+    Ordered,
 }
 
 public enum DocumentKind
@@ -53,7 +61,7 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
 {
     [McpServerTool(Name = "se_documents", Title = "Solid Edge documents", Destructive = true, OpenWorld = false)]
     [Description("""
-        Documents. list | info | activate | new (kind, optional template) | open (path) | import (path of a STEP, IGES, Parasolid, JT, SAT, STL, OBJ, 3MF, DXF or DWG file: a new unsaved document translated from it; kind and template optional, default part, or draft for DXF/DWG; returns the volume) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | close (saveChanges required if there are unsaved changes) | templates (this installation's default template of each kind and the templates in its folders; optional kind) | status (value = available | in_work | in_review | released | baselined | obsolete: set and read back; none: read) | undo | redo (steps; only what Solid Edge recorded: holes, deletes, suppressions... but not features made from sketches, and creating a sketch clears the history; nothing to undo is an error) | recompute.
+        Documents. list | info | activate | new (kind, optional template) | open (path) | import (path of a STEP, IGES, Parasolid, JT, SAT, STL (read in mm), OBJ, 3MF, DXF or DWG file: a new unsaved document translated from it; kind and template optional, default part, or draft for DXF/DWG; returns the volume) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | save_mirror (part: path of a new .par, its mirror image about 'plane'; link = keep it linked to this part; the new part opens) | close (saveChanges required if there are unsaved changes) | templates (this installation's default template of each kind and the templates in its folders; optional kind) | status (value = available | in_work | in_review | released | baselined | obsolete: set and read back; none: read) | undo | redo (steps; only what Solid Edge recorded: holes, deletes, suppressions... but not features made from sketches, and creating a sketch clears the history; nothing to undo is an error) | recompute | modeling_mode (part or sheet metal: mode = synchronous | ordered sets it, as the ribbon's Synchronous and Ordered buttons; none: read).
         Without 'document' the active document is used. Paths must be absolute and inside the allowed folders (se_server_info). save_as keeps the native format (.par .psm .asm .dft .pwd); use se_export for other formats.
         Example: {"action":"new","kind":"part"} then {"action":"save_as","path":"D:\\CAD\\block.par"}.
         """)]
@@ -67,6 +75,9 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
         [Description("For 'close': true saves, false discards unsaved changes.")] bool? saveChanges = null,
         [Description("For 'undo'/'redo': number of steps (default 1).")] int steps = 1,
         [Description("For 'status': the new life-cycle status; omitted = read it.")] DocumentLifeStatus? value = null,
+        [Description("For 'save_mirror': reference plane of the part ('1'-'3', 'xy'/'yz'/'xz' or a handle).")] string? plane = null,
+        [Description("For 'save_mirror': the new part stays linked to this one (default false: its features are copied).")] bool link = false,
+        [Description("For 'modeling_mode': synchronous | ordered; omitted = read it.")] DocumentModelingMode? mode = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_documents";
@@ -88,11 +99,14 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
                 ToolRunner.Require(path, "path", "save_as"), overwrite, copy: false), cancellationToken, precheck: precheck),
             DocumentAction.SaveCopyAs => runner.RunAsync(tool, name, c => DocumentService.SaveAs(c, document,
                 ToolRunner.Require(path, "path", "save_copy_as"), overwrite, copy: true), cancellationToken, precheck: precheck),
+            DocumentAction.SaveMirror => runner.RunAsync(tool, name, c => DocumentService.SaveMirror(c, document,
+                ToolRunner.Require(path, "path", "save_mirror"), ToolRunner.Require(plane, "plane", "save_mirror"), link, overwrite), cancellationToken, precheck: precheck),
             DocumentAction.Close => runner.RunAsync(tool, name, c => DocumentService.Close(c, document, saveChanges), cancellationToken),
             DocumentAction.Undo => runner.RunAsync(tool, name, c => DocumentService.Edit(c, document, "undo", steps), cancellationToken),
             DocumentAction.Redo => runner.RunAsync(tool, name, c => DocumentService.Edit(c, document, "redo", steps), cancellationToken),
             DocumentAction.Status => runner.RunAsync(tool, name, c => DocumentService.Status(c, document, value is { } v ? FeatureTools.Snake(v) : null), cancellationToken),
             DocumentAction.Recompute => runner.RunAsync(tool, name, c => DocumentService.Edit(c, document, "recompute", 1), cancellationToken),
+            DocumentAction.ModelingMode => runner.RunAsync(tool, name, c => DocumentService.ModelingMode(c, document, mode is { } m ? FeatureTools.Snake(m) : null), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

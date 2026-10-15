@@ -11,6 +11,7 @@
 //   ?~ path text                         checks that the value contains the text
 //   ?# path #RRGGBB [tolerance]          checks a colour, each channel within the tolerance (default 12)
 //   !list | !schemas                     summary or schemas of the tools
+//   %move from to                        moves a file inside the work folder (paths relative to it), e.g. to make a file missing
 // {{var.field[0].sub}} is replaced by the stored value; {{work}} is the work folder (SE_MCP_WORK or
 // %LocalAppData%\SolidEdgeMcp\work\acceptance), already escaped for JSON; {{esc:var.path}} escapes a stored
 // text for a JSON string (such as a path read from another call); {{run}} is an id of this run, for files that
@@ -66,6 +67,22 @@ foreach (string raw in File.ReadAllLines(script))
             }
 
             Console.WriteLine($"TOTAL tools={tools.Count} json={tools.Sum(t => JsonSerializer.Serialize(t.ProtocolTool).Length)} chars");
+            continue;
+        }
+
+        if (line.StartsWith("%move ", StringComparison.Ordinal))
+        {
+            string[] names = Regex.Replace(line[6..], @"\{\{([^{}]+)\}\}", m => Resolve(vars, m.Groups[1].Value))
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            string root = Path.GetFullPath(work) + Path.DirectorySeparatorChar;
+            string from = Path.GetFullPath(Path.Combine(work, names[0])), to = Path.GetFullPath(Path.Combine(work, names[1]));
+            if (!from.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !to.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("%move works inside the work folder only.");
+            }
+
+            File.Move(from, to, overwrite: true);
+            Console.WriteLine($">> %move {names[0]} {names[1]}");
             continue;
         }
 

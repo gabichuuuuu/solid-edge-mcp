@@ -1,0 +1,45 @@
+# A106: the free edges of construction surfaces (se_geometry edges, type open), what Show Non-Stitched Edges shows.
+# A square 20 x 20 lofted to the same square 30 above: open at both ends, 4 + 4 free edges; with end caps, none.
+# Two extruded lines (50 and 30 long, depth 20) meeting at a corner: 4 free edges each; stitched, the common edge is no
+# longer free: 6. A solid block has none.
+@d = se_documents {"action":"new","kind":"part"}
+@a = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{a.sketch}}","points":[-10,-10,10,10]}
+se_sketch {"action":"close","sketch":"{{a.sketch}}"}
+@r = se_ref_plane {"action":"offset","plane":"1","distance":30}
+@b = se_sketch {"action":"create","plane":"{{r.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{b.sketch}}","points":[-10,-10,10,10]}
+se_sketch {"action":"close","sketch":"{{b.sketch}}"}
+@lo = se_surface {"action":"loft","sketches":["{{a.sketch}}","{{b.sketch}}"]}
+@eo = se_geometry {"action":"edges","source":"{{lo.surface.handle}}","type":"open"}
+?= eo.count 8
+@ea = se_geometry {"action":"edges","source":"{{lo.surface.handle}}"}
+?= ea.count 12
+@loc = se_surface {"action":"loft","sketches":["{{a.sketch}}","{{b.sketch}}"],"endCaps":true}
+@ec = se_geometry {"action":"edges","source":"{{loc.surface.handle}}","type":"open"}
+?= ec.count 0
+@e1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{e1.sketch}}","points":[0,100,50,100]}
+se_sketch {"action":"close","sketch":"{{e1.sketch}}","open":true}
+@x1 = se_surface {"action":"extrude","sketch":"{{e1.sketch}}","depth":20}
+@e2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{e2.sketch}}","points":[50,100,50,130]}
+se_sketch {"action":"close","sketch":"{{e2.sketch}}","open":true}
+@x2 = se_surface {"action":"extrude","sketch":"{{e2.sketch}}","depth":20}
+@o1 = se_geometry {"action":"edges","source":"{{x1.surface.handle}}","type":"open"}
+?= o1.count 4
+@st = se_surface {"action":"stitch","surfaces":["{{x1.surface.handle}}","{{x2.surface.handle}}"]}
+@os = se_geometry {"action":"edges","source":"{{st.surface.handle}}","type":"open"}
+?= os.count 6
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@so = se_geometry {"action":"edges","type":"open"}
+?= so.count 0
+@sa = se_geometry {"action":"edges"}
+?= sa.count 12
+! [invalid_argument] se_geometry {"action":"edges","type":"free"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

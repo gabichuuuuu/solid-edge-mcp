@@ -16,11 +16,17 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// keeps the exploded placements apart from the assembly ones (Occurrence.GetExplodeMatrix; the assembly placement does not
 /// change). Verified: a pin inserted on a block (insert relation) moves along its axis by the spread distance (50 mm → its
 /// origin from z=20 to z=70); spread 0 leaves Solid Edge's minimum clearance; a component that was never exploded answers
-/// E_FAIL. There is no COM call to collapse the explode (the commands belong to the Explode environment).
+/// E_FAIL. There is no COM call to collapse the explode (the commands belong to the Explode environment). Saving the exploded
+/// assembly stores the explode as the explode configuration "explode,Solid Edge" (neither the explode nor a display
+/// configuration saved meanwhile creates it; a display configuration does not keep the explode, and after opening the
+/// assembly again nothing reads as exploded); a drawing view of that configuration is exploded, in the orientation stored
+/// with it (verified: a front view came out "custom", 133 mm tall instead of 73).
 /// </summary>
 public static class AssemblyExplodeService
 {
     private const string Collapse = "Solid Edge keeps the exploded placements apart from the assembly ones; to collapse them, close the assembly without saving or use the Explode environment.";
+
+    internal const string Keep = "To keep the explode, save the assembly: Solid Edge stores it as the explode configuration 'explode,Solid Edge', which se_drawing base_view takes as 'configuration' for an exploded view (in the orientation stored with it). A display configuration (se_assembly_config save) does not keep it.";
 
     /// <summary>Automatic explode of the top-level components, by part or by subassembly, with a spread distance (mm).</summary>
     public static object Explode(SeContext context, string? documentHandle, double? spread, string by)
@@ -53,7 +59,7 @@ public static class AssemblyExplodeService
         // The status text comes in Solid Edge's language, so the explode is checked by the components it moved.
         object[] components = Components(context, assembly, out int moved);
         return moved > 0
-            ? new { document = context.DocumentHandle((SolidEdgeDocument)assembly), moved, spread = spread, by, components, note = Collapse }
+            ? new { document = context.DocumentHandle((SolidEdgeDocument)assembly), moved, spread = spread, by, components, note = $"{Collapse} {Keep}" }
             : throw new ToolException("explode_failed", $"Solid Edge did not move any component ({result?.Trim()}).",
                 "Auto explode follows the assembly relations: relate the components first (se_relations), or give a larger 'spread'.");
     }
@@ -65,6 +71,10 @@ public static class AssemblyExplodeService
         object[] components = Components(context, assembly, out int moved);
         return new { document = context.DocumentHandle((SolidEdgeDocument)assembly), moved, components, note = Collapse };
     }
+
+    /// <summary>Whether a top-level component of the assembly sits apart from its assembly placement in the explode.</summary>
+    internal static bool IsExploded(AssemblyDocument assembly) => Items<Occurrence>(assembly.Occurrences).Any(occurrence =>
+        ExplodedOrigin(occurrence) is { } exploded && Geo.Length([.. exploded.Zip(Placement.Of(occurrence).Origin, (a, b) => a - b)]) > 1e-7);
 
     private static object[] Components(SeContext context, AssemblyDocument assembly, out int moved)
     {

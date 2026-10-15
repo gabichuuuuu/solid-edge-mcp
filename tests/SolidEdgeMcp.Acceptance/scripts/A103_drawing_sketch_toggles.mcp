@@ -1,0 +1,40 @@
+# A103: the sketching buttons of a drawing in se_options (scope drawing): Maintain Relationships, Alignment Indicator,
+#   Relationship Handles, Locate Background and Maintain Alignment Set read, set and read back; the Maintain Relationships
+#   button (command 10514) toggles the same setting; a part has no drawing options.
+@d = se_documents {"action":"new","kind":"draft"}
+@l = se_options {"action":"list","scope":"drawing","filter":"Relationship"}
+?= l.options[?name="MaintainRelationships"].value true
+?= l.options[?name="DisplayRelationshipHandles"].value true
+@m1 = se_options {"action":"set","scope":"drawing","name":"MaintainRelationships","value":false}
+?= m1.previous true
+?= m1.value false
+@g1 = se_com_get {"target":"active_document","member":"MaintainRelationships"}
+?= g1.value false
+# The button turns it back on.
+se_command {"action":"run","command":"10514"}
+@m2 = se_options {"action":"get","scope":"drawing","name":"MaintainRelationships"}
+?= m2.value true
+@a1 = se_options {"action":"set","scope":"drawing","name":"DisplayAlignmentIndicator","value":false}
+?= a1.value false
+@a2 = se_options {"action":"set","scope":"drawing","name":"DisplayAlignmentIndicator","value":true}
+?= a2.value true
+@h1 = se_options {"action":"set","scope":"drawing","name":"DisplayRelationshipHandles","value":false}
+?= h1.value false
+@h2 = se_options {"action":"set","scope":"drawing","name":"DisplayRelationshipHandles","value":true}
+?= h2.value true
+@b1 = se_options {"action":"set","scope":"drawing","name":"LocateBackgroundSheetGeometry","value":true}
+?= b1.previous false
+?= b1.value true
+@b2 = se_options {"action":"set","scope":"drawing","name":"LocateBackgroundSheetGeometry","value":false}
+?= b2.value false
+# Maintain Alignment Set is the setting se_dimension alignment_set reads.
+@s1 = se_options {"action":"set","scope":"drawing","name":"MaintainAlignmentSet","value":false}
+?= s1.value false
+@s2 = se_dimension {"action":"alignment_set"}
+?= s2.maintain false
+@s3 = se_options {"action":"set","scope":"drawing","name":"MaintainAlignmentSet","value":true}
+?= s3.value true
+@p = se_documents {"action":"new","kind":"part"}
+! [wrong_document_type] se_options {"action":"get","scope":"drawing","name":"MaintainRelationships"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

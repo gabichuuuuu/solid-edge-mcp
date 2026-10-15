@@ -21,13 +21,15 @@ public static partial class SimplifyService
     private static AssemblyDocument? AssemblyTarget(SeContext context, string? documentHandle, string[]? faces, string? feature) =>
         faces is { Length: > 0 } || feature is not null ? null : context.GetDocument(documentHandle) as AssemblyDocument;
 
-    private static object RunAssembly(SeContext context, AssemblyDocument assembly, string action, string[]? occurrences, double? ratio, string? path) => action switch
+    private static object RunAssembly(SeContext context, AssemblyDocument assembly, string action, string[]? occurrences, double? ratio, string? path, bool bodies) => action switch
     {
         "status" => AssemblyStatus(context, assembly),
         "create" => CreateAssembly(context, assembly, occurrences, ratio),
         "delete" => DeleteAssembly(context, assembly),
         "save_as" => SaveAssembly(context, assembly, path),
-        _ => throw ToolException.InvalidArgument($"An assembly is simplified with status, create, delete and save_as, not '{action}'.",
+        "visible_faces" => VisibleFaces(context, assembly, occurrences, ratio, bodies),
+        "update" => UpdateAssembly(context, assembly),
+        _ => throw ToolException.InvalidArgument($"An assembly is simplified with status, create, visible_faces, update, delete and save_as, not '{action}'.",
             "Simplify a part (holes, rounds, faces) in the part document."),
     };
 
@@ -39,16 +41,90 @@ public static partial class SimplifyService
         }
 
         Array excluded = Array.Empty<object>(), included = Array.Empty<object>();
-        assembly.GetSimplifiedAssemblyInputs(out int excludedCount, ref excluded, out double ratio, out int includedCount, ref included);
+        int excludedCount, includedCount;
+        double ratio;
+        string mode = "modeled";
+        string? copies = null;
+        if (Simplified(assembly) is { SimplificationType: SimplifiedAssemblyMode.seSimplifiedAssemblyModeVisibleFaces } visible)
+        {
+            mode = "visible_faces";
+            var copyType = VisibilityBasedSimplifiedAssemblyCopyType.seVisibilityBasedSimplifiedAssemblyCopyTypeFaces;
+            visible.GetVisibleFaceInputs(out excludedCount, ref excluded, out ratio, out includedCount, ref included, ref copyType);
+            copies = copyType == VisibilityBasedSimplifiedAssemblyCopyType.seVisibilityBasedSimplifiedAssemblyCopyTypeBodies ? "bodies" : "faces";
+        }
+        else
+        {
+            assembly.GetSimplifiedAssemblyInputs(out excludedCount, ref excluded, out ratio, out includedCount, ref included);
+        }
+
         return new
         {
             document = context.DocumentHandle((SolidEdgeDocument)assembly),
             simplified = true,
+            mode,
+            copies,
             excluded = Names(excluded, excludedCount),
             ratio,
             included = Names(included, includedCount),
         };
     }
+
+    /// <summary>
+    /// Simplify > Visible Faces: the simplified assembly made of the faces (or whole bodies) that can be seen from outside.
+    /// Verified in Solid Edge 2026: SimplifiedAssemblies.AddVisible makes it (SimplificationType visible faces); with one block
+    /// left out by EditVisibleFaces (copy type bodies) the part written by SaveSimplifiedAssemblyAs holds the other two blocks
+    /// (240000 mm3); UpdateSimplifiedAssembly runs it again after the components change.
+    /// </summary>
+    private static object VisibleFaces(SeContext context, AssemblyDocument assembly, string[]? occurrences, double? ratio, bool bodies)
+    {
+        Occurrence[] excluded = [.. (occurrences ?? []).Select(h => AssemblyService.Occurrence(context, h, "occurrences"))];
+        if (ratio is { } r && (!double.IsFinite(r) || r < 0 || r >= 1))
+        {
+            throw ToolException.InvalidArgument("'ratio' is a share of the assembly size between 0 and 1, e.g. 0.1.");
+        }
+
+        SimplifiedAssembly? current = Simplified(assembly);
+        if (assembly.IsAssemblySimplified && current?.SimplificationType != SimplifiedAssemblyMode.seSimplifiedAssemblyModeVisibleFaces)
+        {
+            throw new ToolException("already_simplified", "The assembly already has a simplified model made by leaving components out.", "Delete it first (action 'delete').");
+        }
+
+        var copyType = bodies
+            ? VisibilityBasedSimplifiedAssemblyCopyType.seVisibilityBasedSimplifiedAssemblyCopyTypeBodies
+            : VisibilityBasedSimplifiedAssemblyCopyType.seVisibilityBasedSimplifiedAssemblyCopyTypeFaces;
+        Array exclude = excluded.Cast<object>().ToArray(), include = Array.Empty<object>();
+        if (current is not null && assembly.IsAssemblySimplified)
+        {
+            current.EditVisibleFaces(excluded.Length, ref exclude, ratio ?? 0, 0, ref include, copyType);
+        }
+        else
+        {
+            _ = assembly.SimplifiedAssemblies.get_AddVisible(excluded.Length, ref exclude, ratio ?? 0, 0, ref include, copyType);
+        }
+
+        if (!assembly.IsAssemblySimplified || Simplified(assembly)?.SimplificationType != SimplifiedAssemblyMode.seSimplifiedAssemblyModeVisibleFaces)
+        {
+            throw new ToolException("simplify_failed", "Solid Edge did not make the visible-faces simplified assembly.");
+        }
+
+        context.ModelChanged((SolidEdgeDocument)assembly, "the simplified assembly was made");
+        return AssemblyStatus(context, assembly);
+    }
+
+    /// <summary>Update (Simplify group): makes the simplified assembly again from the components as they are now.</summary>
+    private static object UpdateAssembly(SeContext context, AssemblyDocument assembly)
+    {
+        if (!assembly.IsAssemblySimplified)
+        {
+            throw new ToolException("no_simplified_model", "The assembly has no simplified model.", "Make it first with action 'create' or 'visible_faces'.");
+        }
+
+        assembly.UpdateSimplifiedAssembly();
+        return AssemblyStatus(context, assembly);
+    }
+
+    private static SimplifiedAssembly? Simplified(AssemblyDocument assembly) =>
+        Late.Items(assembly.SimplifiedAssemblies).OfType<SimplifiedAssembly>().FirstOrDefault();
 
     /// <summary>Makes (or remakes) the simplified assembly without the given components and, with a ratio, without the smaller ones.</summary>
     private static object CreateAssembly(SeContext context, AssemblyDocument assembly, string[]? occurrences, double? ratio)

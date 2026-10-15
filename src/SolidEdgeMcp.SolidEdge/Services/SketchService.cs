@@ -163,6 +163,39 @@ public static partial class SketchService
         return new { elements = lines.Select(l => context.RegisterBeside(l, "line2d", sketch)).ToArray() };
     }
 
+    /// <summary>
+    /// Regular polygon by its centre, the distance to each vertex and the angle of the first vertex, as the Polygon command
+    /// draws it: connected lines tied by equal relations (the API has no polygon collection).
+    /// </summary>
+    public static object Polygon(SeContext context, string sketch, double[]? center, double? radius, int? sides, double? angle)
+    {
+        Canvas2d canvas = ResolveCanvas(context, sketch);
+        (double x, double y) = Geo.Point2(center, "center");
+        double r = Units.MmToM(Units.RequirePositive(radius ?? throw ToolException.InvalidArgument("polygon requires 'radius': mm from the centre to each vertex."), "radius"));
+        int n = sides ?? throw ToolException.InvalidArgument("polygon requires 'sides' (3 or more).");
+        if (n is < 3 or > 100)
+        {
+            throw ToolException.InvalidArgument("'sides' must be from 3 to 100.");
+        }
+
+        double first = Units.DegToRad(angle ?? 0);
+        (double X, double Y)[] v = [.. Enumerable.Range(0, n).Select(i => (x + r * Math.Cos(first + 2 * Math.PI * i / n), y + r * Math.Sin(first + 2 * Math.PI * i / n)))];
+        Line2d[] lines = Chain(canvas, v, closed: true);
+        Relations2d relations = canvas.Relations2d;
+        for (int i = 1; i < n; i++)
+        {
+            relations.AddEqual(lines[0], lines[i]);
+        }
+
+        double side = 2 * r * Math.Sin(Math.PI / n);
+        if (lines.Any(l => Math.Abs(l.Length - side) > 1e-9))
+        {
+            throw new ToolException("feature_failed", "Solid Edge moved the sides of the polygon away from the size asked.", "Check it with action 'info'.");
+        }
+
+        return new { elements = lines.Select(l => context.RegisterBeside(l, "line2d", sketch)).ToArray(), side = Geo.Mm(side) };
+    }
+
     public static object Circle(SeContext context, string sketch, double[]? center, double? radius)
     {
         Canvas2d canvas = ResolveCanvas(context, sketch);

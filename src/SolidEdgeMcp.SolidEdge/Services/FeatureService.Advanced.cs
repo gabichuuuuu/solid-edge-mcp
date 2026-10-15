@@ -44,12 +44,13 @@ public sealed record PatternSpec(
     bool Reverse = false,
     bool Part = false,
     string? Region = null,
-    double? Stagger = null);
+    double? Stagger = null,
+    double[]? Offsets = null);
 
 public static partial class FeatureService
 {
     public static readonly IReadOnlyList<string> HoleTypes = ["simple", "counterbore", "countersink", "tapped"];
-    public static readonly IReadOnlyList<string> PatternTypes = ["rectangular", "circular", "mirror", "curve", "fill"];
+    public static readonly IReadOnlyList<string> PatternTypes = ["rectangular", "circular", "mirror", "curve", "fill", "table"];
 
     /// <summary>
     /// Holes at the given centers. With direction "auto" it tries toward the normal of the plane and, if it
@@ -201,7 +202,7 @@ public static partial class FeatureService
             return ConstructionPattern(context, documentHandle, spec, items);
         }
 
-        if (spec.Type is not ("curve" or "fill") && string.IsNullOrWhiteSpace(spec.Plane))
+        if (spec.Type is not ("curve" or "fill" or "table") && string.IsNullOrWhiteSpace(spec.Plane))
         {
             throw ToolException.InvalidArgument(spec.Type == "mirror"
                 ? "'plane' is required: the mirror plane ('1'-'3', refplane or planar face handle)."
@@ -212,7 +213,7 @@ public static partial class FeatureService
         object[] features = spec.Features.Select(h => context.Handles.Resolve(h, "features")).ToArray();
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
-        RefPlane? refPlane = spec.Type is "curve" or "fill" ? null : model.ResolvePlane(context, spec.Plane!);
+        RefPlane? refPlane = spec.Type is "curve" or "fill" or "table" ? null : model.ResolvePlane(context, spec.Plane!);
         double before = model.Volume();
         object feature;
         switch (spec.Type)
@@ -261,11 +262,64 @@ public static partial class FeatureService
             case "curve":
                 feature = CurvePattern(context, target, features, spec);
                 break;
+            case "table":
+                feature = TablePattern(context, model, target, features, spec);
+                break;
             default:
                 throw ToolException.InvalidArgument($"Unknown pattern type '{spec.Type}'.", $"Use one of: {string.Join(", ", PatternTypes)}.");
         }
 
         return Verify(context, model, feature, before, 0, switched);
+    }
+
+    /// <summary>
+    /// Pattern by table: a copy of the features at each offset [dx, dy, dz] (mm) from them. Solid Edge reads the positions from an
+    /// Excel sheet: Patterns.AddPatternByTable with the part's first coordinate system (the base one), lengths in mm, the option
+    /// "to the first row" and a sheet without a header places a copy at each row's offset from the first row. Verified with a
+    /// Ø10 hole at (20, 20) of a 100 x 60 x 20 block and the rows (0,0,0), (30,0,0), (30,25,0): holes at (50, 20) and (50, 45),
+    /// 3 occurrences, 3141.593 mm3 less; a header row gives no copies and the option "to a key point" needs a key point
+    /// (E_INVALIDARG). The server writes that sheet (XlsxSheet: no Excel needed) in its work folder and deletes it afterwards: the
+    /// pattern keeps the positions (checked after deleting the file and recomputing). With no coordinate system the call fails
+    /// (E_POINTER), so one is added at the origin when the part has none.
+    /// </summary>
+    private static object TablePattern(SeContext context, ModelDocument model, Model target, object[] features, PatternSpec spec)
+    {
+        if (Geo.Points3(spec.Offsets, "offsets", 1).Any(o => Math.Abs(o.X) + Math.Abs(o.Y) + Math.Abs(o.Z) < 1e-9))
+        {
+            throw ToolException.InvalidArgument("An offset of [0,0,0] would put a copy on the original.", "Give only the offsets of the copies.");
+        }
+
+        object systems = Late.Get(model.Document, "CoordinateSystems")
+            ?? throw new ToolException("not_supported", "This document has no coordinate systems for a pattern by table.");
+        object system = Late.Count(systems) > 0 ? Late.Call(systems, "Item", 1)! : Late.Call(systems, "Add")!;
+        List<double[]> rows = [[0, 0, 0]];
+        for (int i = 0; i < spec.Offsets!.Length; i += 3)
+        {
+            rows.Add([spec.Offsets[i], spec.Offsets[i + 1], spec.Offsets[i + 2]]);
+        }
+
+        string folder = Path.Combine(context.AppPaths.Work, "tables");
+        Directory.CreateDirectory(folder);
+        string file = Path.Combine(folder, $"pattern-{Guid.NewGuid():N}.xlsx");
+        XlsxSheet.Write(file, rows);
+        try
+        {
+            return Create("pattern by table", () => target.Patterns.AddPatternByTable(features.Length, features, system, PatternTypeConstants.seSmartPattern,
+                OffsetType.sePatternFixedOffset, ReferencePointTypeEnumForFromPointOption.sePatternReferenceTypeFromCoOrdinateSystem, null,
+                UnitOfMeasureAngleReadoutConstants.seAngleDegree, UnitOfMeasureLengthReadoutConstants.seLengthMillimeter, file,
+                PatternCurveAnchorSideConstants.sePatternCurveLeftSide, false, ReferencePointTypeEnumForToPointOption.sePatternReferenceTypeToExcelFirstRow, null));
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (IOException)
+            {
+                // Solid Edge may still hold the file; the work folder is temporary.
+            }
+        }
     }
 
     /// <summary>

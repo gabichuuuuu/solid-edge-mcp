@@ -19,6 +19,7 @@ public enum OptionAction
     Set,
     Units,
     SetUnits,
+    Format,
     Categories,
     Snapshot,
     Restore,
@@ -67,25 +68,26 @@ public sealed class SettingsTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_options", Title = "Solid Edge options and units", Destructive = true, OpenWorld = false)]
     [Description("""
-        Solid Edge options (every setting of the Solid Edge Options dialog: general, save, file locations, start-up, interface and colour theme, display, colours, helpers and grids, sketching, assembly, drawing, PDF, standards, units, simulation, performance, data management) and document units.
+        Solid Edge options (every page of the Options dialog: general, save, file locations, interface, display, colours, sketching, assembly, drawing, PDF, standards, units...) and document units.
         categories (the pages, with their number of options) | list (scope application|document|drawing, category, filter = text in the name) | get (name) |
         set (name, value of the same type as the current one; colours '#RRGGBB'; coded options such as ColorTheme also take their name: light|medium|dark|framed; folder and file options must point into the allowed folders or the Solid Edge installation, and one without a value (such as Macros) cannot be emptied again; returns the previous value) |
         snapshot (saves every option of the scope to a .json file, default in the work folder) | restore (path of a snapshot; puts back every option that differs, including changes made since; dryRun = true only lists them; run it as the snapshot was made, with or without a document open) |
-        units (display units of the document: type, unit, precision) | set_units (unitType e.g. distance|angle|mass|area|volume, unit e.g. millimeter|inch|degree|kilogram, precision index).
-        Application options belong to the person and persist between sessions: change them only when asked, preferably after a snapshot. Document options (scope document) depend on the type (part, sheet metal, assembly, draft, weldment) and are in SI units (m, rad, kg/m3); scope drawing holds what a draft saves (DVProjectionAngle, drawing view defaults, grid, DVEdgeStyleName[HiddenEdge]...).
-        Units only change what Solid Edge displays: the se_* tools always use mm, degrees and kg.
+        units (display units of the document: type, unit, precision) | set_units (unitType e.g. distance|angle|mass|area|volume, unit e.g. millimeter|inch|degree|kilogram, precision index) |
+        format (unitType, default distance; value: a number in tool units gives the text shown, 60 -> "2.36 in"; a text such as "2.5 in" gives its value).
+        Application options belong to the person and persist between sessions: change them only when asked, preferably after a snapshot. Document options (scope document) depend on the type (part, sheet metal, assembly, draft, weldment) and are in SI units (m, rad, kg/m3); scope drawing holds what a draft saves (DVProjectionAngle, drawing view defaults, grid, DVEdgeStyleName[HiddenEdge]...) and its sketching buttons (MaintainRelationships, DisplayAlignmentIndicator, DisplayRelationshipHandles, LocateBackgroundSheetGeometry, MaintainAlignmentSet).
+        Units only change what Solid Edge displays: the se_* tools always use mm, degrees and kg (format converts).
         Example: {"action":"list","category":"save"}; {"action":"set","name":"ColorTheme","value":"dark"}.
         """)]
     public Task<CallToolResult> Options(
         OptionAction action,
         [Description("application (default), document, or drawing (preferences saved in a draft).")] OptionScope scope = OptionScope.Application,
         [Description("Option name as listed (prefix such as seApplicationGlobal optional).")] string? name = null,
-        [Description("For set: new value (bool, number, text; colours '#RRGGBB').")] JsonElement? value = null,
+        [Description("For set: new value (bool, number, text; colours '#RRGGBB'). For format: a number in tool units, or a text with its unit.")] JsonElement? value = null,
         [Description("For list: text contained in the option name.")] string? filter = null,
         [Description("For list (application scope): category key from 'categories', e.g. save, colors, interface, file_locations.")] string? category = null,
         [Description("For snapshot (optional) and restore: absolute path of the .json snapshot in an allowed folder.")] string? path = null,
         [Description("For restore: only list what would change.")] bool dryRun = false,
-        [Description("For set_units: unit type, e.g. distance, angle, mass, area, volume.")] string? unitType = null,
+        [Description("For set_units and format: unit type, e.g. distance, angle, mass, area, volume.")] string? unitType = null,
         [Description("For set_units: unit name (millimeter, inch, meter, degree, radian, kilogram...) or its numeric value.")] string? unit = null,
         [Description("For set_units: precision index (distance: 0 ones, 1 tenths, 2 hundredths, 3 thousandths...).")] int? precision = null,
         [Description("Document handle; default: active document.")] string? document = null,
@@ -110,6 +112,8 @@ public sealed class SettingsTools(ToolRunner runner)
             OptionAction.Units => runner.RunAsync(tool, actionName, c => OptionService.Units(c, document), cancellationToken),
             OptionAction.SetUnits => runner.RunAsync(tool, actionName, c => OptionService.SetUnits(c, document,
                 ToolRunner.Require(unitType, "unitType", "set_units"), unit, precision), cancellationToken),
+            OptionAction.Format => runner.RunAsync(tool, actionName, c => OptionService.FormatUnits(c, document, unitType ?? "distance",
+                ToolRunner.RequireValue(value, "value", "format")), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

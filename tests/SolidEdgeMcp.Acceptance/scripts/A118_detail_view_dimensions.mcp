@@ -1,0 +1,34 @@
+# A118: dimensions in a dependent detail view and the diameter of a hole in a section. Block 80 x 50 x 30 with R4 rounds
+#   on its vertical edges (119587.964 mm3) and a through hole of 16 at the centre (- pi * 8^2 * 30 = 113556.106 mm3).
+#   Top view at 1:1 and a 2:1 detail of the corner (36, 21), radius 9: the detail view has no edges of its own, so its
+#   dimensions use the source view's edges inside the circle: the corner round R4 and the right edge (50 - 2 * 4 = 42);
+#   the left edge, outside the circle, is not found.
+#   Section through the hole along X: no circle for a diameter (the error points to symmetric_diameter); a centre line
+#   between its walls and a symmetric diameter of 16.
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[0,0,0],"size":[80,50],"depth":30}
+@ve = se_geometry {"action":"edges","direction":[0,0,1],"type":"line"}
+@r = se_round {"edges":["{{ve.items[0].handle}}","{{ve.items[1].handle}}","{{ve.items[2].handle}}","{{ve.items[3].handle}}"],"radius":4}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@h = se_hole {"plane":"{{top.items[0].handle}}","centers":[0,0,30],"diameter":16}
+?= h.volume 113556.106 0.001
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a118_{{run}}\\blk.par"}
+@d = se_documents {"action":"new","kind":"draft"}
+@v = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a118_{{run}}\\blk.par","orientation":"top","scale":1,"position":[150,150]}
+@dv = se_drawing {"action":"detail_view","view":"{{v.view.handle}}","center":[36,21,30],"radius":9,"scale":2,"position":[300,150]}
+?~ dv.view.type detail
+@dr = se_drawing {"action":"dimension","view":"{{dv.view.handle}}","kind":"radius","points":[38.828,23.828,30]}
+?= dr.dimension.value 4 0.001
+@dl = se_drawing {"action":"dimension","view":"{{dv.view.handle}}","kind":"length","points":[40,15,30]}
+?= dl.dimension.value 42 0.001
+! [not_found] se_drawing {"action":"dimension","view":"{{dv.view.handle}}","kind":"length","points":[-40,0,30]}
+@all = se_drawing {"action":"dimensions"}
+?= all.count 2 0
+@sv = se_drawing {"action":"section_view","view":"{{v.view.handle}}","line":[-50,0,30,50,0,30],"position":[150,300]}
+! [not_found] se_drawing {"action":"dimension","view":"{{sv.view.handle}}","kind":"diameter","points":[8,0,15]}
+se_annotation {"action":"centerline","view":"{{sv.view.handle}}","points":[-8,0,15,8,0,15]}
+@sd = se_drawing {"action":"dimension","view":"{{sv.view.handle}}","kind":"symmetric_diameter","points":[0,0,15,8,0,15]}
+?= sd.dimension.value 16 0.001
+?~ sd.dimension.type diameter
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

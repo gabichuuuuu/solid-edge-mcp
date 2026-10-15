@@ -27,6 +27,11 @@ public static partial class RefPlaneService
 
     public static object List(SeContext context, string? documentHandle)
     {
+        if (!string.IsNullOrWhiteSpace(documentHandle) && context.Handles.Resolve(documentHandle, "document") is SolidEdgeAssembly.Occurrence occurrence)
+        {
+            return OccurrenceList(context, occurrence);
+        }
+
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         if (document is SolidEdgeAssembly.AssemblyDocument assembly)
         {
@@ -61,22 +66,75 @@ public static partial class RefPlaneService
         return Describe(context, model, plane, model.RefPlanes.Count);
     }
 
-    /// <summary>Plane rotated by an angle (degrees) relative to another plane, about its intersection with the pivot plane.</summary>
-    public static object Angle(SeContext context, string? documentHandle, string parent, string pivot, double? angle, bool flip)
+    /// <summary>
+    /// Plane rotated by an angle (degrees) relative to another plane, about its intersection with the pivot plane, or about a
+    /// straight edge: 90 degrees is the Perpendicular plane, 0 the Coincident by Axis one (on the parent, its x axis along the
+    /// edge). Verified: on the top of a 100 x 60 x 20 block with a top edge, 90 gives the plane through the edge square to the
+    /// top and 0 the top itself; the x axis runs along the edge away from the pivot origin (igPivotStart: the edge start).
+    /// </summary>
+    public static object Angle(SeContext context, string? documentHandle, string parent, string pivot, double? angle, bool flip, string at = "start")
     {
         double a = Units.DegToRad(Units.RequireFinite(angle ?? throw ToolException.InvalidArgument("Action 'angle' requires 'angle' (degrees)."), "angle"));
+        ReferenceElementConstants origin = at switch
+        {
+            "start" => ReferenceElementConstants.igPivotStart,
+            "end" => ReferenceElementConstants.igPivotEnd,
+            _ => throw ToolException.InvalidArgument($"Unknown 'at' value '{at}'.", "Use start or end."),
+        };
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         if (document is SolidEdgeAssembly.AssemblyDocument assembly)
         {
-            return AssemblyAngle(context, assembly, parent, pivot, a, flip);
+            return AssemblyAngle(context, assembly, parent, pivot, a, flip, origin);
         }
 
         ModelDocument model = ModelDocument.From(document);
         object parentPlane = ResolveParent(context, model, parent);
-        object pivotPlane = ResolveParent(context, model, pivot, "pivot");
         ReferenceElementConstants side = flip ? ReferenceElementConstants.igReverseNormalSide : ReferenceElementConstants.igNormalSide;
+        if (!int.TryParse(pivot, out _) && !OrientedPlanes.TryAxis(pivot, out _) && context.Handles.Resolve(pivot, "pivot") is Edge edge)
+        {
+            (double[] s, double[] e) = StraightEdge(edge, pivot);
+            RequireOnParent(PlaneData(parentPlane), s, e, pivot);
+            RefPlane turned = Created(model, () => model.RefPlanes.AddAngularByAngle(parentPlane, a, side, edge, origin, Local: false));
+            return OnHinge(turned, PlaneData(parentPlane).Normal, a, s, e)
+                ? Describe(context, model, turned, model.RefPlanes.Count)
+                : Discard(turned, "angle");
+        }
+
+        object pivotPlane = ResolveParent(context, model, pivot, "pivot");
         RefPlane plane = model.RefPlanes.AddAngularByAngle(parentPlane, a, side, pivotPlane, ReferenceElementConstants.igPivotEnd, Local: false);
         return Describe(context, model, plane, model.RefPlanes.Count);
+    }
+
+    /// <summary>The ends of a straight edge used as a hinge (m).</summary>
+    private static (double[] Start, double[] End) StraightEdge(Edge edge, string handle)
+    {
+        if (edge.Geometry is not SolidEdgeGeometry.Line)
+        {
+            throw ToolException.InvalidArgument($"'{handle}' in 'pivot' is not a straight edge.", "Use a straight edge (se_geometry edges with type 'line') or a plane.");
+        }
+
+        Array start = new double[3];
+        Array end = new double[3];
+        edge.GetEndPoints(ref start, ref end);
+        return (Geo.Doubles(start).ToArray(), Geo.Doubles(end).ToArray());
+    }
+
+    /// <summary>The hinge edge must lie on the parent plane or face: the new plane turns about it from there.</summary>
+    private static void RequireOnParent((double[] Root, double[] Normal) parent, double[] start, double[] end, string handle)
+    {
+        if (Math.Abs(Dot(parent.Normal, Minus(start, parent.Root))) > Tolerance || Math.Abs(Dot(parent.Normal, Minus(end, parent.Root))) > Tolerance)
+        {
+            throw ToolException.InvalidArgument($"The edge '{handle}' in 'pivot' does not lie on 'plane': the new plane turns about it from there.",
+                "Pick an edge of that face (se_geometry edges with 'source' = the face) or a plane.");
+        }
+    }
+
+    /// <summary>Whether a plane turned about an edge holds both its ends and makes the angle with the parent's normal.</summary>
+    private static bool OnHinge(object plane, double[] parentNormal, double radians, double[] start, double[] end)
+    {
+        (double[] root, double[] normal) = PlaneData(plane);
+        return Math.Abs(Dot(normal, Minus(start, root))) < Tolerance && Math.Abs(Dot(normal, Minus(end, root))) < Tolerance
+            && Math.Abs(Math.Abs(Dot(normal, parentNormal)) - Math.Abs(Math.Cos(radians))) < 1e-6;
     }
 
     /// <summary>Plane through three points of the model: vertices, or midpoints of straight edges (mm).</summary>
@@ -850,6 +908,68 @@ public static partial class RefPlaneService
             : throw new ToolException("handle_wrong_type", $"'{value}' in '{argumentName}' is not a reference plane or a planar face.");
     }
 
+    /// <summary>The plane's x axis (its reference direction, the x of a sketch drawn on it), or null if Solid Edge gives none.</summary>
+    internal static double[]? XAxis(object plane)
+    {
+        try
+        {
+            Array direction = new double[3];
+            switch (plane)
+            {
+                case RefPlane part:
+                    part.GetReferenceDirection(ref direction);
+                    break;
+                case SolidEdgeAssembly.AsmRefPlane assembly:
+                    assembly.GetReferenceDirection(ref direction);
+                    break;
+                default:
+                    return null;
+            }
+
+            return Geo.Plain(direction);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The reference planes of an occurrence's part, in assembly coordinates, with handles that carry the occurrence (for
+    /// se_relations and measurements, like the faces of se_geometry with the occurrence as source).
+    /// </summary>
+    private static object OccurrenceList(SeContext context, SolidEdgeAssembly.Occurrence occurrence)
+    {
+        if (occurrence.OccurrenceDocument is not SolidEdgeDocument part || occurrence.Subassembly)
+        {
+            throw ToolException.InvalidArgument($"'{occurrence.Name}' is a subassembly: list the planes of a part occurrence, or open the subassembly.");
+        }
+
+        var assembly = (SolidEdgeDocument)occurrence.TopLevelDocument;
+        Placement placement = Placement.Of(occurrence);
+        RefPlanes planes = ModelDocument.From(part).RefPlanes;
+        var items = new List<object>();
+        for (int i = 1; i <= planes.Count && items.Count < context.MaxListItems; i++)
+        {
+            RefPlane plane = planes.Item(i);
+            Array normal = new double[3];
+            Array root = new double[3];
+            plane.GetNormal(ref normal);
+            plane.GetRootPoint(ref root);
+            items.Add(new
+            {
+                handle = context.Register(new OccurrenceElement(occurrence, plane), "refplane", assembly),
+                index = i,
+                name = plane.Name,
+                normal = Geo.Plain(placement.Vector([.. Geo.Doubles(normal)])),
+                rootPoint = Geo.Mm(placement.Point([.. Geo.Doubles(root)])),
+                visible = plane.Visible,
+            });
+        }
+
+        return new { occurrence = occurrence.Name, count = planes.Count, planes = items, note = "Assembly coordinates; the handles are for se_relations and se_measure in the assembly." };
+    }
+
     private static object Describe(SeContext context, ModelDocument model, RefPlane plane, int index)
     {
         Array normal = new double[3];
@@ -863,6 +983,7 @@ public static partial class RefPlaneService
             name = plane.Name,
             normal = Geo.Plain(normal),
             rootPoint = Geo.Mm(root),
+            xAxis = XAxis(plane),
             visible = plane.Visible,
         };
     }

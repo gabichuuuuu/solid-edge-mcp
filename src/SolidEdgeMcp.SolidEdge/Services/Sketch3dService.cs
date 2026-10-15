@@ -14,14 +14,15 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What a se_sketch3d call draws or relates (model coordinates in mm).</summary>
 public sealed record Sketch3dSpec(string? Sketch, double[]? Points, double[]? Normal, double? Radius, bool Closed,
-    string[]? Elements, string? Relation, string[]? Keypoints, string? Plane, string? Name);
+    string[]? Elements, string? Relation, string[]? Keypoints, string? Plane, string? Name, double? Width = null, double? Height = null,
+    double[]? Direction = null, string[]? Equations = null, double[]? Range = null, string[]? Edges = null);
 
 /// <summary>
 /// 3D sketches of a part or sheet metal part: lines, arcs, circles, B-spline curves and points in model space, fillets
 /// between two elements and 3D relations. Every element is read back (keypoints, length, radius) and deleted if it does not
 /// match what was asked.
 /// </summary>
-public static class Sketch3dService
+public static partial class Sketch3dService
 {
     private const double Tolerance = 1e-6;
 
@@ -36,6 +37,14 @@ public static class Sketch3dService
         "info" => Info(context, spec.Sketch),
         "line" => Lines(context, spec),
         "arc" => Arc(context, spec),
+        "arc_through" => ArcThrough(context, spec),
+        "tangent_arc" => TangentArc(context, spec),
+        "rectangle" => Rectangle(context, spec),
+        "mirror" => Mirror(context, spec),
+        "split" => Split(context, spec),
+        "trim" => Trim(context, spec),
+        "equation" => Equation(context, spec),
+        "include" => Include(context, spec),
         "circle" => Circle(context, spec),
         "spline" => Spline(context, spec),
         "point" => Points(context, spec),

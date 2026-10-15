@@ -4,8 +4,10 @@
 using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
 using SolidEdgeMcp.SolidEdge.Services;
+using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
 
@@ -21,6 +23,21 @@ public enum MeasureAction
 {
     Distance,
     Angle,
+    NormalDistance,
+    WallThickness,
+}
+
+public enum DistanceType
+{
+    Minimum,
+    Maximum,
+}
+
+public enum ThicknessResolution
+{
+    Coarse,
+    Standard,
+    Fine,
 }
 
 /// <summary>Read-only model queries: geometry, measurements and physical properties (mm).</summary>
@@ -40,7 +57,7 @@ public sealed class InspectTools(ToolRunner runner)
     public Task<CallToolResult> Geometry(
         GeometryAction action = GeometryAction.Summary,
         [Description("Feature handle (faces/edges of that feature), face handle (its edges) or assembly occurrence handle (its part, in assembly coordinates; also for summary); default: whole body.")] string? source = null,
-        [Description("Filter. Faces: all | plane | cylinder | cone | sphere | torus. Edges: all | line | circle | spline.")] string type = "all",
+        [Description("Filter. Faces: all | plane | cylinder | cone | sphere | torus. Edges: all | line | circle | spline | open (edges of one face only: the free edges of a surface).")] string type = "all",
         [Description("Filter [x,y,z]: faces = planar faces whose outward normal points this way; edges = straight edges parallel to it.")] double[]? direction = null,
         int offset = 0,
         int limit = 100,
@@ -61,22 +78,37 @@ public sealed class InspectTools(ToolRunner runner)
     }
 
     [McpServerTool(Name = "se_measure", Title = "Measure", ReadOnly = true, OpenWorld = false)]
-    [Description("distance: minimum distance in mm between two elements (faces, edges, vertices, bodies, planes) with the closest points | angle: degrees between planar faces / reference planes (normals) or straight edges (directions). In an assembly: occurrences, assembly planes and face/edge handles from se_geometry with 'source' = an occurrence (assembly coordinates).")]
+    [Description("""
+        distance: minimum (type minimum, default) or maximum distance in mm between two elements (faces, edges, vertices, bodies, planes), with the points it runs between |
+        angle: degrees between planar faces / reference planes (normals) or straight edges (directions) |
+        normal_distance: distance along the normal of 'first' (reference plane, '1'-'3' / 'xy', or planar face) to the start (or 'at' end) of the edge 'second', with its x, y, z components |
+        wall_thickness (part or sheet metal, no first/second): Solid Edge's wall thickness analysis of the body (resolution coarse | standard | fine): thinnest and thickest wall and where (measured along each point's inward normal: at the end of a wall that runs along it, so the thickest can be a wall's length), and the thinnest uniform wall (an edge, such as the open rim of a shell, can read near 0); with 'threshold' (mm) the area of the walls thinner than it.
+        In an assembly (distance, angle): occurrences, assembly planes and face/edge handles from se_geometry with 'source' = an occurrence (assembly coordinates).
+        Example: {"action":"distance","first":"face:12","second":"face:15","type":"maximum"}; {"action":"wall_thickness","threshold":2}.
+        """)]
     public Task<CallToolResult> Measure(
         MeasureAction action,
-        [Description("First element handle.")] string first,
-        [Description("Second element handle.")] string second,
-        [Description("Document handle; default: the first element's document.")] string? document = null,
+        [Description("First element handle (normal_distance: the plane or planar face).")] string? first = null,
+        [Description("Second element handle (normal_distance: an edge).")] string? second = null,
+        [Description("distance: minimum (default) | maximum.")] DistanceType type = DistanceType.Minimum,
+        [Description("normal_distance: the end of the edge 'second' measured, start (default) | end.")] EdgeEnd at = EdgeEnd.Start,
+        [Description("wall_thickness: mesh of the analysis, coarse | standard (default) | fine.")] ThicknessResolution resolution = ThicknessResolution.Standard,
+        [Description("wall_thickness: report the area of walls thinner than this, in mm.")] double? threshold = null,
+        [Description("Document handle; default: the first element's document (wall_thickness: the active one).")] string? document = null,
         CancellationToken cancellationToken = default) =>
         action switch
         {
-            MeasureAction.Distance => runner.RunAsync("se_measure", "distance", c => InspectService.Distance(c, document, first, second), cancellationToken),
-            MeasureAction.Angle => runner.RunAsync("se_measure", "angle", c => InspectService.Angle(c, first, second), cancellationToken),
+            MeasureAction.Distance => runner.RunAsync("se_measure", "distance", c => InspectService.Distance(c, document, first, second, Snake(type)), cancellationToken),
+            MeasureAction.Angle => runner.RunAsync("se_measure", "angle", c => InspectService.Angle(c,
+                first ?? throw ToolException.InvalidArgument("angle needs 'first' and 'second': element handles."),
+                second ?? throw ToolException.InvalidArgument("angle needs 'second': an element handle.")), cancellationToken),
+            MeasureAction.NormalDistance => runner.RunAsync("se_measure", "normal_distance", c => InspectService.NormalDistance(c, document, first, second, Snake(at)), cancellationToken),
+            MeasureAction.WallThickness => runner.RunAsync("se_measure", "wall_thickness", c => InspectService.WallThickness(c, document, Snake(resolution), threshold), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
 
     [McpServerTool(Name = "se_physical", Title = "Physical properties", ReadOnly = true, OpenWorld = false)]
-    [Description("Volume (mm3), area (mm2) and centre of volume of the part; with a density (argument in kg/m3, or the document material) also mass (kg), centre of gravity (mm), inertia about the global axes through the origin (kg*mm2; products of inertia as +integral of xy dm) and principal moments about the centre of gravity. An assembly is measured with the material of each part (no 'density'; area is not given); mass and inertia only when every part has a density (else 'partsWithoutDensity').")]
+    [Description("Volume (mm3), area (mm2) and centre of volume of the part; with a density (argument in kg/m3, or the document material) also mass (kg), centre of gravity (mm), inertia about the global axes through the origin (kg*mm2; products of inertia as +integral of xy dm) and principal moments about the centre of gravity. An assembly is measured with the material of each part (no 'density'; area is not given); mass and inertia only when every part has a density (else 'partsWithoutDensity') and so do the weld beads of a weldment (else 'weldBeadsWithoutDensity': se_material apply on the weldment).")]
     public Task<CallToolResult> Physical(
         [Description("Part: density in kg/m3 (e.g. 7850 for steel); default: the document's material density.")] double? density = null,
         [Description("Document handle; default: active document.")] string? document = null,

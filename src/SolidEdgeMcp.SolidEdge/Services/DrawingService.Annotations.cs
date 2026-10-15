@@ -64,10 +64,10 @@ public static partial class DrawingService
     };
 
     /// <summary>Separator between the cells of a feature control frame.</summary>
-    private const string FrameCell = "%VB";
+    internal const string FrameCell = "%VB";
 
     /// <summary>Default offset (m of sheet) of a balloon or leader end from the point it points at.</summary>
-    private const double AnnotationOffset = 0.015;
+    internal const double AnnotationOffset = 0.015;
 
     public static object Annotations(SeContext context, string? documentHandle, string? sheetRef, string? kind, int offset, int limit)
     {
@@ -245,8 +245,8 @@ public static partial class DrawingService
         }
         else
         {
-            Graphic edge1 = Nearest(graphics, ModelToView(view, model[0]), model[0], g => g.Shape == Shape.Line, "straight edge");
-            Graphic edge2 = Nearest(graphics, ModelToView(view, model[1]), model[1], g => g.Shape == Shape.Line, "straight edge");
+            Graphic edge1 = Nearest(view, graphics, ModelToView(view, model[0]), model[0], g => g.Shape == Shape.Line, "straight edge");
+            Graphic edge2 = Nearest(view, graphics, ModelToView(view, model[1]), model[1], g => g.Shape == Shape.Line, "straight edge");
             if (ReferenceEquals(edge1.Value, edge2.Value))
             {
                 throw ToolException.InvalidArgument("Both points pick the same edge.", "Give a point on each of the two edges.");
@@ -258,6 +258,141 @@ public static partial class DrawingService
 
         return Checked(context, draft, "centerline", line, () => RequireAround(line, expected, "centre line"));
     }
+
+    /// <summary>
+    /// Automatic Centerlines: the centre lines of the cylinders and the centre marks of the circles and arcs a view shows.
+    /// Verified: with its default range checks on (radii 0 to 0) RetrieveCenterLinesCenterMarks adds no centre marks, so they
+    /// are turned off; what it adds goes to the active sheet, so the view's sheet is activated first; IsRetrieve = false
+    /// removes the ones of the view.
+    /// </summary>
+    public static object AutoCenterlines(SeContext context, string? viewHandle, bool connect, bool remove)
+    {
+        DrawingView view = ResolveView(context, viewHandle);
+        DraftDocument draft = DraftFor(context, null, viewHandle);
+        Sheet sheet = SheetOf(view);
+        if (!Late.SameObject(draft.ActiveSheet, sheet))
+        {
+            sheet.Activate();
+        }
+
+        var before = new HashSet<object>(CentersOf(sheet).Select(c => c.Item), ReferenceEqualityComparer.Instance);
+        try
+        {
+            if (remove)
+            {
+                view.RetrieveCenterLinesCenterMarks(false);
+            }
+            else
+            {
+                view.RetrieveCenterLinesCenterMarks(true, "", true, true, false, connect, true, true, true, true, true, true, false, false, 0, 0, 0, 0);
+            }
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("retrieve_failed", $"Solid Edge could not {(remove ? "remove" : "add")} the centre lines and marks: {ex.Message.Trim()}", null, ex);
+        }
+
+        List<(string Kind, object Item)> after = [.. CentersOf(sheet)];
+        if (remove)
+        {
+            var left = new HashSet<object>(after.Select(c => c.Item), ReferenceEqualityComparer.Instance);
+            return new { view = context.Register(view, "drawing_view", Document(draft)), removed = before.Count(b => !left.Contains(b)), left = after.Count };
+        }
+
+        List<object> added = after.Where(c => !before.Contains(c.Item)).Select(c => DescribeAnnotation(context, draft, c.Kind, c.Item)).ToList();
+        return new
+        {
+            view = context.Register(view, "drawing_view", Document(draft)),
+            added = added.Count,
+            annotations = added,
+            note = added.Count == 0 ? "Nothing was added: the view shows no circles, arcs or cylinders without centre lines or marks." : null,
+        };
+    }
+
+    private static IEnumerable<(string Kind, object Item)> CentersOf(Sheet sheet) =>
+        Late.Items(sheet.CenterLines).Select(i => ("centerline", i)).Concat(Late.Items(sheet.CenterMarks).Select(i => ("center_mark", i)));
+
+    /// <summary>Watermark: a text box Solid Edge draws faded behind the drawing (TextBoxes.AddWatermark).</summary>
+    public static object AddWatermark(SeContext context, string? documentHandle, string? sheetRef, string? text, double[]? position)
+    {
+        string content = RequireText(text, "text").Replace("\r\n", "\r").Replace('\n', '\r');
+        (double x, double y) = Geo.Point2(position ?? throw ToolException.InvalidArgument("'position' [x, y] in mm on the sheet is required for a watermark."), "position");
+        DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
+        Sheet sheet = ResolveSheet(context, draft, sheetRef);
+        TextBox box = ((TextBoxes)sheet.TextBoxes).AddWatermark(x, y, 0);
+        return Checked(context, draft, "text", box, () =>
+        {
+            box.Text = content;
+            if (box.Text != content || !box.Watermark)
+            {
+                throw new ToolException("annotation_failed", "Solid Edge did not keep the text or the watermark flag of the text box.", "Avoid control characters in 'text'.");
+            }
+        });
+    }
+
+    public static readonly IReadOnlyList<string> LineUpAlignments = ["left", "right", "center", "bottom", "top", "middle"];
+
+    /// <summary>
+    /// Line Up Text: moves text boxes so that their left, right or centre (x) or bottom, top or middle (y) matches a source
+    /// text box, which stays where it is (Sheet.LineupTextEx). Each target is measured afterwards.
+    /// </summary>
+    public static object LineUpText(SeContext context, string? sourceHandle, string[]? targetHandles, string align)
+    {
+        int index = LineUpAlignments.ToList().IndexOf(align);
+        if (index < 0)
+        {
+            throw ToolException.InvalidArgument($"Unknown alignment '{align}'.", $"Use one of: {string.Join(", ", LineUpAlignments)}.");
+        }
+
+        TextBox source = TextBoxOf(context, sourceHandle ?? throw ToolException.InvalidArgument("'item' is required: the text box the others line up with."), "item");
+        if (targetHandles is not { Length: > 0 } || targetHandles.Distinct(StringComparer.Ordinal).Count() != targetHandles.Length || targetHandles.Contains(sourceHandle))
+        {
+            throw ToolException.InvalidArgument("'targets' must list the other text boxes to move, each once, without the source ('item').");
+        }
+
+        TextBox[] targets = [.. targetHandles.Select(h => TextBoxOf(context, h, "targets"))];
+        DraftDocument draft = DraftFor(context, null, sourceHandle);
+        Sheet sheet = WorkingSheets(draft).Concat(BackgroundSheets(draft)).FirstOrDefault(s => Late.Items(s.TextBoxes).Any(t => Late.SameObject(t, source)))
+            ?? throw new ToolException("not_found", $"'{sourceHandle}' is not on a sheet of the drawing.");
+        Array moved = targets.Cast<object>().ToArray();
+        try
+        {
+            sheet.LineupTextEx(source, ref moved, (LineupTextAlignOptionConstants)index, 0.0);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("annotation_failed", $"Solid Edge could not line up the text: {ex.Message.Trim()}", "Give text boxes of the same sheet.", ex);
+        }
+
+        double reference = Edge(RangeOf(source), index);
+        string[] off = [.. targetHandles.Where((_, i) => Math.Abs(Edge(RangeOf(targets[i]), index) - reference) > 5e-5)];
+        if (off.Length > 0)
+        {
+            throw new ToolException("annotation_failed", $"Solid Edge did not line up {string.Join(", ", off)} with '{sourceHandle}'.", "Give text boxes of the same sheet.");
+        }
+
+        return new
+        {
+            source = DescribeAnnotation(context, draft, "text", source),
+            align,
+            moved = targets.Select(t => DescribeAnnotation(context, draft, "text", t)).ToArray(),
+        };
+    }
+
+    /// <summary>The coordinate (m) that an alignment matches: x of the left, right or centre, y of the bottom, top or middle.</summary>
+    private static double Edge(double[] box, int alignment) => alignment switch
+    {
+        0 => box[0],
+        1 => box[2],
+        2 => (box[0] + box[2]) / 2,
+        3 => box[1],
+        4 => box[3],
+        _ => (box[1] + box[3]) / 2,
+    };
+
+    private static TextBox TextBoxOf(SeContext context, string handle, string parameter) =>
+        context.Handles.Resolve(handle, parameter) as TextBox
+        ?? throw ToolException.InvalidArgument($"'{handle}' in '{parameter}' is not a text box.", "Use text handles from se_annotation list (kind text).");
 
     /// <summary>Leader from the picked edge, vertex or circle to a point of the sheet.</summary>
     public static object AddLeader(SeContext context, string? viewHandle, double[]? points, double[]? position)
@@ -281,13 +416,7 @@ public static partial class DrawingService
     /// </summary>
     public static object AddSurfaceFinish(SeContext context, string? viewHandle, double[]? points, double[]? position, string? roughness, string finish)
     {
-        FinishType type = finish switch
-        {
-            "basic" => FinishType.igDimSurfaceFinishBasic,
-            "machined" => FinishType.igDimSurfaceFinishMachined,
-            "no_material_removal" => FinishType.igDimSurfaceFinishNoMaterialRemoval,
-            _ => throw ToolException.InvalidArgument($"Unknown finish '{finish}'.", $"Use one of: {string.Join(", ", FinishTypes)}."),
-        };
+        FinishType type = ParseFinish(finish);
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
         Pick pick = PickOne(view, points);
@@ -296,18 +425,30 @@ public static partial class DrawingService
             .AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
         return Checked(context, draft, "surface_finish", symbol, () =>
         {
-            symbol.SurfaceFinishSymbol = type;
-            if (!string.IsNullOrEmpty(roughness))
-            {
-                symbol.RoughnessValue = roughness;
-                if (symbol.RoughnessValue != roughness)
-                {
-                    throw new ToolException("annotation_failed", "Solid Edge did not keep the roughness of the symbol.", "Avoid control characters in 'text'.");
-                }
-            }
-
+            SetFinish(symbol, type, roughness);
             OnLeader(symbol, at, "surface finish symbol");
         });
+    }
+
+    internal static FinishType ParseFinish(string finish) => finish switch
+    {
+        "basic" => FinishType.igDimSurfaceFinishBasic,
+        "machined" => FinishType.igDimSurfaceFinishMachined,
+        "no_material_removal" => FinishType.igDimSurfaceFinishNoMaterialRemoval,
+        _ => throw ToolException.InvalidArgument($"Unknown finish '{finish}'.", $"Use one of: {string.Join(", ", FinishTypes)}."),
+    };
+
+    internal static void SetFinish(SurfaceFinishSymbol symbol, FinishType type, string? roughness)
+    {
+        symbol.SurfaceFinishSymbol = type;
+        if (!string.IsNullOrEmpty(roughness))
+        {
+            symbol.RoughnessValue = roughness;
+            if (symbol.RoughnessValue != roughness)
+            {
+                throw new ToolException("annotation_failed", "Solid Edge did not keep the roughness of the symbol.", "Avoid control characters in 'text'.");
+            }
+        }
     }
 
     /// <summary>
@@ -318,14 +459,7 @@ public static partial class DrawingService
     /// </summary>
     public static object AddCorner(SeContext context, string? viewHandle, double[]? points, double[]? position, string? text)
     {
-        string[] deviations = string.IsNullOrWhiteSpace(text)
-            ? throw ToolException.InvalidArgument("corner requires 'text': the edge deviation in mm, e.g. \"+0.3\", or \"upper|lower\" for a range, e.g. \"-0.1|-0.3\".")
-            : [.. text.Split('|').Select(p => p.Trim())];
-        if (deviations.Length > 2 || deviations.Any(d => !double.TryParse(d, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)))
-        {
-            throw ToolException.InvalidArgument($"'text' for a corner annotation is one deviation or two separated by '|', as signed numbers in mm (e.g. \"+0.3\" or \"-0.1|-0.3\"); got '{text}'.");
-        }
-
+        string[] deviations = CornerDeviations(text);
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
         Pick pick = PickOne(view, points);
@@ -334,21 +468,35 @@ public static partial class DrawingService
             .AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
         return Checked(context, draft, "corner", corner, () =>
         {
-            // Verified: without the ISO/DIN 2000 symbol, setting a deviation fails with E_FAIL and the annotation is not drawn.
-            corner.UseISODIN2000CornerAnnot = true;
-            corner.UpperToleranceForEnhancedSymbol = deviations[0];
-            if (deviations.Length > 1)
-            {
-                corner.LowerToleranceForEnhancedSymbol = deviations[1];
-            }
-
-            if (corner.UpperToleranceForEnhancedSymbol != deviations[0] || deviations.Length > 1 && corner.LowerToleranceForEnhancedSymbol != deviations[1])
-            {
-                throw new ToolException("annotation_failed", "Solid Edge did not keep the deviations of the corner annotation.", "Give signed numbers, e.g. \"+0.3\".");
-            }
-
+            SetDeviations(corner, deviations);
             OnLeader(corner, at, "corner annotation");
         });
+    }
+
+    internal static string[] CornerDeviations(string? text)
+    {
+        string[] deviations = string.IsNullOrWhiteSpace(text)
+            ? throw ToolException.InvalidArgument("corner requires 'text': the edge deviation in mm, e.g. \"+0.3\", or \"upper|lower\" for a range, e.g. \"-0.1|-0.3\".")
+            : [.. text.Split('|').Select(p => p.Trim())];
+        return deviations.Length > 2 || deviations.Any(d => !double.TryParse(d, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+            ? throw ToolException.InvalidArgument($"'text' for a corner annotation is one deviation or two separated by '|', as signed numbers in mm (e.g. \"+0.3\" or \"-0.1|-0.3\"); got '{text}'.")
+            : deviations;
+    }
+
+    internal static void SetDeviations(CornerAnnotation corner, string[] deviations)
+    {
+        // Verified: without the ISO/DIN 2000 symbol, setting a deviation fails with E_FAIL and the annotation is not drawn.
+        corner.UseISODIN2000CornerAnnot = true;
+        corner.UpperToleranceForEnhancedSymbol = deviations[0];
+        if (deviations.Length > 1)
+        {
+            corner.LowerToleranceForEnhancedSymbol = deviations[1];
+        }
+
+        if (corner.UpperToleranceForEnhancedSymbol != deviations[0] || deviations.Length > 1 && corner.LowerToleranceForEnhancedSymbol != deviations[1])
+        {
+            throw new ToolException("annotation_failed", "Solid Edge did not keep the deviations of the corner annotation.", "Give signed numbers, e.g. \"+0.3\".");
+        }
     }
 
     /// <summary>
@@ -403,13 +551,7 @@ public static partial class DrawingService
     /// </summary>
     public static object AddDatumTarget(SeContext context, string? viewHandle, double[]? points, double[]? position, string? label)
     {
-        string name = RequireText(label, "text");
-        int split = name.TakeWhile(char.IsLetter).Count();
-        if (split == 0 || split == name.Length || !name[split..].All(char.IsDigit))
-        {
-            throw ToolException.InvalidArgument($"'{name}' is not a datum target label.", "Give the datum letter and the target number, e.g. 'A1'.");
-        }
-
+        (string Letter, string Number) name = DatumTargetLabel(label);
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
         Pick pick = PickOne(view, points);
@@ -417,15 +559,28 @@ public static partial class DrawingService
         DatumTarget target = ((DatumTargets)SheetOf(view).DatumTargets).AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
         return Checked(context, draft, "datum_target", target, () =>
         {
-            target.DatumReference = name[..split];
-            target.DatumNumber = name[split..];
-            if (target.DatumReference != name[..split] || target.DatumNumber != name[split..])
-            {
-                throw new ToolException("annotation_failed", "Solid Edge did not keep the datum target label.", "Use a label such as 'A1'.");
-            }
-
+            SetLabel(target, name);
             OnLeader(target, at, "datum target");
         });
+    }
+
+    internal static (string Letter, string Number) DatumTargetLabel(string? label)
+    {
+        string name = RequireText(label, "text");
+        int split = name.TakeWhile(char.IsLetter).Count();
+        return split == 0 || split == name.Length || !name[split..].All(char.IsDigit)
+            ? throw ToolException.InvalidArgument($"'{name}' is not a datum target label.", "Give the datum letter and the target number, e.g. 'A1'.")
+            : (name[..split], name[split..]);
+    }
+
+    internal static void SetLabel(DatumTarget target, (string Letter, string Number) name)
+    {
+        target.DatumReference = name.Letter;
+        target.DatumNumber = name.Number;
+        if (target.DatumReference != name.Letter || target.DatumNumber != name.Number)
+        {
+            throw new ToolException("annotation_failed", "Solid Edge did not keep the datum target label.", "Use a label such as 'A1'.");
+        }
     }
 
     /// <summary>Datum point (a cross) on the vertex, circle centre or edge point picked by a model point.</summary>
@@ -450,14 +605,18 @@ public static partial class DrawingService
         DatumFrame frame = ((DatumFrames)SheetOf(view).DatumFrames).AddByTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
         return Checked(context, draft, "datum", frame, () =>
         {
-            frame.Datum = datum;
-            if (frame.Datum != datum)
-            {
-                throw new ToolException("annotation_failed", "Solid Edge did not keep the datum letter.", "Use a short label such as 'A'.");
-            }
-
+            SetDatum(frame, datum);
             OnLeader(frame, at, "datum frame");
         });
+    }
+
+    internal static void SetDatum(DatumFrame frame, string datum)
+    {
+        frame.Datum = datum;
+        if (frame.Datum != datum)
+        {
+            throw new ToolException("annotation_failed", "Solid Edge did not keep the datum letter.", "Use a short label such as 'A'.");
+        }
     }
 
     /// <summary>
@@ -506,7 +665,7 @@ public static partial class DrawingService
     }
 
     /// <summary>Frame text: characteristic | tolerance | datums. ⌀ or Ø in the tolerance becomes the diameter code.</summary>
-    private static string FrameText(string? characteristic, string? tolerance, string[]? datums)
+    internal static string FrameText(string? characteristic, string? tolerance, string[]? datums)
     {
         if (characteristic is null || !Characteristics.TryGetValue(characteristic, out string? code))
         {
@@ -528,7 +687,7 @@ public static partial class DrawingService
     /// Texts of the rows below the first: cells split by '|', the first one a characteristic name (not in a composite frame,
     /// whose rows share the characteristic of the first row), ⌀ or Ø as the diameter code; a row with %VB is taken as codes.
     /// </summary>
-    private static string[] RowTexts(string[]? rows, bool composite)
+    internal static string[] RowTexts(string[]? rows, bool composite)
     {
         if (rows is null or [])
         {
@@ -568,7 +727,7 @@ public static partial class DrawingService
     }
 
     /// <summary>Lower rows of the frame; checked by reading them back and by the frame growing one row height each.</summary>
-    private static void SetRows(FeatureControlFrame frame, string[] rows, bool composite)
+    internal static void SetRows(FeatureControlFrame frame, string[] rows, bool composite)
     {
         if (rows.Length == 0)
         {
@@ -596,10 +755,10 @@ public static partial class DrawingService
         }
     }
 
-    private static IEnumerable<string> RowsOf(FeatureControlFrame frame) =>
+    internal static IEnumerable<string> RowsOf(FeatureControlFrame frame) =>
         new[] { frame.SecondaryFrame, frame.TertiaryFrame, frame.QuaternaryFrame }.Where(r => !string.IsNullOrEmpty(r));
 
-    private static void SetFrame(FeatureControlFrame frame, string content)
+    internal static void SetFrame(FeatureControlFrame frame, string content)
     {
         frame.PrimaryFrame = content;
         if (frame.PrimaryFrame != content)
@@ -645,15 +804,7 @@ public static partial class DrawingService
     public static object AddWeld(SeContext context, string? viewHandle, double[]? points, double[]? position, string weld,
         string side, string? size, bool allAround, bool field)
     {
-        WeldType arrow = WeldTypes.TryGetValue(weld, out WeldType type) ? type
-            : throw ToolException.InvalidArgument($"Unknown weld '{weld}'.", $"Use one of: {string.Join(", ", WeldTypes.Keys)}.");
-        bool onArrow = side is "arrow" or "both";
-        bool onOther = side is "other" or "both";
-        if (!onArrow && !onOther)
-        {
-            throw ToolException.InvalidArgument($"Unknown side '{side}'.", $"Use one of: {string.Join(", ", WeldSides)}.");
-        }
-
+        (WeldType arrow, bool onArrow, bool onOther) = ParseWeld(weld, side);
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
         Pick pick = PickOne(view, points);
@@ -664,30 +815,7 @@ public static partial class DrawingService
             symbol.SetTerminator(pick.Graphic.Reference, pick.Sheet.X, pick.Sheet.Y, 0, pick.KeyPoint);
             symbol.Leader = true;
             symbol.AddVertex(at.X, at.Y, 0);
-            WeldType other = arrow - WeldOtherSide;
-            if (onArrow)
-            {
-                symbol.BottomType = arrow;
-                symbol.BottomNote1 = size ?? "";
-            }
-
-            if (onOther)
-            {
-                symbol.TopType = other;
-                symbol.TopNote1 = size ?? "";
-            }
-
-            symbol.WeldAllAround = allAround;
-            symbol.WeldInField = field;
-            // Verified: without the break line (the horizontal shoulder of the leader) Solid Edge draws the body of the symbol
-            // at the sheet origin whatever the position; setting it places the reference line at the end of the leader.
-            symbol.BreakLine = true;
-            if ((onArrow && symbol.BottomType != arrow) || (onOther && symbol.TopType != other)
-                || (!string.IsNullOrEmpty(size) && (onArrow ? symbol.BottomNote1 : symbol.TopNote1) != size))
-            {
-                throw new ToolException("annotation_failed", "Solid Edge did not keep the weld type or size of the symbol.", "Avoid control characters in 'text'.");
-            }
-
+            SetWeld(symbol, (arrow, onArrow, onOther), size, allAround, field);
             if (!symbol.IsTerminatorAttachedToEntity)
             {
                 throw new ToolException("annotation_failed", "The weld symbol's leader is not attached to the view.",
@@ -704,6 +832,45 @@ public static partial class DrawingService
         });
     }
 
+    internal static (WeldType Arrow, bool OnArrow, bool OnOther) ParseWeld(string weld, string side)
+    {
+        WeldType arrow = WeldTypes.TryGetValue(weld, out WeldType type) ? type
+            : throw ToolException.InvalidArgument($"Unknown weld '{weld}'.", $"Use one of: {string.Join(", ", WeldTypes.Keys)}.");
+        bool onArrow = side is "arrow" or "both";
+        bool onOther = side is "other" or "both";
+        return !onArrow && !onOther
+            ? throw ToolException.InvalidArgument($"Unknown side '{side}'.", $"Use one of: {string.Join(", ", WeldSides)}.")
+            : (arrow, onArrow, onOther);
+    }
+
+    /// <summary>Weld type and size on the chosen sides, the flags and the break line; checked by reading them back.</summary>
+    internal static void SetWeld(WeldSymbol symbol, (WeldType Arrow, bool OnArrow, bool OnOther) weld, string? size, bool allAround, bool field)
+    {
+        WeldType other = weld.Arrow - WeldOtherSide;
+        if (weld.OnArrow)
+        {
+            symbol.BottomType = weld.Arrow;
+            symbol.BottomNote1 = size ?? "";
+        }
+
+        if (weld.OnOther)
+        {
+            symbol.TopType = other;
+            symbol.TopNote1 = size ?? "";
+        }
+
+        symbol.WeldAllAround = allAround;
+        symbol.WeldInField = field;
+        // Verified: without the break line (the horizontal shoulder of the leader) Solid Edge draws the body of the symbol
+        // at the sheet origin whatever the position; setting it places the reference line at the end of the leader.
+        symbol.BreakLine = true;
+        if ((weld.OnArrow && symbol.BottomType != weld.Arrow) || (weld.OnOther && symbol.TopType != other)
+            || (!string.IsNullOrEmpty(size) && (weld.OnArrow ? symbol.BottomNote1 : symbol.TopNote1) != size))
+        {
+            throw new ToolException("annotation_failed", "Solid Edge did not keep the weld type or size of the symbol.", "Avoid control characters in 'text'.");
+        }
+    }
+
     /// <summary>
     /// GOST weld symbol (GOST 2.312) on a leader from the edge picked by a model point: text = the note above the leader
     /// shelf, or "above|below" (the seam on the arrow side reads above, the other side below); allAround, field; position =
@@ -711,14 +878,7 @@ public static partial class DrawingService
     /// </summary>
     public static object AddGostWeld(SeContext context, string? viewHandle, double[]? points, double[]? position, string? text, bool allAround, bool field)
     {
-        string[] notes = string.IsNullOrWhiteSpace(text)
-            ? throw ToolException.InvalidArgument("gost_weld requires 'text': the weld note, e.g. \"GOST 5264-80-T1-4\", or \"above|below\".")
-            : [.. text.Split('|').Select(p => p.Trim())];
-        if (notes.Length > 2)
-        {
-            throw ToolException.InvalidArgument("'text' for a GOST weld symbol is one note or two separated by '|' (above and below the shelf).");
-        }
-
+        string[] notes = GostNotes(text);
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
         Pick pick = PickOne(view, points);
@@ -729,25 +889,40 @@ public static partial class DrawingService
             symbol.WeldAllAround = allAround;
             symbol.WeldInField = field;
             OnLeader(symbol, at, "GOST weld symbol");
-            // The shelf of the leader is its break line, and the notes go above and below it (the leader-line texts would
-            // be written along the slanted leader).
-            symbol.BreakLine = true;
-            // Verified: true draws the shelf to the left of the bend.
-            symbol.BreakLineDirection = at.X < pick.Sheet.X;
-            symbol.BreakLineDistance = Math.Max(0.02, notes.Max(n => n.Length) * 0.0025);
-            symbol.AboveBreakLineText = notes[0];
-            if (notes.Length > 1)
-            {
-                symbol.BelowBreakLineText = notes[1];
-            }
-
-            if (symbol.AboveBreakLineText != notes[0] || notes.Length > 1 && symbol.BelowBreakLineText != notes[1])
-            {
-                throw new ToolException("annotation_failed", "Solid Edge did not keep the notes of the GOST weld symbol.");
-            }
-
-
+            SetShelf(symbol, notes, left: at.X < pick.Sheet.X);
         });
+    }
+
+    internal static string[] GostNotes(string? text)
+    {
+        string[] notes = string.IsNullOrWhiteSpace(text)
+            ? throw ToolException.InvalidArgument("gost_weld requires 'text': the weld note, e.g. \"GOST 5264-80-T1-4\", or \"above|below\".")
+            : [.. text.Split('|').Select(p => p.Trim())];
+        return notes.Length > 2
+            ? throw ToolException.InvalidArgument("'text' for a GOST weld symbol is one note or two separated by '|' (above and below the shelf).")
+            : notes;
+    }
+
+    /// <summary>
+    /// The shelf of the leader is its break line, and the notes go above and below it (the leader-line texts would be written
+    /// along the slanted leader).
+    /// </summary>
+    internal static void SetShelf(GostWeldSymbol symbol, string[] notes, bool left)
+    {
+        symbol.BreakLine = true;
+        // Verified: true draws the shelf to the left of the bend.
+        symbol.BreakLineDirection = left;
+        symbol.BreakLineDistance = Math.Max(0.02, notes.Max(n => n.Length) * 0.0025);
+        symbol.AboveBreakLineText = notes[0];
+        if (notes.Length > 1)
+        {
+            symbol.BelowBreakLineText = notes[1];
+        }
+
+        if (symbol.AboveBreakLineText != notes[0] || notes.Length > 1 && symbol.BelowBreakLineText != notes[1])
+        {
+            throw new ToolException("annotation_failed", "Solid Edge did not keep the notes of the GOST weld symbol.");
+        }
     }
 
     /// <summary>
@@ -827,7 +1002,7 @@ public static partial class DrawingService
 
     private static Graphic PickCurve(DrawingView view, List<Graphic> graphics, (double X, double Y, double Z) model) =>
         TryPickCurve(view, graphics, model)
-        ?? Nearest(graphics, ModelToView(view, model), model, g => g.Shape is Shape.Circle or Shape.Arc, "circle or arc");
+        ?? Nearest(view, graphics, ModelToView(view, model), model, g => g.Shape is Shape.Circle or Shape.Arc, "circle or arc");
 
     /// <summary>Circle or arc whose centre is the point or which passes through it; null if there is none.</summary>
     private static Graphic? TryPickCurve(DrawingView view, List<Graphic> graphics, (double X, double Y, double Z) model)
@@ -921,7 +1096,7 @@ public static partial class DrawingService
         }
     }
 
-    private static string? KindOf(object annotation) => annotation switch
+    internal static string? KindOf(object annotation) => annotation switch
     {
         TextBox => "text",
         Balloon => "balloon",
@@ -947,70 +1122,22 @@ public static partial class DrawingService
             ["handle"] = context.Register(annotation, kind, Document(draft)),
             ["kind"] = kind,
         };
+        DescribeContent(info, annotation);
+        if (info.ContainsKey("attached"))
+        {
+            info["terminator"] = TerminatorOf(annotation);
+        }
+
         switch (annotation)
         {
-            case TextBox box:
-                info["text"] = box.Text;
-                break;
-            case Balloon balloon:
-                info["text"] = balloon.BalloonDisplayedText;
-                info["callout"] = balloon.Callout != 0;
-                info["attached"] = balloon.IsTerminatorAttachedToEntity;
-                info["terminator"] = TerminatorOf(balloon);
-                break;
-            case Leader leader:
-                info["attached"] = leader.IsTerminatorAttachedToEntity;
-                info["terminator"] = TerminatorOf(leader);
-                break;
-            case SurfaceFinishSymbol symbol:
-                info["text"] = symbol.RoughnessValue;
-                info["finish"] = FinishOf(symbol);
-                info["attached"] = symbol.IsTerminatorAttachedToEntity;
-                info["terminator"] = TerminatorOf(symbol);
-                break;
-            case DatumFrame datum:
-                info["text"] = datum.Datum;
-                info["attached"] = datum.IsTerminatorAttachedToEntity;
-                info["terminator"] = TerminatorOf(datum);
-                break;
             case BoltHoleCircle circle:
                 circle.Circle2d(out double cx, out double cy, out double radius);
                 info["centre"] = new[] { Geo.Mm(cx), Geo.Mm(cy) };
                 info["radius"] = Geo.Mm(radius);
                 break;
-            case DatumTarget target:
-                info["text"] = target.DatumReference + target.DatumNumber;
-                info["attached"] = target.IsTerminatorAttachedToEntity;
-                info["terminator"] = TerminatorOf(target);
-                break;
             case DatumPoint point:
                 double[] extent = RangeOf(point);
                 info["at"] = new[] { Geo.Mm((extent[0] + extent[2]) / 2), Geo.Mm((extent[1] + extent[3]) / 2) };
-                break;
-            case FeatureControlFrame frame:
-                string text = frame.PrimaryFrame;
-                info["text"] = text;
-                info["characteristic"] = Characteristics.FirstOrDefault(c => text.StartsWith(c.Value + FrameCell, StringComparison.Ordinal) || text == c.Value).Key;
-                string[] rows = [.. RowsOf(frame)];
-                if (rows.Length > 0)
-                {
-                    info["rows"] = rows;
-                    info["composite"] = frame.CompositeFrame;
-                }
-                info["attached"] = frame.IsTerminatorAttachedToEntity;
-                info["terminator"] = TerminatorOf(frame);
-                break;
-            case WeldSymbol weld:
-                bool arrowSide = weld.BottomType != WeldType.igDimWeldTypeNone;
-                bool otherSide = weld.TopType != WeldType.igDimWeldTypeNone;
-                WeldType shown = arrowSide ? weld.BottomType : weld.TopType + WeldOtherSide;
-                info["weld"] = WeldTypes.FirstOrDefault(w => w.Value == shown).Key;
-                info["side"] = arrowSide && otherSide ? "both" : arrowSide ? "arrow" : otherSide ? "other" : null;
-                info["text"] = arrowSide ? weld.BottomNote1 : weld.TopNote1;
-                info["allAround"] = weld.WeldAllAround;
-                info["field"] = weld.WeldInField;
-                info["attached"] = weld.IsTerminatorAttachedToEntity;
-                info["terminator"] = TerminatorOf(weld);
                 break;
         }
 
@@ -1028,8 +1155,69 @@ public static partial class DrawingService
         return info;
     }
 
+    /// <summary>What an annotation says (text, symbol, frame, weld) and whether its leader is attached; shared with PMI.</summary>
+    internal static void DescribeContent(Dictionary<string, object?> info, object annotation)
+    {
+        switch (annotation)
+        {
+            case TextBox box:
+                info["text"] = box.Text;
+                if (box.Watermark)
+                {
+                    info["watermark"] = true;
+                }
+
+                break;
+            case Balloon balloon:
+                info["text"] = balloon.BalloonDisplayedText;
+                info["callout"] = balloon.Callout != 0;
+                info["attached"] = balloon.IsTerminatorAttachedToEntity;
+                break;
+            case Leader leader:
+                info["attached"] = leader.IsTerminatorAttachedToEntity;
+                break;
+            case SurfaceFinishSymbol symbol:
+                info["text"] = symbol.RoughnessValue;
+                info["finish"] = FinishOf(symbol);
+                info["attached"] = symbol.IsTerminatorAttachedToEntity;
+                break;
+            case DatumFrame datum:
+                info["text"] = datum.Datum;
+                info["attached"] = datum.IsTerminatorAttachedToEntity;
+                break;
+            case DatumTarget target:
+                info["text"] = target.DatumReference + target.DatumNumber;
+                info["attached"] = target.IsTerminatorAttachedToEntity;
+                break;
+            case FeatureControlFrame frame:
+                string text = frame.PrimaryFrame;
+                info["text"] = text;
+                info["characteristic"] = Characteristics.FirstOrDefault(c => text.StartsWith(c.Value + FrameCell, StringComparison.Ordinal) || text == c.Value).Key;
+                string[] rows = [.. RowsOf(frame)];
+                if (rows.Length > 0)
+                {
+                    info["rows"] = rows;
+                    info["composite"] = frame.CompositeFrame;
+                }
+
+                info["attached"] = frame.IsTerminatorAttachedToEntity;
+                break;
+            case WeldSymbol weld:
+                bool arrowSide = weld.BottomType != WeldType.igDimWeldTypeNone;
+                bool otherSide = weld.TopType != WeldType.igDimWeldTypeNone;
+                WeldType shown = arrowSide ? weld.BottomType : weld.TopType + WeldOtherSide;
+                info["weld"] = WeldTypes.FirstOrDefault(w => w.Value == shown).Key;
+                info["side"] = arrowSide && otherSide ? "both" : arrowSide ? "arrow" : otherSide ? "other" : null;
+                info["text"] = arrowSide ? weld.BottomNote1 : weld.TopNote1;
+                info["allAround"] = weld.WeldAllAround;
+                info["field"] = weld.WeldInField;
+                info["attached"] = weld.IsTerminatorAttachedToEntity;
+                break;
+        }
+    }
+
     /// <summary>Symbol type; Solid Edge rejects reading it (E_INVALIDARG) until it has been set.</summary>
-    private static string? FinishOf(SurfaceFinishSymbol symbol)
+    internal static string? FinishOf(SurfaceFinishSymbol symbol)
     {
         try
         {
@@ -1047,6 +1235,6 @@ public static partial class DrawingService
         }
     }
 
-    private static string RequireText(string? text, string name) =>
+    internal static string RequireText(string? text, string name) =>
         string.IsNullOrEmpty(text) ? throw ToolException.InvalidArgument($"'{name}' is required.") : text;
 }

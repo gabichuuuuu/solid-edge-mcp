@@ -25,6 +25,24 @@ public enum SketchEditAction
     PatternRectangular,
     PatternCircular,
     Delete,
+    Order,
+    Group,
+    Ungroup,
+}
+
+public enum OffsetCap
+{
+    Arc,
+    Line,
+    None,
+}
+
+public enum DrawOrder
+{
+    Front,
+    Back,
+    Forward,
+    Backward,
 }
 
 /// <summary>Editing of sketch and drawing sheet geometry, as the sketch editing commands do.</summary>
@@ -34,18 +52,19 @@ public sealed class SketchEditTools(ToolRunner runner)
     [McpServerTool(Name = "se_sketch_edit", Title = "Sketch editing", Destructive = true, OpenWorld = false)]
     [Description("""
         Edits the 2D elements of a sketch (before 'close') or of a drawing sheet, as the sketch editing commands do; mm and degrees (counter-clockwise positive). elements: handles from se_sketch (draw actions, info).
-        move (delta [dx,dy]) | rotate (center, angle) | scale (center, factor) | mirror (line [x1,y1,x2,y2] = two points of the mirror line): copy=true edits copies (default for mirror) and returns their handles, connected like the originals (and horizontal / vertical where they still are); elements tied by relations move as a set, keeping the relations among them (a quarter turn makes horizontal lines vertical), so include every element they are tied to (a rectangle: its four lines) |
+        move (delta [dx,dy]) | rotate (center, angle) | scale (center, factor) | mirror (line [x1,y1,x2,y2] = two points of the mirror line): copy=true edits copies (default for mirror) and returns their handles, connected like the originals; elements tied by relations move as a set, keeping the relations among them, so include every element they are tied to (a rectangle: its four lines) |
         trim (element, at = a point on the part to remove, bounds = 1-2 elements that cut it there) | extend (element, at = a point near the end to extend, bounds = [the element to reach]) | split (element, at = the point) | corner (elements = 2, keep [x1,y1,x2,y2] = a point on the part of each one to keep: both are trimmed or extended to meet) |
-        offset (at = a point on a chain, side = a point on the side of the copy, distance: the whole connected chain is offset) | construction (elements, value: true = construction geometry, not part of the profile) |
+        offset (at = a point on a chain, side = a point on the side of the copy, distance: the whole connected chain is offset; symmetric: a copy on each side, caps on an open chain) | construction (elements, value: true = construction geometry, not part of the profile) |
         pattern_rectangular (elements, count = columns, rows, spacing [dx,dy], negative = to the left / down, angle of the columns) | pattern_circular (elements, center, count = occurrences with the original, angle = sweep from the original: default 360 = evenly round, negative = clockwise) | delete (elements).
-        construction and patterns: sketches only. Each result is measured; edited and new elements come back with their geometry (a trimmed circle becomes an arc with a new handle).
+        order (elements, to = front | back | forward | backward: drawing order) | group (elements, 2+: returns the group handle) | ungroup (element = a group; none = every group of the sheet).
+        construction and patterns: sketches only; order and groups: sheets only. Each result is measured; edited and new elements come back with their geometry (a trimmed circle becomes an arc with a new handle).
         Example: {"action":"mirror","sketch":"sketch:5","elements":["line2d:7","arc2d:8"],"line":[0,0,0,10]}.
         """)]
     public Task<CallToolResult> SketchEdit(
         SketchEditAction action,
         [Description("Sketch handle, or a drawing sheet / drawing document handle.")] string? sketch = null,
         [Description("Handles of the elements to edit (corner: the two elements).")] string[]? elements = null,
-        [Description("trim, extend, split: handle of the element.")] string? element = null,
+        [Description("trim, extend, split: handle of the element; ungroup: the group.")] string? element = null,
         [Description("trim: 1-2 elements that cut the element; extend: the element to reach.")] string[]? bounds = null,
         [Description("move: displacement [dx, dy] in mm.")] double[]? delta = null,
         [Description("rotate, scale, pattern_circular: centre [x, y] in mm.")] double[]? center = null,
@@ -56,11 +75,14 @@ public sealed class SketchEditTools(ToolRunner runner)
         [Description("trim: a point on the part to remove; extend: a point near the end to extend; split: the point; offset: a point on the chain. [x, y] in mm.")] double[]? at = null,
         [Description("corner: a point on the part of each element to keep [x1, y1, x2, y2] in mm.")] double[]? keep = null,
         [Description("offset: a point on the side of the copy [x, y] in mm.")] double[]? side = null,
-        [Description("offset: distance in mm.")] double? distance = null,
+        [Description("offset: distance in mm (symmetric: on each side, width = 2 x distance).")] double? distance = null,
+        [Description("offset: Symmetric Offset, a copy on each side of the chain (default false).")] bool symmetric = false,
+        [Description("offset with symmetric, the caps of an open chain: arc (a half circle round each end, default), line or none.")] OffsetCap cap = OffsetCap.Arc,
         [Description("pattern_rectangular: columns; pattern_circular: occurrences round the centre; both with the original.")] int? count = null,
         [Description("pattern_rectangular: rows (default 1).")] int? rows = null,
         [Description("pattern_rectangular: [dx, dy] in mm between columns and between rows.")] double[]? spacing = null,
         [Description("construction: true = construction geometry, false = normal geometry (default true).")] bool? value = null,
+        [Description("order: front, back, forward (one step up) or backward (one step down).")] DrawOrder? to = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_sketch_edit";
@@ -79,11 +101,14 @@ public sealed class SketchEditTools(ToolRunner runner)
             SketchEditAction.Split => runner.RunAsync(tool, act, c => SketchService.Split(c, handle,
                 ToolRunner.Require(element, "element", act), at), cancellationToken),
             SketchEditAction.Corner => runner.RunAsync(tool, act, c => SketchService.Corner(c, handle, elements, keep), cancellationToken),
-            SketchEditAction.Offset => runner.RunAsync(tool, act, c => SketchService.Offset(c, handle, at, side, distance), cancellationToken),
+            SketchEditAction.Offset => runner.RunAsync(tool, act, c => SketchService.Offset(c, handle, at, side, distance, symmetric, Snake(cap)), cancellationToken),
             SketchEditAction.Construction => runner.RunAsync(tool, act, c => SketchService.Construction(c, handle, elements, value ?? true), cancellationToken),
             SketchEditAction.PatternRectangular => runner.RunAsync(tool, act, c => SketchService.RectangularPattern(c, handle, elements, count, rows, spacing, angle), cancellationToken),
             SketchEditAction.PatternCircular => runner.RunAsync(tool, act, c => SketchService.CircularPattern(c, handle, elements, center, count, angle), cancellationToken),
             SketchEditAction.Delete => runner.RunAsync(tool, act, c => SketchService.DeleteElements(c, handle, elements), cancellationToken),
+            SketchEditAction.Order => runner.RunAsync(tool, act, c => SketchService.Order(c, handle, elements, to is { } o ? Snake(o) : null), cancellationToken),
+            SketchEditAction.Group => runner.RunAsync(tool, act, c => SketchService.Group(c, handle, elements), cancellationToken),
+            SketchEditAction.Ungroup => runner.RunAsync(tool, act, c => SketchService.Ungroup(c, handle, element), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

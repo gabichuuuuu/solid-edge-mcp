@@ -14,11 +14,18 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// <summary>
 /// Preferences saved in a drawing (DraftDocument.FilePreferences, the drawing pages of the Options dialog while a draft is
 /// active): projection angle, drawing view defaults, thread display, grid, bend notes and the line and drawing view styles
-/// that each kind of edge and view takes (listed as DVEdgeStyleName[HiddenEdge], DVStyleNameFromTable[SectionViews]).
+/// that each kind of edge and view takes (listed as DVEdgeStyleName[HiddenEdge], DVStyleNameFromTable[SectionViews]). Also
+/// the drawing's own sketching toggles (DraftDocument), each the state of a ribbon button: verified in Solid Edge 2026,
+/// Maintain Relationships (10514), Alignment Indicator (11302), Relationship Handles (10210) and Locate Background (11594)
+/// toggle the property of the same meaning, and Maintain Alignment Set is the button of the Dimension group.
 /// </summary>
 public static partial class OptionService
 {
-    private sealed record DrawingEntry(string Name, PropertyInfo Property, int? Index, string? Styles = null);
+    private sealed record DrawingEntry(string Name, PropertyInfo Property, int? Index, string? Styles = null, bool OnDocument = false);
+
+    /// <summary>Sketching toggles of the drawing itself (DraftDocument), read and set like the preferences.</summary>
+    private static readonly string[] DrawingToggles =
+        ["MaintainRelationships", "DisplayAlignmentIndicator", "DisplayRelationshipHandles", "LocateBackgroundSheetGeometry", "MaintainAlignmentSet"];
 
     /// <summary>Indexed preferences and the style collection their names come from.</summary>
     private static readonly (string Property, Type Index, string Prefix, string Styles)[] DrawingIndexed =
@@ -38,6 +45,9 @@ public static partial class OptionService
                 new DrawingEntry($"{property}[{Enum.GetName(index, v)![prefix.Length..]}]", info, Convert.ToInt32(v, CultureInfo.InvariantCulture), styles)));
         }
 
+        Type draft = typeof(SolidEdgeDraft.DraftDocument);
+        entries.AddRange(DrawingToggles.Select(name => new DrawingEntry(name,
+            draft.GetProperty(name) ?? throw new InvalidOperationException($"{name} is not in the interop."), null, OnDocument: true)));
         return entries;
     });
 
@@ -46,7 +56,7 @@ public static partial class OptionService
         (SolidEdgeDocument document, object preferences) = DrawingPreferences(context, documentHandle);
         var matches = DrawingCatalog.Value.Where(e => string.IsNullOrWhiteSpace(filter) || e.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
         int start = Math.Max(offset, 0);
-        var items = matches.Skip(start).Take(Math.Clamp(limit, 1, context.MaxListItems)).Select(e => DrawingRead(preferences, e)).ToList();
+        var items = matches.Skip(start).Take(Math.Clamp(limit, 1, context.MaxListItems)).Select(e => DrawingRead(document, preferences, e)).ToList();
         return new
         {
             scope = "drawing",
@@ -61,8 +71,8 @@ public static partial class OptionService
 
     private static object DrawingGet(SeContext context, string? documentHandle, string name)
     {
-        (_, object preferences) = DrawingPreferences(context, documentHandle);
-        return DrawingRead(preferences, DrawingFind(name));
+        (SolidEdgeDocument document, object preferences) = DrawingPreferences(context, documentHandle);
+        return DrawingRead(document, preferences, DrawingFind(name));
     }
 
     private static object DrawingSet(SeContext context, string? documentHandle, string name, JsonElement value)
@@ -74,7 +84,7 @@ public static partial class OptionService
         object? current;
         if (entry.Index is not { } index)
         {
-            (previous, current) = ComProperties.Set(context, preferences, entry.Property, value, owner);
+            (previous, current) = ComProperties.Set(context, entry.OnDocument ? document : preferences, entry.Property, value, owner);
         }
         else
         {
@@ -122,7 +132,7 @@ public static partial class OptionService
             name = entry.Name,
             previous,
             value = current,
-            restore = $"Saved with the drawing. To undo, set it back to {JsonSerializer.Serialize(previous)}.",
+            restore = $"{(entry.OnDocument ? "Set on this drawing" : "Saved with the drawing")}. To undo, set it back to {JsonSerializer.Serialize(previous)}.",
         };
     }
 
@@ -143,13 +153,13 @@ public static partial class OptionService
                 "Search with se_options action 'list', scope 'drawing' and 'filter'.");
     }
 
-    private static object DrawingRead(object preferences, DrawingEntry entry)
+    private static object DrawingRead(object document, object preferences, DrawingEntry entry)
     {
         try
         {
             object? value = entry.Index is { } index
                 ? Late.Get(preferences, entry.Property.Name, index)
-                : ComProperties.Read(preferences, entry.Property);
+                : ComProperties.Read(entry.OnDocument ? document : preferences, entry.Property);
             return new { name = entry.Name, value, error = (string?)null };
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))

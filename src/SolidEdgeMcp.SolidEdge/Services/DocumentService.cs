@@ -68,6 +68,13 @@ public static class DocumentService
         };
     }
 
+    /// <summary>The template given (checked) or the installation's default template of the type.</summary>
+    internal static string TemplateFor(SeContext context, DocumentTypeConstants type, string? template) =>
+        !string.IsNullOrWhiteSpace(template) ? CheckTemplate(context, template, type)
+        : DefaultTemplate(context, type) is { } byDefault && File.Exists(byDefault) ? byDefault
+        : throw new ToolException("template_missing", $"Solid Edge has no default {DocumentKinds.ToKind(type).Replace('_', ' ')} template.",
+            "Pass 'template' (se_documents templates lists them).");
+
     private static string? DefaultTemplate(SeContext context, DocumentTypeConstants type)
     {
         try
@@ -185,8 +192,48 @@ public static class DocumentService
             : DefaultTemplate(context, type) is { } byDefault && File.Exists(byDefault) ? byDefault
             : throw new ToolException("template_missing", $"Solid Edge has no default {target.Replace('_', ' ')} template.",
                 "Pass 'template' (se_documents templates lists them).");
-        // Verified in Solid Edge 2026 with STEP, IGES, Parasolid, STL and DXF files: no dialog, a new unsaved document.
-        var document = (SolidEdgeDocument)context.Application.Documents.OpenWithTemplate(source, templatePath);
+        // STL carries no unit: it is read in mm, so the translator (which reads the unit of its options, inches as installed)
+        // is given a copy scaled to that unit.
+        string opened = source;
+        string? scratch = null;
+        double? stlUnit = extension.Equals(".stl", StringComparison.OrdinalIgnoreCase) ? ExportService.StlUnit(context, "Import Units") : null;
+        if (stlUnit is { } unit && unit != 1)
+        {
+            scratch = System.IO.Path.Combine(context.Paths.WorkFolder, "import-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(scratch);
+            opened = System.IO.Path.Combine(scratch, System.IO.Path.GetFileName(source));
+            try
+            {
+                StlFile.Scale(source, opened, 1 / unit);
+            }
+            catch (InvalidDataException ex)
+            {
+                Directory.Delete(scratch, true);
+                throw ToolException.InvalidArgument($"'{System.IO.Path.GetFileName(source)}': {ex.Message}");
+            }
+        }
+
+        SolidEdgeDocument document;
+        try
+        {
+            // Verified in Solid Edge 2026 with STEP, IGES, Parasolid, STL and DXF files: no dialog, a new unsaved document.
+            document = (SolidEdgeDocument)context.Application.Documents.OpenWithTemplate(opened, templatePath);
+        }
+        finally
+        {
+            if (scratch is not null)
+            {
+                try
+                {
+                    Directory.Delete(scratch, true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Left in the work folder.
+                }
+            }
+        }
+
         double? volume = document is SolidEdgePart.PartDocument or SolidEdgePart.SheetMetalDocument ? ModelDocument.From(document).Volume() : null;
         Dictionary<string, int>? elements = document is SolidEdgeDraft.DraftDocument draft ? DrawingService.SheetElements(draft.ActiveSheet) : null;
         if (volume is <= 0 || elements?.GetValueOrDefault("total") == 0)
@@ -203,7 +250,9 @@ public static class DocumentService
             template = templatePath,
             volume = volume is { } v ? Geo.Mm3(v) : (double?)null,
             elements,
-            note = "Not saved yet: save_as writes it as a Solid Edge file.",
+            note = "Not saved yet: save_as writes it as a Solid Edge file."
+                + (stlUnit is null ? "" : stlUnit == 1 ? " STL files carry no unit: it was read in mm."
+                    : " STL files carry no unit: it was read in mm (the server converted it for Solid Edge's STL translator, which reads another unit)."),
         };
     }
 
@@ -277,6 +326,72 @@ public static class DocumentService
         return Describe(context, document, TryActive(context));
     }
 
+    /// <summary>
+    /// Save As Mirrored Part: a new part file that is the mirror image of this part about one of its reference planes,
+    /// opened in Solid Edge. Verified in Solid Edge 2026 (Models.SaveAsMirrorPart): a 100 x 60 x 20 block (x 0..100) mirrored
+    /// about plane 2 (YZ) spans x -100..0, about plane 3 (XZ) y -60..0, with the same volume; linked, the new part holds a
+    /// link to this one (4 features); not linked, the features are copied (5).
+    /// </summary>
+    public static object SaveMirror(SeContext context, string? handle, string path, string plane, bool link, bool overwrite)
+    {
+        SolidEdgeDocument document = context.GetDocument(handle);
+        if (document is not SolidEdgePart.PartDocument)
+        {
+            throw new ToolException("not_supported", "save_mirror works on part documents (Save As Mirrored Part).");
+        }
+
+        string target = context.Paths.Check(path);
+        if (!string.Equals(System.IO.Path.GetExtension(target), ".par", StringComparison.OrdinalIgnoreCase))
+        {
+            throw ToolException.InvalidArgument("The mirrored part must be saved as a .par file.");
+        }
+
+        if (FindOpen(context, target) is not null)
+        {
+            throw new ToolException("file_in_use", $"'{target}' is open in Solid Edge.", "Close it first, or choose another path.");
+        }
+
+        if (File.Exists(target))
+        {
+            if (!overwrite)
+            {
+                throw new ToolException("file_exists", $"'{target}' already exists.", "Pass overwrite=true to replace it.");
+            }
+
+            File.Delete(target);
+        }
+
+        ModelDocument model = ModelDocument.From(document);
+        SolidEdgePart.RefPlane mirrorPlane = model.ResolvePlane(context, plane);
+        double volume = model.Volume();
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target)!);
+        try
+        {
+            model.Models.SaveAsMirrorPart(target, mirrorPlane, link, out _, out _);
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            throw new ToolException("save_failed", $"Solid Edge did not save the mirrored part: {ex.Message.Trim()}",
+                "The part needs a solid body; use one of its reference planes (se_ref_plane list).", ex);
+        }
+
+        if (!File.Exists(target))
+        {
+            throw new ToolException("save_failed", $"Solid Edge did not write '{target}'.");
+        }
+
+        SolidEdgeDocument mirrored = FindOpen(context, target) ?? (SolidEdgeDocument)context.Application.Documents.Open(target);
+        double mirroredVolume = ModelDocument.From(mirrored).Volume();
+        return new
+        {
+            document = Describe(context, mirrored, TryActive(context)),
+            source = context.DocumentHandle(document),
+            linked = link,
+            volume = Geo.Mm3(mirroredVolume),
+            sourceVolume = Geo.Mm3(volume),
+        };
+    }
+
     public static object Close(SeContext context, string? handle, bool? saveChanges)
     {
         SolidEdgeDocument document = context.GetDocument(handle);
@@ -289,6 +404,9 @@ public static class DocumentService
         }
 
         bool save = dirty && saveChanges == true;
+        string? note = saveChanges == true && !dirty
+            ? PathOf(document) is null ? "It had no changes and had never been saved: nothing was written." : "It had no unsaved changes: its file was already up to date."
+            : null;
         if (save)
         {
             string path = PathOf(document) ?? throw new ToolException("never_saved",
@@ -297,7 +415,9 @@ public static class DocumentService
         }
 
         string documentHandle = context.DocumentHandle(document);
+        List<int> windows = WindowHandles(document);
         document.Close(save);
+        CloseLeftWindows(context.Application, windows);
         context.Handles.InvalidateScope(documentHandle, "its document was closed");
         context.Handles.Remove(documentHandle, "the document was closed");
 
@@ -333,7 +453,7 @@ public static class DocumentService
             active = last;
         }
 
-        return new { closed = name, saved = save, active = active is null ? null : context.DocumentHandle(active) };
+        return new { closed = name, saved = save, active = active is null ? null : context.DocumentHandle(active), note };
     }
 
     private static readonly string[] Statuses = ["available", "in_work", "in_review", "released", "baselined", "obsolete", "unknown"];
@@ -374,13 +494,52 @@ public static class DocumentService
                 "Some changes need the document saved or another status first (Solid Edge's workflow).");
     }
 
+    /// <summary>
+    /// Reads or sets the modelling mode of a part or sheet metal part, as the ribbon's Synchronous and Ordered buttons do. Rounds,
+    /// chamfers and the face edits of se_part_feature keep a synchronous part synchronous; the other features of this server
+    /// are ordered and switch it. In synchronous mode Solid Edge does not compute the ordered features, so the body read there
+    /// holds only the synchronous ones.
+    /// </summary>
+    public static object ModelingMode(SeContext context, string? handle, string? mode)
+    {
+        ModelDocument model = ModelDocument.Get(context, handle);
+        string before = model.ModelingMode;
+        if (mode is null)
+        {
+            return new { document = context.DocumentHandle(model.Document), modelingMode = before };
+        }
+
+        bool changed = mode switch
+        {
+            "synchronous" => model.EnsureSynchronous(),
+            "ordered" => model.EnsureOrdered(),
+            _ => throw ToolException.InvalidArgument($"Unknown modelling mode '{mode}'.", "Use synchronous or ordered."),
+        };
+        if (changed)
+        {
+            context.ModelChanged(model.Document, "the modelling mode changed");
+        }
+
+        double? volume = model.TryModel() is null ? null : model.TryVolume();
+        return new
+        {
+            document = context.DocumentHandle(model.Document),
+            modelingMode = model.ModelingMode,
+            previous = before,
+            volume = volume is { } v ? Geo.Mm3(v) : (double?)null,
+        };
+    }
+
     private static string StatusName(SolidEdgeDocument document)
     {
         int code = (int)document.Status;
         return code >= 0 && code < Statuses.Length ? Statuses[code] : code.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Undo, redo or recalculate (the document must support it).</summary>
+    /// <summary>
+    /// Undo, redo or recalculate (the document must support it). An assembly has no Recompute: it is updated with
+    /// UpdateDocument, as the ribbon's Update button.
+    /// </summary>
     public static object Edit(SeContext context, string? handle, string action, int steps)
     {
         SolidEdgeDocument document = context.GetDocument(handle);
@@ -388,13 +547,13 @@ public static class DocumentService
         {
             "undo" => "Undo",
             "redo" => "Redo",
-            "recompute" => "Recompute",
+            "recompute" => document is SolidEdgeAssembly.AssemblyDocument ? "UpdateDocument" : "Recompute",
             _ => throw ToolException.InvalidArgument($"Unknown edit action '{action}'."),
         };
         // Solid Edge does not record as undoable the operations created through the API from sketches, and creating a
         // sketch clears the history (verified): the number of steps is checked so that nothing that did not happen is assumed.
         string counter = action == "undo" ? "UndoTransactionCount" : "RedoTransactionCount";
-        int? available = member == "Recompute" ? null : TransactionCount(document, counter);
+        int? available = action == "recompute" ? null : TransactionCount(document, counter);
         if (available == 0)
         {
             throw new ToolException($"nothing_to_{action}", $"Solid Edge has no step to {action} in '{document.Name}'.",
@@ -407,12 +566,13 @@ public static class DocumentService
         int count = available is { } n ? Math.Min(requested, n) : requested;
         try
         {
-            object?[] args = member == "Recompute" ? [] : [count];
+            object?[] args = action == "recompute" ? [] : [count];
             document.GetType().InvokeMember(member, BindingFlags.InvokeMethod, null, document, args, System.Globalization.CultureInfo.InvariantCulture);
         }
         catch (Exception ex) when (Com.ComErrors.Unwrap(ex) is COMException { HResult: Com.ComErrors.DispEMemberNotFound or Com.ComErrors.DispEUnknownName })
         {
-            throw new ToolException("not_supported", $"'{action}' is not available for a {DocumentKinds.Describe(document)}.");
+            throw new ToolException("not_supported", $"'{action}' is not available for this document ({DocumentKinds.Describe(document)}).",
+                document is SolidEdgeDraft.DraftDocument ? "Update a drawing with se_drawing action 'update' (force = full update)." : null);
         }
 
         // After undo or recalculate, the model objects may have changed.
@@ -533,6 +693,46 @@ public static class DocumentService
         catch (Exception ex) when (ComErrors.IsCallFailure(ex))
         {
             // The error that stopped the import is the one reported.
+        }
+    }
+
+    /// <summary>The hWnd of each window of a document.</summary>
+    private static List<int> WindowHandles(SolidEdgeDocument document)
+    {
+        try
+        {
+            return [.. Late.Items(document.Windows).Select(w => Convert.ToInt32(Late.Get(w, "hWnd"), System.Globalization.CultureInfo.InvariantCulture))];
+        }
+        catch (Exception ex) when (ComErrors.IsCallFailure(ex))
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Verified in Solid Edge 2026: after Close, a part with features or a draft with views can leave its window in
+    /// Application.Windows, hidden and bound to the deleted document, and those windows pile up; Window.Close removes them.
+    /// Only the windows of the closed document are touched.
+    /// </summary>
+    private static void CloseLeftWindows(Application application, List<int> handles)
+    {
+        if (handles.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            List<object> left = [.. Late.Items(application.Windows)
+                .Where(w => handles.Contains(Convert.ToInt32(Late.Get(w, "hWnd"), System.Globalization.CultureInfo.InvariantCulture)))];
+            foreach (object window in left)
+            {
+                Late.Call(window, "Close", false);
+            }
+        }
+        catch (Exception ex) when (ComErrors.IsCallFailure(ex))
+        {
+            // The document is closed; a window that cannot be closed only stays hidden, as before.
         }
     }
 

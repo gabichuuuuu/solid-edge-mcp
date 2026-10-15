@@ -269,7 +269,7 @@ public static partial class LinkService
         string[] patternList = (string.IsNullOrWhiteSpace(filter) ? "*.par;*.psm;*.asm;*.dft;*.pwd" : filter)
             .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         string pattern = string.Join(";", patternList);
-        object none = Missing.Value;
+        object none = System.Reflection.Missing.Value;
         context.Application.SearchDocuments(false, root, subfolders, out object files, out int _, "", none, none, none, none, none, none,
             out object titles, out object subjects, out object dates);
         List<string> titleList = Strings(titles, keepEmpty: true);
@@ -310,17 +310,24 @@ public static partial class LinkService
     private static List<Dictionary<string, object?>> AssemblyLinks(AssemblyDocument assembly, bool recursive)
     {
         var rows = new Dictionary<string, Dictionary<string, object?>>(StringComparer.OrdinalIgnoreCase);
+        // Internal components live inside the assembly file: their file reads "assembly.asm\name.par".
+        string inside = ((SolidEdgeDocument)assembly).FullName + System.IO.Path.DirectorySeparatorChar;
         void Add(string file, string key)
         {
             if (!rows.TryGetValue(file, out Dictionary<string, object?>? row))
             {
+                bool isInternal = file.StartsWith(inside, StringComparison.OrdinalIgnoreCase);
                 row = new Dictionary<string, object?>
                 {
                     ["file"] = file,
                     ["kind"] = KindOf(file),
-                    ["exists"] = File.Exists(file),
+                    ["exists"] = isInternal || File.Exists(file),
                     ["quantity"] = 0,
                 };
+                if (isInternal)
+                {
+                    row["internal"] = true;
+                }
                 rows.Add(file, row);
             }
 

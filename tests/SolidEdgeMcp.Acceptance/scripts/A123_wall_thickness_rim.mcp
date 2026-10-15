@@ -1,0 +1,26 @@
+# A123: wall thickness of an open shell with draft. A box primitive 60 x 40 x 30 with 5 degree draft on its four sides (base
+#   60 x 40, top 54.75 x 34.75: 30/6 (2400 + 4 x 57.375 x 37.375 + 54.750 x 34.750) = 64401.7 mm3), shelled 2 mm open at the
+#   top: the cavity is the same prismatoid offset 2/cos 5 inwards from z = 2 to 30 (49474.6), 14927.0 mm3 left. On the open
+#   rim the inner walls' normals point slightly up and their vertices read almost nothing (Solid Edge's own analysis): the
+#   thinnest reading is far below 2 mm, the thinnest uniform wall is the 2 mm wall, and the note says why.
+@d = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","plane":"xy","center":[0,0,0],"size":[60,40],"depth":30,"side":"normal"}
+@fx = se_geometry {"action":"faces","direction":[1,0,0]}
+@fnx = se_geometry {"action":"faces","direction":[-1,0,0]}
+@fy = se_geometry {"action":"faces","direction":[0,1,0]}
+@fny = se_geometry {"action":"faces","direction":[0,-1,0]}
+@dr = se_draft {"plane":"xy","faces":["{{fx.items[0].handle}}","{{fnx.items[0].handle}}","{{fy.items[0].handle}}","{{fny.items[0].handle}}"],"angle":5,"direction":"normal"}
+@g1 = se_geometry {"action":"summary"}
+?= g1.volume 64401.6 0.5
+?= g1.boundingBox.size[0] 60 0.001
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@s = se_shell {"thickness":2,"openFaces":["{{top.items[0].handle}}"]}
+@g2 = se_geometry {"action":"summary"}
+?= g2.volume 14927.0 0.5
+@w = se_measure {"action":"wall_thickness","resolution":"fine"}
+?= w.minUniformThickness 2 0.01
+?= w.thinnestAt[2] 30 0.001
+?~ w.note thinnest uniform wall is
+@ws = se_measure {"action":"wall_thickness","resolution":"standard"}
+?= ws.minUniformThickness 2 0.01
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
