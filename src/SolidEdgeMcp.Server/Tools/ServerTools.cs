@@ -6,6 +6,7 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Services;
 
 namespace SolidEdgeMcp.Server.Tools;
 
@@ -13,7 +14,7 @@ namespace SolidEdgeMcp.Server.Tools;
 public sealed class ServerTools(ToolRunner runner, ServerPolicy policy, PathGuard guard, AppPaths paths)
 {
     [McpServerTool(Name = "se_server_info", Title = "Server information", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Server version, allowed folders for files, work folder, limits and configuration warnings. Does not need Solid Edge.")]
+    [Description("Server version, allowed folders for files, work folder, limits, configuration warnings and the Solid Edge installation (version, folders, language, Parasolid version). Does not need Solid Edge running.")]
     public Task<CallToolResult> ServerInfo() =>
         runner.RunLocalAsync("se_server_info", "info", () => Task.FromResult<object?>(new
         {
@@ -27,6 +28,7 @@ public sealed class ServerTools(ToolRunner runner, ServerPolicy policy, PathGuar
             operationTimeoutSeconds = policy.OperationTimeoutSeconds,
             limits = policy.Limits,
             warnings = guard.Warnings,
+            solidEdge = InstallationService.Read() ?? new { installed = false },
             units = "Tools use millimetres and degrees; se_com_* use metres and radians.",
         }));
 }

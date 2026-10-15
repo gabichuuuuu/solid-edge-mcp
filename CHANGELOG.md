@@ -6,6 +6,52 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `se_bom` with `path` writes the report to a .csv or .xlsx file of an allowed folder (`savedTo`): every line with a
+  header row, also beyond the lines the result lists; `overwrite` replaces a file that exists.
+- `se_export` with `table` writes the shown cells of a table of a drawing (a parts list, a hole, bend, tolerance, family
+  or block table, or a table of `se_sheet_content`) to a .csv or .xlsx file with its header row. Through the API, Solid
+  Edge only copies a parts list to the clipboard.
+- `se_assembly_config explode` takes `orientation`: the window is turned to it before exploding, because the explode
+  configuration saved with the assembly keeps the orientation the window had, and a drawing view of it shows that one.
+- `se_design_manager`: Design Manager on closed files, started hidden for each call and closed after it. `links` lists
+  what a document refers to at every level (whether each file exists, its status, revision and document number);
+  `rename`, `copy`, `replace`, `move`, `revise` and `release` run Design Manager's actions on files of a set and update
+  every document of the set, and for rename and move the documents outside the set, in the folders given, that use the
+  files; `status` gives closed files a document status, forward only as Solid Edge's workflow does; `relink` redefines
+  links (one file or a whole folder pointed at another) in one document or in every document of some folders;
+  `broken_links` and `duplicates` (the same document ID or the same name) look through folders. Every change is checked
+  by reading the files and their links back. Refused before Design Manager acts: documents open in Solid Edge, documents
+  it would rewrite outside the allowed folders, released documents whose links would change and a new name of another
+  type; a library the set only reads may be read-only. A Design Manager step that stops answering is ended.
+- `se_properties` with `path` lists, sets and deletes the properties of a closed file without opening it in Solid Edge.
+- `se_export` with `files`, `format` and `subfolders`: batches of saved files or whole folders written to one folder, as
+  Solid Edge Translation Services does. A file already open is exported from its document, which stays open; the others
+  are opened and closed without saving; each file reports its result or error, and a file of a kind the format does not
+  take is reported without opening it. New formats: CATIA V5 (.catpart) and CATIA
+  V4 (.model) of parts and sheet metal, OBJ, PLM XML, U3D and XGL; the files a translator writes beside the target (OBJ
+  materials, PLM XML bodies, logs) are listed in `alsoWritten`.
+- `se_documents import` opens CATIA V5 parts (.catpart) and CATIA V4 files (.model).
+- `se_documents thumbnail`: the picture saved in a closed Solid Edge file, as Windows Explorer shows it, without opening
+  the file.
+- `se_server_info` reports the Solid Edge installation: version, program and preferences folders, language and Parasolid
+  version, without starting Solid Edge.
+
+### Changed
+
+- `se_drawing base_view` of an explode configuration asked in another orientation than the one stored with it says in
+  its `note` which orientation the view keeps and how to change it.
+- The coverage map has a section for the programs installed with Solid Edge (Design Manager, Translation Services,
+  thumbnails, installation data and the programs that only work through their own windows or need a server), and the
+  ribbon commands that start programs not installed (KeyShot, CAM Pro, Femap, Technical Publications, Standard Parts) are
+  marked as such.
+
+### Fixed
+
+- A component that Solid Edge needs for an operation and that is not registered (such as a CATIA translator for
+  assemblies) was reported as "Solid Edge is not registered on this computer"; it is now `component_not_registered`.
+
 ## [0.8.0] - 2026-10-15
 
 The base program complete. Every command on the ribbons of the part, sheet metal, assembly and drawing environments of

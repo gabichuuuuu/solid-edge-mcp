@@ -299,7 +299,8 @@ public static partial class DrawingService
                 }
 
                 CentreAt(configured, x, y);
-                return Result(context, draft, configured, UnsavedNote(unsaved));
+                string?[] notes = [UnsavedNote(unsaved), orientation is null ? null : StoredOrientation(configured, orient, orientationName, configuration!)];
+                return Result(context, draft, configured, notes.Any(n => n is not null) ? string.Join(" ", notes.Where(n => n is not null)) : null);
             }
 
             DrawingView view = Create(() => flat
@@ -316,6 +317,26 @@ public static partial class DrawingService
                 unsaved.Dirty = true;
             }
         }
+    }
+
+    /// <summary>
+    /// The note for a view of a configuration that kept its own orientation. Verified in Solid Edge 2026: an explode
+    /// configuration keeps the orientation the assembly window had when it was exploded, AddWithConfiguration ignores the one
+    /// given and SetViewOrientationStandard does not turn the view; a drawing that already has a view of the configuration
+    /// keeps reading it as first loaded.
+    /// </summary>
+    private static string? StoredOrientation(DrawingView view, ViewOrientationConstants wanted, string wantedName, string configuration)
+    {
+        view.ViewOrientation(out _, out _, out _, out _, out _, out _, out ViewOrientationConstants shown);
+        if (shown == wanted)
+        {
+            return null;
+        }
+
+        string name = Orientations.FirstOrDefault(pair => pair.Value == shown).Key
+            ?? string.Concat(shown.ToString().Replace("ig", "", StringComparison.Ordinal).Replace("View", "", StringComparison.Ordinal)
+                .Select((ch, i) => i > 0 && char.IsUpper(ch) ? $" {char.ToLowerInvariant(ch)}" : char.ToLowerInvariant(ch).ToString()));
+        return $"The view keeps the orientation stored with the configuration '{configuration}' ({name}), not '{wantedName}': an explode configuration keeps the orientation the assembly window had when it was exploded. To change it, explode the assembly again with se_assembly_config explode and 'orientation', save it and make the view in a drawing without a view of that configuration (a drawing reads it once).";
     }
 
     /// <summary>
@@ -1966,8 +1987,24 @@ public static partial class DrawingService
         };
     }
 
-    /// <summary>Headers and cell values of the shown columns of a table (parts list, bend table).</summary>
-    private static (List<string?> Headers, List<string?[]> Rows) TableContent(SeContext context, object table, TableColumns columns, int count)
+    /// <summary>
+    /// Headers and every row of the shown columns of a table of a drawing: a parts list, a hole, bend, tolerance, family or
+    /// block table of se_drawing, or a table of se_sheet_content.
+    /// </summary>
+    internal static (List<string?> Headers, List<string?[]> Rows) TableCells(SeContext context, string handle)
+    {
+        object item = context.Handles.Resolve(handle, "table");
+        if (item is not (SolidEdgeDraft.PartsList or DraftBendTable or SolidEdgeDraft.ToleranceTable or FOPTable or SolidEdgeDraft.BlockTable or HoleTable2 or Table)
+            || Late.Get(item, "Columns") is not TableColumns columns || Late.Get(item, "Rows") is not { } rows)
+        {
+            throw ToolException.InvalidArgument($"'{handle}' is not a table of a drawing.", "List the tables with se_drawing tables or se_sheet_content list.");
+        }
+
+        return TableContent(context, item, columns, Late.Count(rows), int.MaxValue);
+    }
+
+    /// <summary>Headers and cell values of the shown columns of a table (parts list, bend table), the first rows up to the list limit or 'max'.</summary>
+    private static (List<string?> Headers, List<string?[]> Rows) TableContent(SeContext context, object table, TableColumns columns, int count, int? max = null)
     {
         var shown = new List<int>();
         var headers = new List<string?>();
@@ -1984,7 +2021,7 @@ public static partial class DrawingService
         }
 
         var rows = new List<string?[]>();
-        for (int r = 1; r <= count && r <= context.MaxListItems; r++)
+        for (int r = 1; r <= count && r <= (max ?? context.MaxListItems); r++)
         {
             int row = r;
             rows.Add(shown.Select(c => (Late.TryGet(table, "Cell", row, c) as TableCell)?.value).ToArray());

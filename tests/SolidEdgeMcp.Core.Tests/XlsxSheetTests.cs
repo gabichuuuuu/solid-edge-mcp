@@ -40,6 +40,34 @@ public sealed class XlsxSheetTests
     }
 
     [Fact]
+    public void Writes_texts_as_inline_strings_and_numbers_as_numbers()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"xlsx-{Guid.NewGuid():N}.xlsx");
+        try
+        {
+            object?[] wide = [.. Enumerable.Range(0, 28).Select(i => (object?)i)];
+            XlsxSheet.Write(path, [["Item", "Name <A&B>", "Quantity"], [1, null, 2.5], wide]);
+            using ZipArchive zip = ZipFile.OpenRead(path);
+            XDocument sheet;
+            using (Stream stream = zip.GetEntry("xl/worksheets/sheet1.xml")!.Open())
+            {
+                sheet = XDocument.Load(stream);
+            }
+
+            XElement[] rows = [.. sheet.Descendants(Main + "row")];
+            XElement name = rows[0].Elements(Main + "c").ElementAt(1);
+            Assert.Equal(["inlineStr", "Name <A&B>"], [(string)name.Attribute("t")!, name.Value]);
+            Assert.Equal(["A2", "C2"], rows[1].Elements(Main + "c").Select(c => (string)c.Attribute("r")!));
+            Assert.Null(rows[1].Elements(Main + "c").Last().Attribute("t"));
+            Assert.Equal(["Z3", "AA3", "AB3"], rows[2].Elements(Main + "c").Skip(25).Select(c => (string)c.Attribute("r")!));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Refuses_values_that_are_not_finite()
     {
         string path = Path.Combine(Path.GetTempPath(), $"xlsx-{Guid.NewGuid():N}.xlsx");

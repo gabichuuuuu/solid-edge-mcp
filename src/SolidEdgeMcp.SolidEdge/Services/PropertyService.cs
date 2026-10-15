@@ -60,7 +60,7 @@ public static class PropertyService
         // had made a custom property and left the document title empty.
         (Properties Set, Property Property)? standard = string.IsNullOrWhiteSpace(set) ? StandardProperty(document, name) : null;
         Properties properties = standard?.Set ?? FindSet(document, string.IsNullOrWhiteSpace(set) ? CustomSet : set);
-        object converted = Convert(value);
+        object converted = ConvertValue(value);
         Property? existing = standard?.Property ?? Find(properties, name);
         bool created = false;
         if (existing is not null)
@@ -159,16 +159,19 @@ public static class PropertyService
             return null;
         }
 
-        return value switch
-        {
-            null or DBNull => null,
-            DateTime date => date.ToString("O", CultureInfo.InvariantCulture),
-            string or bool or int or double or float or short or long or decimal => value,
-            _ => System.Convert.ToString(value, CultureInfo.InvariantCulture),
-        };
+        return Normalize(value);
     }
 
-    private static object Convert(JsonElement value) => value.ValueKind switch
+    /// <summary>A property value as the tools return it: dates in ISO 8601, numbers and texts as they are.</summary>
+    internal static object? Normalize(object? value) => value switch
+    {
+        null or DBNull => null,
+        DateTime date => date.ToString("O", CultureInfo.InvariantCulture),
+        string or bool or int or double or float or short or long or decimal => value,
+        _ => System.Convert.ToString(value, CultureInfo.InvariantCulture),
+    };
+
+    internal static object ConvertValue(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.String => value.GetString() ?? "",
         JsonValueKind.True => true,

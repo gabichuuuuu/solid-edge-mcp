@@ -17,13 +17,13 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class AssemblyService
 {
-    public static object Report(SeContext context, string? documentHandle, string structure)
+    public static object Report(SeContext context, string? documentHandle, string structure, string? path = null, bool overwrite = false)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
         string document = context.DocumentHandle((SolidEdgeDocument)assembly);
         if (structure == "statistics")
         {
-            return Statistics(context, assembly, document);
+            return Statistics(context, assembly, document, path, overwrite);
         }
 
         bool exploded = structure switch
@@ -32,13 +32,20 @@ public static partial class AssemblyService
             "exploded" => true,
             _ => throw ToolException.InvalidArgument($"Unknown structure '{structure}'.", "Use top, flat, indented, exploded or statistics."),
         };
-        var lines = new List<object>();
-        int total = Indent(TopNodes(assembly), 1, "", exploded, lines, context.MaxListItems);
-        return new { document, structure, count = total, returned = lines.Count, more = total > lines.Count, lines };
+        // A file gets every line; the result, the first ones.
+        var lines = new List<ReportLine>();
+        int total = Indent(TopNodes(assembly), 1, "", exploded, lines, path is null ? context.MaxListItems : int.MaxValue);
+        string? savedTo = path is null ? null : TableFile.Write(context, path, overwrite,
+            exploded ? ["Level", "Item", "Name", "Occurrence", "Kind", "Quantity", "File"] : ["Level", "Item", "Name", "Kind", "Quantity", "File"],
+            lines.Select(l => (IReadOnlyList<object?>)(exploded
+                ? [l.Level, l.Item, l.Name, l.Occurrence, l.Kind, l.Quantity, l.File]
+                : [l.Level, l.Item, l.Name, l.Kind, l.Quantity, l.File])));
+        List<ReportLine> shown = [.. lines.Take(context.MaxListItems)];
+        return new { document, structure, count = total, returned = shown.Count, more = total > shown.Count, lines = shown, savedTo };
     }
 
     /// <summary>Lines of one level and, under each subassembly, the next; returns how many lines the whole report has.</summary>
-    private static int Indent(IEnumerable<BomNode> nodes, int level, string prefix, bool exploded, List<object> lines, int max)
+    private static int Indent(IEnumerable<BomNode> nodes, int level, string prefix, bool exploded, List<ReportLine> lines, int max)
     {
         int total = 0;
         List<BomNode> shown = [.. nodes.Where(n => n.InBom)];
@@ -54,16 +61,8 @@ public static partial class AssemblyService
             total++;
             if (lines.Count < max)
             {
-                lines.Add(new
-                {
-                    level,
-                    item,
-                    name = Path.GetFileNameWithoutExtension(node.File),
-                    occurrence,
-                    file = node.File,
-                    kind = node.Subassembly ? "assembly" : KindOf(node.File),
-                    quantity,
-                });
+                lines.Add(new ReportLine(level, item, Path.GetFileNameWithoutExtension(node.File), occurrence, node.File,
+                    node.Subassembly ? "assembly" : KindOf(node.File), quantity));
             }
 
             if (node.Subassembly)
@@ -75,7 +74,7 @@ public static partial class AssemblyService
         return total;
     }
 
-    private static object Statistics(SeContext context, AssemblyDocument assembly, string document)
+    private static object Statistics(SeContext context, AssemblyDocument assembly, string document, string? path, bool overwrite)
     {
         var parts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var subassemblies = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -99,6 +98,8 @@ public static partial class AssemblyService
             .Concat(subassemblies.Select(s => (s.Key, s.Value, Kind: "assembly")))
             .OrderBy(u => Path.GetFileName(u.Key), StringComparer.OrdinalIgnoreCase)
             .ToList();
+        string? savedTo = path is null ? null : TableFile.Write(context, path, overwrite, ["Name", "Kind", "Occurrences", "File"],
+            unique.Select(u => (IReadOnlyList<object?>)[Path.GetFileNameWithoutExtension(u.Key), u.Kind, u.Value, u.Key]));
         return new
         {
             document,
@@ -109,6 +110,7 @@ public static partial class AssemblyService
             more = unique.Count > context.MaxListItems,
             components = unique.Take(context.MaxListItems)
                 .Select(u => new { name = Path.GetFileNameWithoutExtension(u.Key), file = u.Key, kind = u.Kind, occurrences = u.Value }).ToList(),
+            savedTo,
         };
     }
 
@@ -123,6 +125,9 @@ public static partial class AssemblyService
         return new BomNode(s.Name, s.SubOccurrenceFileName, s.Subassembly, own is null ? 1 : Math.Max(own.Quantity, 1), own?.IncludeInBom ?? true,
             () => s.Subassembly ? SubNodes(s.SubOccurrences) : []);
     });
+
+    /// <summary>A line of the indented or exploded bill of materials (the occurrence name only in the exploded one).</summary>
+    private sealed record ReportLine(int Level, string Item, string Name, string? Occurrence, string File, string Kind, int Quantity);
 
     /// <summary>An occurrence at any level of the assembly, with its children read on demand.</summary>
     private sealed record BomNode(string Name, string File, bool Subassembly, int Quantity, bool InBom, Func<IEnumerable<BomNode>> Children);

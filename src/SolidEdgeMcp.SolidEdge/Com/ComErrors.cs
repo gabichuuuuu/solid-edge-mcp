@@ -166,8 +166,11 @@ public static class ComErrors
             CoEServerExecFailure => new ToolException("solid_edge_start_failed",
                 $"Solid Edge could not be started ({code}).",
                 "Start Solid Edge manually once and check its license (SE_LICENSE_SERVER).", com),
-            RegDbEClassNotReg => new ToolException("solid_edge_not_installed",
-                $"Solid Edge is not registered on this computer ({code}).", "Install Solid Edge or repair its installation.", com),
+            // Solid Edge itself answered: a component it needs for the operation is missing (verified: SaveCopyAs of an
+            // assembly or sheet metal to .catproduct). A Solid Edge that is not installed is reported when it is started.
+            RegDbEClassNotReg => new ToolException("component_not_registered",
+                $"'{operation}': a component Solid Edge needs for it is not registered on this computer ({code}), such as a translator that is not installed.{detail}",
+                "Use another format or route, or add the component by repairing the Solid Edge installation.", com),
             _ => new ToolException("solid_edge_error",
                 $"Solid Edge failed in '{operation}' ({code}).{detail}",
                 "Check the arguments and the state of the document (e.g. the right environment or an active sketch). Use se_view capture to see the current state.", com),

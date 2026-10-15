@@ -162,6 +162,7 @@ public static class DocumentService
     {
         [".stp"] = "part", [".step"] = "part", [".igs"] = "part", [".iges"] = "part", [".x_t"] = "part", [".x_b"] = "part",
         [".jt"] = "part", [".sat"] = "part", [".stl"] = "part", [".obj"] = "part", [".3mf"] = "part",
+        [".catpart"] = "part", [".model"] = "part",
         [".dxf"] = "draft", [".dwg"] = "draft",
     };
 

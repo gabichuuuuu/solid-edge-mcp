@@ -494,7 +494,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         Display configurations of an assembly: named states of which components are shown (hide them with se_assembly hide first).
         list (configurations, the active one and the hidden components) | save (name: the current display) | apply (name: shows and hides the components as saved) | delete (name).
         The assembly must have been saved (se_documents save_as): Solid Edge keeps the configurations in a .cfg file next to it.
-        Exploded views: explode (automatic explode along the relations; spread = distance in mm between components, default Solid Edge's minimum clearance; by part | subassembly)
+        Exploded views: explode (automatic explode along the relations; spread = distance in mm between components, default Solid Edge's minimum clearance; by part | subassembly; orientation turns the window first, as the explode configuration keeps the window's orientation for drawing views)
         | exploded (exploded placement of each component next to its assembly placement). The assembly placements do not change; there is no call to collapse
         the explode: close the assembly without saving, or use the Explode environment. Saving the exploded assembly keeps the explode as the explode configuration
         'explode,Solid Edge' (se_drawing base_view takes it for an exploded view); a display configuration does not keep it.
@@ -506,6 +506,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         [Description("save/apply/delete: configuration name.")] string? name = null,
         [Description("explode: distance between components in mm (default: Solid Edge's minimum clearance).")] double? spread = null,
         ExplodeLevel by = ExplodeLevel.Part,
+        [Description("explode: orientation of the assembly window before exploding, kept by the explode configuration for drawing views (e.g. iso).")] ViewOrientation? orientation = null,
         [Description("performance: turn the performance mode on or off (omit to read it).")] bool? enabled = null,
         [Description("Assembly document handle; default: the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
@@ -518,7 +519,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyConfigAction.Save => runner.RunAsync(tool, act, c => AssemblyConfigService.Save(c, document, name), cancellationToken),
             AssemblyConfigAction.Apply => runner.RunAsync(tool, act, c => AssemblyConfigService.Apply(c, document, name), cancellationToken),
             AssemblyConfigAction.Delete => runner.RunAsync(tool, act, c => AssemblyConfigService.Delete(c, document, name), cancellationToken),
-            AssemblyConfigAction.Explode => runner.RunAsync(tool, act, c => AssemblyExplodeService.Explode(c, document, spread, Snake(by)), cancellationToken),
+            AssemblyConfigAction.Explode => runner.RunAsync(tool, act, c => AssemblyExplodeService.Explode(c, document, spread, Snake(by), orientation is { } o ? Snake(o) : null), cancellationToken),
             AssemblyConfigAction.Exploded => runner.RunAsync(tool, act, c => AssemblyExplodeService.Exploded(c, document), cancellationToken),
             AssemblyConfigAction.Performance => runner.RunAsync(tool, act, c => AssemblyService.Performance(c, document, enabled), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
@@ -538,18 +539,21 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_interference", "check", c => AssemblyService.Interference(c, document, occurrences, against, Snake(compare)), cancellationToken);
 
-    [McpServerTool(Name = "se_bom", Title = "Bill of materials and assembly reports", ReadOnly = true, OpenWorld = false)]
+    [McpServerTool(Name = "se_bom", Title = "Bill of materials and assembly reports", ReadOnly = false, Destructive = false, OpenWorld = false)]
     [Description("""
         Bill of materials and reports of an assembly (the Reports and Assembly Statistics dialogs). structure: top (parts list: top-level items grouped by file; a subassembly is one line) | flat (summary of atomic parts: only parts, quantities multiplied through subassemblies) |
         indented (bill of materials: each level under its subassembly, each part once per subassembly; item numbers 1, 1.1…) | exploded (exploded bill of materials: every occurrence on its own line, with its name) |
         statistics (parts and subassemblies in total and unique, levels of nesting, and the unique files with their number of occurrences).
         Occurrences excluded from the BOM in Solid Edge are left out of the bills; statistics counts every occurrence.
+        path (.csv or .xlsx, allowed folders): also writes the report to that file, every line with a header row ('savedTo'); a parts list of a drawing: se_export with 'table'.
         """)]
     public Task<CallToolResult> Bom(
         BomStructure structure = BomStructure.Top,
         [Description("Assembly document handle; default: active document.")] string? document = null,
+        [Description("Absolute path of a .csv or .xlsx file to write the report to (allowed folders).")] string? path = null,
+        [Description("Replace the file if it exists.")] bool overwrite = false,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_bom", Snake(structure), c => structure is BomStructure.Top or BomStructure.Flat
-            ? AssemblyService.Bom(c, document, Snake(structure))
-            : AssemblyService.Report(c, document, Snake(structure)), cancellationToken);
+            ? AssemblyService.Bom(c, document, Snake(structure), path, overwrite)
+            : AssemblyService.Report(c, document, Snake(structure), path, overwrite), cancellationToken);
 }

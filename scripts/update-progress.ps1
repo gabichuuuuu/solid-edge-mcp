@@ -231,7 +231,7 @@ function Get-Progress([string]$root) {
     $pending = ($areas.Values | ForEach-Object { $_.pending } | Measure-Object -Sum).Sum
     $total = $done + $notViable + $pending
     $percent = Percent $done $total
-    # Highest reachable on the tested installation: what works plus the separate programs planned for a later update.
+    # Highest reachable on the tested installation: what works plus the separate programs not yet evaluated.
     $reachable = Percent ($done + $reasons.External) $total
 
     # The charts come first: their URLs carry their fingerprint.
@@ -259,11 +259,18 @@ function Get-Progress([string]$root) {
         ''
         "Why the $notViable do not work: **$($reasons.API) API** (Solid Edge's API fails and no other route gives the same result),"
         "**$($reasons.Unsafe) unsafe** (they close or damage Solid Edge, so the MCP refuses them), **$($reasons.Installation) installation**"
-        "(they need a licence, add-on, template, mail profile or server that the tested installation lacks),"
-        "**$($reasons.Interactive) interactive** (commands that wait for the mouse) and **$($reasons.External) external** (separate programs"
-        'installed with Solid Edge, such as Design Manager, planned for a later update).'
-        "**Highest reachable on the tested installation: $reachable %**, the working functions plus those separate programs; the"
-        'rest depends on Siemens fixing its API, on what is installed and licensed, or on the person working in Solid Edge.'
+        "(they need a licence, add-on, program, template, mail profile or server that the tested installation lacks)$(if ($reasons.External -gt 0) { ',' } else { ' and' })"
+        if ($reasons.External -gt 0) {
+            "**$($reasons.Interactive) interactive** (commands and programs that wait for the person) and **$($reasons.External) external** (separate programs"
+            'that Solid Edge starts, not yet evaluated).'
+            "**Highest reachable on the tested installation: $reachable %**, the working functions plus those separate programs; the"
+            'rest depends on Siemens fixing its API, on what is installed and licensed, or on the person working in Solid Edge.'
+        }
+        else {
+            "**$($reasons.Interactive) interactive** (commands and programs that wait for the person)."
+            "**Highest reachable on the tested installation: $reachable %**: the rest depends on Siemens fixing its API, on what is"
+            'installed and licensed, or on the person working in Solid Edge.'
+        }
         ''
         '| Area | ✔ | ✘ | · | Working |'
         '|---|---|---|---|---|'

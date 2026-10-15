@@ -443,7 +443,7 @@ public static partial class AssemblyService
     /// Bill of materials. top: top-level occurrences grouped by file (subassemblies count as
     /// one line); flat: parts only, with the quantities multiplied by those of their subassemblies.
     /// </summary>
-    public static object Bom(SeContext context, string? documentHandle, string structure)
+    public static object Bom(SeContext context, string? documentHandle, string structure, string? path = null, bool overwrite = false)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
         bool flat = structure switch
@@ -471,13 +471,16 @@ public static partial class AssemblyService
             }
         }
 
+        List<BomLine> ordered = [.. lines.Values.OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)];
+        string? savedTo = path is null ? null : TableFile.Write(context, path, overwrite, ["Item", "Kind", "Quantity", "File"],
+            ordered.Select(l => (IReadOnlyList<object?>)[l.Name, l.Kind, l.Quantity, l.File]));
         return new
         {
             document = context.DocumentHandle((SolidEdgeDocument)assembly),
             structure,
-            lines = lines.Values.OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(l => new { item = l.Name, file = l.File, kind = l.Kind, quantity = l.Quantity }).ToList(),
+            lines = ordered.Select(l => new { item = l.Name, file = l.File, kind = l.Kind, quantity = l.Quantity }).ToList(),
             totalQuantity = lines.Values.Sum(l => l.Quantity),
+            savedTo,
         };
     }
 

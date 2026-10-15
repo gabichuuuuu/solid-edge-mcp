@@ -12,7 +12,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
-![85 tools](https://img.shields.io/badge/tools-85-2F6FEB)
+![86 tools](https://img.shields.io/badge/tools-86-2F6FEB)
 
 ![Version 0.8.0](https://img.shields.io/badge/version-0.8.0-2F6FEB)
 [![Progress: 72 % of functions work through the MCP](https://img.shields.io/badge/progress-72%25-yellow)](docs/COVERAGE.md#progress)
@@ -34,7 +34,7 @@ machine or a specific workflow.
 
 **Broad coverage**
 
-Parts, sheet metal, assemblies, drawings and export with 85 tools, plus the whole API through a
+Parts, sheet metal, assemblies, drawings and export with 86 tools, plus the whole API through a
 generic COM layer.
 
 </td>
@@ -74,15 +74,15 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=51a45161">
-  <img src="docs/assets/progress.svg?v=03062cb9" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=1f6516c6">
+  <img src="docs/assets/progress.svg?v=d928eb8d" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
 in Solid Edge 2026 itself (documented, with an alternative when there is one) or it is not tested yet.
 `scripts/update-progress.ps1` redraws the chart from the coverage tables.
 
-**72 % of the functions work today**; the highest reachable on the tested installation is **74 %** (why the rest do not: [progress](docs/COVERAGE.md#progress)).
+**72 % of the functions work today**; the highest reachable on the tested installation is **72 %** (why the rest do not: [progress](docs/COVERAGE.md#progress)).
 
 ## What you can ask for
 
@@ -98,6 +98,7 @@ was measured afterwards, separately, by reopening the generated files.
 | Prompt `/mcp__solid-edge__model_part`: a 100 × 60 × 10 steel plate with four Ø8 holes 10 mm from the corners and R5 vertical corner rounds, saved | Claude Code | 17 turns, 0 errors; 57,774.78 mm³ = 60,000 − 4·(25 − 25π/4)·10 − 4·π·4²·10; 0.4525 kg; bounding box 100 × 60 × 10 |
 | Weldment: a 200 × 100 × 10 base plate, a mitred frame of a 20 × 20 section of its own on a closed rectangle, a 4 mm fillet weld between the plate and one bar, and an assembly hole repeated in 3 columns | Claude Code | 30 turns, 0 errors; cut length 520 mm = 180 + 80 + 180 + 80, bars of 64,000 mm³; bead 1,440 mm³ = 4·4/2·180; 1 + 2 hole faces |
 | Solid Edge's version and default part template; the start screen turned off and back on; a 100 × 60 × 8 steel plate with a Ø10 through hole; a dark blue to white gradient background for an isometric capture, then the previous background again; an A3 drawing with front, top and right views, printed to PDF with Microsoft Print to PDF | Claude Code | 40 turns, 0 errors; 47,371.68 mm³ = 48,000 − π·5²·8; 0.3711 kg at 7,833 kg/m³; start screen and background as before; first-angle views (top below, right on the left); one-page A3 PDF, 420 × 297 mm |
+| A 120 × 80 × 8 steel plate with four Ø8 holes, an 8 × 30 pin, an assembly with two pins in the holes and an A3 drawing; then, with the files closed, as in Design Manager: the drawing's links at every level, the pin renamed and the plate revised without losing references, a title and In Review for the assembly; the parts and the assembly to STEP and the drawing to PDF in batches; the assembly's thumbnail and the installed Solid Edge and Parasolid versions | Claude Code | 61 calls, 1 close refused for unsaved changes and repeated without saving; renamed pin and plate revision 1 used by the assembly and the drawing, 0 broken links; title and In Review read from the closed file; 4 STEP files and a one-page A3 PDF; the assembly's STEP read back with 78,207.43 mm³ = 76,800 − 4·π·4²·8 + 2·π·4²·30, 0.6126 kg at 7,833 kg/m³ |
 | A 1 mm sheet metal tray: a 100 × 60 tab, a 20 flange measured from the outer face, a round gusset on its bend, unbent to check the flat size and bent again; a 100 × 60 × 20 steel block with four Ø8 holes 15 mm from the corners and a 10 × 5 slot along it, made by sweeping a Ø10 cylinder along a line; an A3 drawing with two views and a hole table, to PDF; an assembly with the tray resting on the block and its bill of materials | Claude Code | 67 calls, 0 errors; block 110,978.76 mm³ = 120,000 − 4·π·4²·20 − 100·10·5, 0.8693 kg; flat pattern 100 × 78.089; hole table with 4 rows at (15, 15), (85, 15), (85, 45), (15, 45); one-page A3 PDF, 420 × 297 mm; tray fully constrained at z 20, no interference; BOM 1 + 1 |
 
 ## Quick start
@@ -205,7 +206,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ## Tools
 
-85 tools, grouped by area.
+86 tools, grouped by area.
 
 | Area | Tools |
 |---|---|
@@ -219,6 +220,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Assemblies** | `se_assembly` `se_relations` `se_assembly_pattern` `se_assembly_config` `se_assembly_family` `se_component_group` `se_internal_component` `se_component_query` `se_assembly_feature` `se_frame` `se_interference` `se_bom` |
 | **Drawings** | `se_drawing` `se_drawing_view` `se_dimension` `se_annotation` `se_sheet_content` |
 | **Export, publishing and printing** | `se_export` `se_publish` `se_print` |
+| **Programs installed with Solid Edge** | `se_design_manager` |
 | **Full API access** | `se_com_describe` `se_com_get` `se_com_set` `se_com_invoke` `se_com_items` `se_com_constants` `se_command` |
 
 <details>
@@ -226,10 +228,10 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 | Area | Tool | What it does |
 |---|---|---|
-| **Server and session** | `se_server_info` | Version, allowed folders, work folder, limits and configuration warnings. Does not need Solid Edge. |
+| **Server and session** | `se_server_info` | Version, allowed folders, work folder, limits and configuration warnings, and the Solid Edge installation (version, folders, language, Parasolid version). Does not need Solid Edge running. |
 | | `se_session` | Status, connect (attaches to the open Solid Edge or starts it visibly), disconnect, quit and restart (refused while a document has unsaved changes). |
-| **Documents** | `se_documents` | Create a part, sheet metal, assembly, drawing or weldment; open, activate, save, save as or copy, close; import STEP, IGES, Parasolid, JT, SAT, STL, OBJ, 3MF, DXF or DWG files as new documents; undo and redo what Solid Edge records; recalculate (Update Relationships; `se_options` turns Automatic Update off); list this installation's templates; read and set the document status (in work, in review, released…); save a part as its mirror image about a plane; read or switch a part between synchronous and ordered modeling. |
-| **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set (a standard name such as Title goes to its own set, any other becomes a custom property) and delete. |
+| **Documents** | `se_documents` | Create a part, sheet metal, assembly, drawing or weldment; open, activate, save, save as or copy, close; import STEP, IGES, Parasolid, JT, SAT, STL, OBJ, 3MF, CATIA V5 and V4, DXF or DWG files as new documents; the thumbnail saved in a closed file, as Windows Explorer shows it; undo and redo what Solid Edge records; recalculate (Update Relationships; `se_options` turns Automatic Update off); list this installation's templates; read and set the document status (in work, in review, released…); save a part as its mirror image about a plane; read or switch a part between synchronous and ordered modeling. |
+| **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set (a standard name such as Title goes to its own set, any other becomes a custom property) and delete; with `path`, the same on a closed file without opening it, as Property Manager does. |
 | | `se_variables` | Variables and dimensions: list (also the physical property variables of a part: Mass, Volume, Surface_Area...), read, set a value or formula (returns the volume change), create, delete, rename, comment, expose and limit; Goal Seek (Solid Edge varies one variable until another reaches a value; on the mass, volume or surface area of a part the server measures the model at each step); the adjustable variables of an adjustable part. |
 | | `se_part_family` | Family of parts: family variables, members with their values and suppressed features, apply a member to the master (checked), write member files, copy, rename and delete members. |
 | | `se_material` | Material libraries: current material, properties and assignment (updates density and mass); the material of a weldment's weld beads. |
@@ -287,7 +289,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_relations` | Planar (mate and flush), axial (rotation locked or free), insert, parallel, tangent, angle, center-plane, connect (points of edges onto points, faces, planes or edges), coordinate system and rigid set relations, each checked geometrically; gear relations between two gears or a gear and a rack, in teeth or turns; list, edit (offset, angle or suppress: the parts follow, gears included) and delete; base planes by name (`xy`, `yz`, `xz`) of the assembly or of an occurrence's part. |
 | | `se_assembly_pattern` | Component patterns that follow a part pattern (e.g. a pin repeated on every hole of a hole pattern), duplicate patterns, and patterns along a curve of an assembly layout: list, create, delete and dissolve; clone occurrences onto the matching faces of other occurrences. |
 | | `se_assembly_family` | Alternate positions and families of assemblies: turn a saved assembly into one with named members, add, activate, rename and delete members, write one as a plain assembly, and leave components out of a member of a family; the alternate components an occurrence may be swapped for. |
-| | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them; automatic exploded views with the exploded placement of each component, kept by saving the assembly for an exploded drawing view; the Large Assembly Performance mode. |
+| | `se_assembly_config` | Display configurations: save which components are shown under a name, apply, list and delete them; automatic exploded views in a chosen orientation with the exploded placement of each component, kept by saving the assembly for an exploded drawing view; the Large Assembly Performance mode. |
 | | `se_component_group` | Component groups (the groups of PathFinder): create, add and remove components, rename, show and hide, ungroup, pack the occurrences of one file and unpack, and delete a group together with its components (with an explicit confirmation). |
 | | `se_internal_component` | Internal components: parts, sheet metal parts and subassemblies kept inside the assembly file, created empty and placed grounded or free, listed, deleted, and published as files of a folder that their occurrences then point at. |
 | | `se_component_query` | Find components as the Select Tools do: by occurrence name or by the properties, material and status of their files (all criteria at once), among all, shown, hidden or selected components and inside subassemblies, or inside a box (zone); the matches are selected and can be shown alone (a matched subassembly whole), hidden or shown; queries and zones can be saved in the assembly, run, renamed and deleted. |
@@ -295,15 +297,16 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_frame` | Structural frames (sections from the installed library or your own part, mitred or butted) and pipes with elbows and fittings, along a polyline or assembly sketch lines; members and segments with their extent and cut lengths (also per member); list the library, list, delete and repair (frames made elsewhere before any assembly feature). |
 | | `se_tube` | Tubes routed in an assembly along a path of straight segments, bent at the corners, solid or hollow, with a material; each tube read back with its diameter, wall, bend radius, flat length, volume and path. |
 | | `se_interference` | Interferences between occurrences, among themselves, against others, against all the rest or against the visible ones, with the affected pairs and their volume. |
-| | `se_bom` | Bills of materials and reports: the parts list (top level), the summary of atomic parts (flat), the indented bill of materials, the exploded one (every occurrence) and the assembly statistics (parts and subassemblies in total and unique). |
+| | `se_bom` | Bills of materials and reports: the parts list (top level), the summary of atomic parts (flat), the indented bill of materials, the exploded one (every occurrence) and the assembly statistics (parts and subassemblies in total and unique), also written to a .csv or .xlsx file. |
 | **Drawings** | `se_drawing` | Sheets and background sheets (the frame and title block: list, show or hide, draw and write on them, replace one with a background of another drawing, add, rename and delete one no sheet uses); base (also of an assembly display configuration, of a member of an assembly family or alternate position, or of a PMI model view), projected, auxiliary, section (also from a cutting plane drawn first) and detail views; views turned on the sheet and cropped to a rectangle; 2D model views (what is drawn on the 2D model sheet, at a scale); dimensions (also coordinate, angular coordinate, chamfer and symmetric diameter dimensions) and dimensions retrieved from the model; parts list (also a family of assemblies parts list, a quantity column per member); bend table; tolerance table (the dimensions of a view with an ISO fit); family of parts table (one row per member); block table (the blocks placed on a sheet and their quantity); hole table (the holes of a view with their X and Y from an origin and their size); the tables of a drawing read back with their cells; blocks (create from sheet graphics, place scaled and turned, import from a drawing, delete, unblock one occurrence or all of them); update. |
 | | `se_drawing_view` | Display of a drawing view as in its Properties dialog: hidden and tangent edges, shading, captions and the display of each member of an assembly view (hide a part, show it as reference), checked by the edges drawn; single edges hidden or shown and those overrides cleared (Hide Edges, Show Edges); break lines (add, list, show or hide, remove); broken-out sections cut to a depth; the other alternate positions of an assembly drawn as phantoms; conversion of a view to 2D geometry; automatic centre lines and centre marks; activating and inactivating the drawing views. |
 | | `se_dimension` | Tolerance of a dimension of a drawing, a sketch or the PMI: plus/minus deviations, limits, ISO fits for holes and shafts (H7, g6, alone or with deviations or limits), basic and reference dimensions; prefix, suffix and a text shown instead of the value; the dimensions a drawing update changed (dimension tracker), whether alignment sets are kept, and dimensions arranged (spaced out from the outline they measure, also PMI dimensions). |
 | | `se_annotation` | Text (several lines), technical requirements (a numbered list under a title), balloons, callouts, centre marks, centre lines, leaders, surface finish symbols, datums, datum targets and points, bolt hole circles, corner annotations (edge conditions, ISO 13715), feature control frames, weld symbols and GOST weld symbols attached to the views; the saved notes of the note library; list and delete. |
 | | `se_sheet_content` | Tables of your own (a revision list, notes in columns), pictures (a logo), smart frames (reserved areas), symbols (saved drawings, embedded, linked or copied as geometry) and connectors (line, jump, corner, step or gap, free or tied to two elements) on drawing sheets: a table with headers, rows and column widths where you want it, a cell changed, rows added, an image sized by width or height, an empty frame of a style, a watermark, texts lined up with another; list and delete (also the parts lists and hole tables of `se_drawing`), everything read back. |
-| **Export, publishing and printing** | `se_export` | Part, sheet metal and assembly to STEP, IGES, Parasolid, STL, JT, SAT, 3MF or PDF (a picture of the view); drawings to PDF, DXF, DWG, IGES or TIF; sheet metal flat pattern to DXF or DWG. PDF files are read back for their pages and page sizes. One design body of a part, or all of them, can be written alone as Parasolid (Save Selected Model). |
+| **Export, publishing and printing** | `se_export` | Part, sheet metal and assembly to STEP, IGES, Parasolid, STL, JT, SAT, 3MF or PDF (a picture of the view); drawings to PDF, DXF, DWG, IGES or TIF; sheet metal flat pattern to DXF or DWG. PDF files are read back for their pages and page sizes. One design body of a part, or all of them, can be written alone as Parasolid (Save Selected Model). A parts list or another table of a drawing is written to a .csv or .xlsx file. Also CATIA V5 and V4 (parts and sheet metal), OBJ, PLM XML, U3D and XGL. In batches, as Solid Edge Translation Services: saved files or whole folders written to one folder, each file with its result. |
 | | `se_publish` | 3D PDF documents of saved parts, sheet metal and assemblies (one file, or a folder with its subfolders) with the 3D PDF templates of the installation: the model in 3D that the reader can turn, every PMI model view as a 3D view, next/previous view buttons, STEP AP242 and JT files embedded, and an HTML page with the model; each PDF checked for its pages, 3D views, widgets and embedded files. |
 | | `se_print` | Prints the sheets of a drawing as the Print command does: lists the Windows printers (connection, port, driver, state, whether they ask for a file name) and Solid Edge's print settings; prints every working sheet or the chosen ones on a printer or to files in a folder (one PDF, PostScript or printer file per sheet, checked for its pages and page size), with paper size, orientation, scale or fit to the paper, colours as black and copies; Solid Edge's print settings are put back afterwards. The mesh of the 3D Print command for a part, sheet metal or assembly: triangles, mesh area and volume against the model's. |
+| **Programs installed with Solid Edge** | `se_design_manager` | Design Manager on closed files, started hidden for each call: the links of a document at every level (whether each file exists, its status, revision and document number); rename, copy, replace, move and revise files of a set with every document of the set updated (and the documents outside it that use a renamed or moved file, in the chosen folders), and release them; the document status of closed files, forward as Solid Edge's workflow does; redefine links (one file or a whole folder pointed at another) in one document or a folder of them; broken links and duplicate documents (the same document ID or the same name) in some folders. Every change is checked by reading the files and their links back. |
 | **Full API access** | `se_com_describe` | Properties and methods, with the types of their parameters, of any API object or interface. |
 | | `se_com_get` | Reads a property of an API object; objects come back as handles. |
 | | `se_com_set` | Changes a property of an API object. |
@@ -333,7 +336,7 @@ flowchart LR
     client["MCP client<br/>Claude Code · Claude Desktop · Codex"]
 
     subgraph exe ["SolidEdgeMcp.Server.exe"]
-        server["SolidEdgeMcp.Server<br/>MCP host · 85 se_* tools<br/>argument validation · logs"]
+        server["SolidEdgeMcp.Server<br/>MCP host · 86 se_* tools<br/>argument validation · logs"]
         se["SolidEdgeMcp.SolidEdge<br/>session · services by area · generic COM layer<br/>StaComDispatcher: a single STA thread"]
         core["SolidEdgeMcp.Core, no COM<br/>PathGuard · policy · units<br/>handles · actionable errors"]
         server --> se
@@ -348,7 +351,7 @@ flowchart LR
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
-  `ModelContextProtocol` 2.2.0 SDK, the 85 tools, argument validation and logging of each operation
+  `ModelContextProtocol` 2.2.0 SDK, the 86 tools, argument validation and logging of each operation
   with an `op#` number.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
@@ -401,15 +404,15 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Validation
 
-Results (unit tests and acceptance scripts run on 2026-10-13):
+Results (unit tests and acceptance scripts run on 2026-10-16):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 81/81 and `SolidEdgeMcp.Server.Tests` 716/716.
-- Acceptance suite against real Solid Edge 2026: scripts `A01`–`A130` (there is no `A74`), with expected values computed
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 86/86 and `SolidEdgeMcp.Server.Tests` 739/739.
+- Acceptance suite against real Solid Edge 2026: scripts `A01`–`A132`, with expected values computed
   from formulas (or Solid Edge reference values when there is no simple formula, noted in the script). The last full run
   (`A01`–`A53`) made **4578 calls and 2331 checks** without failures, and `A54`–`A89` passed together for 0.7.0
-  (966 calls, 410 checks); `A90`–`A130` passed for 0.8.0, each with the work it covers.
-- Coverage by value: the 85 tools have correct calls, and `A10` runs every value of the action,
+  (966 calls, 410 checks); `A90`–`A130` passed for 0.8.0, and `A74`, `A131` and `A132` for 0.9.0, each with the work it covers.
+- Coverage by value: the 86 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
   ([What you can ask for](#what-you-can-ask-for)).
@@ -492,6 +495,7 @@ Results (unit tests and acceptance scripts run on 2026-10-13):
 | `A71` | Conical helices: a circle of radius 2 drawn 10 mm from the axis and coiled 5 turns of 8 mm (40 high) reaches 12 mm from the axis with no taper, 19.053 mm at the end with a 10 degree taper and 2.947 mm with -10 degrees; a taper on a loft refused. |
 | `A72` | Helical curves about a cylindrical face, starting on its bottom face: 5 turns of 8 mm on a cylinder of radius 10 and 40 high (316.696 mm, climbing into it, or away when reversed); a spring path on a 30 mm diameter along which a 3 mm tube adds 3342.9 mm3 (the physical measurement gives 15909.34 mm3 in total, the body volume change reads 0.14 % low); an axis that is a planar face, and another diameter, refused. |
 | `A73` | Pack and Go of an assembly with a subassembly, a part kept in another folder and a drawing: the five files are copied to the new folder, where each copy refers only to files in that folder, while the originals keep their links; packing into the document's own folder, a missing document and an open one refused. |
+| `A74` | Design Manager on closed files: a drawing of an assembly with a subassembly and a pin, and an assembly outside the set that uses the pin. The drawing's four links read at every level; a title and a custom property written to the closed pin and read back; an existing name, a file outside the set, the top document and a set open in Solid Edge refused; the pin renamed (the assembly outside the set, in the folder given, uses the new name too), the plate copied and replaced by the original again, the pin moved without looking outside the set (the broken link found and redefined), the plate revised (plate-1.par, Revision 1), the pin released (taking it back to available refused) and the assembly put In Review; the subassembly's links under one folder redefined to a packed copy; duplicates by name and by document ID; Solid Edge then opens the assemblies with every new file found and the released pin read-only with its title. |
 | `A75` | Contour curves across several faces of a 100 x 60 x 20 block, one curve per face joined into one: top and front (58.416 mm), top, front and right (75.765 mm), a closed loop over the top and front, and a single face (89.443 mm); the volume stays 120000 mm3. |
 | `A76` | Property tables attached to faces and edges through the generic layer: a Finish table (roughness 1.6, coating Zinc) on the top face and an edge, and Treatment (hardness 45) on an extrusion's faces, values changed per attached table and kept after saving and reopening, found by table, name and value, one deleted; scalars only (arrays make Solid Edge throw a server fault), and the select filter must be an integer array. |
 | `A77` | Tab and slot between two sheet bodies, the second made as a new body: a rib on a 100 x 60 plate of thickness 1; a fitted set of two tabs (20 mm3 added, 29.12 mm3 of slots cut, 8330.88 mm3 left) and a filled one of three 3 mm deep tabs (90 mm3 added, 30 mm3 of slots cut, 8400 mm3 left); a rib whose top edge is not on the plate fails and is deleted, and a part is refused. |
@@ -548,6 +552,8 @@ Results (unit tests and acceptance scripts run on 2026-10-13):
 | `A128` | A hole table of a round lid that lists only its holes (not its outline or chamfer edge), also with the part closed, and a hole table deleted with `se_sheet_content` |
 | `A129` | A drawing view of a part with unsaved changes: the part stays marked as changed (also when the view fails) and closing it with saveChanges writes them |
 | `A130` | A hole table with one row per hole for a counterbore, a countersink, a tapered hole and a plain hole, and a view out of date with its part listing every circle until it is updated |
+| `A131` | An explode in a chosen orientation kept by its drawing view, bills of materials written to .csv and .xlsx files, and the parts list of a drawing written to a spreadsheet |
+| `A132` | The programs installed with Solid Edge beside Design Manager: the installation read by `se_server_info`; the 128 x 128 thumbnails of a closed part, assembly and drawing; a plate written as CATIA V5, CATIA V4, OBJ (with its material file), PLM XML (with a Parasolid file of the body), U3D and XGL, an assembly refused for CATIA and VRML refused; the CATIA files imported again with the volume of the plate (60000 mm3); batches as Translation Services: a folder with a subfolder to STEP (3 files, drawings left out, the subfolder kept), a drawing and a part that would write the same PDF (the second refused), a file open in Solid Edge exported from its document, which stays open, and a STEP file of the batch imported again with the same volume. |
 
 </details>
 
@@ -603,7 +609,7 @@ one in `C:\Program Files\dotnet`.
 ```text
 solid-edge-mcp/
 ├── src/
-│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (85 tools), Infrastructure/
+│   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/ (86 tools), Infrastructure/
 │   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
@@ -660,17 +666,18 @@ what the commit contains.
 
 ## Project status
 
-- **Current version (0.8.0).** The base program complete: every command on the ribbons of the part, sheet metal,
-  assembly and drawing environments is named in [docs/COVERAGE.md](docs/COVERAGE.md), those that the API allows are
-  available, and the others list the reason and an alternative. Working, registered in Claude Code and Codex, and validated end to end, by the
-  acceptance suite and by sessions in which Claude uses Solid Edge from requests in plain language. Change history in
+- **Current version (0.8.0).** The base program complete, and the programs installed with Solid Edge as far as their
+  automation allows: Design Manager on closed files (links, rename, copy, replace, move, revise, release, document
+  status, redefine links, broken links, duplicates), properties and thumbnails of closed files, batches and formats of
+  Translation Services and the installation data. Every command on the ribbons and every program of the Start menu is
+  named in [docs/COVERAGE.md](docs/COVERAGE.md); those the API allows are available, and the others list the reason and
+  an alternative. Working, registered in Claude Code and Codex, and validated end to end, by the acceptance suite and by
+  sessions in which Claude uses Solid Edge from requests in plain language. Change history in
   [CHANGELOG.md](CHANGELOG.md).
-- **Roadmap to 1.0.0:**
-  - 0.9.0: the programs installed with Solid Edge beside it, starting with Design Manager (links, rename, copy and
-    replace of files on closed documents), as far as their automation allows.
-  - 1.0.0: the complete, stable version: the base program and those programs, an easier installation (a build without
-    the Solid Edge interop, installable without compiling and through the Claude plugin marketplace), the full suite and
-    end-to-end sessions in every area, with tool names and parameters that no longer change.
+- **Roadmap to 1.0.0:** the complete, stable version: the base program and the programs installed with it, an easier
+  installation (a build without the Solid Edge interop, installable without compiling and through the Claude plugin
+  marketplace), the full suite and end-to-end sessions in every area, with tool names and parameters that no longer
+  change.
 - **Pending:** continuous integration (CI).
 
 ## License

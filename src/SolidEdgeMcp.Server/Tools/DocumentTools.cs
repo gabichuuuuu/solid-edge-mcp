@@ -29,6 +29,7 @@ public enum DocumentAction
     Status,
     SaveMirror,
     ModelingMode,
+    Thumbnail,
 }
 
 public enum DocumentLifeStatus
@@ -61,7 +62,7 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
 {
     [McpServerTool(Name = "se_documents", Title = "Solid Edge documents", Destructive = true, OpenWorld = false)]
     [Description("""
-        Documents. list | info | activate | new (kind, optional template) | open (path) | import (path of a STEP, IGES, Parasolid, JT, SAT, STL (read in mm), OBJ, 3MF, DXF or DWG file: a new unsaved document translated from it; kind and template optional, default part, or draft for DXF/DWG; returns the volume) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | save_mirror (part: path of a new .par, its mirror image about 'plane'; link = keep it linked to this part; the new part opens) | close (saveChanges required if there are unsaved changes) | templates (this installation's default template of each kind and the templates in its folders; optional kind) | status (value = available | in_work | in_review | released | baselined | obsolete: set and read back; none: read) | undo | redo (steps; only what Solid Edge recorded: holes, deletes, suppressions... but not features made from sketches, and creating a sketch clears the history; nothing to undo is an error) | recompute | modeling_mode (part or sheet metal: mode = synchronous | ordered sets it, as the ribbon's Synchronous and Ordered buttons; none: read).
+        Documents. list | info | activate | new (kind, optional template) | open (path) | import (path of a STEP, IGES, Parasolid, JT, SAT, STL (read in mm), OBJ, 3MF, CATIA V5 (.catpart), CATIA V4 (.model), DXF or DWG file: a new unsaved document translated from it; kind and template optional, default part, or draft for DXF/DWG; returns the volume) | save | save_as (path, overwrite) | save_copy_as (path, overwrite) | save_mirror (part: path of a new .par, its mirror image about 'plane'; link = keep it linked to this part; the new part opens) | close (saveChanges required if there are unsaved changes) | templates (this installation's default template of each kind and the templates in its folders; optional kind) | status (value = available | in_work | in_review | released | baselined | obsolete: set and read back; none: read) | undo | redo (steps; only what Solid Edge recorded: holes, deletes, suppressions... but not features made from sketches, and creating a sketch clears the history; nothing to undo is an error) | recompute | modeling_mode (part or sheet metal: mode = synchronous | ordered sets it, as the ribbon's Synchronous and Ordered buttons; none: read) | thumbnail (path: the picture saved in a Solid Edge file, as Windows Explorer shows it, read without opening the file; 128 x 128).
         Without 'document' the active document is used. Paths must be absolute and inside the allowed folders (se_server_info). save_as keeps the native format (.par .psm .asm .dft .pwd); use se_export for other formats.
         Example: {"action":"new","kind":"part"} then {"action":"save_as","path":"D:\\CAD\\block.par"}.
         """)]
@@ -70,7 +71,7 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
         [Description("Document handle (e.g. 'doc:1'); default: active document.")] string? document = null,
         [Description("For 'new', 'templates' and 'import': part | sheet_metal | assembly | draft | weldment (without a .pwd template, as Solid Edge 2026 installs none, an assembly from the weldment assembly template set in Solid Edge's options).")] DocumentKind? kind = null,
         [Description("For 'new' and 'import': template file (optional; allowed folders or the Solid Edge template folder).")] string? template = null,
-        [Description("For 'open', 'import', 'save_as', 'save_copy_as': absolute file path.")] string? path = null,
+        [Description("For 'open', 'import', 'save_as', 'save_copy_as', 'thumbnail': absolute file path.")] string? path = null,
         [Description("For 'save_as'/'save_copy_as': replace an existing file.")] bool overwrite = false,
         [Description("For 'close': true saves, false discards unsaved changes.")] bool? saveChanges = null,
         [Description("For 'undo'/'redo': number of steps (default 1).")] int steps = 1,
@@ -107,6 +108,11 @@ public sealed class DocumentTools(ToolRunner runner, PathGuard guard)
             DocumentAction.Status => runner.RunAsync(tool, name, c => DocumentService.Status(c, document, value is { } v ? FeatureTools.Snake(v) : null), cancellationToken),
             DocumentAction.Recompute => runner.RunAsync(tool, name, c => DocumentService.Edit(c, document, "recompute", 1), cancellationToken),
             DocumentAction.ModelingMode => runner.RunAsync(tool, name, c => DocumentService.ModelingMode(c, document, mode is { } m ? FeatureTools.Snake(m) : null), cancellationToken),
+            DocumentAction.Thumbnail => runner.RunAsync(tool, name, c =>
+            {
+                ThumbnailService.Thumbnail thumbnail = ThumbnailService.Read(c, ToolRunner.Require(path, "path", "thumbnail"));
+                return new ToolImage(thumbnail.Png, "image/png", new { file = thumbnail.File, width = thumbnail.Width, height = thumbnail.Height });
+            }, cancellationToken, precheck: precheck),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

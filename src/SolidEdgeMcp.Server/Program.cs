@@ -115,6 +115,7 @@ public static class Program
         typeof(ComponentTools),
         typeof(InternalComponentTools),
         typeof(LinkTools),
+        typeof(DesignManagerTools),
         typeof(FrameTools),
         typeof(DrawingTools),
         typeof(DrawingViewTools),

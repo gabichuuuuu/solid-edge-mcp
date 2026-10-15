@@ -28,7 +28,25 @@ public static class ExportService
         [".sat"] = "ACIS",
         [".3mf"] = "3MF",
         [".pdf"] = "PDF",
+        [".catpart"] = "CATIA V5",
+        [".model"] = "CATIA V4",
+        [".obj"] = "OBJ",
+        [".plmxml"] = "PLM XML",
+        [".u3d"] = "U3D",
+        [".xgl"] = "XGL",
     };
+
+    /// <summary>
+    /// Formats Solid Edge 2026 writes for parts and sheet metal only. Verified: an assembly saved as .catproduct writes
+    /// nothing, as .catpart gives REGDB_E_CLASSNOTREG and as .model gives E_FAIL; OBJ, PLM XML, U3D and XGL take assemblies
+    /// too. Any other extension Solid Edge does not translate (.wrl, .bmp, .jpg, .emf, .dgn…) gets a copy in its own format.
+    /// </summary>
+    private static readonly HashSet<string> PartOnlyFormats = new(StringComparer.OrdinalIgnoreCase) { ".catpart", ".model" };
+
+    /// <summary>The Solid Edge files a batch takes for each kind of format.</summary>
+    private static readonly string[] ModelFiles = [".par", ".psm", ".asm", ".pwd"];
+    private static readonly string[] DraftFiles = [".dft"];
+    private const int MaxBatch = 500;
 
     private static readonly Dictionary<string, string> DraftFormats = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -48,8 +66,27 @@ public static class ExportService
     public static IEnumerable<string> Extensions(bool draft, bool flatPattern) =>
         (flatPattern ? FlatFormats : draft ? DraftFormats : ModelFormats).Keys;
 
-    public static object Export(SeContext context, string? handle, string path, bool overwrite, bool flatPattern, string[]? bodies = null)
+    public static object Export(SeContext context, string? handle, string path, bool overwrite, bool flatPattern, string[]? bodies = null, string? table = null)
     {
+        // The cells of a drawing table go to a spreadsheet file, written by the server (Solid Edge has no call for it).
+        if (Path.GetExtension(path).ToLowerInvariant() is ".csv" or ".xlsx")
+        {
+            if (string.IsNullOrWhiteSpace(table))
+            {
+                throw ToolException.InvalidArgument("A .csv or .xlsx file takes the cells of a table of a drawing: give 'table' (a handle from se_drawing tables or se_sheet_content list).",
+                    "For the bill of materials of an assembly, use se_bom with 'path'.");
+            }
+
+            (List<string?> headers, List<string?[]> rows) = DrawingService.TableCells(context, table);
+            string saved = TableFile.Write(context, path, overwrite, headers, rows.Select(r => (IReadOnlyList<object?>)[.. r.Cast<object?>()]));
+            return new { table, savedTo = saved, columns = headers, count = rows.Count };
+        }
+
+        if (!string.IsNullOrWhiteSpace(table))
+        {
+            throw ToolException.InvalidArgument("'table' is written to a .csv or .xlsx file.", "Give a 'path' ending in .csv or .xlsx.");
+        }
+
         SolidEdgeDocument document = context.GetDocument(handle);
         string kind = DocumentKinds.ToKind(document.Type);
         bool draft = kind == "draft";
@@ -61,6 +98,12 @@ public static class ExportService
             string what = flatPattern ? "a flat pattern" : $"a {kind.Replace('_', ' ')} document";
             throw ToolException.InvalidArgument($"Cannot export {what} to '{extension}'.",
                 $"Use one of: {string.Join(", ", formats.Keys)}." + (draft ? "" : " For drawings, export the draft document."));
+        }
+
+        if (!flatPattern && PartOnlyFormats.Contains(extension) && kind is not ("part" or "sheet_metal"))
+        {
+            throw ToolException.InvalidArgument($"Solid Edge writes {format} files of parts and sheet metal, not of a {kind.Replace('_', ' ')} document.",
+                "Export the parts one by one, or the assembly to STEP, JT, Parasolid or PLM XML.");
         }
 
         object[]? models = null;
@@ -87,7 +130,9 @@ public static class ExportService
             File.Delete(target);
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        string folder = Path.GetDirectoryName(target)!;
+        Directory.CreateDirectory(folder);
+        DateTime started = DateTime.UtcNow;
         bool wasDirty = document.Dirty;
         try
         {
@@ -133,6 +178,11 @@ public static class ExportService
         double? stlUnit = format == "STL" ? StlUnit(context, "Export Units") : null;
         StlFile.Info? stl = format != "STL" ? null : stlUnit is { } unit && unit != 1 ? StlFile.Scale(target, target, unit) : StlFile.Inspect(target);
         file.Refresh();
+        // Some translators write files beside the target. Verified: OBJ writes its .mtl material file and a .log, PLM XML a
+        // Parasolid file per body (named after the part) and .UUIDs.txt.
+        string[] beside = [.. Directory.EnumerateFiles(folder)
+            .Where(f => !f.Equals(target, StringComparison.OrdinalIgnoreCase) && File.GetLastWriteTimeUtc(f) >= started)
+            .Order(StringComparer.OrdinalIgnoreCase)];
 
         // Drawing templates fill the title block with file data (e.g. the date): if unsaved they come out
         // as "Error: No reference" (verified with the A3 template of Solid Edge 2026).
@@ -177,6 +227,7 @@ public static class ExportService
             pages = pdf?.Pages,
             pageSizes = pdf?.PageSizes.Count > 0 ? pdf.PageSizes : null,
             bodies = models?.Length,
+            alsoWritten = beside.Length > 0 ? beside : null,
             stl = stl is null ? null : new
             {
                 triangles = stl.Triangles,
@@ -189,6 +240,140 @@ public static class ExportService
                 },
             },
             note,
+        };
+    }
+
+    /// <summary>
+    /// Batch translation of saved files, as Solid Edge Translation Services does from the command line (it opens each file
+    /// in Solid Edge, saves a copy in the format and closes it). Every Solid Edge file given, or found in the folders given,
+    /// that the format takes (parts, sheet metal, assemblies and weldments for model formats, drawings for drawing formats)
+    /// is written into <paramref name="folder"/> with its own name; the files of a folder keep their subfolders. A file the
+    /// person already has open is exported from that document, which stays open; the others are opened and closed without
+    /// saving. A file that fails is reported and the batch goes on.
+    /// </summary>
+    public static object ExportFiles(SeContext context, string[] files, string? folder, string format, bool subfolders, bool overwrite)
+    {
+        string extension = "." + format.Trim().TrimStart('.').ToLowerInvariant();
+        bool model = ModelFormats.ContainsKey(extension), drawing = DraftFormats.ContainsKey(extension);
+        if (!model && !drawing)
+        {
+            throw ToolException.InvalidArgument($"'{format}' is not a format se_export writes.",
+                $"Use one of: {string.Join(", ", ModelFormats.Keys.Union(DraftFormats.Keys))}.");
+        }
+
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            throw ToolException.InvalidArgument("A batch needs 'path': the folder the files are written to.");
+        }
+
+        string output = context.Paths.Check(folder);
+        if (File.Exists(output))
+        {
+            throw ToolException.InvalidArgument($"'{output}' is a file: with 'files', 'path' is the output folder.", "Give a folder.");
+        }
+
+        string[] kinds = PartOnlyFormats.Contains(extension) ? [".par", ".psm"] : [.. (model ? ModelFiles : []), .. (drawing ? DraftFiles : [])];
+        var jobs = new List<(string Source, string Target)>();
+        foreach (string entry in files)
+        {
+            string input = context.Paths.Check(entry, "files");
+            if (Directory.Exists(input))
+            {
+                foreach (string found in Directory.EnumerateFiles(input, "*", subfolders ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
+                    .Where(f => kinds.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+                    .Order(StringComparer.OrdinalIgnoreCase))
+                {
+                    string relative = Path.GetRelativePath(input, Path.GetDirectoryName(found)!);
+                    jobs.Add((found, Path.GetFullPath(Path.Combine(output, relative, Path.GetFileNameWithoutExtension(found) + extension))));
+                }
+            }
+            else if (File.Exists(input))
+            {
+                jobs.Add((input, Path.Combine(output, Path.GetFileNameWithoutExtension(input) + extension)));
+            }
+            else
+            {
+                throw ToolException.NotFound($"'{input}' does not exist.");
+            }
+        }
+
+        if (jobs.Count == 0)
+        {
+            throw ToolException.NotFound($"No Solid Edge files that {extension} takes ({string.Join(", ", kinds)}) were found{(subfolders ? "" : " (subfolders=true looks in subfolders too)")}.");
+        }
+
+        if (jobs.Count > MaxBatch)
+        {
+            throw ToolException.InvalidArgument($"{jobs.Count} files: a batch takes at most {MaxBatch}.", "Split it by folder.");
+        }
+
+        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var results = new List<object>();
+        int exported = 0;
+        foreach ((string source, string target) in jobs)
+        {
+            if (!kinds.Contains(Path.GetExtension(source), StringComparer.OrdinalIgnoreCase))
+            {
+                results.Add(new { file = source, error = new { code = "invalid_argument", message = $"{extension} files are written from {string.Join(", ", kinds)} files, not from this one." } });
+                continue;
+            }
+
+            if (!targets.Add(target))
+            {
+                results.Add(new { file = source, error = new { code = "same_target", message = $"Another file of the batch is written to '{target}'." } });
+                continue;
+            }
+
+            string? opened = null;
+            try
+            {
+                string handle;
+                if (DocumentService.FindOpen(context, source) is { } open)
+                {
+                    handle = context.DocumentHandle(open);
+                }
+                else
+                {
+                    // Closed after the export only if this call opened it: a document the person has open under another
+                    // spelling of its path (a mapped drive, a junction) comes back from Documents.Open and stays open.
+                    int count = context.Application.Documents.Count;
+                    handle = DocumentService.Open(context, source).Handle;
+                    opened = context.Application.Documents.Count > count ? handle : null;
+                }
+
+                results.Add(new { file = source, written = Export(context, handle, target, overwrite, false) });
+                exported++;
+            }
+            catch (ToolException ex)
+            {
+                results.Add(new { file = source, error = new { code = ex.Code, message = ex.Message } });
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+                results.Add(new { file = source, error = new { code = "export_failed", message = $"Solid Edge could not open or export it: {ex.Message.Trim()}" } });
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // E.g. the previous file is open in another program and overwrite cannot delete it.
+                results.Add(new { file = source, error = new { code = "export_failed", message = ex.Message.Trim() } });
+            }
+            finally
+            {
+                if (opened is not null)
+                {
+                    DocumentService.Close(context, opened, false);
+                }
+            }
+        }
+
+        return new
+        {
+            format = extension,
+            folder = output,
+            count = jobs.Count,
+            exported,
+            failed = jobs.Count - exported,
+            files = results,
         };
     }
 
