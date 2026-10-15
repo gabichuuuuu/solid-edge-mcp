@@ -6,6 +6,18 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-16
+
+The programs installed with Solid Edge, as far as their automation allows. Design Manager works on closed files through
+the new `se_design_manager` tool: the links of a document at every level, its actions (rename, copy, replace, move,
+revise, release) on the files of a set with every document that uses them updated, document status, redefined links,
+broken links and duplicates. Closed files also give their properties and thumbnails; `se_export` writes batches of
+saved files and folders as Translation Services does, in more formats; and `se_server_info` reports the installation.
+Every program of the Start menu is named in the coverage map, with the reason and an alternative for those that only
+work through their own windows or need a server: 364 of the 501 functions work through the 86 tools (72 %). The
+acceptance scripts A74, A131 and A132 pass, and an end-to-end session from a request in plain language used Design
+Manager, the batches and the thumbnails on the files it had modelled.
+
 ### Added
 
 - `se_bom` with `path` writes the report to a .csv or .xlsx file of an allowed folder (`savedTo`): every line with a

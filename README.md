@@ -14,7 +14,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![86 tools](https://img.shields.io/badge/tools-86-2F6FEB)
 
-![Version 0.8.0](https://img.shields.io/badge/version-0.8.0-2F6FEB)
+![Version 0.9.0](https://img.shields.io/badge/version-0.9.0-2F6FEB)
 [![Progress: 72 % of functions work through the MCP](https://img.shields.io/badge/progress-72%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
@@ -67,7 +67,7 @@ for approval.
 </table>
 
 > [!NOTE]
-> Current version (0.8.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
+> Current version (0.9.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
 > works and has been validated end to end with Claude Code and Codex. Until 1.0.0 a tool name or
 > parameter may still change; every such change is listed in the changelog.
 
@@ -666,7 +666,7 @@ what the commit contains.
 
 ## Project status
 
-- **Current version (0.8.0).** The base program complete, and the programs installed with Solid Edge as far as their
+- **Current version (0.9.0).** The base program complete, and the programs installed with Solid Edge as far as their
   automation allows: Design Manager on closed files (links, rename, copy, replace, move, revise, release, document
   status, redefine links, broken links, duplicates), properties and thumbnails of closed files, batches and formats of
   Translation Services and the installation data. Every command on the ribbons and every program of the Start menu is
