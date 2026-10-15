@@ -6,6 +6,16 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-15
+
+The base program complete. Every command on the ribbons of the part, sheet metal, assembly and drawing environments of
+Solid Edge (731 commands) is named in the coverage map, and those the API allows are available: 351 of the 481
+functions work through the 85 tools (72 %; the map grew from 343 functions in 0.7.0 as every ribbon command was
+added). Each of the other 130 is documented with the reason and an alternative when there is one: 63 have no route
+through the API of Solid Edge 2026, 10 leave it unstable and are refused by the generic layer, 13 need another edition
+or installation, 35 are interactive commands and 9 belong to separate programs. The acceptance scripts added since 0.7.0
+(A90 to A130) pass, and end-to-end sessions from requests in plain language found the defects fixed below.
+
 ### Added
 
 - `se_material apply` on a weldment gives its weld beads the material and its library density (Bead Material), so the

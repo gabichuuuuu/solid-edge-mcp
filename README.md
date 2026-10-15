@@ -14,7 +14,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![85 tools](https://img.shields.io/badge/tools-85-2F6FEB)
 
-![Version 0.7.0](https://img.shields.io/badge/version-0.7.0-2F6FEB)
+![Version 0.8.0](https://img.shields.io/badge/version-0.8.0-2F6FEB)
 [![Progress: 72 % of functions work through the MCP](https://img.shields.io/badge/progress-72%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
@@ -67,7 +67,7 @@ for approval.
 </table>
 
 > [!NOTE]
-> Current version (0.7.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
+> Current version (0.8.0), tested with Solid Edge **Community Edition 2026** on Windows 11 x64. It
 > works and has been validated end to end with Claude Code and Codex. Until 1.0.0 a tool name or
 > parameter may still change; every such change is listed in the changelog.
 
@@ -404,11 +404,11 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 Results (unit tests and acceptance scripts run on 2026-10-13):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 78/78 and `SolidEdgeMcp.Server.Tests` 648/648.
-- Acceptance suite against real Solid Edge 2026: scripts `A01`–`A93` (there is no `A74`), with expected values computed
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 81/81 and `SolidEdgeMcp.Server.Tests` 716/716.
+- Acceptance suite against real Solid Edge 2026: scripts `A01`–`A130` (there is no `A74`), with expected values computed
   from formulas (or Solid Edge reference values when there is no simple formula, noted in the script). The last full run
   (`A01`–`A53`) made **4578 calls and 2331 checks** without failures, and `A54`–`A89` passed together for 0.7.0
-  (966 calls, 410 checks); `A90`–`A93` passed after it.
+  (966 calls, 410 checks); `A90`–`A130` passed for 0.8.0, each with the work it covers.
 - Coverage by value: the 85 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
@@ -660,18 +660,17 @@ what the commit contains.
 
 ## Project status
 
-- **Current version (0.7.0).** The base program at its maximum: the functions that failed through the API were tried
-  again by other routes, and those that still fail list the reason and an alternative in
-  [docs/COVERAGE.md](docs/COVERAGE.md). Working, registered in Claude Code and Codex, and validated end to end, by the
+- **Current version (0.8.0).** The base program complete: every command on the ribbons of the part, sheet metal,
+  assembly and drawing environments is named in [docs/COVERAGE.md](docs/COVERAGE.md), those that the API allows are
+  available, and the others list the reason and an alternative. Working, registered in Claude Code and Codex, and validated end to end, by the
   acceptance suite and by sessions in which Claude uses Solid Edge from requests in plain language. Change history in
   [CHANGELOG.md](CHANGELOG.md).
 - **Roadmap to 1.0.0:**
-  - 0.8.0: the base program complete: every command on the ribbons of the part, sheet metal, assembly and drawing
-    environments mapped in [docs/COVERAGE.md](docs/COVERAGE.md), and those that the API allows made available.
-  - 0.9.0: an easier installation: a build without the Solid Edge interop, installable without compiling and through the Claude plugin marketplace.
-  - 1.0.0: the complete, stable version: the full suite and end-to-end sessions in every area, with tool names and
-    parameters that no longer change.
-- **After 1.0.0:** Design Manager and the other programs installed with Solid Edge.
+  - 0.9.0: the programs installed with Solid Edge beside it, starting with Design Manager (links, rename, copy and
+    replace of files on closed documents), as far as their automation allows.
+  - 1.0.0: the complete, stable version: the base program and those programs, an easier installation (a build without
+    the Solid Edge interop, installable without compiling and through the Claude plugin marketplace), the full suite and
+    end-to-end sessions in every area, with tool names and parameters that no longer change.
 - **Pending:** continuous integration (CI).
 
 ## License
