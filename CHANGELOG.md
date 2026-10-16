@@ -6,6 +6,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A build from source after `scripts/package.ps1` kept the `deps.json` of the package, without the Solid Edge interop:
+  the server carried the interop beside it but could not load it, and its tools answered `interop_missing`. The
+  `deps.json` is now built again when the package setting changes. The release package was not affected.
+
 ## [1.0.0] - 2026-10-16
 
 The complete, stable version: the base program of Solid Edge (0.8.0) and the programs installed with it (0.9.0), now
