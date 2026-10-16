@@ -23,4 +23,9 @@
     <InternalsVisibleTo Include="SolidEdgeMcp.Server.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The generator the server runs on its first start when the interop is not beside it (InteropBootstrap). -->
+    <None Include="..\..\scripts\generate-interop.ps1" Link="scripts\generate-interop.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

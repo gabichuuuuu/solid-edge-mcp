@@ -37,6 +37,18 @@ public static class Program
             return 2;
         }
 
+        // Before any type of the Solid Edge interop is loaded: the distributed package generates it on its first start.
+        // Its messages also go to the log file once the logger exists.
+        var interopMessages = new List<string>();
+        string? interop = InteropBootstrap.Ensure(paths, message =>
+        {
+            Console.Error.WriteLine($"solid-edge-mcp: {message}");
+            lock (interopMessages)
+            {
+                interopMessages.Add(message);
+            }
+        });
+
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
             Args = [],
@@ -55,6 +67,16 @@ public static class Program
         PathGuard guard = host.Services.GetRequiredService<PathGuard>();
         logger.LogInformation("solid-edge-mcp {Version} starting. Policy: {Policy}. Allowed roots: {Roots}",
             Version, policy.SourceFile ?? "(defaults)", string.Join("; ", guard.AllowedRoots));
+        foreach (string message in interopMessages)
+        {
+            logger.LogInformation("Interop: {Message}", message);
+        }
+
+        if (interop is not null)
+        {
+            logger.LogInformation("Solid Edge interop loaded from {Folder}", interop);
+        }
+
         foreach (string warning in guard.Warnings)
         {
             logger.LogWarning("{Warning}", warning);
@@ -155,6 +177,7 @@ public static class Program
         Part modelling (ordered): se_sketch create → draw → close → se_extrude / se_revolve; se_round / se_chamfer take edge handles from se_geometry. Every new feature is verified and removed if it fails.
         Check results with se_feature_tree, se_geometry, se_physical and se_view 'capture' (an image of the model).
         Files can only be opened, saved, exported or inserted inside the allowed folders (se_server_info lists them).
+        Closed files (as Design Manager): se_design_manager reads their links, renames, copies, replaces, moves, revises or releases them and updates the documents that use them; se_properties with 'path' edits their properties; se_export with 'files' or 'folders' converts them. Close them in Solid Edge first.
         Each installation has its own language, theme, templates, libraries, materials and styles: do not assume names or places. List them first (se_material list, se_appearance list, se_frame library, se_options, se_documents templates), find a button by the text it shows with se_ui find and run it with se_command, and read the closest names an error suggests.
         Base planes: 'xy', 'yz', 'xz' pick the plane by its orientation in any template ('1'-'3' follow the template's order).
         If Solid Edge misbehaves (features that worked start failing), se_session restart.

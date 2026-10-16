@@ -146,6 +146,14 @@ public static class DocumentService
             throw ToolException.NotFound($"The file does not exist: '{checkedPath}'.");
         }
 
+        // Documents.Open of a file of another CAD system fails with E_FAIL (verified in Solid Edge 2026 with a STEP file):
+        // Solid Edge translates it into a new document.
+        if (ForeignFormats.ContainsKey(Path.GetExtension(checkedPath)))
+        {
+            throw ToolException.InvalidArgument($"'{Path.GetFileName(checkedPath)}' is a file of another CAD system: Solid Edge translates it into a new document instead of opening it.",
+                "Use action 'import' with this path (optionally 'kind' and 'template').");
+        }
+
         SolidEdgeDocument? already = FindOpen(context, checkedPath);
         if (already is not null)
         {

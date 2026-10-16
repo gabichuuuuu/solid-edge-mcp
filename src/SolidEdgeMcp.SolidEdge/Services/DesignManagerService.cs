@@ -130,12 +130,15 @@ public static class DesignManagerService
             throw ToolException.InvalidArgument("'files' names the same file twice.");
         }
 
-        if (sources.FirstOrDefault(s => Same(s, top)) is { } self)
+        // Copy takes the top document with the files it refers to, as the rows of Design Manager's window: the copy of the top
+        // uses the copies and the original keeps the originals (verified in Solid Edge 2026 with a drawing and its part).
+        int topIndex = Array.FindIndex(sources, s => Same(s, top));
+        if (topIndex >= 0 && code != CopyAction)
         {
-            throw ToolException.InvalidArgument($"'{Path.GetFileName(self)}' is the top document of the set: Design Manager acts on the files it refers to.",
+            throw ToolException.InvalidArgument($"'{Path.GetFileName(top)}' is the top document of the set: Design Manager {action}s the files it refers to.",
                 code == ReleaseAction
                     ? "Release it with action 'status' and status 'released'."
-                    : "Give as 'path' a document that uses it (e.g. its drawing), or save a copy with se_documents save_as.");
+                    : "Give as 'path' a document that uses it (e.g. its drawing); only copy takes the top document itself, with its files.");
         }
 
         string[] targets = code == ReleaseAction ? sources : [.. sources.Select((s, i) => Target(context, code, s, to![i]))];
@@ -147,7 +150,7 @@ public static class DesignManagerService
         return WithDesignManager(manager =>
         {
             (List<string> before, List<(string Parent, string Child)> links) = SetOf(manager, top);
-            if (sources.FirstOrDefault(s => !before.Any(b => Same(b, s))) is { } stranger)
+            if (sources.Where((_, i) => i != topIndex).FirstOrDefault(s => !before.Any(b => Same(b, s))) is { } stranger)
             {
                 throw ToolException.InvalidArgument($"'{Path.GetFileName(stranger)}' is not in the set of '{Path.GetFileName(top)}'.",
                     "List the set with action 'links'; give as 'path' a document that uses the file.");
@@ -157,6 +160,30 @@ public static class DesignManagerService
             // of the files): the policy covers them as well as the files given.
             string[] parents = code == ReleaseAction ? []
                 : [.. links.Where(l => sources.Any(s => Same(s, l.Child))).Select(l => l.Parent).Distinct(StringComparer.OrdinalIgnoreCase)];
+            if (topIndex >= 0)
+            {
+                // A document between the top and a copied file that is not copied itself would be rewritten to use the copy,
+                // and the original top would then use it too.
+                var uncopied = new List<string>();
+                string[] level = sources;
+                while (level.Length > 0)
+                {
+                    level = [.. links.Where(l => level.Any(f => Same(f, l.Child))).Select(l => l.Parent)
+                        .Where(p => !sources.Any(s => Same(s, p)) && !uncopied.Any(u => Same(u, p))).Distinct(StringComparer.OrdinalIgnoreCase)];
+                    uncopied.AddRange(level);
+                }
+
+                if (uncopied.Count > 0)
+                {
+                    throw ToolException.InvalidArgument(
+                        $"Copying '{Path.GetFileName(top)}' with its files needs the documents between them too, or the original would use the copies: add {string.Join(", ", uncopied.Select(Path.GetFileName))} to 'files'.",
+                        "Give every document of the chain from 'path' to the files, each with its new name in 'to'.");
+                }
+
+                // Every document that uses a copied file is copied too: none of the originals is rewritten.
+                parents = [];
+            }
+
             if (parents.FirstOrDefault(p => !context.Paths.IsAllowed(p)) is { } beyond)
             {
                 throw new ToolException("path_not_allowed", $"'{beyond}' uses one of 'files' and Design Manager would rewrite it, but it is outside the allowed folders.",
@@ -182,7 +209,9 @@ public static class DesignManagerService
                 targets.Cast<object>().ToArray(), Type.Missing);
             Arm(ActionLimit);
             Late.Call(manager, "PerformAction");
-            List<string> after = AllLinks(manager, top);
+            string? topCopy = topIndex >= 0 ? targets[topIndex] : null;
+            List<string> after = topCopy is not null && File.Exists(topCopy) ? AllLinks(manager, topCopy) : AllLinks(manager, top);
+            List<string> original = topCopy is null ? after : AllLinks(manager, top);
 
             var problems = new List<string>();
             var done = new List<string>();
@@ -205,9 +234,14 @@ public static class DesignManagerService
                         break;
                 }
 
-                if (code != ReleaseAction && (!after.Any(a => Same(a, target)) || after.Any(a => Same(a, source))))
+                if (code != ReleaseAction && i != topIndex && (!after.Any(a => Same(a, target)) || after.Any(a => Same(a, source))))
                 {
-                    problems.Add($"the set does not use {Path.GetFileName(target)} instead of {Path.GetFileName(source)}");
+                    problems.Add($"{Path.GetFileName(topCopy ?? top)} does not use {Path.GetFileName(target)} instead of {Path.GetFileName(source)}");
+                }
+
+                if (topCopy is not null && i != topIndex && original.Any(a => Same(a, target)))
+                {
+                    problems.Add($"{Path.GetFileName(top)} uses {Path.GetFileName(target)} instead of keeping {Path.GetFileName(source)}");
                 }
 
                 if (problems.Count == failures)
@@ -251,6 +285,7 @@ public static class DesignManagerService
             {
                 action,
                 document = top,
+                copy = topCopy,
                 changed,
                 outsideUsers = code is RenameAction or MoveAction ? users : null,
                 note = unlinked > 0 ? $"{unlinked} document(s) outside the set still use the old file: point them at the new one with action 'relink'." : null,

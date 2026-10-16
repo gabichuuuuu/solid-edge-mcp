@@ -157,7 +157,7 @@ $report = [SeInteropGenerator]::Run([string[]]$files, $OutputDir)
 
 $version = (Get-Item -LiteralPath (Join-Path $ProgramDir 'Edge.exe')).VersionInfo.ProductVersion
 Set-Content -LiteralPath (Join-Path $OutputDir 'SOURCE.txt') -Encoding UTF8 -Value @(
-    "Generado: $(Get-Date -Format s)",
+    "Generated: $(Get-Date -Format s)",
     "Solid Edge: $version",
     "Program: $ProgramDir"
 )

@@ -23,10 +23,10 @@ Claude Desktop, Codex or any other MCP client.**
 </div>
 
 It lets an AI assistant help you work in Solid Edge through COM: querying models, drawing
-sketches, creating part and sheet metal features, building assemblies, making drawings and
-exporting. You stay in control: tools that can change anything are flagged so your MCP client
-asks for your approval. It is general purpose: it does not depend on specific files, a specific
-machine or a specific workflow.
+sketches, creating part and sheet metal features, building assemblies, making drawings,
+exporting, and managing closed files as Design Manager does. You stay in control: tools that can
+change anything are flagged so your MCP client asks for your approval. It is general purpose: it
+does not depend on specific files, a specific machine or a specific workflow.
 
 <table>
 <tr>
@@ -34,8 +34,8 @@ machine or a specific workflow.
 
 **Broad coverage**
 
-Parts, sheet metal, assemblies, drawings and export with 86 tools, plus the whole API through a
-generic COM layer.
+Parts, sheet metal, assemblies, drawings, export and Design Manager with 86 tools, plus the whole
+API through a generic COM layer.
 
 </td>
 <td width="50%" valign="top">
@@ -60,7 +60,7 @@ for approval.
 
 **Tested for real**
 
-3642 calls and 1907 checks against real Solid Edge 2026, compared with expected values computed from formulas.
+7208 calls and 3694 checks against real Solid Edge 2026 in the last full run, compared with expected values computed from formulas.
 
 </td>
 </tr>
@@ -100,21 +100,55 @@ was measured afterwards, separately, by reopening the generated files.
 | Solid Edge's version and default part template; the start screen turned off and back on; a 100 × 60 × 8 steel plate with a Ø10 through hole; a dark blue to white gradient background for an isometric capture, then the previous background again; an A3 drawing with front, top and right views, printed to PDF with Microsoft Print to PDF | Claude Code | 40 turns, 0 errors; 47,371.68 mm³ = 48,000 − π·5²·8; 0.3711 kg at 7,833 kg/m³; start screen and background as before; first-angle views (top below, right on the left); one-page A3 PDF, 420 × 297 mm |
 | A 120 × 80 × 8 steel plate with four Ø8 holes, an 8 × 30 pin, an assembly with two pins in the holes and an A3 drawing; then, with the files closed, as in Design Manager: the drawing's links at every level, the pin renamed and the plate revised without losing references, a title and In Review for the assembly; the parts and the assembly to STEP and the drawing to PDF in batches; the assembly's thumbnail and the installed Solid Edge and Parasolid versions | Claude Code | 61 calls, 1 close refused for unsaved changes and repeated without saving; renamed pin and plate revision 1 used by the assembly and the drawing, 0 broken links; title and In Review read from the closed file; 4 STEP files and a one-page A3 PDF; the assembly's STEP read back with 78,207.43 mm³ = 76,800 − 4·π·4²·8 + 2·π·4²·30, 0.6126 kg at 7,833 kg/m³ |
 | A 1 mm sheet metal tray: a 100 × 60 tab, a 20 flange measured from the outer face, a round gusset on its bend, unbent to check the flat size and bent again; a 100 × 60 × 20 steel block with four Ø8 holes 15 mm from the corners and a 10 × 5 slot along it, made by sweeping a Ø10 cylinder along a line; an A3 drawing with two views and a hole table, to PDF; an assembly with the tray resting on the block and its bill of materials | Claude Code | 67 calls, 0 errors; block 110,978.76 mm³ = 120,000 − 4·π·4²·20 − 100·10·5, 0.8693 kg; flat pattern 100 × 78.089; hole table with 4 rows at (15, 15), (85, 15), (85, 45), (15, 45); one-page A3 PDF, 420 × 297 mm; tray fully constrained at z 20, no interference; BOM 1 + 1 |
+| Through the Claude Code plugin: a steel block whose length is a variable L, set by goal seek for a volume of 75,000 mm³; a quarter cylinder surface of R50 × 40 thickened 2 mm outwards into a solid; a 200 × 200 × 5 plate with a 3 × 3 pattern of Ø10 holes 60 mm apart, a Ø10 × 20 pin and an assembly with the pin repeated along the plate's pattern; a PMI dimension and a PMI note on the plate; an automatic exploded view saved with the assembly | Claude Code (plugin) | 72 calls, 0 errors; L = 125, 75,000 mm³; 6,408.85 mm³ = π/4·(52² − 50²)·40, box 52 × 52 × 40; plate 196,465.71 mm³ = 200,000 − 9·π·5²·5, holes at x, y ∈ {−60, 0, 60}; 10 occurrences, BOM 1 + 9, no interference; PMI 200 and "Material: S235"; explode configuration saved |
 
 ## Quick start
 
 ### Requirements
 
 - Windows x64 with Solid Edge installed and licensed (the Community Edition works).
-- .NET 10 SDK to build (version pinned in `global.json`).
-- Windows PowerShell 5.1 to generate the interop (the script relaunches itself with it if it is run
-  from PowerShell 7).
+- Windows PowerShell 5.1, which comes with Windows: the server uses it to generate the Solid Edge
+  interop, and the plugin to install the server.
+- To build from source, the .NET 10 SDK (version pinned in `global.json`).
 
 With the Community Edition, the license is provided through the machine variable
 `SE_LICENSE_SERVER`. Processes opened before Solid Edge was installed do not have it; the server
 copies it when it starts `Edge.exe`.
 
 ### Install
+
+The Solid Edge interop derives from Siemens files, so it is not distributed: the server generates it
+from your installation on its first start, in a few seconds, and keeps it in
+`%LocalAppData%\SolidEdgeMcp\interop\<Solid Edge version>`. Install the server in one of three ways.
+
+**As a Claude Code plugin** (from 1.0.0):
+
+```text
+/plugin install solid-edge-mcp --marketplace gabichuuuuu/solid-edge-mcp
+```
+
+Or from a terminal:
+
+```powershell
+claude plugin install solid-edge-mcp --marketplace gabichuuuuu/solid-edge-mcp
+```
+
+On its first start the plugin downloads the server package of its version from the GitHub release,
+checks it against the SHA-256 published with it and installs it in
+`%LocalAppData%\SolidEdgeMcp\server\<version>`; it then starts the server from there. Its tools are named `mcp__plugin_solid-edge-mcp_solid-edge__se_*`. Then write
+your policy (below).
+
+**From the release package** (from 1.0.0), for any MCP client: download `solid-edge-mcp-<version>-win-x64.zip` and
+its `.sha256` from the [releases](https://github.com/gabichuuuuu/solid-edge-mcp/releases), check the
+hash and extract it to a folder of your own (`%LocalAppData%\SolidEdgeMcp\server` belongs to the
+plugin). The package is self-contained: it does not need .NET.
+
+```powershell
+(Get-FileHash .\solid-edge-mcp-<version>-win-x64.zip -Algorithm SHA256).Hash   # the hash in the .sha256
+Expand-Archive .\solid-edge-mcp-<version>-win-x64.zip "$env:LOCALAPPDATA\Programs\solid-edge-mcp"
+```
+
+**From source:**
 
 ```powershell
 git clone https://github.com/gabichuuuuu/solid-edge-mcp.git
@@ -125,18 +159,25 @@ cd solid-edge-mcp
 
 # 2. Build and publish (self-contained for win-x64)
 dotnet publish src\SolidEdgeMcp.Server -c Release -r win-x64 --self-contained -o publish
-
-# 3. Policy: copy the example and adjust the allowed folders
-New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\SolidEdgeMcp" | Out-Null
-Copy-Item config\policy.example.json "$env:LOCALAPPDATA\SolidEdgeMcp\policy.json"
 ```
 
 Optional: `.\scripts\dump-api.ps1` dumps the API to `reference\api\*.txt` so you can look up
 signatures and constants. It is not versioned either.
 
+**Policy.** Without one, the server only works in `%LocalAppData%\SolidEdgeMcp\work`. Copy the
+example (in `config\` of the repository, and beside the server in the package) and adjust the
+allowed folders:
+
+```powershell
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\SolidEdgeMcp" | Out-Null
+Copy-Item config\policy.example.json "$env:LOCALAPPDATA\SolidEdgeMcp\policy.json"
+```
+
 ### Register with your client
 
-Replace `<path>` with the folder of your publish output and of your `policy.json`.
+The plugin registers itself. Otherwise replace `<path>\publish` with the folder of your build or of
+the extracted package, and `<path>\policy.json` with your policy; without `--policy`, the server
+loads `%LocalAppData%\SolidEdgeMcp\policy.json`.
 
 **Claude Code**
 
@@ -215,9 +256,9 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Query** | `se_feature_tree` `se_geometry` `se_measure` `se_physical` `se_selection` `se_sensor` |
 | **View and application** | `se_view` `se_section_view` `se_model_view` `se_options` `se_ui` `se_app` `se_customize` `se_styles` |
 | **Sketches** | `se_sketch` `se_sketch_constraint` `se_sketch_edit` `se_sketch_tools` `se_sketch3d` `se_region` `se_ref_plane` |
-| **Part** | `se_extrude` `se_revolve` `se_hole` `se_round` `se_chamfer` `se_pattern` `se_shell` `se_draft` `se_loft_sweep` `se_part_feature` `se_recognize` `se_body` `se_face_relation` `se_face_split` `se_pmi` `se_pmi_annotation` `se_primitive` `se_surface` `se_curve` `se_feature_edit` `se_simplify` `se_thread` |
+| **Part** | `se_extrude` `se_revolve` `se_hole` `se_round` `se_chamfer` `se_pattern` `se_shell` `se_draft` `se_loft_sweep` `se_part_feature` `se_recognize` `se_body` `se_face_relation` `se_face_split` `se_pmi` `se_pmi_annotation` `se_primitive` `se_surface` `se_curve` `se_feature_edit` `se_simplify` `se_thread` `se_thin_wall` `se_decal` |
 | **Sheet metal** | `se_sheetmetal` `se_sheetmetal_form` |
-| **Assemblies** | `se_assembly` `se_relations` `se_assembly_pattern` `se_assembly_config` `se_assembly_family` `se_component_group` `se_internal_component` `se_component_query` `se_assembly_feature` `se_frame` `se_interference` `se_bom` |
+| **Assemblies** | `se_assembly` `se_relations` `se_assembly_pattern` `se_assembly_config` `se_assembly_family` `se_component_group` `se_internal_component` `se_component_query` `se_assembly_feature` `se_frame` `se_tube` `se_interference` `se_bom` |
 | **Drawings** | `se_drawing` `se_drawing_view` `se_dimension` `se_annotation` `se_sheet_content` |
 | **Export, publishing and printing** | `se_export` `se_publish` `se_print` |
 | **Programs installed with Solid Edge** | `se_design_manager` |
@@ -231,7 +272,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Server and session** | `se_server_info` | Version, allowed folders, work folder, limits and configuration warnings, and the Solid Edge installation (version, folders, language, Parasolid version). Does not need Solid Edge running. |
 | | `se_session` | Status, connect (attaches to the open Solid Edge or starts it visibly), disconnect, quit and restart (refused while a document has unsaved changes). |
 | **Documents** | `se_documents` | Create a part, sheet metal, assembly, drawing or weldment; open, activate, save, save as or copy, close; import STEP, IGES, Parasolid, JT, SAT, STL, OBJ, 3MF, CATIA V5 and V4, DXF or DWG files as new documents; the thumbnail saved in a closed file, as Windows Explorer shows it; undo and redo what Solid Edge records; recalculate (Update Relationships; `se_options` turns Automatic Update off); list this installation's templates; read and set the document status (in work, in review, released…); save a part as its mirror image about a plane; read or switch a part between synchronous and ordered modeling. |
-| **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set (a standard name such as Title goes to its own set, any other becomes a custom property) and delete; with `path`, the same on a closed file without opening it, as Property Manager does. |
+| **Data** | `se_properties` | Document properties by configuration (summary, custom…): list, set (a standard name such as Title goes to its own set, any other becomes a custom property; dates in ISO 8601) and delete; with `path`, the same on a closed file without opening it, as Property Manager does. The dates Solid Edge keeps itself (last print, origination, last save, editing time) are written only to closed files. |
 | | `se_variables` | Variables and dimensions: list (also the physical property variables of a part: Mass, Volume, Surface_Area...), read, set a value or formula (returns the volume change), create, delete, rename, comment, expose and limit; Goal Seek (Solid Edge varies one variable until another reaches a value; on the mass, volume or surface area of a part the server measures the model at each step); the adjustable variables of an adjustable part. |
 | | `se_part_family` | Family of parts: family variables, members with their values and suppressed features, apply a member to the master (checked), write member files, copy, rename and delete members. |
 | | `se_material` | Material libraries: current material, properties and assignment (updates density and mass); the material of a weldment's weld beads. |
@@ -306,7 +347,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | **Export, publishing and printing** | `se_export` | Part, sheet metal and assembly to STEP, IGES, Parasolid, STL, JT, SAT, 3MF or PDF (a picture of the view); drawings to PDF, DXF, DWG, IGES or TIF; sheet metal flat pattern to DXF or DWG. PDF files are read back for their pages and page sizes. One design body of a part, or all of them, can be written alone as Parasolid (Save Selected Model). A parts list or another table of a drawing is written to a .csv or .xlsx file. Also CATIA V5 and V4 (parts and sheet metal), OBJ, PLM XML, U3D and XGL. In batches, as Solid Edge Translation Services: saved files or whole folders written to one folder, each file with its result. |
 | | `se_publish` | 3D PDF documents of saved parts, sheet metal and assemblies (one file, or a folder with its subfolders) with the 3D PDF templates of the installation: the model in 3D that the reader can turn, every PMI model view as a 3D view, next/previous view buttons, STEP AP242 and JT files embedded, and an HTML page with the model; each PDF checked for its pages, 3D views, widgets and embedded files. |
 | | `se_print` | Prints the sheets of a drawing as the Print command does: lists the Windows printers (connection, port, driver, state, whether they ask for a file name) and Solid Edge's print settings; prints every working sheet or the chosen ones on a printer or to files in a folder (one PDF, PostScript or printer file per sheet, checked for its pages and page size), with paper size, orientation, scale or fit to the paper, colours as black and copies; Solid Edge's print settings are put back afterwards. The mesh of the 3D Print command for a part, sheet metal or assembly: triangles, mesh area and volume against the model's. |
-| **Programs installed with Solid Edge** | `se_design_manager` | Design Manager on closed files, started hidden for each call: the links of a document at every level (whether each file exists, its status, revision and document number); rename, copy, replace, move and revise files of a set with every document of the set updated (and the documents outside it that use a renamed or moved file, in the chosen folders), and release them; the document status of closed files, forward as Solid Edge's workflow does; redefine links (one file or a whole folder pointed at another) in one document or a folder of them; broken links and duplicate documents (the same document ID or the same name) in some folders. Every change is checked by reading the files and their links back. |
+| **Programs installed with Solid Edge** | `se_design_manager` | Design Manager on closed files, started hidden for each call: the links of a document at every level (whether each file exists, its status, revision and document number); rename, copy, replace, move and revise files of a set with every document of the set updated (and the documents outside it that use a renamed or moved file, in the chosen folders), and release them; copy a drawing or an assembly together with its files, the copy using the copies and the original left as it was; the document status of closed files, forward as Solid Edge's workflow does; redefine links (one file or a whole folder pointed at another) in one document or a folder of them; broken links and duplicate documents (the same document ID or the same name) in some folders. Every change is checked by reading the files and their links back. |
 | **Full API access** | `se_com_describe` | Properties and methods, with the types of their parameters, of any API object or interface. |
 | | `se_com_get` | Reads a property of an API object; objects come back as handles. |
 | | `se_com_set` | Changes a property of an API object. |
@@ -319,11 +360,11 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 
 ### Prompts
 
-Workflow prompts, which Claude Code shows as `/mcp__solid-edge__<name>` commands: `model_part` (a part from a
-description, feature by feature, checked and optionally saved with a material), `part_from_template` (a variant of a
-saved part from variable values, with its drawing, STEP and PDF), `manufacturing_drawing` (views, dimensions and parts
-list of a part or assembly, to PDF) and `welded_frame` (plates, structural frames, fillet welds and holes in a
-weldment). Example: `/mcp__solid-edge__model_part "a 100 x 60 x 10 plate with four 8 mm holes" "<folder>\plate.par" "Steel"`.
+Workflow prompts, which Claude Code shows as `/mcp__solid-edge__<name>` commands
+(`/mcp__plugin_solid-edge-mcp_solid-edge__<name>` with the plugin): `model_part` (a part from a description, feature
+by feature, checked and optionally saved with a material), `part_from_template` (a variant of a saved part from
+variable values, with its drawing, STEP and PDF), `manufacturing_drawing` (views, dimensions and parts list of a part or
+assembly, to PDF) and `welded_frame` (plates, structural frames, fillet welds and holes in a weldment). Example: `/mcp__solid-edge__model_part "a 100 x 60 x 10 plate with four 8 mm holes" "<folder>\plate.par" "Steel"`.
 
 Each tool declares its MCP annotations (read-only, destructive…) so the client can decide when to
 ask for approval. What has no specific tool (booleans between bodies, 3D sketches…) is done with
@@ -345,9 +386,13 @@ flowchart LR
     end
 
     app["Solid Edge 2026<br/>visible process"]
+    dm["Design Manager<br/>hidden, one per call"]
+    files["SolidEdge.FileProperties · InstallData<br/>closed files and installation"]
 
     client <-->|stdio JSON-RPC| server
     se <-->|COM| app
+    se <-->|COM| dm
+    se <-->|COM| files
 ```
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
@@ -359,8 +404,12 @@ flowchart LR
   limit.
 - **`SolidEdgeMcp.Core`**: no COM, covered by unit tests. `PathGuard`, policy, unit conversion
   (mm ↔ m, degrees ↔ rad), the handle registry and the error model.
+- **The programs installed with Solid Edge** have COM servers of their own: Design Manager
+  (`se_design_manager`, started hidden for each call and closed after it), the file property library
+  (properties and thumbnails of closed files) and the installation data (`se_server_info`).
 - The Solid Edge interop is generated on each machine from the local installation
-  (`scripts/generate-interop.ps1`); it is not versioned or distributed.
+  (`scripts/generate-interop.ps1`): beside the server in a build from source, and by the server itself
+  on its first start in the distributed package (from 1.0.0). It is not versioned or distributed.
 
 ## Configuration
 
@@ -407,11 +456,13 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 Results (unit tests and acceptance scripts run on 2026-10-16):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 86/86 and `SolidEdgeMcp.Server.Tests` 739/739.
+- Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 86/86 and `SolidEdgeMcp.Server.Tests` 743/743.
 - Acceptance suite against real Solid Edge 2026: scripts `A01`–`A132`, with expected values computed
-  from formulas (or Solid Edge reference values when there is no simple formula, noted in the script). The last full run
-  (`A01`–`A53`) made **4578 calls and 2331 checks** without failures, and `A54`–`A89` passed together for 0.7.0
-  (966 calls, 410 checks); `A90`–`A130` passed for 0.8.0, and `A74`, `A131` and `A132` for 0.9.0, each with the work it covers.
+  from formulas (or Solid Edge reference values when there is no simple formula, noted in the script). The full run
+  of 2026-10-16, against the distributed package with the interop it generated, made **7208 calls and 3694 checks**:
+  129 scripts passed. In `A42`, `A48` and `A53` Solid Edge began to refuse surface trims and PMI model views and then
+  closed; they passed after `se_session restart`, and the fault did not come back when the same scripts ran again in one
+  Solid Edge session (89 scripts in a row, more than in the full run).
 - Coverage by value: the 86 tools have correct calls, and `A10` runs every value of the action,
   orientation, direction, type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests
@@ -495,7 +546,7 @@ Results (unit tests and acceptance scripts run on 2026-10-16):
 | `A71` | Conical helices: a circle of radius 2 drawn 10 mm from the axis and coiled 5 turns of 8 mm (40 high) reaches 12 mm from the axis with no taper, 19.053 mm at the end with a 10 degree taper and 2.947 mm with -10 degrees; a taper on a loft refused. |
 | `A72` | Helical curves about a cylindrical face, starting on its bottom face: 5 turns of 8 mm on a cylinder of radius 10 and 40 high (316.696 mm, climbing into it, or away when reversed); a spring path on a 30 mm diameter along which a 3 mm tube adds 3342.9 mm3 (the physical measurement gives 15909.34 mm3 in total, the body volume change reads 0.14 % low); an axis that is a planar face, and another diameter, refused. |
 | `A73` | Pack and Go of an assembly with a subassembly, a part kept in another folder and a drawing: the five files are copied to the new folder, where each copy refers only to files in that folder, while the originals keep their links; packing into the document's own folder, a missing document and an open one refused. |
-| `A74` | Design Manager on closed files: a drawing of an assembly with a subassembly and a pin, and an assembly outside the set that uses the pin. The drawing's four links read at every level; a title and a custom property written to the closed pin and read back; an existing name, a file outside the set, the top document and a set open in Solid Edge refused; the pin renamed (the assembly outside the set, in the folder given, uses the new name too), the plate copied and replaced by the original again, the pin moved without looking outside the set (the broken link found and redefined), the plate revised (plate-1.par, Revision 1), the pin released (taking it back to available refused) and the assembly put In Review; the subassembly's links under one folder redefined to a packed copy; duplicates by name and by document ID; Solid Edge then opens the assemblies with every new file found and the released pin read-only with its title. |
+| `A74` | Design Manager on closed files: a drawing of an assembly with a subassembly and a pin, and an assembly outside the set that uses the pin. The drawing's four links read at every level; a title and a custom property written to the closed pin and read back; the drawing copied with its whole set (the copies use one another, the original keeps its files, Solid Edge opens the copy with no missing link; the drawing and the plate alone refused); an existing name, a file outside the set, the top document renamed or released and a set open in Solid Edge refused; the pin renamed (the assembly outside the set, in the folder given, uses the new name too), the plate copied and replaced by the original again, the pin moved without looking outside the set (the broken link found and redefined), the plate revised (plate-1.par, Revision 1), the pin released (taking it back to available refused) and the assembly put In Review; the subassembly's links under one folder redefined to a packed copy; duplicates by name and by document ID; Solid Edge then opens the assemblies with every new file found and the released pin read-only with its title. |
 | `A75` | Contour curves across several faces of a 100 x 60 x 20 block, one curve per face joined into one: top and front (58.416 mm), top, front and right (75.765 mm), a closed loop over the top and front, and a single face (89.443 mm); the volume stays 120000 mm3. |
 | `A76` | Property tables attached to faces and edges through the generic layer: a Finish table (roughness 1.6, coating Zinc) on the top face and an edge, and Treatment (hardness 45) on an extrusion's faces, values changed per attached table and kept after saving and reopening, found by table, name and value, one deleted; scalars only (arrays make Solid Edge throw a server fault), and the select filter must be an integer array. |
 | `A77` | Tab and slot between two sheet bodies, the second made as a new body: a rib on a 100 x 60 plate of thickness 1; a fitted set of two tabs (20 mm3 added, 29.12 mm3 of slots cut, 8330.88 mm3 left) and a filled one of three 3 mm deep tabs (90 mm3 added, 30 mm3 of slots cut, 8400 mm3 left); a rib whose top edge is not on the plate fails and is deleted, and a part is refused. |
@@ -561,18 +612,22 @@ Results (unit tests and acceptance scripts run on 2026-10-16):
 
 - Some Solid Edge 2026 API functions fail or damage the document (corner closing, gussets,
   louvers, several hem types…); they are marked with ✘ in [docs/COVERAGE.md](docs/COVERAGE.md).
-- After an `RPC_E_SERVERFAULT`, or when features that worked start failing, Solid Edge is unstable and must
-  be restarted with `se_session restart` (refused while a document has unsaved changes).
+- After an `RPC_E_SERVERFAULT`, or when features that worked start failing (it happened once in the full acceptance
+  run, without a cause that could be reproduced), Solid Edge is unstable and must be restarted with
+  `se_session restart` (refused while a document has unsaved changes).
 - Solid Edge does not record as an undoable step an operation created through the API from a sketch:
   `se_documents undo` only undoes what Solid Edge records. To remove an operation, use
   `se_feature_edit`.
 - The `se_command` commands that ask for a selection or a dialog box wait for the person.
+- The server generates the interop, and the plugin installs the server, with unsigned Windows PowerShell scripts. Where a
+  policy only lets signed scripts run, both fail and the tools answer `interop_missing`: the scripts have to be allowed,
+  or the interop generated with `scripts\generate-interop.ps1 -OutputDir` beside the server where they are.
 - A Solid Edge dialog that waits for an answer (e.g. a first-use tip) blocks Solid Edge until the person
   answers it: the blocked call fails with `dialog_open` and names the dialog, and `se_session status`
   lists it. The server never presses dialog buttons.
 - The Boundary and SmoothBoundary display modes are not applied in Solid Edge 2026.
-- Program settings: suspending the recent files list (`se_app suspend_recent`) does not stop Solid Edge 2026
-  from adding the files saved with `save_as`; with no document window open Solid Edge cannot read some
+- Program settings: suspending the recent files list (`se_app suspend_recent`) does not always stop Solid Edge
+  2026 from adding the files saved with `save_as`; with no document window open Solid Edge cannot read some
   drawing options and reports others as -1, so an options snapshot is restored in the state it was made in;
   and a folder option that had no value (such as Macros) cannot be emptied again through the API.
 - View: Solid Edge 2026 does not set the colour of a solid background through its API (`se_view background`
@@ -615,18 +670,22 @@ solid-edge-mcp/
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A93 against real Solid Edge
-├── scripts/                       generate-interop.ps1, dump-api.ps1, update-progress.ps1
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A132 against real Solid Edge
+├── scripts/                       generate-interop.ps1, dump-api.ps1, package.ps1, update-progress.ps1
+├── plugin/                        Claude Code plugin: manifest and launcher (start.cmd, install.ps1)
+├── .claude-plugin/                marketplace.json, the marketplace of the plugin
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md (coverage by function and route), assets/
+├── build/                         SolidEdgeInterop.props, the interop references of the projects
+├── .github/                       issue and pull request templates
 ├── lib/interop/  reference/       generated on each machine, not versioned
-└── CHANGELOG.md  LICENSE  NOTICE  CLA.md
+└── CHANGELOG.md  LICENSE  NOTICE  CLA.md  CONTRIBUTING.md  SECURITY.md  CODE_OF_CONDUCT.md
 ```
 
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A93`, listed under [Validation](#validation)) with expected volumes, measurements
+calls (`A01`–`A132`, listed under [Validation](#validation)) with expected volumes, measurements
 and errors written in advance. Each script creates and closes its documents without saving:
 
 ```powershell
@@ -644,6 +703,22 @@ files that change, moving the old ones into a subfolder: Windows allows renaming
 DLL, but not overwriting it. This is safe if the changed files are already loaded in that process
 (usually only `SolidEdgeMcp.*`); the session keeps running the old version until the server restarts.
 
+### Distribution package and plugin
+
+`.\scripts\package.ps1` builds `artifacts\solid-edge-mcp-<version>-win-x64.zip` (self-contained,
+without the Solid Edge interop, with `generate-interop.ps1` beside the server) and its `.sha256`. It
+fails if an interop file or reference ends up in the package. Both files go to the GitHub release of
+the version. The plugin in `plugin/` installs the package of its own version, which
+`scripts\update-progress.ps1` keeps equal to the project version. To try a package before its
+release, point the launcher to it with `SOLID_EDGE_MCP_PACKAGE` (its `.sha256` beside it); it is
+installed in a folder named after its hash, so a rebuilt package is installed again:
+
+```powershell
+claude plugin validate . --strict
+$env:SOLID_EDGE_MCP_PACKAGE = "$PWD\artifacts\solid-edge-mcp-<version>-win-x64.zip"
+claude --plugin-dir .\plugin
+```
+
 ### Adding or changing a tool
 
 1. Do not guess signatures or constants: look them up in `reference/api` or with `se_com_describe` /
@@ -658,8 +733,8 @@ DLL, but not overwriting it. This is safe if the changed files are already loade
 
 Commits follow Conventional Commits, in English.
 
-The progress section and chart, the progress badge, the tool count and the version shown in this README
-are generated by `scripts\update-progress.ps1` from `docs/COVERAGE.md`, the tools declared in `src` and
+The progress section and chart, the progress badge, the tool count and the version shown in this README,
+and the version of the plugin, are generated by `scripts\update-progress.ps1` from `docs/COVERAGE.md`, the tools declared in `src` and
 the project version; a tool that `docs/COVERAGE.md` does not mention yet is listed there as not tested.
 Run it before committing, or from a local pre-commit hook with `-Staged`, which regenerates them from
 what the commit contains.
@@ -675,9 +750,8 @@ what the commit contains.
   sessions in which Claude uses Solid Edge from requests in plain language. Change history in
   [CHANGELOG.md](CHANGELOG.md).
 - **Roadmap to 1.0.0:** the complete, stable version: the base program and the programs installed with it, an easier
-  installation (a build without the Solid Edge interop, installable without compiling and through the Claude plugin
-  marketplace), the full suite and end-to-end sessions in every area, with tool names and parameters that no longer
-  change.
+  installation (the package without the Solid Edge interop and the Claude Code plugin, ready and published with
+  1.0.0), the full suite and end-to-end sessions in every area, with tool names and parameters that no longer change.
 - **Pending:** continuous integration (CI).
 
 ## License
@@ -705,8 +779,8 @@ contributors who agree to the [contributor license agreement](CLA.md) (CLA), whi
 relicense their contribution; you keep the copyright of your work. Open an issue before submitting
 one; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Versions published before the change to the AGPL (2026-10-11) remain available under the MIT
-License.
+The commits published before the change to the AGPL (2026-10-11), which are in the Git history,
+remain available under the MIT License they were published with.
 
 ## Trademarks and disclaimer
 

@@ -72,6 +72,14 @@ public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> log
             logger.LogInformation("op#{Id} {Tool}.{Action} cancelled", id, tool, action);
             throw;
         }
+        catch (Exception ex) when (InteropBootstrap.IsMissing(ex))
+        {
+            logger.LogError(ex, "op#{Id} {Tool}.{Action} failed: the Solid Edge interop is missing", id, tool, action);
+            throw new McpException(new ToolException(
+                "interop_missing",
+                "The Solid Edge interop is not available: the server generates it from the installed Solid Edge when it starts, and it could not (the reason is at the start of the server log).",
+                "Check that Solid Edge is installed on this computer and that Windows PowerShell can run scripts, then restart the MCP server.").ToClientMessage());
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "op#{Id} {Tool}.{Action} failed unexpectedly", id, tool, action);

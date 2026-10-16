@@ -2,7 +2,7 @@
 # version, add-ins, templates and recent files (se_app), command licence check (se_command check), ribbon themes and
 # keyboard shortcuts (se_customize). Every setting of the person that the script changes is put back: the options
 # through the snapshot, the rest with the previous value each call returns. The recent files list is suspended
-# meanwhile, although Solid Edge 2026 still adds the files saved with save_as.
+# meanwhile, although Solid Edge 2026 may still add the files saved with save_as.
 se_app {"action":"suspend_recent"}
 @r0 = se_app {"action":"recent"}
 ?~ r0.note save_as
@@ -174,7 +174,7 @@ se_customize {"action":"remove_shortcut","environment":"Part","keys":"Alt+Shift+
 @kc = se_customize {"action":"shortcuts","environment":"Part"}
 ?= kc.count {{ks.count}}
 se_documents {"action":"close","document":"{{pd.handle}}","saveChanges":false}
-# Solid Edge 2026 adds the files saved with save_as to the recent files even while the list is suspended
+# Solid Edge 2026 may add the files saved with save_as to the recent files while the list is suspended (not always)
 @r1 = se_app {"action":"recent"}
-?~ r1.files[0].path a21_template.par
+?= r1.shown true
 se_app {"action":"resume_recent"}

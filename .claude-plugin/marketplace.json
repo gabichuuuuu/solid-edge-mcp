@@ -1,0 +1,14 @@
+{
+  "name": "solid-edge-mcp",
+  "description": "The solid-edge-mcp plugin: a local MCP server that helps you work in Siemens Solid Edge from Claude Code.",
+  "owner": {
+    "name": "Gabriel Spoleto Couto"
+  },
+  "plugins": [
+    {
+      "name": "solid-edge-mcp",
+      "source": "./plugin",
+      "description": "Helps you work in Siemens Solid Edge from Claude Code through a local MCP server, while you stay in control and approve the changes. Windows x64 with Solid Edge installed."
+    }
+  ]
+}

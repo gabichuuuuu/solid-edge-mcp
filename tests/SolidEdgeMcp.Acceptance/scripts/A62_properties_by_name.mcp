@@ -1,5 +1,7 @@
 # A62: document properties written by name (se_properties set without a set): a standard name such as Title or Project Name
 # goes to the set that holds it (SummaryInformation, ProjectInformation); any other name becomes a custom property.
+# Dates: a text given to a date property is written as a date; the dates Solid Edge keeps in SummaryInformation (written
+# in an open document, Last Print Date disappeared from it and the save failed) are refused, the set keeps its 17.
 @p = se_documents {"action":"new","kind":"part"}
 @a = se_properties {"action":"set","name":"Title","value":"Bracket A"}
 ?~ a.set SummaryInformation
@@ -10,4 +12,12 @@
 ?= c.created true
 @l = se_properties {"action":"list","set":"SummaryInformation"}
 ?~ l.sets[0].properties.Title Bracket A
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a62_{{run}}\\bracket.par"}
+@d = se_properties {"action":"set","set":"ExtendedSummaryInformation","name":"StatusChangeDate","value":"2026-11-20T10:30"}
+?= d.value 2026-11-20T10:30:00.0000000
+! [invalid_argument] se_properties {"action":"set","set":"ExtendedSummaryInformation","name":"StatusChangeDate","value":"next week"}
+! [not_supported] se_properties {"action":"set","set":"SummaryInformation","name":"Last Print Date","value":"2026-11-20"}
+! [not_supported] se_properties {"action":"set","set":"SummaryInformation","name":"Origination Date","value":"2026-11-20"}
+@l2 = se_properties {"action":"list","set":"SummaryInformation"}
+?= l2.sets[0].count 17
 se_documents {"action":"close","saveChanges":false}

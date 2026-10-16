@@ -72,7 +72,9 @@ se_drawing_view {"action":"set_broken","view":"{{p.view.handle}}","broken":false
 ! [not_supported] se_drawing_view {"action":"to2d","view":"{{p.view.handle}}"}
 se_export {"path":"{{work}}\\a23_draft.dxf","overwrite":true}
 se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
-# Import: STEP, IGES and Parasolid give the block's volume; STL a faceted body of the same size; DXF a drawing with its lines
+# Import: STEP, IGES and Parasolid give the block's volume; STL a faceted body of the same size; DXF a drawing with its lines;
+# open refuses those files (Solid Edge translates them; Documents.Open fails)
+! [invalid_argument] se_documents {"action":"open","path":"{{work}}\\a23_blk.stp"}
 @i1 = se_documents {"action":"import","path":"{{work}}\\a23_blk.stp"}
 ?= i1.volume 118429.204 0.5
 ?= i1.document.kind part

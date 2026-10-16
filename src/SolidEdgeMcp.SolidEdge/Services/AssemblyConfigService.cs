@@ -73,7 +73,10 @@ public static class AssemblyConfigService
         }
 
         context.ModelChanged((SolidEdgeDocument)assembly, "a configuration was applied");
-        return new { applied = configuration.Name, hidden = Hidden(assembly) };
+        string? note = configuration.ConfigurationType == ConfigurationTypeConstants.seConfigurationType_Explode
+            ? "An explode configuration shows in drawing views (se_drawing base_view with 'configuration'); applied to the assembly, its components do not read as exploded. se_assembly_config explode explodes them again."
+            : null;
+        return new { applied = configuration.Name, hidden = Hidden(assembly), note };
     }
 
     public static object Delete(SeContext context, string? documentHandle, string? name)

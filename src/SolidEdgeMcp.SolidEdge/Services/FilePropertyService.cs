@@ -83,7 +83,8 @@ public static class FilePropertyService
             bool created = false;
             if (property is not null)
             {
-                Late.Set(property, "Value", converted);
+                converted = PropertyService.ForProperty(converted, Late.TryGet(property, "Value") is DateTime, name);
+                Late.Set(property, "Value", converted is DateTime date ? ToFile(date) : converted);
             }
             else if (string.Equals(setName, PropertyService.CustomSet, StringComparison.OrdinalIgnoreCase))
             {
@@ -102,9 +103,12 @@ public static class FilePropertyService
         });
 
         object? read = WithFile(file, readOnly: true, sets => Find(FindSet(sets, setName), propertyName) is { } p ? ValueOf(p) : null);
-        bool same = converted is double number
-            ? read is not null && Math.Abs(Convert.ToDouble(read, CultureInfo.InvariantCulture) - number) < 1e-9
-            : string.Equals(Convert.ToString(read, CultureInfo.InvariantCulture), Convert.ToString(converted, CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase);
+        bool same = converted switch
+        {
+            double number => read is not null && Math.Abs(Convert.ToDouble(read, CultureInfo.InvariantCulture) - number) < 1e-9,
+            DateTime date => read is string text && DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime back) && back == date,
+            _ => string.Equals(Convert.ToString(read, CultureInfo.InvariantCulture), Convert.ToString(converted, CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase),
+        };
         return same
             ? new { file, set = setName, name = propertyName, value = read, created }
             : throw new ToolException("write_failed", $"'{propertyName}' of '{file}' reads '{read}' after writing '{converted}'.", "Check that the file is not read-only.");
@@ -167,7 +171,7 @@ public static class FilePropertyService
                 Late.Set(property, "Value", code);
                 if (Find(properties, "StatusChangeDate") is { } date)
                 {
-                    Late.Set(date, "Value", DateTime.Now);
+                    Late.Set(date, "Value", ToFile(DateTime.Now));
                 }
 
                 Late.Call(sets, "Save");
@@ -293,6 +297,13 @@ public static class FilePropertyService
 
         return null;
     }
+
+    /// <summary>
+    /// The value to write for a local date: the library stores the date it is given as UTC, and it and Solid Edge read it
+    /// back converted to local time with the current offset (verified: 10:30 written read 12:30 at UTC+2, also for a date
+    /// in winter), so the date is written less that offset.
+    /// </summary>
+    private static DateTime ToFile(DateTime local) => DateTime.SpecifyKind(local - TimeZoneInfo.Local.GetUtcOffset(DateTime.Now), DateTimeKind.Unspecified);
 
     private static object? ValueOf(object property)
     {

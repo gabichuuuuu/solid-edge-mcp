@@ -37,4 +37,16 @@ public sealed class ComErrorsTests
 
         Assert.IsType<ToolException>(translated);
     }
+
+    [Fact]
+    public void Translate_points_to_a_restart_after_an_internal_fault_of_Solid_Edge()
+    {
+        Exception fault = ComErrors.Translate(new COMException("The server threw an exception.", unchecked((int)0x80010105)), "se_region.add");
+        Exception generic = ComErrors.Translate(new COMException("Unspecified error", unchecked((int)0x80004005)), "se_model_view.set");
+
+        ToolException faultError = Assert.IsType<ToolException>(fault);
+        Assert.Equal("solid_edge_error", faultError.Code);
+        Assert.Contains("se_session restart", faultError.NextStep, StringComparison.Ordinal);
+        Assert.Contains("se_session restart", Assert.IsType<ToolException>(generic).NextStep, StringComparison.Ordinal);
+    }
 }

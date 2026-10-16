@@ -8,6 +8,12 @@
 .DESCRIPTION
     Creates one file per assembly in reference\api (not versioned). It is used to look up signatures
     and real constants of the Solid Edge API instead of guessing them.
+
+.PARAMETER InteropDir
+    Folder with the generated interop assemblies. By default lib\interop of the repository.
+
+.PARAMETER OutputDir
+    Output folder. By default reference\api of the repository.
 #>
 [CmdletBinding()]
 param(

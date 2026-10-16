@@ -27,6 +27,7 @@ public static class ComErrors
     public const int RpcEDisconnected = unchecked((int)0x80010108);
     public const int RpcEServerDied = unchecked((int)0x80010007);
     public const int RpcEServerDiedDne = unchecked((int)0x80010012);
+    public const int RpcEServerFault = unchecked((int)0x80010105);
     public const int RpcSServerUnavailable = unchecked((int)0x800706BA);
     public const int RpcSCallFailed = unchecked((int)0x800706BE);
     public const int CoEObjNotConnected = unchecked((int)0x800401FD);
@@ -171,9 +172,13 @@ public static class ComErrors
             RegDbEClassNotReg => new ToolException("component_not_registered",
                 $"'{operation}': a component Solid Edge needs for it is not registered on this computer ({code}), such as a translator that is not installed.{detail}",
                 "Use another format or route, or add the component by repairing the Solid Edge installation.", com),
+            // Solid Edge keeps running after an internal fault, but later calls fail or crash it (verified in Solid Edge 2026).
+            RpcEServerFault => new ToolException("solid_edge_error",
+                $"Solid Edge raised an internal fault in '{operation}' ({code}): it may now be unstable.{detail}",
+                "Restart it with se_session restart before going on (refused while a document has unsaved changes: save or close it first).", com),
             _ => new ToolException("solid_edge_error",
                 $"Solid Edge failed in '{operation}' ({code}).{detail}",
-                "Check the arguments and the state of the document (e.g. the right environment or an active sketch). Use se_view capture to see the current state.", com),
+                "Check the arguments and the state of the document (e.g. the right environment or an active sketch). Use se_view capture to see the current state. If calls that worked earlier now fail like this, Solid Edge may be unstable: se_session restart.", com),
         };
     }
 }

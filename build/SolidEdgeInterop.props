@@ -5,14 +5,20 @@
     Imported in every project that loads the interop (executables and tests too): direct references
     to DLLs do not flow into the deps.json of the projects that reference another project.
   -->
+  <PropertyGroup>
+    <!-- false in the distributed package (scripts/package.ps1): the interop is compiled against but not copied; the server
+         generates it on the machine at its first start (InteropBootstrap). -->
+    <SolidEdgeInteropCopyLocal Condition="'$(SolidEdgeInteropCopyLocal)' == ''">true</SolidEdgeInteropCopyLocal>
+  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="Interop.SolidEdgeConstants" HintPath="$(InteropDir)Interop.SolidEdgeConstants.dll" EmbedInteropTypes="false" Private="true" />
-    <Reference Include="Interop.SolidEdgeFramework" HintPath="$(InteropDir)Interop.SolidEdgeFramework.dll" EmbedInteropTypes="false" Private="true" />
-    <Reference Include="Interop.SolidEdgeFrameworkSupport" HintPath="$(InteropDir)Interop.SolidEdgeFrameworkSupport.dll" EmbedInteropTypes="false" Private="true" />
-    <Reference Include="Interop.SolidEdgeGeometry" HintPath="$(InteropDir)Interop.SolidEdgeGeometry.dll" EmbedInteropTypes="false" Private="true" />
-    <Reference Include="Interop.SolidEdgePart" HintPath="$(InteropDir)Interop.SolidEdgePart.dll" EmbedInteropTypes="false" Private="true" />
-    <Reference Include="Interop.SolidEdgeAssembly" HintPath="$(InteropDir)Interop.SolidEdgeAssembly.dll" EmbedInteropTypes="false" Private="true" />
-    <Reference Include="Interop.SolidEdgeDraft" HintPath="$(InteropDir)Interop.SolidEdgeDraft.dll" EmbedInteropTypes="false" Private="true" />
+    <Reference Include="Interop.SolidEdgeConstants" HintPath="$(InteropDir)Interop.SolidEdgeConstants.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeFramework" HintPath="$(InteropDir)Interop.SolidEdgeFramework.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeFrameworkSupport" HintPath="$(InteropDir)Interop.SolidEdgeFrameworkSupport.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeGeometry" HintPath="$(InteropDir)Interop.SolidEdgeGeometry.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgePart" HintPath="$(InteropDir)Interop.SolidEdgePart.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeAssembly" HintPath="$(InteropDir)Interop.SolidEdgeAssembly.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeDraft" HintPath="$(InteropDir)Interop.SolidEdgeDraft.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
   </ItemGroup>
 
   <Target Name="CheckSolidEdgeInterop" BeforeTargets="ResolveAssemblyReferences">

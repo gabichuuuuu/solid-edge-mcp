@@ -332,6 +332,15 @@ function Get-Progress([string]$root) {
         'docs/COVERAGE.md' = $newCoverage
         'README.md' = $newReadme
     }
+    # Version of the Claude Code plugin: its launcher installs the release package of that version.
+    $pluginFile = 'plugin/.claude-plugin/plugin.json'
+    $plugin = Read-Text (Join-Path $root $pluginFile)
+    $pluginVersion = [regex]'(?<="version"\s*:\s*")[^"]+(?=")'
+    if (-not $pluginVersion.IsMatch($plugin)) {
+        throw "$pluginFile has no version."
+    }
+
+    $files[$pluginFile] = $pluginVersion.Replace($plugin, $version, 1)
     foreach ($file in $charts.Keys) {
         $files[$file] = $charts[$file]
     }
@@ -378,11 +387,12 @@ if ($Staged) {
     # holds a progress that matches its own tables and code, whatever else is unstaged.
     $temp = Join-Path ([IO.Path]::GetTempPath()) "se-progress-$([guid]::NewGuid().ToString('N'))"
     try {
-        $paths = @(Invoke-Git ls-files -- README.md docs/COVERAGE.md docs/assets src | Where-Object {
-                $_ -in @('README.md', 'docs/COVERAGE.md') -or $_ -like 'docs/assets/progress*.svg' -or ($_ -like 'src/*' -and ($_ -like '*.cs' -or $_ -like '*.csproj'))
+        $paths = @(Invoke-Git ls-files -- README.md docs/COVERAGE.md docs/assets plugin/.claude-plugin src | Where-Object {
+                $_ -in @('README.md', 'docs/COVERAGE.md', 'plugin/.claude-plugin/plugin.json') -or $_ -like 'docs/assets/progress*.svg' -or ($_ -like 'src/*' -and ($_ -like '*.cs' -or $_ -like '*.csproj'))
             })
         Invoke-Git checkout-index "--prefix=$(($temp -replace '\\', '/'))/" -- @paths | Out-Null
         New-Item -ItemType Directory -Force (Join-Path $temp 'docs/assets') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $temp 'plugin/.claude-plugin') | Out-Null
         $result = Get-Progress $temp
         foreach ($rel in @(Write-Files $temp $result.Files)) {
             $sha = Invoke-Git hash-object -w "--path=$rel" -- (Join-Path $temp $rel)

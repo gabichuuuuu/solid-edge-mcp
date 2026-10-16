@@ -6,6 +6,44 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A package that installs without compiling: `scripts/package.ps1` builds `solid-edge-mcp-<version>-win-x64.zip`
+  (self-contained, it does not need .NET) and its SHA-256, without the Solid Edge interop. The interop derives from
+  Siemens files, so the server now generates it from the installed Solid Edge on its first start, in a few seconds, and
+  keeps it in `%LocalAppData%\SolidEdgeMcp\interop\<Solid Edge version>`; a build from source still has it beside the
+  server. When it cannot be generated, the server starts anyway and its tools answer `interop_missing`.
+- A Claude Code plugin and its marketplace (`plugin/`, `.claude-plugin/marketplace.json`):
+  `claude plugin install solid-edge-mcp --marketplace gabichuuuuu/solid-edge-mcp`. On its first start the plugin
+  downloads the package of its version from the GitHub release, checks it against the SHA-256 published with it,
+  installs it in `%LocalAppData%\SolidEdgeMcp\server\<version>` and starts the server from there.
+
+### Changed
+
+- `se_assembly_config apply` of an explode configuration says that it shows in drawing views: applied to the assembly,
+  its components do not read as exploded.
+- `se_design_manager copy` takes the top document ('path') in 'files' too, as Design Manager does: a drawing or an
+  assembly is copied with its files, the copy uses the copies and the original is left as it was. The documents between
+  the top and a copied file must be copied as well (the refusal lists them), or the original would use the copies.
+- `se_documents open` of a STEP, IGES, Parasolid, DXF or other file of another CAD system says to use `import`: Solid Edge
+  failed with an unspecified error (E_FAIL).
+- An internal fault of Solid Edge (`RPC_E_SERVERFAULT`) is reported as such, with `se_session restart` as the next
+  step, and other Solid Edge errors mention the restart when calls that worked earlier start failing.
+- `se_app recent` says that Solid Edge may add the files saved with `save_as` while the list is suspended: it does not
+  always.
+- The server instructions point to the work on closed files (`se_design_manager`, `se_properties` with `path`,
+  `se_export` with `files` or `folders`).
+
+### Fixed
+
+- `se_properties set` takes a date for a date property (ISO 8601, `2026-11-20` or `2026-11-20T10:30`): a text was
+  refused with a type mismatch, or written and then read back shifted. In a closed file the date is now read back as
+  given (the file property library stores it as UTC and Solid Edge reads it in local time), and so is the status date
+  written by `se_design_manager status`, which was off by the UTC offset.
+- `se_properties set` in an open document refuses the dates Solid Edge keeps in SummaryInformation (Total Editing Time,
+  Last Print Date, Origination Date, Last Save Date): written there, Last Print Date disappeared from the document and
+  saving it failed. They can be written to the closed file with `path`.
+
 ## [0.9.0] - 2026-10-16
 
 The programs installed with Solid Edge, as far as their automation allows. Design Manager works on closed files through
@@ -304,7 +342,7 @@ more of Solid Edge: 274 of the 343 functions work through the 81 tools (79 %, fr
 other 69 is documented with the reason and an alternative when there is one: 40 have no route through the API of
 Solid Edge 2026, 9 leave it unstable and are refused by the generic layer, and 20 need another edition or
 installation, an interactive command or a separate program. The acceptance scripts added since the last full run
-(A54 to A89: 966 calls, 410 checks) and an end-to-end session from a request in plain language pass with this version.
+(A54 to A89, 35 scripts: 966 calls, 410 checks) and an end-to-end session from a request in plain language pass with this version.
 
 ### Added
 

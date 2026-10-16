@@ -65,6 +65,17 @@ public static class PropertyService
         bool created = false;
         if (existing is not null)
         {
+            // Verified in Solid Edge 2026: 'Last Print Date' written in an open document disappears from its
+            // SummaryInformation set, and saving the document then failed with RPC_E_SERVERFAULT. The dates of that set
+            // (Total Editing Time, Last Print Date, Origination Date, Last Save Date: ids 10 to 13) are kept by Solid Edge;
+            // the file property library writes them in the closed file without harm.
+            if (string.Equals(properties.Name, "SummaryInformation", StringComparison.OrdinalIgnoreCase) && (IdOf(existing) is >= 10 and <= 13 || (IdOf(existing) is null && KeptDates.Contains(existing.Name, StringComparer.OrdinalIgnoreCase))))
+            {
+                throw new ToolException("not_supported", $"Solid Edge keeps '{existing.Name}' itself: written in an open document it is removed from the document.",
+                    "Close the document and write it to the file: se_properties set with 'path'.");
+            }
+
+            converted = ForProperty(converted, IsDate(existing), existing.Name);
             existing.set_Value(ref converted);
         }
         else if (string.Equals(properties.Name, CustomSet, StringComparison.OrdinalIgnoreCase))
@@ -147,19 +158,47 @@ public static class PropertyService
         return null;
     }
 
-    private static object? ValueOf(Property property)
+    private static object? ValueOf(Property property) => Normalize(RawValue(property));
+
+    /// <summary>VT_FILETIME, the type of the date properties (Property.Type; verified for the dates of both summary sets).</summary>
+    private const int FileTimeType = 64;
+
+    private static readonly string[] KeptDates = ["Total Editing Time", "Last Print Date", "Origination Date", "Last Save Date"];
+
+    private static bool IsDate(Property property)
     {
-        object? value;
         try
         {
-            value = property.get_Value();
+            return Convert.ToInt32(property.Type, CultureInfo.InvariantCulture) == FileTimeType || RawValue(property) is DateTime;
+        }
+        catch (Exception ex) when (ex is COMException or InvalidCastException or FormatException)
+        {
+            return RawValue(property) is DateTime;
+        }
+    }
+
+    private static int? IdOf(Property property)
+    {
+        try
+        {
+            return Convert.ToInt32(property.Id(), CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (ex is COMException or InvalidCastException or FormatException)
+        {
+            return null;
+        }
+    }
+
+    private static object? RawValue(Property property)
+    {
+        try
+        {
+            return property.get_Value();
         }
         catch (COMException)
         {
             return null;
         }
-
-        return Normalize(value);
     }
 
     /// <summary>A property value as the tools return it: dates in ISO 8601, numbers and texts as they are.</summary>
@@ -170,6 +209,17 @@ public static class PropertyService
         string or bool or int or double or float or short or long or decimal => value,
         _ => System.Convert.ToString(value, CultureInfo.InvariantCulture),
     };
+
+    /// <summary>
+    /// The value to write to a property (<paramref name="isDate"/> when it holds a date): a text for a date property is
+    /// read as a date (ISO 8601, "2026-11-20" or "2026-11-20T10:30"), which the property takes and a text is not.
+    /// </summary>
+    internal static object ForProperty(object converted, bool isDate, string name) =>
+        isDate && converted is string text
+            ? DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out DateTime date)
+                ? DateTime.SpecifyKind(date, DateTimeKind.Unspecified)
+                : throw ToolException.InvalidArgument($"'{name}' is a date: '{text}' is not one.", "Give it in ISO 8601, e.g. 2026-11-20 or 2026-11-20T10:30.")
+            : converted;
 
     internal static object ConvertValue(JsonElement value) => value.ValueKind switch
     {

@@ -213,7 +213,7 @@ public static class ApplicationService
             shown = Late.TryGet(app, "DisplayRecentFiles"),
             count = Late.TryGet(app, "DisplayRecentFilesCount"),
             files = files.Select(f => new { path = f, exists = File.Exists(f) }).ToList(),
-            note = "Solid Edge stores the list as it changes. Documents opened through the API are not added; documents saved with save_as are, even while it is suspended (suspend_recent).",
+            note = "Solid Edge stores the list as it changes. Documents opened through the API are not added; documents saved with save_as can be, even while it is suspended (suspend_recent).",
         };
     }
 
