@@ -6,6 +6,15 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-16
+
+The complete, stable version: the base program of Solid Edge (0.8.0) and the programs installed with it (0.9.0), now
+installable without compiling. The release carries a package without the Solid Edge interop, which the server generates
+from the installed Solid Edge, and the Claude Code plugin installs that package and starts the server. The full
+acceptance run against the package made 7208 calls and 3694 checks: 129 scripts passed, and the other 3 after a restart
+of Solid Edge, which had become unstable. From this version the tool names and parameters are stable: a change that
+breaks them waits for a new major version.
+
 ### Added
 
 - A package that installs without compiling: `scripts/package.ps1` builds `solid-edge-mcp-<version>-win-x64.zip`
@@ -386,7 +395,7 @@ the designer, who stays in control: it models, assembles, details, measures and 
 by its measured result and only reads and writes files in the allowed folders. 81 tools; 261 of the 339 Solid Edge
 functions of the coverage map work through them (76 %), and each of the other 78 is documented with the reason it does
 not and an alternative when there is one. This release replaces the development releases published before (0.2.0 to
-1.5.0), which were withdrawn: 1.0.0 is kept for the complete version (see the roadmap in the README). Source only: the
+1.5.0), which were withdrawn: 1.0.0 was kept for the complete version. Source only: the
 interop is generated from your own Solid Edge installation, so no binaries are published.
 
 ### Added
