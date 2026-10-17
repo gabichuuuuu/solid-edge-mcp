@@ -47,9 +47,18 @@ public static class ThinWallService
         for (int i = 0; i < centers.Length; i += 2)
         {
             Profile profile = model.Sketches.Add().Profiles.Add(refPlane);
+            profiles.Add(profile);
             profile.MountingBoss2dCollection.Add(Units.MmToM(centers[i]), Units.MmToM(centers[i + 1]));
             profile.End((ProfileValidationType)((int)ProfileValidationType.igProfileClosed | (int)ProfileValidationType.igProfileAllowNested));
-            profiles.Add(profile);
+            try
+            {
+                SketchService.Define(profile);
+            }
+            catch (ToolException)
+            {
+                profiles.ForEach(p => TryDelete(p.Parent));
+                throw;
+            }
         }
 
         object[] profileArray = [.. profiles];

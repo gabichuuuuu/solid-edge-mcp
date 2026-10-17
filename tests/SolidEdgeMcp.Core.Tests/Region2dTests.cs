@@ -76,6 +76,51 @@ public sealed class Region2dTests
     }
 
     [Fact]
+    public void Distance_is_to_the_nearest_chord()
+    {
+        // The midpoint of an edge of a region lies on the outline it comes from (an edge of another sketch's circle does not).
+        Curve side = Line(0, 0, 0.05, 0);
+        Assert.Equal(0, Distance(side, (0.025, 0)), 12);
+        Assert.Equal(0.005, Distance(side, (0.025, 0.005)), 12);
+        Assert.Equal(0.005, Distance(side, (0.055, 0)), 12);
+        Curve c = Circle(0, 0, 0.01);
+        Assert.True(Distance(c, (0, 0.01)) < 1e-6);
+        Assert.Equal(0.002, Distance(c, (0.012, 0)), 6);
+    }
+
+    [Fact]
+    public void Material_is_in_the_even_nesting_levels()
+    {
+        // A rectangle with a r5 circle inside (Solid Edge: the ring holds material), and a r2 circle inside that one (the disc too).
+        Assert.Equal([0], Material(2, [new([0], true), new([0, 1], true)])!);
+        Assert.Equal([0, 2], Material(3, [new([0], true), new([0, 1], true), new([1, 2], true)])!);
+
+        // A plus of two crossing rectangles: the centre borders the four arms and is their overlap, so every region holds material.
+        Assert.Equal([0, 1, 2, 3, 4], Material(5, [.. Enumerable.Range(1, 4).SelectMany(k => new Border[] { new([k], true), new([0, k], true) })])!);
+    }
+
+    [Fact]
+    public void Borders_of_another_sketch_on_the_plane_do_not_bound_regions()
+    {
+        // A r10 circle and a 10 x 40 rectangle across it in two sketches (verified: 5 regions for each). Faces: 0 and 1 the caps of
+        // the circle beside the rectangle, 2 the middle, 3 and 4 the ends of the rectangle outside the circle.
+        Border[] Borders(bool circle) =>
+        [
+            new([0], circle), new([1], circle), new([2, 3], circle), new([2, 4], circle),
+            new([0, 2], !circle), new([1, 2], !circle), new([3], !circle), new([4], !circle),
+        ];
+        Assert.Equal([0, 1, 2], Material(5, Borders(circle: true))!);
+        Assert.Equal([2, 3, 4], Material(5, Borders(circle: false))!);
+    }
+
+    [Fact]
+    public void Material_is_null_when_a_region_cannot_be_placed()
+    {
+        Assert.Null(Material(2, [new([0], true)]));
+        Assert.Null(Material(1, [new([0], false)]));
+    }
+
+    [Fact]
     public void Interior_point_lies_inside_the_loop()
     {
         Curve[] l = [Line(0, 0, 0.06, 0), Line(0.06, 0, 0.06, 0.02), Line(0.06, 0.02, 0.02, 0.02), Line(0.02, 0.02, 0.02, 0.04),

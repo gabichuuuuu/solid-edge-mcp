@@ -1,0 +1,66 @@
+# A134: se_sketch close names the dimensions it adds after what they size (Sketch_1_Width...), places a sketch from model edges brought in with project (they follow the model) and first from the lines given in 'elements'. Each part is closed without saving.
+# A: 40x20 rectangle at (10,5): Sketch_1_Width 40, Sketch_1_Height 20, Sketch_1_X 10 and Sketch_1_Y 5; V = 8000. C: only two edges of its bottom face projected leave their other ends free: close refuses the sketch and takes back what it added. B: a r3 circle at (40,15) on the xy plane with the 4 edges of the bottom face (z = 0) projected and made construction (references, not profile): their ends meet at the corners and the circle is placed from them (10 from the right edge, 10 from the bottom or top one): 3 dimensions (the sketch is Sketch_3: Sketch_2 was C), Sketch_3_Diameter 6, Sketch_3_X 10, Sketch_3_Y 10; cut through: 8000 - pi*9*10 = 7717.257. Driving Sketch_1_Width to 60 moves the right edge to x = 70 and the hole with it (x 57-63): +4000
+@dA = se_documents {"action":"new","kind":"part"}
+@kA = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kA.sketch}}","points":[10,5,50,25]}
+@cA = se_sketch {"action":"close","sketch":"{{kA.sketch}}"}
+?= cA.fullyDefined true
+?= cA.defined.dimensions[0].variable Sketch_1_Width
+?= cA.defined.dimensions[1].variable Sketch_1_Height
+@gAx = se_variables {"action":"get","name":"Sketch_1_X"}
+?= gAx.value 10
+@gAy = se_variables {"action":"get","name":"Sketch_1_Y"}
+?= gAy.value 5
+@xA = se_extrude {"sketch":"{{kA.sketch}}","distance":10}
+?= xA.volume 8000
+@fB = se_geometry {"action":"faces","direction":[0,0,-1]}
+@eB = se_geometry {"action":"edges","source":"{{fB.items[0].handle}}"}
+@kC = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"project","sketch":"{{kC.sketch}}","elements":["{{eB.items[0].handle}}","{{eB.items[1].handle}}"]}
+se_sketch {"action":"circle","sketch":"{{kC.sketch}}","center":[30,15],"radius":2}
+! [sketch_under_defined] se_sketch {"action":"close","sketch":"{{kC.sketch}}"}
+@iC = se_sketch {"action":"info","sketch":"{{kC.sketch}}"}
+?= iC.fullyDefined false
+se_sketch {"action":"delete","sketch":"{{kC.sketch}}"}
+@kB = se_sketch {"action":"create","plane":"1"}
+@pB = se_sketch {"action":"project","sketch":"{{kB.sketch}}","elements":["{{eB.items[0].handle}}","{{eB.items[1].handle}}","{{eB.items[2].handle}}","{{eB.items[3].handle}}"]}
+se_sketch_edit {"action":"construction","sketch":"{{kB.sketch}}","elements":["{{pB.elements[0].element}}","{{pB.elements[1].element}}","{{pB.elements[2].element}}","{{pB.elements[3].element}}"]}
+se_sketch {"action":"circle","sketch":"{{kB.sketch}}","center":[40,15],"radius":3}
+@cB = se_sketch {"action":"close","sketch":"{{kB.sketch}}"}
+?= cB.fullyDefined true
+?= cB.elements.dimensions 3
+?= cB.defined.dimensions[0].variable Sketch_3_Diameter
+@gBx = se_variables {"action":"get","name":"Sketch_3_X"}
+?= gBx.value 10
+@gBy = se_variables {"action":"get","name":"Sketch_3_Y"}
+?= gBy.value 10
+@xB = se_extrude {"sketch":"{{kB.sketch}}","operation":"cut","extent":"through_all"}
+?= xB.volume 7717.257 0.01
+@sB = se_variables {"action":"set","name":"Sketch_1_Width","value":60}
+?= sB.volumeChange 4000 0.01
+@hB = se_geometry {"action":"faces","type":"cylinder"}
+?= hB.items[0].boundingBox.min[0] 57 0.001
+?= hB.items[0].boundingBox.max[0] 63 0.001
+se_documents {"action":"close","document":"{{dA.handle}}","saveChanges":false}
+# D: 60x40 plate at the origin with a construction datum line x = 20 and a r5 circle at (35,20); close with elements = [datum] places the circle from it (15) instead of from the right edge (25): Sketch_1_Width 60, Sketch_1_Height 40, Sketch_1_Diameter 10, Sketch_1_X 20 (the datum), Sketch_1_X2 15, Sketch_1_Y 20. V = (2400 - 25 pi) * 10 = 23214.602. Driving the datum to 30 moves the hole to x = 45 (40-50)
+@dD = se_documents {"action":"new","kind":"part"}
+@kD = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kD.sketch}}","points":[0,0,60,40]}
+@lD = se_sketch {"action":"line","sketch":"{{kD.sketch}}","points":[20,0,20,40]}
+se_sketch_edit {"action":"construction","sketch":"{{kD.sketch}}","elements":["{{lD.element}}"]}
+@oD = se_sketch {"action":"circle","sketch":"{{kD.sketch}}","center":[35,20],"radius":5}
+! [invalid_argument] se_sketch {"action":"close","sketch":"{{kD.sketch}}","elements":["{{oD.element}}"]}
+@cD = se_sketch {"action":"close","sketch":"{{kD.sketch}}","elements":["{{lD.element}}"]}
+?= cD.fullyDefined true
+?= cD.elements.dimensions 6
+@gDx = se_variables {"action":"get","name":"Sketch_1_X2"}
+?= gDx.value 15
+@gDy = se_variables {"action":"get","name":"Sketch_1_Y"}
+?= gDy.value 20
+@xD = se_extrude {"sketch":"{{kD.sketch}}","distance":10}
+?= xD.volume 23214.602 0.01
+@sD = se_variables {"action":"set","name":"Sketch_1_X","value":30}
+?= sD.volumeChange 0 0.01
+@hD = se_geometry {"action":"faces","type":"cylinder"}
+?= hD.items[0].boundingBox.min[0] 40 0.001
+se_documents {"action":"close","document":"{{dD.handle}}","saveChanges":false}

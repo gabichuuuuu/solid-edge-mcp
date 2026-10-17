@@ -169,7 +169,7 @@ se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
 # Clean Sketch, Total Length and Convert to Curve on a drawing sheet
 @dr = se_documents {"action":"new","kind":"draft"}
 @sh = se_drawing {"action":"sheets"}
-@sl = se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[50,50,100,50]}
+se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[50,50,100,50]}
 se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[50,50,100,50]}
 se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[100,50,100.00001,50]}
 se_sketch {"action":"circle","sketch":"{{sh.sheets[0].handle}}","center":[150,80],"radius":10}
@@ -180,7 +180,10 @@ se_sketch {"action":"circle","sketch":"{{sh.sheets[0].handle}}","center":[150,80
 @ts = se_sketch_tools {"action":"length","sketch":"{{sh.sheets[0].handle}}"}
 ?= ts.elements 2
 ?= ts.length 112.832 0.001
-@sc = se_sketch_tools {"action":"convert","sketch":"{{sh.sheets[0].handle}}","elements":["{{sl.element}}"]}
+# Clean keeps either of the identical lines (Solid Edge's choice), so the line left is read again
+@cl = se_sketch {"action":"info","sketch":"{{sh.sheets[0].handle}}"}
+?= cl.items[0].geometry.type line
+@sc = se_sketch_tools {"action":"convert","sketch":"{{sh.sheets[0].handle}}","elements":["{{cl.items[0].element}}"]}
 ?= sc.length 50 0.001
 ?= sc.curves[0].geometry.type spline
 @si = se_sketch {"action":"info","sketch":"{{sh.sheets[0].handle}}"}

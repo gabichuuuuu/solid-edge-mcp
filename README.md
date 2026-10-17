@@ -74,8 +74,8 @@ for approval.
 ## Progress
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=1f6516c6">
-  <img src="docs/assets/progress.svg?v=d928eb8d" alt="Progress by area: one square per Solid Edge function" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/progress-dark.svg?v=2d297bb0">
+  <img src="docs/assets/progress.svg?v=c9050fdf" alt="Progress by area: one square per Solid Edge function" width="100%">
 </picture>
 
 Each square is one function of the [coverage map](docs/COVERAGE.md): it works through the MCP, it fails
@@ -293,7 +293,7 @@ se_physical   {"density":7850}                       → 100 000 mm³ (100 · 50
 | | `se_app` | Solid Edge as a program: version, edition, language and folders; the Add-In Manager (load and unload add-ins); default template of each document type; the recent files list; the data Solid Edge's AI automatic drawing creation learns from, extracted from saved drawings; the file naming rule and the next document numbers; the DXF/DWG translation settings back to their defaults. |
 | | `se_customize` | The Customize dialog: ribbon themes (create from the default one, activate, rename, button size and labels, remove), tabs, groups and commands of a theme, and keyboard shortcuts of each environment. |
 | | `se_styles` | Styles of a document: dimension, text, character, line, fill, hatch, dash, drawing view, table and frame styles of drawings, and view and face styles of models. List them, read every property, change one (read back, with the previous value; colours as #RRGGBB and enumerations by name), create one from another, activate, delete, and import them from another drawing. The 8 lights of a view style: colour, intensity and direction, read back. |
-| **Sketches** | `se_sketch` | Lines, rectangles, regular polygons, polylines, circles, arcs, ellipses, splines, conics, points, corner fillet and chamfer, edge projection, revolve axis and validated close; list the elements and relations of a sketch; tear a part sketch off onto another plane. The same 2D geometry is drawn on drawing sheets (2D drafting) and on the 2D layouts of an assembly. Sketch blocks of parts and layouts: make a block from elements, place it at a scale and angle; features take the profile with its blocks. |
+| **Sketches** | `se_sketch` | Lines, rectangles, regular polygons, polylines, circles, arcs, ellipses, splines, conics, points, corner fillet and chamfer, edge projection, revolve axis and validated close, which leaves the sketch fully defined where it lies, as a designer would (the relations the drawing shows, the sizes, the angles, and the position from the base planes or from the contour it sits in, without fixing what is drawn, so its variables drive it and the features made from it follow them; model edges brought in with the projection, or lines you choose, serve as references), with the dimensions named after what they size (`Sketch_1_Width`), as every feature that uses a sketch requires; list the elements and relations of a sketch and whether it is fully defined; tear a part sketch off onto another plane. The same 2D geometry is drawn on drawing sheets (2D drafting) and on the 2D layouts of an assembly. Sketch blocks of parts and layouts: make a block from elements, place it at a scale and angle; features take the profile with its blocks. |
 | | `se_sketch_constraint` | Geometric relations (horizontal, parallel, tangent, equal, symmetric…) and dimensions that move the geometry, in sketches and on drawing sheets; auto-scale a sketch by its first dimension. |
 | | `se_sketch_edit` | Move, rotate, scale and mirror elements (in place, keeping the relations among them, or as connected copies), trim, extend, split, corner, offset a chain (also to both sides with arc or line caps: Symmetric Offset), construction geometry, rectangular and circular patterns and delete, in sketches and on drawing sheets; on sheets also the drawing order (front, back, forward, backward) and groups; each result measured. |
 | | `se_sketch_tools` | Sketch tools of the ribbon: clean a sketch or a drawing sheet (duplicate, overlapping and small elements, with the counts before and after); convert lines and arcs into B-spline curves of the same length; move the origin and x direction of the local axes of a sketch or put them back; place a picture at a corner and a width; section sketches of the design bodies on a plane and on parallel planes; the total length of curves; copy an assembly layout into the part of an occurrence. |
@@ -457,7 +457,7 @@ Results (unit tests and acceptance scripts run on 2026-10-16):
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
 - Tests without Solid Edge: `SolidEdgeMcp.Core.Tests` 86/86 and `SolidEdgeMcp.Server.Tests` 743/743.
-- Acceptance suite against real Solid Edge 2026: scripts `A01`–`A132`, with expected values computed
+- Acceptance suite against real Solid Edge 2026: scripts `A01`–`A133`, with expected values computed
   from formulas (or Solid Edge reference values when there is no simple formula, noted in the script). The full run
   of 2026-10-16, against the distributed package with the interop it generated, made **7208 calls and 3694 checks**:
   129 scripts passed. In `A42`, `A48` and `A53` Solid Edge began to refuse surface trims and PMI model views and then
@@ -605,6 +605,9 @@ Results (unit tests and acceptance scripts run on 2026-10-16):
 | `A130` | A hole table with one row per hole for a counterbore, a countersink, a tapered hole and a plain hole, and a view out of date with its part listing every circle until it is updated |
 | `A131` | An explode in a chosen orientation kept by its drawing view, bills of materials written to .csv and .xlsx files, and the parts list of a drawing written to a spreadsheet |
 | `A132` | The programs installed with Solid Edge beside Design Manager: the installation read by `se_server_info`; the 128 x 128 thumbnails of a closed part, assembly and drawing; a plate written as CATIA V5, CATIA V4, OBJ (with its material file), PLM XML (with a Parasolid file of the body), U3D and XGL, an assembly refused for CATIA and VRML refused; the CATIA files imported again with the volume of the plate (60000 mm3); batches as Translation Services: a folder with a subfolder to STEP (3 files, drawings left out, the subfolder kept), a drawing and a part that would write the same PDF (the second refused), a file open in Solid Edge exported from its document, which stays open, and a STEP file of the batch imported again with the same volume. |
+| `A133` | Sketches fully defined where they lie: a rectangle off the origin and at the origin, a nested profile placed from its plate, a triangle, an ellipse turned 30° (driving its minor semi-axis halves the volume), open chains, a sketch the person already defined, a half section revolved, a turned rectangle, a slot, a rectangle centred on the origin, sketches with construction elements whose operations follow their dimensions (a closed one copied by its regions, crossing loops joined, an open rib used again after deleting it), a circle and an open line on a plane turned 30° placed from the traces of the base planes, an ellipse with a line to its centre and a plate with a cut-out bounded by an R200 arc placed first. |
+| `A134` | Dimensions named after what they size (`Sketch_1_Width`, `Sketch_1_X`); a hole placed from the four edges of a face brought in as construction references, which follows the face when its plate grows; two edges alone refused; a hole placed first from a chosen datum line, which drives it. |
+| `A135` | Open sketches with a construction line beside the profile: a slot that follows its length, a web network, a sweep path, a bend, a bead, an etch and a jog give the same results as without it. |
 
 </details>
 
@@ -670,7 +673,7 @@ solid-edge-mcp/
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A132 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A133 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, package.ps1, update-progress.ps1
 ├── plugin/                        Claude Code plugin: manifest and launcher (start.cmd, install.ps1)
 ├── .claude-plugin/                marketplace.json, the marketplace of the plugin
@@ -685,7 +688,7 @@ solid-edge-mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A132`, listed under [Validation](#validation)) with expected volumes, measurements
+calls (`A01`–`A133`, listed under [Validation](#validation)) with expected volumes, measurements
 and errors written in advance. Each script creates and closes its documents without saving:
 
 ```powershell
@@ -750,7 +753,12 @@ what the commit contains.
   Claude Code plugin, and is validated end to end, by the full acceptance suite and by sessions in which Claude uses
   Solid Edge from requests in plain language. Tool names and parameters are stable. Change history in
   [CHANGELOG.md](CHANGELOG.md).
-- **Pending:** continuous integration (CI).
+- **Next milestone (1.1): design intent.** Every sketch an operation uses is fully defined by relations and dimensions
+  named after what they size, from the base planes, the model edges brought into it or the lines the designer chooses
+  (under [Unreleased] in the change history); then the functions that the API blocks (✘ API in
+  [docs/COVERAGE.md](docs/COVERAGE.md)) tried again by other routes.
+- **Continuous integration** checks the license headers and runs the unit tests of the core library on every push to
+  `main` and every pull request; the rest needs Solid Edge and is tested locally by the acceptance suite.
 
 ## License
 

@@ -107,7 +107,7 @@ public static partial class FeatureService
     {
         string handle = sketch ?? throw ToolException.InvalidArgument("project requires 'sketch' (closed with se_sketch 'close', open: true for an open chain).");
         ModelDocument model = ModelDocument.For(context, documentHandle, handle);
-        Profile profile = SketchService.Resolve(context, handle);
+        Profile profile = SketchService.ResolveDefined(context, handle);
         object target = FaceSet(context, model, onto ?? throw ToolException.InvalidArgument("project requires 'onto': the face, surface or feature handle, or 'body', to project onto."), "onto");
         FeaturePropertyConstants side = direction switch
         {
@@ -135,8 +135,8 @@ public static partial class FeatureService
         }
 
         ModelDocument model = ModelDocument.For(context, documentHandle, a);
-        Profile first = SketchService.Resolve(context, a);
-        Profile second = SketchService.Resolve(context, b);
+        Profile first = SketchService.ResolveDefined(context, a);
+        Profile second = SketchService.ResolveDefined(context, b);
         bool switched = model.EnsureOrdered();
         Array set1 = new object[] { first };
         Array set2 = new object[] { second };
@@ -389,7 +389,7 @@ public static partial class FeatureService
         }
 
         ModelDocument model = ModelDocument.For(context, documentHandle, handle);
-        Profile profile = SketchService.Resolve(context, handle);
+        Profile profile = SketchService.ResolveDefined(context, handle);
         double expected = SketchLength(profile);
         bool switched = model.EnsureOrdered();
         Array faceArray = faces.Select(h => (object)context.Handles.Resolve<Face>(h, "faces")).ToArray();

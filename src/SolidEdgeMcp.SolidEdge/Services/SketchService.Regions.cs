@@ -301,6 +301,9 @@ public static partial class SketchService
         return curves;
     }
 
+    /// <summary>A line, arc, circle, ellipse, elliptical arc or spline of a sketch as a polyline (<see cref="CurveOf"/>).</summary>
+    internal static Region2d.Curve Outline(object element) => CurveOf(element, KindOf(element));
+
     /// <summary>A 2D element as a polyline whose chords stay within 0.1 µm of it; the ends are kept exactly.</summary>
     private static Region2d.Curve CurveOf(object element, string handle)
     {

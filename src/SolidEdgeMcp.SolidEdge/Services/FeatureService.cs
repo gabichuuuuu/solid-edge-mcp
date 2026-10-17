@@ -36,7 +36,7 @@ public static partial class FeatureService
         string direction, double? distance, ThinWallSpec? thinWall = null, ExtrudeLimits? limits = null)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
-        Profile sketchProfile = SketchService.Resolve(context, sketch);
+        Profile sketchProfile = SketchService.ResolveDefined(context, sketch);
         bool cut = IsCut(operation);
         ThinWallSpec? wall = CheckThinWall(thinWall, cut);
         bool finite = extent switch
@@ -121,7 +121,7 @@ public static partial class FeatureService
 
         object result = Verify(context, model, feature, before, cut ? -1 : 1, switched, sketch, included);
         Hide(sketchProfile);
-        Hide(included.Profile);
+        Hide(included);
         return result;
     }
 
@@ -246,7 +246,7 @@ public static partial class FeatureService
         double angle, string direction, ThinWallSpec? thinWall = null)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
-        Profile sketchProfile = SketchService.Resolve(context, sketch);
+        Profile sketchProfile = SketchService.ResolveDefined(context, sketch);
         RefAxis refAxis = context.Handles.Resolve<RefAxis>(
             axis ?? throw ToolException.InvalidArgument("se_revolve requires 'axis'.", "Create it with se_sketch action 'axis' on a line of the sketch, before closing the sketch."),
             "axis");
@@ -284,7 +284,7 @@ public static partial class FeatureService
         ApplyThinWall(model, feature, wall, included);
         object result = Verify(context, model, feature, before, cut ? -1 : 1, switched, sketch, included);
         Hide(sketchProfile);
-        Hide(included.Profile);
+        Hide(included);
         return result;
     }
 
@@ -688,11 +688,30 @@ public static partial class FeatureService
     /// <summary>What to check when Solid Edge removes an operation it cannot build while creating it.</summary>
     internal const string NotBuiltHint = "Check the sizes against the part: Solid Edge cannot build an operation that would leave walls of zero thickness or meet the body only along a line (for example a hole exactly as wide as the bar).";
 
-    /// <summary>Linked copy of the sketch profile for an operation (equivalent to the UI command "Select from Sketch").</summary>
+    /// <summary>
+    /// The profile an operation takes from a sketch: a linked copy (equivalent to the UI command "Select from Sketch") of the
+    /// whole profile; for a sketch with construction elements, of its regions when its loops close (<see cref="RegionFaces"/>),
+    /// or the sketch's own profile when it is open. Verified: the whole-profile copy puts the construction copies in a second
+    /// profile, which <see cref="DropConstruction"/> deletes, but Solid Edge creates it again whenever the sketch changes: an
+    /// extruded surface of an open line with a construction line beside it then extrudes that line too, and one on a plane
+    /// turned 30° (whose base plane traces are construction lines) fails. Built from the sketch's own profile, both follow
+    /// the change (1000 to 1600 mm2), and deleting the operation keeps the sketch for another one.
+    /// </summary>
     private static IncludedProfile Include(ModelDocument model, Profile sketchProfile)
     {
         try
         {
+            if (RegionFaces(sketchProfile) is { } faces)
+            {
+                Profile regions = CopyRegions(model, sketchProfile, faces);
+                return new IncludedProfile(regions, Late.TryGet(regions, "Parent"));
+            }
+
+            if (sketchProfile.Parent is Sketch && HasConstruction(sketchProfile) && !SketchService.IsClosed(sketchProfile))
+            {
+                return new IncludedProfile(sketchProfile, null, Own: true);
+            }
+
             Profile profile = model.ProfileSets.CreateIncludedProfile(sketchProfile);
             var included = new IncludedProfile(profile, Late.TryGet(profile, "Parent"));
             try
@@ -707,7 +726,7 @@ public static partial class FeatureService
 
             return included;
         }
-        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        catch (Exception ex) when (ex is InvalidCastException || (ex is COMException com && !ComErrors.IsGone(com)))
         {
             throw new ToolException("sketch_not_usable", $"The sketch cannot be used for a feature: {ex.Message}",
                 "Close it first with se_sketch action 'close' (it must form closed loops).", ex);
@@ -720,6 +739,12 @@ public static partial class FeatureService
     /// </summary>
     private static void DeleteIncluded(IncludedProfile included)
     {
+        if (included.Own)
+        {
+            // The sketch of the person: kept for another try.
+            return;
+        }
+
         try
         {
             Late.Call(included.Set ?? included.Profile, "Delete");
@@ -730,8 +755,11 @@ public static partial class FeatureService
         }
     }
 
-    /// <summary>Linked copy of a sketch profile and the set (ProfileSet) that contains it.</summary>
-    private sealed record IncludedProfile(Profile Profile, object? Set);
+    /// <summary>
+    /// Linked copy of a sketch profile and the set (ProfileSet) that contains it; with <paramref name="Own"/>, the sketch's own
+    /// profile, which is never deleted.
+    /// </summary>
+    private sealed record IncludedProfile(Profile Profile, object? Set, bool Own = false);
 
     /// <summary>
     /// The copy of a sketch with construction elements puts them in another profile of the same set, and the operation then
@@ -759,6 +787,145 @@ public static partial class FeatureService
     private static IEnumerable<object> Elements(Profile profile) =>
         new object[] { profile.Lines2d, profile.Arcs2d, profile.Circles2d, profile.Ellipses2d, profile.EllipticalArcs2d, profile.BSplineCurves2d }
             .SelectMany(collection => Late.Items(collection));
+
+    private static bool HasConstruction(Profile sketchProfile) => Elements(sketchProfile).Any(sketchProfile.IsConstructionElement);
+
+    /// <summary>
+    /// The region faces of a closed sketch with construction elements that hold material: those nested in an even number of
+    /// loops (a 40 x 20 rectangle with a r5 circle inside gives the ring, and a r2 circle inside that one the disc too), the
+    /// overlap of crossing loops counted with them, as Solid Edge joins them; null for any other sketch or when Solid Edge
+    /// gives no regions, and then the regions are switched back off if they were. Verified: the whole-profile copy puts the
+    /// construction copies in a second profile, which <see cref="DropConstruction"/> deletes, but Solid Edge creates it again
+    /// whenever the sketch changes and the operation then fails (a 40 x 20 rectangle with a construction line inside, its
+    /// length driven from 40 to 60); the copy of its regions holds only the loops and follows the sketch (8000 to 12000 mm3;
+    /// with the circle 7214.602 to 11214.602 mm3). A plus of a 60 x 10 and a 10 x 60 rectangle with a construction line fails
+    /// from the whole-profile copy and from the sketch's own profile; the copy of its 5 regions is one profile that extrudes
+    /// to 11000 mm3, as the plus without the line, and follows the sketch (12000 mm3 with the 60 driven to 80). Construction
+    /// elements do not bound regions (a construction circle inside the rectangle still extrudes to 8000 mm3).
+    /// </summary>
+    private static Array? RegionFaces(Profile sketchProfile)
+    {
+        if (sketchProfile.Parent is not Sketch sketch || !HasConstruction(sketchProfile) || !SketchService.IsClosed(sketchProfile))
+        {
+            return null;
+        }
+
+        bool enabled = sketch.EnableRegions;
+        Array? material = null;
+        try
+        {
+            if (!enabled)
+            {
+                sketch.EnableRegions = true;
+            }
+
+            material = Material(sketch, sketchProfile);
+            return material;
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            return null;
+        }
+        finally
+        {
+            if (material is null && !enabled)
+            {
+                Restore(sketch);
+            }
+        }
+    }
+
+    private static void Restore(Sketch sketch)
+    {
+        try
+        {
+            sketch.EnableRegions = false;
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            // Affects only the display of the sketch.
+        }
+    }
+
+    /// <summary>
+    /// The region faces of the sketch that hold material (<see cref="RegionFaces"/>, <see cref="Region2d.Material"/>), or null.
+    /// Verified: a r10 circle and a 10 x 40 rectangle crossing it in two sketches give 5 regions to each, whatever
+    /// EnableRegions or MergeWithCoplanarSketches the sketches have, so an edge is the sketch's own when its midpoint lies on
+    /// one of its outlines.
+    /// </summary>
+    private static Array? Material(Sketch sketch, Profile profile)
+    {
+        if (sketch.GetRegionBody() is not SolidEdgeGeometry.Body body)
+        {
+            return null;
+        }
+
+        var faces = Late.Items(body.Faces[SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryAll]).Cast<SolidEdgeGeometry.Face>().ToList();
+        if (faces.Count == 0)
+        {
+            return null;
+        }
+
+        Region2d.Curve[] outlines = [.. Elements(profile).Where(e => !profile.IsConstructionElement(e)).Select(SketchService.Outline)];
+        List<int> ids = [.. faces.Select(f => f.ID)];
+        var borders = new Dictionary<int, Region2d.Border>();
+        for (int i = 0; i < faces.Count; i++)
+        {
+            foreach (SolidEdgeGeometry.Edge edge in Late.Items(faces[i].Edges).Cast<SolidEdgeGeometry.Edge>().Where(e => !borders.ContainsKey(e.ID)))
+            {
+                Array around = Array.CreateInstance(typeof(object), 0);
+                edge.GetFaces(out int count, ref around);
+                int[] sides = count == 1 ? [i] : [.. around.OfType<SolidEdgeGeometry.Face>().Select(f => ids.IndexOf(f.ID)).Where(j => j >= 0).Distinct()];
+                if (sides.Length == 1 && count != 1)
+                {
+                    continue;
+                }
+
+                edge.GetParamExtents(out double low, out double high);
+                Array at = new[] { (low + high) / 2 };
+                Array point = new double[3];
+                edge.GetPointAtParam(1, ref at, ref point);
+                double[] p = [.. Geo.Doubles(point)];
+                profile.Convert3DCoordinate(p[0], p[1], p[2], out double u, out double v);
+                borders[edge.ID] = new Region2d.Border(sides, outlines.Any(c => Region2d.Distance(c, (u, v)) < OutlineMargin));
+            }
+        }
+
+        return Region2d.Material(faces.Count, borders.Values) is { } material ? material.Select(i => (object)faces[i]).ToArray() : null;
+    }
+
+    /// <summary>
+    /// An edge closer than this (m) to an outline of the sketch lies on it: above the error of the outline as a polyline (at most
+    /// 0.3 µm) and far below any gap between outlines that Solid Edge keeps apart.
+    /// </summary>
+    private const double OutlineMargin = 1e-6;
+
+    /// <summary>
+    /// The linked copy of the region faces. Verified: the first copy after a sketch was defined and its definition queried
+    /// fails now and then with E_NOINTERFACE (always through the server for a 20 x 10 ellipse centred on the origin), and the
+    /// faces read again then copy.
+    /// </summary>
+    private static Profile CopyRegions(ModelDocument model, Profile sketchProfile, Array faces)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return model.ProfileSets.CreateIncludeProfileFromRegionFaces(faces.Length, ref faces);
+            }
+            catch (Exception ex) when (attempt < RegionAttempts && (ex is InvalidCastException || (ex is COMException com && !ComErrors.IsGone(com))))
+            {
+                if (RegionFaces(sketchProfile) is not { } again)
+                {
+                    throw;
+                }
+
+                faces = again;
+            }
+        }
+    }
+
+    private const int RegionAttempts = 3;
 
     /// <summary>Verifies the feature with <see cref="Check"/> and describes the result.</summary>
     private static object Verify(SeContext context, ModelDocument model, object feature, double before, int expectedSign, bool switched,
@@ -847,6 +1014,18 @@ public static partial class FeatureService
         catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Affects only the presentation; the feature is already created and verified.
+        }
+    }
+
+    /// <summary>Hides every profile of the copy: one by regions holds a profile for each region.</summary>
+    private static void Hide(IncludedProfile included)
+    {
+        Profile[] profiles = included.Set is not null && Late.TryGet(included.Set, "Profiles") is { } all
+            ? [.. Late.Items(all).OfType<Profile>()]
+            : [];
+        foreach (Profile profile in profiles.Length == 0 ? [included.Profile] : profiles)
+        {
+            Hide(profile);
         }
     }
 

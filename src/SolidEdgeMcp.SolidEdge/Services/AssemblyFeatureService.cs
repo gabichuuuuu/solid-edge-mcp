@@ -38,7 +38,7 @@ public static partial class AssemblyFeatureService
     public static object Cut(SeContext context, string? sketch, string[]? occurrenceHandles, double? depth, string side, string? name)
     {
         Occurrence[] scope = Scope(context, occurrenceHandles, "cut");
-        Profile profile = SketchService.Resolve(context, sketch ?? throw ToolException.InvalidArgument(
+        Profile profile = SketchService.ResolveDefined(context, sketch ?? throw ToolException.InvalidArgument(
             "'sketch' is required: a closed sketch made in the assembly (se_sketch create with an assembly plane, then close)."));
         double distance = depth is { } d ? Units.MmToM(Units.RequirePositive(d, "depth")) : 0;
         FeaturePropertyConstants[] sides = Sides(side, true);
@@ -68,7 +68,7 @@ public static partial class AssemblyFeatureService
     public static object Revolve(SeContext context, string? sketch, string? axis, string[]? occurrenceHandles, double? angle, string side, string? name)
     {
         Occurrence[] scope = Scope(context, occurrenceHandles, "cut");
-        Profile profile = SketchService.Resolve(context, sketch ?? throw ToolException.InvalidArgument(
+        Profile profile = SketchService.ResolveDefined(context, sketch ?? throw ToolException.InvalidArgument(
             "'sketch' is required: a closed sketch made in the assembly, with an axis (se_sketch 'axis' on a line, before 'close')."));
         object refAxis = context.Handles.Resolve(axis ?? throw ToolException.InvalidArgument(
             "'axis' is required: the axis returned by se_sketch 'axis' on a line of the sketch, before 'close'."), "axis");
@@ -166,6 +166,15 @@ public static partial class AssemblyFeatureService
             profile.Holes2d.Add(u, v);
             profile.End(ProfileValidationType.igProfileClosed);
             profiles.Add(profile);
+            try
+            {
+                SketchService.Define(profile);
+            }
+            catch (ToolException)
+            {
+                sets.ForEach(TryDelete);
+                throw;
+            }
         }
 
         AssemblyFeaturesHoles holes = FeaturesOf(assembly).AssemblyFeaturesHoles;
@@ -219,6 +228,15 @@ public static partial class AssemblyFeatureService
             profile.Circles2d.AddByCenterRadius(u, v, Units.MmToM(bore.Diameter) / 2);
             profile.End(ProfileValidationType.igProfileClosed);
             circles.Add(profile);
+            try
+            {
+                SketchService.Define(profile);
+            }
+            catch (ToolException)
+            {
+                circles.ForEach(c => TryDelete(c.Parent));
+                throw;
+            }
         }
 
         AssemblyFeaturesExtrudedCutouts cutouts = FeaturesOf(assembly).AssemblyFeaturesExtrudedCutouts;

@@ -87,7 +87,7 @@ public static partial class FeatureService
     {
         string sketch = spec.Sketch ?? throw ToolException.InvalidArgument("'sketch' is required: an open chain closed with se_sketch 'close' and open: true.");
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
-        Profile sketchProfile = SketchService.Resolve(context, sketch);
+        Profile sketchProfile = SketchService.ResolveDefined(context, sketch);
         double thickness = Units.MmToM(Units.RequirePositive(spec.Thickness ?? throw ToolException.InvalidArgument("rib requires 'thickness' (mm)."), "thickness"));
         FeaturePropertyConstants thicknessSide = spec.Side switch
         {
@@ -116,7 +116,7 @@ public static partial class FeatureService
                         materialSide, thicknessSide, thickness));
                 object result = Verify(context, model, feature, before, 1, switched, sketch, included);
                 Hide(sketchProfile);
-                Hide(included.Profile);
+                Hide(included);
                 return result;
             }
             catch (ToolException ex) when (ex.Code == "feature_failed")

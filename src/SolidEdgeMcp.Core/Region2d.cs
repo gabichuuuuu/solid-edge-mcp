@@ -316,7 +316,104 @@ public static class Region2d
         return count;
     }
 
-    private static double Distance(Curve curve, (double X, double Y) point) =>
+    /// <summary>
+    /// An edge of the region body of a sketch: the faces it bounds (one when it is on the outer side of the outermost loops)
+    /// and whether it lies on an outline of the sketch, not on one of another sketch on the same plane.
+    /// </summary>
+    public sealed record Border(int[] Faces, bool Own);
+
+    /// <summary>
+    /// The faces (indices of the <paramref name="faces"/> of the region body) that hold material when the sketch is extruded:
+    /// those nested in an even number of its loops, the overlap of crossing loops counted with them, as Solid Edge joins
+    /// them; null when none does or a region cannot be placed. Solid Edge forms the regions from every sketch on the plane, so
+    /// only the borders on the sketch's own outlines bound its regions: the faces joined across the other borders make one
+    /// region, and the ones that reach the outside across them lie outside its loops.
+    /// </summary>
+    public static int[]? Material(int faces, IEnumerable<Border> borders)
+    {
+        int[] root = [.. Enumerable.Range(0, faces)];
+        int Find(int i)
+        {
+            while (root[i] != i)
+            {
+                i = root[i] = root[root[i]];
+            }
+
+            return i;
+        }
+
+        bool[] inner = new bool[faces];
+        bool[] outside = new bool[faces];
+        var bounds = new List<(int A, int B)>();
+        foreach (Border border in borders)
+        {
+            if (border.Faces.Length == 1)
+            {
+                // The outer side of the outermost loops: of this sketch when the border is its own.
+                (border.Own ? inner : outside)[border.Faces[0]] = true;
+            }
+
+            foreach ((int a, int b) in border.Faces.SelectMany((a, k) => border.Faces.Skip(k + 1).Where(b => b != a).Select(b => (a, b))))
+            {
+                if (border.Own)
+                {
+                    bounds.Add((a, b));
+                }
+                else
+                {
+                    root[Find(a)] = Find(b);
+                }
+            }
+        }
+
+        // The regions of this sketch: faces joined across borders of other sketches, by their root face.
+        const int Outer = -2;
+        int[] depth = [.. Enumerable.Repeat(-1, faces)];
+        HashSet<int>[] next = [.. Enumerable.Range(0, faces).Select(_ => new HashSet<int>())];
+        foreach ((int a, int b) in bounds.Select(pair => (Find(pair.A), Find(pair.B))).Where(pair => pair.Item1 != pair.Item2))
+        {
+            next[a].Add(b);
+            next[b].Add(a);
+        }
+
+        int[] regions = [.. Enumerable.Range(0, faces).Where(i => Find(i) == i)];
+        Array.ForEach([.. Enumerable.Range(0, faces).Where(i => outside[i])], i => depth[Find(i)] = Outer);
+        foreach (int i in Enumerable.Range(0, faces).Where(i => depth[Find(i)] != Outer && (inner[i] || next[Find(i)].Any(k => depth[k] == Outer))))
+        {
+            depth[Find(i)] = 0;
+        }
+
+        // Layer by layer: a region bordering two or more regions of a layer is the overlap of crossing loops and joins that layer
+        // (Solid Edge joins crossing loops); any other region next to the layer is nested one deeper.
+        List<int> layer = [.. regions.Where(r => depth[r] == 0)];
+        for (int d = 0; layer.Count > 0; d++)
+        {
+            for (bool grown = true; grown;)
+            {
+                grown = false;
+                foreach (int j in layer.SelectMany(i => next[i]).Distinct().Where(j => depth[j] == -1 && next[j].Count(k => depth[k] == d) > 1).ToList())
+                {
+                    depth[j] = d;
+                    layer.Add(j);
+                    grown = true;
+                }
+            }
+
+            layer = [.. layer.SelectMany(i => next[i]).Distinct().Where(j => depth[j] == -1)];
+            layer.ForEach(j => depth[j] = d + 1);
+        }
+
+        if (regions.Any(r => depth[r] == -1))
+        {
+            return null;
+        }
+
+        int[] material = [.. Enumerable.Range(0, faces).Where(i => depth[Find(i)] >= 0 && depth[Find(i)] % 2 == 0)];
+        return material.Length == 0 ? null : material;
+    }
+
+    /// <summary>Distance from the point to the curve (the nearest of its chords).</summary>
+    public static double Distance(Curve curve, (double X, double Y) point) =>
         curve.Points.Length == 1 ? Dist(curve.Points[0], point) : Segments(curve).Select(s => SegmentDistance(s.A, s.B, point)).DefaultIfEmpty(double.MaxValue).Min();
 
     private static double SegmentDistance((double X, double Y) a, (double X, double Y) b, (double X, double Y) p)

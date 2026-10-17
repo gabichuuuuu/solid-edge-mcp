@@ -151,7 +151,7 @@ public static partial class FeatureService
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
         Sheet(model);
-        Profile profile = SketchService.Resolve(context, sketch);
+        Profile profile = SketchService.ResolveDefined(context, sketch);
         FeaturePropertyConstants side = direction switch
         {
             "normal" => FeaturePropertyConstants.igRight,
@@ -204,7 +204,7 @@ public static partial class FeatureService
                 "Add flanges on edges with action 'flange'; a contour flange on an existing edge is available through se_com (Model.ContourFlanges.AddSync).");
         }
 
-        Profile profile = SketchService.Resolve(context, sketch);
+        Profile profile = SketchService.ResolveDefined(context, sketch);
         double extent = Units.MmToM(Units.RequirePositive(width ?? throw ToolException.InvalidArgument("contour_flange requires 'width' (mm): the extent along the sketch normal."), "width"));
         // Solid Edge 2026 ignores the projection side (1, 2, 3, 7 and 8 give the same solid): the width always grows toward the
         // sketch normal.
@@ -568,7 +568,7 @@ public static partial class FeatureService
             RequireSheet(model);
         }
 
-        Profile sketchProfile = SketchService.Resolve(context, spec.Sketch);
+        Profile sketchProfile = SketchService.ResolveDefined(context, spec.Sketch);
         bool normal = spec.Direction switch
         {
             "auto" or "normal" => true,
@@ -798,7 +798,7 @@ public static partial class FeatureService
         object feature = Create(what, included, () => create(target, included.Profile));
         object result = Verify(context, model, feature, before, expectedSign, switched, sketch, included, direction, changedOtherwise);
         Hide(sketchProfile);
-        Hide(included.Profile);
+        Hide(included);
         return result;
     }
 

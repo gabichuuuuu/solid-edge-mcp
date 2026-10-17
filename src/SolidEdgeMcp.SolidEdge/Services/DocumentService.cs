@@ -432,12 +432,16 @@ public static class DocumentService
 
         // Parts loaded by an assembly or a drawing are unloaded with it: their handles are released too.
         Documents documents = context.Application.Documents;
-        var open = new HashSet<object>(ReferenceEqualityComparer.Instance);
-        for (int i = 1; i <= documents.Count; i++)
+        HashSet<object> open = AfterClose(() =>
         {
-            open.Add(documents.Item(i));
-        }
+            var listed = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            for (int i = 1; i <= documents.Count; i++)
+            {
+                listed.Add(documents.Item(i));
+            }
 
+            return listed;
+        });
         foreach ((string id, object value) in context.Handles.OfKind("doc"))
         {
             if (!open.Contains(value))
@@ -455,15 +459,42 @@ public static class DocumentService
         GC.Collect();
 
         // Solid Edge can end up with no active document even when others are open; the last one is activated, as in the UI.
-        SolidEdgeDocument? active = TryActive(context);
-        if (active is null && documents.Count > 0 && documents.Item(documents.Count) is SolidEdgeDocument last)
+        SolidEdgeDocument? active = TryActive(context) ?? AfterClose(() =>
         {
-            last.Activate();
-            active = last;
-        }
+            if (documents.Count > 0 && documents.Item(documents.Count) is SolidEdgeDocument last)
+            {
+                last.Activate();
+                return last;
+            }
 
+            return null;
+        });
         return new { closed = name, saved = save, active = active is null ? null : context.DocumentHandle(active), note };
     }
+
+    /// <summary>
+    /// Reads the open documents right after a close. Solid Edge can still be unloading the closed document: it may leave
+    /// the collection between Count and Item (DISP_E_BADINDEX) or still be listed and refuse calls (RPC_E_DISCONNECTED), so
+    /// the read is tried again a few times.
+    /// </summary>
+    private static T AfterClose<T>(Func<T> read)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return read();
+            }
+            catch (COMException ex) when (attempt < CloseAttempts && (ex.HResult == ComErrors.DispEBadIndex || ComErrors.IsDisconnected(ex)))
+            {
+                Thread.Sleep(CloseWaitMs);
+            }
+        }
+    }
+
+    private const int CloseAttempts = 10;
+
+    private const int CloseWaitMs = 200;
 
     private static readonly string[] Statuses = ["available", "in_work", "in_review", "released", "baselined", "obsolete", "unknown"];
 
@@ -739,9 +770,23 @@ public static class DocumentService
                 Late.Call(window, "Close", false);
             }
         }
-        catch (Exception ex) when (ComErrors.IsCallFailure(ex))
+        catch (Exception ex) when (ComErrors.IsCallFailure(ex) || (ComErrors.IsDisconnected(ex) && Responds(application)))
         {
-            // The document is closed; a window that cannot be closed only stays hidden, as before.
+            // The document is closed; a window that cannot be closed only stays hidden, as before. One that Solid Edge releases
+            // with its document while it is being closed is disconnected (RPC_E_DISCONNECTED) while Solid Edge itself still runs.
+        }
+    }
+
+    private static bool Responds(Application application)
+    {
+        try
+        {
+            _ = application.Documents.Count;
+            return true;
+        }
+        catch (COMException)
+        {
+            return false;
         }
     }
 

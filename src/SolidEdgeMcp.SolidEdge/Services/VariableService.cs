@@ -478,6 +478,19 @@ public static partial class VariableService
         return variables.Query(criterion, NamedByBoth, varType, true);
     }
 
+    /// <summary>Whether a variable or dimension of the document has the name (ignoring case); true when Solid Edge cannot tell.</summary>
+    internal static bool InUse(SolidEdgeDocument document, string name)
+    {
+        try
+        {
+            return Late.Items(Query(document, name, VarTypeBoth)).Any(item => string.Equals(NameOf(item), name, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            return true;
+        }
+    }
+
     internal static object Find(SolidEdgeDocument document, string name)
     {
         if (string.IsNullOrWhiteSpace(name))

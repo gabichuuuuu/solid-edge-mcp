@@ -40,7 +40,7 @@ public static partial class FeatureService
         }
         FeaturePropertyConstants type = spec.Counterbore is null ? FeaturePropertyConstants.igRegularSlot : FeaturePropertyConstants.igRecessedCounterboreSlot;
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
-        Profile sketchProfile = SketchService.Resolve(context, sketch);
+        Profile sketchProfile = SketchService.ResolveDefined(context, sketch);
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
         double before = model.Volume();
@@ -57,7 +57,7 @@ public static partial class FeatureService
                     null, OffsetSideConstants.seOffsetNone, 0, null, OffsetSideConstants.seOffsetNone, 0));
                 object result = Verify(context, model, feature, before, -1, switched, sketch, included);
                 Hide(sketchProfile);
-                Hide(included.Profile);
+                Hide(included);
                 return result;
             }
             catch (ToolException ex) when (ex.Code == "feature_failed")
@@ -80,7 +80,7 @@ public static partial class FeatureService
         double thickness = Units.MmToM(Units.RequirePositive(spec.Thickness ?? throw ToolException.InvalidArgument("web_network requires 'thickness' (mm)."), "thickness"));
         double? depth = spec.Depth is { } d ? Units.MmToM(Units.RequirePositive(d, "depth")) : null;
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
-        Profile sketchProfile = SketchService.Resolve(context, sketch);
+        Profile sketchProfile = SketchService.ResolveDefined(context, sketch);
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
         double before = model.Volume();
@@ -99,7 +99,7 @@ public static partial class FeatureService
                 object result = Verify(context, model, feature, before, 1, switched, sketch, included,
                     direction: direction == WebNetworkFeatureConstants.seWebNormal ? "normal" : "reverse");
                 Hide(sketchProfile);
-                Hide(included.Profile);
+                Hide(included);
                 return result;
             }
             catch (ToolException ex) when (ex.Code == "feature_failed")

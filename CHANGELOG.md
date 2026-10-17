@@ -6,7 +6,61 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Every sketch an operation uses is fully defined, by relations and dimensions as a designer would add them, without
+  fixing what is drawn. `se_sketch close` adds what the sketch lacks where it lies:
+  - the relations the drawing shows: connected ends, horizontal or vertical lines, ends on other elements, tangent,
+    concentric, perpendicular and parallel;
+  - the sizes: line lengths, circle diameters and arc radii. An ellipse gets two construction axes from its centre, whose
+    lengths are its semi-axes;
+  - the angle of each inclined line, from the line it meets or from the nearest base plane;
+  - the position. The largest contour is placed from the base planes: on them when it touches them, symmetric about them
+    when it is centred on them, else by distances. The other contours are placed from the edges of the contours already
+    placed (a hole from the edges of its plate). On a plane turned off the principal directions, where Solid Edge
+    projects no base plane, their traces are drawn as fixed construction lines, references like the projected ones.
+
+  Each dimension is kept only if it drives, so the profile follows its variables. `close` returns `fullyDefined` and
+  the dimensions it added with their variables (`defined`), and `se_sketch info` returns `fullyDefined`. Features check
+  the sketch again before using it, and so do the sketches the server draws itself (holes, threads, tubes, thin walls,
+  assembly features and patterns; a decal's image takes no relation or dimension, so its sketch is left as it is). A
+  sketch that cannot be defined is restored and refused with `sketch_under_defined`. Tool names and parameters do not
+  change.
+
+- The dimensions `se_sketch close` adds are named after what they size, under the sketch's name: `Sketch_1_Width`,
+  `Sketch_1_Height`, `Sketch_1_Length`, `Sketch_1_Diameter`, `Sketch_1_Radius`, `Sketch_1_Angle`, `Sketch_1_X`,
+  `Sketch_1_Y`, and `Sketch_1_MajorRadius` and `Sketch_1_MinorRadius` for an ellipse's axes (`Sketch_1_X2` when the name is
+  taken), instead of `V356`. The variable table, `se_variables` and goal seek read like a designer's. A name that no
+  variable or dimension can take leaves the system name.
+- Model edges brought into a sketch with `se_sketch project` are references when the sketch is closed: their ends are
+  connected where they meet and the other contours are placed from them before the base planes (a hole from the edges
+  of the face it is drawn on), so the sketch follows the model. Edges whose ends stay free (part of an outline) leave the
+  sketch under-defined, and `close` says so. Bring them in as construction (`se_sketch_edit construction`) to use them
+  only as references.
+
+### Added
+
+- `se_sketch close` takes `elements`: lines of the sketch to place it from first, such as a datum line or a projected
+  edge.
+
 ### Fixed
+
+- `se_sketch close` dimensioned the model edges brought in with `project` like drawn lines, so a length held each one
+  when the model changed (a 40 mm edge driven to 60 kept a 40 mm line) and the sketch no longer matched the part. They
+  now take no size, angle or position.
+
+- An operation made from a sketch with construction elements broke as soon as a dimension of the sketch changed: Solid
+  Edge rebuilt the construction copies that the server had removed from the operation's copy of the sketch, so the
+  operation failed or took them too (an extruded surface of an open line got a second face). A closed sketch is now
+  copied by its regions, as the "Select from Sketch" command does, so the copy holds only the loops and follows the
+  sketch; crossing loops are joined as Solid Edge joins them (before, a plus of two rectangles with a construction line
+  failed), and the regions that other sketches on the same plane add are left out. An open sketch is used through its
+  own profile, which follows it and stays for another operation.
+
+- `se_documents close` could fail with `object_deleted` (RPC_E_DISCONNECTED) or `index_out_of_range` although the
+  document was closed: Solid Edge was still unloading it while the server closed the window it leaves behind and read
+  the open documents. A window released with its document is now left alone, and the open documents are read again
+  until Solid Edge has finished.
 
 - A build from source after `scripts/package.ps1` kept the `deps.json` of the package, without the Solid Edge interop:
   the server carried the interop beside it but could not load it, and its tools answered `interop_missing`. The

@@ -55,7 +55,14 @@ public static class DecalService
         {
             Image2d picture = profile.Images2d.AddDecalImage(false, file);
             profile.End(ProfileValidationType.igProfileClosed);
+            // Not defined: the image has no key points and takes no relation or dimension (verified: AddFix E_INVALIDARG,
+            // AddLength E_NOINTERFACE), so Solid Edge always sees its sketch as under-defined; the decal places it.
             decal = part.Decals.AddByLabel(picture, target);
+        }
+        catch (ToolException)
+        {
+            TryDelete(profile.Parent);
+            throw;
         }
         catch (COMException ex) when (!ComErrors.IsGone(ex))
         {

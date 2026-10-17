@@ -61,7 +61,7 @@ public static partial class FeatureService
         ModelDocument model = ModelDocument.For(context, documentHandle, sketches[0]);
         bool cut = IsCut(spec.Operation);
         ThinWallSpec? wall = CheckThinWall(spec.ThinWall, cut);
-        Profile[] sketchProfiles = sketches.Select(s => SketchService.Resolve(context, s)).ToArray();
+        Profile[] sketchProfiles = sketches.Select(s => SketchService.ResolveDefined(context, s)).ToArray();
         (double X, double Y)[]? origins = spec.Origins is null ? null : Geo.Points2(spec.Origins, "origins", sketches.Length).ToArray();
         if (origins is not null && origins.Length != sketches.Length)
         {
@@ -93,7 +93,7 @@ public static partial class FeatureService
 
                 if (resolvedPath is Profile or Sketch)
                 {
-                    pathProfile = SketchService.Resolve(context, pathHandle);
+                    pathProfile = SketchService.ResolveDefined(context, pathHandle);
                 }
                 else if (CurveEdges(resolvedPath).Length > 0)
                 {
@@ -166,7 +166,7 @@ public static partial class FeatureService
 
             foreach (IncludedProfile copy in included)
             {
-                Hide(copy.Profile);
+                Hide(copy);
             }
 
             return new

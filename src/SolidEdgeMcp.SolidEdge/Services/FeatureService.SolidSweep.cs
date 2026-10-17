@@ -37,7 +37,7 @@ public static partial class FeatureService
                 "Draw the path with se_sketch and close it with 'close' (open: true for an open chain).");
         }
 
-        Profile pathProfile = SketchService.Resolve(context, path);
+        Profile pathProfile = SketchService.ResolveDefined(context, path);
         bool switched = model.EnsureOrdered();
         Model existing = model.RequireModel();
         object target = model.RequireBody()!;

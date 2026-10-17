@@ -278,11 +278,19 @@ public static partial class SketchService
 
     /// <summary>
     /// Finishes the sketch and validates it: closed (inner islands are allowed) or, with <paramref name="open"/>, a single open chain
-    /// without self-intersections (contour flange, fold, sweep path...).
+    /// without self-intersections (contour flange, fold, sweep path...). Then it makes it fully defined where it lies
+    /// (<see cref="Define"/>, placing it first from the lines <paramref name="from"/>) and returns what that added.
     /// </summary>
-    public static object Close(SeContext context, string sketch, bool open = false)
+    public static object Close(SeContext context, string sketch, bool open = false, string[]? from = null)
     {
         Profile profile = Resolve(context, sketch);
+        Line2d[] references = from is { Length: > 0 }
+            ? [.. Elements(context, from, 1, MaxReferences, "close (the lines to place the sketch from)").Select(e => e is Line2d line
+                && PlacedElements(profile).Any(l => ReferenceEquals(l, line))
+                ? line
+                : throw ToolException.InvalidArgument("'elements' for close must be lines of this sketch (drawn, construction or model edges brought in with 'project').",
+                    "Use the line2d handles of this sketch (se_sketch info).")).Distinct()]
+            : [];
         var criteria = open
             ? (ProfileValidationType)((int)ProfileValidationType.igProfileSingle | (int)ProfileValidationType.igProfileNoSelfIntersect)
             : (ProfileValidationType)((int)ProfileValidationType.igProfileClosed | (int)ProfileValidationType.igProfileAllowNested);
@@ -298,8 +306,18 @@ public static partial class SketchService
                     : "Make every loop closed (endpoints must coincide), without self-intersections, then call 'close' again. 'rectangle' and 'polyline' connect their lines automatically.");
         }
 
-        return new { sketch, closed = !open, elements = Summary(Canvas2d.Of(profile)) };
+        Definition definition = Define(profile, references);
+        return new
+        {
+            sketch,
+            closed = !open,
+            fullyDefined = IsUnderDefined(profile) is { } under ? !under : (bool?)null,
+            defined = definition.Describe(context, sketch),
+            elements = Summary(Canvas2d.Of(profile)),
+        };
     }
+
+    private const int MaxReferences = 10;
 
     public static object Info(SeContext context, string sketch)
     {
@@ -311,6 +329,7 @@ public static partial class SketchService
             name = canvas.Name,
             sheet = canvas.Sheet is null ? (bool?)null : true,
             frame = canvas.Profile is { } profile ? Frame(profile) : null,
+            fullyDefined = canvas.Profile is { } model && IsUnderDefined(model) is { } under ? !under : (bool?)null,
             elements = Summary(canvas),
             items,
             truncated = truncated ? true : (bool?)null,

@@ -80,7 +80,7 @@ public static class SectionViewService
         SolidEdgeDocument document = string.IsNullOrWhiteSpace(documentHandle) && context.Handles.GetScope(sketch!) is not null
             ? Require(context.DocumentOf(sketch!))
             : Model(context, documentHandle);
-        object profile = SketchService.Resolve(context, sketch!);
+        object profile = SketchService.ResolveDefined(context, sketch!);
         SectionViewProfileSide side = keep switch
         {
             "inside" => SectionViewProfileSide.igInsideProfileSide,

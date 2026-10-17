@@ -43,7 +43,7 @@ public static partial class FeatureService
         double length;
         if (resolved is Profile or Sketch)
         {
-            (double[] start, double[] tangent, length) = SketchPathStart(SketchService.Resolve(context, handle));
+            (double[] start, double[] tangent, length) = SketchPathStart(SketchService.ResolveDefined(context, handle));
             helper = TangentCurve(model, start, tangent);
             startEdge = CurveEdges(helper)[0];
             atEnd = false;
@@ -81,6 +81,8 @@ public static partial class FeatureService
             {
                 throw new ToolException("feature_failed", "Solid Edge did not accept the tube section.", "Check the path and the diameters.");
             }
+
+            SketchService.Define(profile);
 
             string sectionHandle = context.Register(profile, "sketch", model.Document);
             // Verified: an annulus (two circles) sweeps only the inner disk, so the wall is the sweep's thin wall inside the circle.

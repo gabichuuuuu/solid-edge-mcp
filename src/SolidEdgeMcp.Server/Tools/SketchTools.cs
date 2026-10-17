@@ -100,11 +100,11 @@ public sealed class SketchTools(ToolRunner runner)
 {
     [McpServerTool(Name = "se_sketch", Title = "Sketch (profile)", Destructive = true, OpenWorld = false)]
     [Description("""
-        2D sketches (profiles) for part features, in mm, in the sketch's own x/y. On drawing sheets pass a sheet (se_drawing sheets) or drawing handle as 'sketch' (x/y from its lower-left corner); create, axis, close, project, delete and blocks are for model sketches.
-        create (plane: 'xy', 'yz', 'xz' = the base plane with that orientation in any template; '1'-'3' = the template's base planes in order; or a refplane / planar face handle; in an assembly also an assembly plane, for se_assembly_feature; layout = true: an assembly layout instead) returns the sketch handle and its frame (origin, xAxis, yAxis, normal): on a face the origin is not the model origin, so model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis |
-        line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners) | polyline (points [x1,y1,x2,y2,...]; closed, default true) | polygon (center, radius to the vertices, sides, angle of the first vertex; equal sides) | circle (center, radius) | arc (center, start, end; counter-clockwise) | ellipse (center, radius, minorRadius, angle) | spline (through points, >= 3; closed, default false) | conic (points [start, end, control: where the end tangents meet], rho 0-1: 0.5 parabola) | point (points [x,y]) |
-        fillet (elements = two meeting at a corner, radius) | chamfer (elements = two lines at a corner, setbacks); both trim | project (elements = model edges from se_geometry, linked) |
-        axis (element = line: revolution axis for se_revolve, set before close; a side of the profile becomes a copy) | close (validates closed loops, or one open chain with open=true; required before a feature) | info (frame, counts, every element with handle and geometry) | delete | tear_off (closed part sketch: a linked copy, same x/y, on a new sketch on 'plane').
+        2D sketches (profiles) for features, in mm, in its own x/y. On drawings pass a sheet (se_drawing sheets) or drawing handle as 'sketch' (x/y from its lower-left corner); create, axis, close, project, delete and blocks are model-only.
+        create (plane: 'xy', 'yz', 'xz' = the base plane with that orientation in any template; '1'-'3' = the template's base planes; or a refplane / planar face handle; in an assembly, an assembly plane for se_assembly_feature; layout = true: an assembly layout instead) returns the handle and frame (origin, xAxis, yAxis, normal): on a face the origin is not the model's, so model point P -> x = (P - origin)·xAxis, y = (P - origin)·yAxis |
+        line (points [x1,y1,x2,y2]) | rectangle (points = opposite corners) | polyline (points [x1,y1,x2,y2,...]; closed, default true) | polygon (center, vertex radius, sides, first vertex angle) | circle (center, radius) | arc (center, start, end; counter-clockwise) | ellipse (center, radius, minorRadius, angle) | spline (through points, >= 3; closed, default false) | conic (points [start, end, control: where the end tangents meet], rho 0-1: 0.5 parabola) | point (points [x,y]) |
+        fillet (elements = two meeting at a corner, radius) | chamfer (elements = two lines at a corner, setbacks); both trim | project (elements = se_geometry edges, linked) |
+        axis (element = line: se_revolve axis, set before close; a profile side becomes a copy) | close (validates closed loops, or one open chain with open=true; then fully defines it in place (relations, sizes, angles, position from 'elements', model edges, base planes or enclosing contour); required before a feature) | info (frame, fullyDefined, counts, elements: handle, geometry) | delete | tear_off (closed part sketch: a linked copy with the same x/y on 'plane').
         Blocks: blocks | create_block (name, elements, center = origin; an occurrence replaces them) | place_block (name, center, scale, angle) | delete_block (name).
         Example: create {"plane":"1"} → rectangle {"sketch":"sketch:5","points":[0,0,100,50]} → close → se_extrude
         """)]
@@ -122,7 +122,7 @@ public sealed class SketchTools(ToolRunner runner)
         [Description("For ellipse: angle of the major axis from the sketch x axis; for polygon: angle of the first vertex; in degrees (default 0).")] double? angle = null,
         [Description("For conic: shape between 0 and 1 (0.5 parabola, less an ellipse, more a hyperbola; default 0.5).")] double? rho = null,
         [Description("For axis: handle of a line of the sketch.")] string? element = null,
-        [Description("For fillet and chamfer: the two sketch elements; for project: model edge handles.")] string[]? elements = null,
+        [Description("For fillet and chamfer: the two sketch elements; for project: model edge handles; for close: lines of the sketch to place it from first (model edges brought in with project, construction lines).")] string[]? elements = null,
         [Description("For chamfer: one setback in mm from the corner (equal) or two (along the first and the second line).")] double[]? setbacks = null,
         [Description("For polyline (default true) and spline (default false): close the shape.")] bool? closed = null,
         [Description("For close: validate one open chain instead of closed loops.")] bool open = false,
@@ -157,7 +157,7 @@ public sealed class SketchTools(ToolRunner runner)
             SketchAction.Chamfer => runner.RunAsync(tool, op, c => SketchService.Chamfer(c, handle, elements, setbacks, points), cancellationToken),
             SketchAction.Project => runner.RunAsync(tool, op, c => SketchService.Project(c, handle, elements), cancellationToken),
             SketchAction.Axis => runner.RunAsync(tool, op, c => SketchService.Axis(c, handle, ToolRunner.Require(element, "element", "axis")), cancellationToken),
-            SketchAction.Close => runner.RunAsync(tool, op, c => SketchService.Close(c, handle, open), cancellationToken),
+            SketchAction.Close => runner.RunAsync(tool, op, c => SketchService.Close(c, handle, open, elements), cancellationToken),
             SketchAction.Info => runner.RunAsync(tool, op, c => SketchService.Info(c, handle), cancellationToken),
             SketchAction.Delete => runner.RunAsync(tool, op, c => SketchService.Delete(c, handle), cancellationToken),
             SketchAction.TearOff => runner.RunAsync(tool, op, c => SketchService.TearOff(c, handle, plane), cancellationToken),

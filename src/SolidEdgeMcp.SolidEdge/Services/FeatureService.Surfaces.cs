@@ -35,7 +35,7 @@ public static partial class FeatureService
         string handle = sketch ?? throw ToolException.InvalidArgument("'sketch' is required: closed with se_sketch 'close' (open: true for an open profile).");
         double length = Units.MmToM(Units.RequirePositive(depth ?? throw ToolException.InvalidArgument("extrude requires 'depth' (mm)."), "depth"));
         ModelDocument model = ModelDocument.For(context, documentHandle, handle);
-        Profile sketchProfile = SketchService.Resolve(context, handle);
+        Profile sketchProfile = SketchService.ResolveDefined(context, handle);
         FeaturePropertyConstants side = Side(direction, finite: true);
         bool switched = model.EnsureOrdered();
         IncludedProfile included = Include(model, sketchProfile);
@@ -58,7 +58,7 @@ public static partial class FeatureService
         }
 
         ModelDocument model = ModelDocument.For(context, documentHandle, handle);
-        Profile sketchProfile = SketchService.Resolve(context, handle);
+        Profile sketchProfile = SketchService.ResolveDefined(context, handle);
         FeaturePropertyConstants side = Side(direction, finite: true);
         bool switched = model.EnsureOrdered();
         IncludedProfile included = Include(model, sketchProfile);
@@ -126,7 +126,7 @@ public static partial class FeatureService
 
         string pathHandle = path ?? throw ToolException.InvalidArgument("sweep requires 'path': a sketch closed with se_sketch 'close' (open: true for an open chain) or a curve from se_curve.");
         object resolvedPath = context.Handles.Resolve(pathHandle, "path");
-        Profile? pathSketch = resolvedPath is Profile or Sketch ? SketchService.Resolve(context, pathHandle) : null;
+        Profile? pathSketch = resolvedPath is Profile or Sketch ? SketchService.ResolveDefined(context, pathHandle) : null;
         Edge[] pathEdges = pathSketch is null ? CurveEdges(resolvedPath) : [];
         if (pathSketch is null && pathEdges.Length == 0)
         {
@@ -332,7 +332,7 @@ public static partial class FeatureService
         Sections(SeContext context, string? documentHandle, string[] sketches, double[]? origins)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketches[0]);
-        Profile[] sketchProfiles = sketches.Select(s => SketchService.Resolve(context, s)).ToArray();
+        Profile[] sketchProfiles = sketches.Select(s => SketchService.ResolveDefined(context, s)).ToArray();
         (double X, double Y)[]? points = origins is null ? null : Geo.Points2(origins, "origins", sketches.Length).ToArray();
         if (points is not null && points.Length != sketches.Length)
         {
@@ -409,9 +409,14 @@ public static partial class FeatureService
                 "Check the sketch, the axis or the face, and the distance.");
         }
 
-        foreach (Profile profile in sketchProfiles.Concat(included.Select(i => i.Profile)))
+        foreach (Profile profile in sketchProfiles)
         {
             Hide(profile);
+        }
+
+        foreach (IncludedProfile copy in included)
+        {
+            Hide(copy);
         }
 
         return new { surface = DescribeSurface(context, model, surface, type), warnings = Warnings(switched, status == "warning") };

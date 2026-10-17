@@ -118,6 +118,16 @@ public static partial class FeatureService
                     var included = new IncludedProfile(profile, set);
                     try
                     {
+                        SketchService.Define(profile);
+                    }
+                    catch (ToolException)
+                    {
+                        DeleteIncluded(included);
+                        throw;
+                    }
+
+                    try
+                    {
                         object feature = Create("hole", included, () => spec.Extent switch
                         {
                             "finite" => target.Holes.AddFinite(profile, side, depth, data),
@@ -335,7 +345,7 @@ public static partial class FeatureService
         double sx = Units.MmToM(Units.RequirePositive(spec.SpacingX ?? throw ToolException.InvalidArgument("A fill pattern needs 'spacingX' (mm)."), "spacingX"));
         double sy = Units.MmToM(Units.RequirePositive(spec.SpacingY ?? spec.SpacingX.Value, "spacingY"));
         double stagger = spec.Stagger is { } s ? Units.MmToM(Units.RequirePositive(s, "stagger")) : 0;
-        Profile sketchProfile = SketchService.Resolve(context, region);
+        Profile sketchProfile = SketchService.ResolveDefined(context, region);
         IncludedProfile included = Include(model, sketchProfile);
         Array featureArray = features;
         Array regions = new object[] { included.Profile };
@@ -344,7 +354,7 @@ public static partial class FeatureService
             sx, sy, stagger, Units.DegToRad(spec.Angle % 360), false, 0.0, 0.0));
         object result = Verify(context, model, feature, before, 0, switched, region, included);
         Hide(sketchProfile);
-        Hide(included.Profile);
+        Hide(included);
         return result;
     }
 

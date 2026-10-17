@@ -160,6 +160,7 @@ public static partial class FeatureService
         object feature;
         try
         {
+            SketchService.Define(profile);
             feature = Create("thread", () => target.HelixCutouts.AddFinite(refAxis, FeaturePropertyConstants.igStart, 1, ref profiles,
                 FeaturePropertyConstants.igRight, length, pitch, length / pitch, hand));
         }

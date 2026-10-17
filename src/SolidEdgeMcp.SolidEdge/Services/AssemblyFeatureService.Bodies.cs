@@ -118,6 +118,16 @@ public static partial class AssemblyFeatureService
         const double Unused = 0.01;
         profile.RectangularPatterns2d.Add(u, v, columns > 1 ? (columns - 1) * du : Unused, rows > 1 ? (rows - 1) * dv : Unused,
             Units.DegToRad(angle ?? 0), SolidEdgeFrameworkSupport.PatternOffsetTypeConstants.sePatternFixedOffset, columns, rows, columns > 1 ? du : Unused, rows > 1 ? dv : Unused);
+        try
+        {
+            SketchService.Define(profile);
+        }
+        catch (ToolException)
+        {
+            TryDelete(set);
+            throw;
+        }
+
         AssemblyFeaturesPatterns patterns = FeaturesOf(assembly).AssemblyFeaturesPatterns;
         int before = patterns.Count;
         AssemblyFeaturesPattern pattern;
@@ -319,7 +329,7 @@ public static partial class AssemblyFeatureService
             throw ToolException.InvalidArgument($"'sketch' is required: {what}.");
         }
 
-        Profile profile = SketchService.Resolve(context, sketch);
+        Profile profile = SketchService.ResolveDefined(context, sketch);
         SolidEdgeDocument document = documentHandle is null ? context.DocumentOf(sketch) : context.GetDocument(documentHandle);
         return document is AssemblyDocument assembly
             ? (assembly, profile)
