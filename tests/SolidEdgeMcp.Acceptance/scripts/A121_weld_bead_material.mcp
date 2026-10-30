@@ -8,7 +8,7 @@
 se_sketch {"action":"rectangle","sketch":"{{sls.sketch}}","points":[0,0,100,60]}
 se_sketch {"action":"close","sketch":"{{sls.sketch}}"}
 se_extrude {"sketch":"{{sls.sketch}}","distance":10,"document":"{{sl.handle}}"}
-se_material {"action":"apply","name":"Steel","document":"{{sl.handle}}"}
+se_material {"action":"apply","name":"Steel","document":"{{sl.handle}}","folder":"installation"}
 se_documents {"action":"save_as","path":"{{work}}\\a121_slab.par","overwrite":true,"document":"{{sl.handle}}"}
 se_documents {"action":"close","document":"{{sl.handle}}","saveChanges":false}
 @w = se_documents {"action":"new","kind":"weldment"}
@@ -26,7 +26,7 @@ se_documents {"action":"close","document":"{{sl.handle}}","saveChanges":false}
 ?= p0.weldBeadsWithoutDensity true
 ?= p0.partsWithoutDensity []
 ?~ p0.note weld beads have no material
-@a = se_material {"action":"apply","name":"Steel","document":"{{w.handle}}"}
+@a = se_material {"action":"apply","name":"Steel","document":"{{w.handle}}","folder":"installation"}
 ?= a.material Steel
 ?= a.appliesTo weld_beads
 ?= a.beadDensityKgM3 7833 0.001
@@ -36,7 +36,7 @@ se_documents {"action":"close","document":"{{sl.handle}}","saveChanges":false}
 ?= c1.material Steel
 se_documents {"action":"close","document":"{{w.handle}}","saveChanges":false}
 @k = se_documents {"action":"new","kind":"assembly"}
-! [wrong_document_type] se_material {"action":"apply","name":"Steel","document":"{{k.handle}}"}
+! [wrong_document_type] se_material {"action":"apply","name":"Steel","document":"{{k.handle}}","folder":"installation"}
 @ck = se_material {"action":"current","document":"{{k.handle}}"}
 ?~ ck.note no material of its own
 se_documents {"action":"close","document":"{{k.handle}}","saveChanges":false}

@@ -18,8 +18,8 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// its own is started for each call and closed after it (a Design Manager the person has open is another process and is
 /// not touched). Verified in Solid Edge 2026 on closed files, in the set of a top document (OpenFileInDesignManager, then
 /// SetAction and PerformAction, as the rows of its window): rename, copy (Save As), replace and move write the files and
-/// update the documents of the set that use them; revise copies a file as its next revision ("name-1.par", Revision 1)
-/// and the set uses the revision; release sets the Released status of that file only. Obsolete marks every document of the
+/// update the documents of the set that use them; revise copies a file as its next revision ("name-1.par", Revision 1;
+/// "name-a.par", Revision a, on the Solid Edge 2026 Foundation tested, whose revisions are letters) and the set uses the revision; release sets the Released status of that file only. Obsolete marks every document of the
 /// set and moves files, so it is not offered (the status action writes one file's status). A document outside the set that
 /// used a renamed or moved file is left with a broken link (Design Manager finds those users through its global search
 /// scope, an option of the program that this server does not change); the link object's SetPath and the document's
@@ -447,6 +447,33 @@ public static class DesignManagerService
             note = sameId.Count > 0 ? "Files with the same document ID were copied outside Solid Edge; give each copy its own identity with se_design_manager copy, or Save As in Solid Edge." : null,
         };
     }
+
+    /// <summary>The files each Solid Edge document of the folders refers to, read without opening the documents in Solid Edge.</summary>
+    internal static LinkScan LinksIn(SeContext context, IEnumerable<string> folders, bool subfolders)
+    {
+        List<string> documents = Documents(context, [.. folders], null, subfolders);
+        return WithDesignManager(manager =>
+        {
+            var links = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var skipped = new List<string>();
+            foreach (string document in documents)
+            {
+                try
+                {
+                    links[document] = LinkedDocuments(manager, document).Select(FullName).ToList();
+                }
+                catch (Exception ex) when (ex is ToolException { Code: "design_manager_failed" } || ComErrors.Unwrap(ex) is COMException)
+                {
+                    skipped.Add(document);
+                }
+            }
+
+            return new LinkScan(links, skipped, documents.Count >= MaxFiles);
+        });
+    }
+
+    /// <summary>The links of each document read, the documents that could not be read, and whether there were more than were read.</summary>
+    internal sealed record LinkScan(Dictionary<string, List<string>> Links, List<string> Skipped, bool Truncated);
 
     private sealed record LinkRow(string File, string Parent, int Level, bool Exists, string? Status, string? Revision, string? DocumentNumber);
 

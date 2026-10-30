@@ -198,21 +198,62 @@ public static class PartFamilyService
                 "Pass overwrite: true to replace it, or another 'path'.");
         }
 
-        DateTime before = File.Exists(target) ? File.GetLastWriteTimeUtc(target) : DateTime.MinValue;
-        member.DocumentName = target;
-        try
+        // Verified with Solid Edge 2026 Foundation: populating over an existing member file (of an earlier master) keeps its
+        // copied part and adds another, so the file had both bodies; a file to replace is moved aside first, and comes back
+        // if the new one is not written.
+        string? replaced = null;
+        if (File.Exists(target))
         {
-            member.Populate();
-        }
-        catch (COMException ex) when (!ComErrors.IsGone(ex))
-        {
-            throw new ToolException("populate_failed", $"Solid Edge could not write the member file '{target}': {ex.Message}",
-                "Check that the folder exists and that the file is not open, and that the member applies without errors (action 'apply').", ex);
+            if (DocumentService.FindOpen(context, target) is not null)
+            {
+                throw new ToolException("file_in_use", $"'{target}' is open in Solid Edge.", "Close it first, or choose another path.");
+            }
+
+            replaced = target + "." + Guid.NewGuid().ToString("N") + ".bak";
+            try
+            {
+                File.Move(target, replaced);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new ToolException("file_in_use", $"'{target}' cannot be replaced: {ex.Message}", "Close what holds it, or choose another path.", ex);
+            }
         }
 
-        if (!File.Exists(target) || File.GetLastWriteTimeUtc(target) < before)
+        bool written = false;
+        try
         {
-            throw new ToolException("populate_failed", $"Solid Edge reported no error but did not write '{target}'.");
+            member.DocumentName = target;
+            try
+            {
+                member.Populate();
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+                throw new ToolException("populate_failed", $"Solid Edge could not write the member file '{target}': {ex.Message}",
+                    "Check that the folder exists and that the file is not open, and that the member applies without errors (action 'apply').", ex);
+            }
+
+            if (!File.Exists(target))
+            {
+                throw new ToolException("populate_failed", $"Solid Edge reported no error but did not write '{target}'.");
+            }
+
+            written = true;
+        }
+        finally
+        {
+            if (replaced is not null)
+            {
+                if (written)
+                {
+                    File.Delete(replaced);
+                }
+                else
+                {
+                    File.Move(replaced, target, true);
+                }
+            }
         }
 
         return new

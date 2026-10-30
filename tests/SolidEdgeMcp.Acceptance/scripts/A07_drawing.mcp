@@ -51,7 +51,7 @@ se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"r
 ?= q8.dimension.value 120
 ! [not_found] se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[50,45,20]}
 ! [invalid_argument] se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"angle","points":[0,30,20,100,30,20]}
-# Section, detail (double scale of the parent view, t51.out) and auxiliary. 8 dimensions created on the sheet (failed ones are not created); no model dimensions to retrieve (t42.out)
+# Section, detail (double scale of the parent view, t51.out) and auxiliary. 8 dimensions created on the sheet (failed ones are not created); retrieve brings the 3 dimensions of the block's sketches seen in the top view (100, 60 and 30: the sketches an operation uses are fully defined)
 @sv = se_drawing {"action":"section_view","view":"{{bv.view.handle}}","line":[0,30,10,100,30,10]}
 ?= sv.view.type section
 @dv = se_drawing {"action":"detail_view","view":"{{bv.view.handle}}","center":[100,60,20],"radius":12}
@@ -61,7 +61,8 @@ se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"r
 @dm = se_drawing {"action":"dimensions"}
 ?= dm.count 8
 @rd = se_drawing {"action":"retrieve_dimensions","view":"{{bv.view.handle}}"}
-?= rd.retrieved 0
+?= rd.retrieved 3
+?~ rd.dimensions 100
 se_drawing {"action":"views"}
 # Annotations (se_annotation). Top view at scale 1: model (x,y) -> sheet (x + 110, y + 260), so the hole centre (50,30) -> (160,290).
 #   Centre mark of the hole; text; balloon on the right edge (100,30) -> terminator (210,290), balloon moved to (240,320);
@@ -172,8 +173,12 @@ se_annotation {"action":"delete","annotation":"{{tx.annotation.handle}}"}
 se_drawing {"action":"scale_view","view":"{{v3.view.handle}}","scale":1}
 se_drawing {"action":"delete_view","view":"{{v3.view.handle}}"}
 @va = se_drawing {"action":"base_view","path":"{{work}}\\d_asm.asm","orientation":"front","scale":1}
-@pl = se_drawing {"action":"parts_list","view":"{{va.view.handle}}"}
+# The columns of a parts list come from its saved setting, which each installation has its own: 'columns' chooses them. A saved
+# setting that does not exist is refused (Solid Edge would take the default one).
+! [not_found] se_drawing {"action":"parts_list","view":"{{va.view.handle}}","style":"No such setting","balloons":false}
+@pl = se_drawing {"action":"parts_list","view":"{{va.view.handle}}","columns":["Quantity","File Name (no extension)"]}
 ?= pl.count 1
+?~ pl.columns[1] File Name (no extension)
 # Bend tables need bends: the view of the block (no sheet metal bends) and the assembly view fail
 ! [bend_table_failed] se_drawing {"action":"bend_table","view":"{{bv.view.handle}}"}
 ! [wrong_view] se_drawing {"action":"bend_table","view":"{{va.view.handle}}"}

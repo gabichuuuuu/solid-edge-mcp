@@ -24,17 +24,17 @@ se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
 @ss = se_sheetmetal {"action":"set_settings","thickness":2}
 ?= ss.settings.thickness 2
 se_documents {"action":"close","document":"{{d1.handle}}","saveChanges":false}
-# 1b) Gauges of the material library (Materials.mtl: "10 gage" thickness = bend radius = 3.581, "16 gage" = 1.575); tab 100x60 -> 6000*1.575 = 9450.
+# 1b) Gauges of the installed material library (folder installation, Materials.mtl: "10 gage" thickness = bend radius = 3.581, "16 gage" = 1.575); tab 100x60 -> 6000*1.575 = 9450.
 #    Without 'library' the first library that has the gauge is used; an unknown gauge changes nothing.
 @d0 = se_documents {"action":"new","kind":"sheet_metal"}
-@g1 = se_sheetmetal {"action":"gauge","gauge":"10 gage","library":"Materials","document":"{{d0.handle}}"}
+@g1 = se_sheetmetal {"action":"gauge","gauge":"10 gage","library":"Materials","folder":"installation","document":"{{d0.handle}}"}
 ?= g1.settings.thickness 3.581 0.001
 ?= g1.settings.bendRadius 3.581 0.001
 ?~ g1.settings.gauge 10 gage
-@g2 = se_sheetmetal {"action":"gauge","gauge":"16 gage","document":"{{d0.handle}}"}
+@g2 = se_sheetmetal {"action":"gauge","gauge":"16 gage","folder":"installation","document":"{{d0.handle}}"}
 ?= g2.library Materials
 ?= g2.settings.thickness 1.575 0.001
-! [not_found] se_sheetmetal {"action":"gauge","gauge":"99 gage","library":"Materials","document":"{{d0.handle}}"}
+! [not_found] se_sheetmetal {"action":"gauge","gauge":"99 gage","library":"Materials","folder":"installation","document":"{{d0.handle}}"}
 ! [invalid_argument] se_sheetmetal {"action":"gauge","document":"{{d0.handle}}"}
 @g3 = se_sheetmetal {"action":"settings","document":"{{d0.handle}}"}
 ?= g3.thickness 1.575 0.001
@@ -99,6 +99,8 @@ se_sketch {"action":"close","sketch":"{{ke.sketch}}","open":true}
 @fp = se_sheetmetal {"action":"flatten"}
 ?= fp.cutSize.x 130
 ?= fp.cutSize.y 60
+# Saved first: where Solid Edge refuses to write the flat pattern (2026 Foundation), it is written from a drawing of the file.
+se_documents {"action":"save_as","path":"{{work}}\\a05_flat.psm","overwrite":true}
 @ex = se_export {"path":"{{work}}\\a05_flat.dxf","flatPattern":true,"overwrite":true}
 ?= ex.format DXF
 ! [file_exists] se_export {"path":"{{work}}\\a05_flat.dxf","flatPattern":true}
@@ -155,7 +157,7 @@ se_documents {"action":"close","document":"{{d6.handle}}","saveChanges":false}
 @bt6 = se_drawing {"action":"bend_table","view":"{{fv6.view.handle}}"}
 ?= bt6.count 2
 ?~ bt6.columns[3] Angle
-?~ bt6.rows 1.000 mm
+?~ bt6.rows 1.000
 ?~ bt6.rows Flange 2
 ?~ bt6.anchor lower_right
 @bp6 = se_drawing {"action":"bend_table","view":"{{fv6.view.handle}}","position":[40,120]}
@@ -209,4 +211,23 @@ se_com_invoke {"target":"{{ca7.result.handle}}","method":"Delete"}
 ?= fl7.cutSize.x 173.215 0.01
 ?= fl7.cutSize.y 133.215 0.01
 se_documents {"action":"close","document":"{{d7.handle}}","saveChanges":false}
+# 8) Thin Part to Synchronous Sheet Metal: a 100 x 60 x 2 plate in a part document, given its top face, becomes a sheet metal
+#    document with the thickness of the part and the same volume; flat pattern 100 x 60. A sheet metal document is refused.
+@p8 = se_documents {"action":"new","kind":"part"}
+@k8 = se_sketch {"action":"create","plane":"xy","document":"{{p8.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k8.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k8.sketch}}"}
+se_extrude {"sketch":"{{k8.sketch}}","distance":2,"document":"{{p8.handle}}"}
+@f8 = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{p8.handle}}"}
+! [invalid_argument] se_sheetmetal {"action":"transform","document":"{{p8.handle}}"}
+@tr8 = se_sheetmetal {"action":"transform","faces":["{{f8.items[0].handle}}"],"document":"{{p8.handle}}"}
+?= tr8.document.kind sheet_metal
+?= tr8.settings.thickness 2
+?= tr8.volume 12000 0.01
+@fl8 = se_sheetmetal {"action":"flatten","document":"{{tr8.document.handle}}"}
+?= fl8.cutSize.x 100 0.01
+?= fl8.cutSize.y 60 0.01
+@g8 = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{tr8.document.handle}}"}
+! [wrong_document_type] se_sheetmetal {"action":"transform","faces":["{{g8.items[0].handle}}"],"document":"{{tr8.document.handle}}"}
+se_documents {"action":"close","document":"{{tr8.document.handle}}","saveChanges":false}
 se_documents {"action":"list"}

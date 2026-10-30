@@ -8,7 +8,7 @@
 se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
 se_sketch {"action":"close","sketch":"{{k.sketch}}"}
 se_extrude {"sketch":"{{k.sketch}}","distance":20}
-se_material {"action":"apply","name":"Steel"}
+se_material {"action":"apply","name":"Steel","folder":"installation"}
 se_documents {"action":"save_as","path":"{{work}}\\runs\\a105_{{run}}\\blk.par"}
 se_documents {"action":"close","saveChanges":false}
 @p = se_documents {"action":"new","kind":"part"}
@@ -16,7 +16,7 @@ se_documents {"action":"close","saveChanges":false}
 se_sketch {"action":"circle","sketch":"{{pk.sketch}}","center":[0,0],"radius":5}
 se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
 se_extrude {"sketch":"{{pk.sketch}}","distance":40}
-@al = se_material {"action":"apply","name":"Aluminum, 6061-T6"}
+@al = se_material {"action":"apply","name":"Aluminum, 6061-T6","folder":"installation"}
 se_documents {"action":"save_as","path":"{{work}}\\runs\\a105_{{run}}\\pin.par"}
 se_documents {"action":"close","saveChanges":false}
 @s = se_documents {"action":"new","kind":"assembly"}

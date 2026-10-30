@@ -24,6 +24,9 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// tools) removes the region of the face that holds the point. Tools are faces of other surfaces or curve edges (a curve
 /// that ends inside the face is carried across it); reference planes give E_INVALIDARG, and Add(n, tools, side) gives
 /// E_FAIL or does nothing.</item>
+/// <item>SplitFaces.Add(n, faces, n, tools) on the construction model splits the faces of a surface by a reference plane, a
+/// crossing surface or a curve: a plane 4800 mm² becomes 4400 + 400 mm² (Solid Edge 2026 Foundation; Community Edition left
+/// the feature failed).</item>
 /// <item>ExtendSurfaces.AddEx(n, edges, distance, type) on the construction model: natural, linear and reflective add
 /// length x distance to a plane; the constant radius arc fails on a plane.</item>
 /// <item>IntersectSurfaces.AddByAutoTrim(n, bodies, false, true, true, tolerance) takes the construction bodies (the surface
@@ -102,6 +105,67 @@ public static partial class FeatureService
         object trim = Create("trim", () => owner.TrimSurfaces.AddByPointOnFace(3, ref points, 3, ref direction, 1, ref targets, toolArray.Length, ref toolArray));
         return SurfaceEditResult(context, model, owner, trim, "trim", before, switched, removed: true,
             "The tools must cross the surface (reference planes are not accepted: use a surface or a curve) and the point must lie on the region to remove.");
+    }
+
+    /// <summary>
+    /// Splits a surface, or one face of it, into more faces where reference planes, surfaces or curves cross it; its area stays.
+    /// A split that makes no more faces or changes the area is deleted.
+    /// </summary>
+    public static object SplitSurface(SeContext context, string? documentHandle, string[]? surfaces, string[]? tools)
+    {
+        if (surfaces is not [string targetHandle])
+        {
+            throw ToolException.InvalidArgument("split takes one surface in 'surfaces': a surface handle (action 'list') or a face of it.");
+        }
+
+        if (tools is not { Length: > 0 })
+        {
+            throw ToolException.InvalidArgument("split needs 'tools': reference planes ('1'-'3', 'xy', 'yz', 'xz' or handles), surfaces, faces of surfaces, curves or edges that cross the surface.");
+        }
+
+        ModelDocument model = ModelDocument.For(context, documentHandle, targetHandle);
+        object target = context.Handles.Resolve(targetHandle, "surfaces");
+        (ConstructionModel owner, Body body) = ConstructionOf(model, target, targetHandle, "surfaces");
+        object[] toolItems = tools.SelectMany(h => CuttingElements(context, model, h, "tools", planes: true)).Select(t => t is Face f && IsOnBody(f, body)
+            ? throw ToolException.InvalidArgument("A face of the surface cannot split it.", "Use a reference plane, another surface or a curve.")
+            : t).ToArray();
+        Face[] original = BodyFaces(body);
+        double before = original.Sum(f => f.Area);
+        var areas = new Dictionary<int, double>();
+        foreach (Face face in original)
+        {
+            areas.TryAdd(face.ID, face.Area);
+        }
+
+        bool switched = model.EnsureOrdered();
+        Array targets = (target is Face one ? [one] : original).Cast<object>().ToArray();
+        Array toolArray = toolItems;
+        object split = Create("split", () => owner.SplitFaces.Add(targets.Length, ref targets, toolArray.Length, ref toolArray));
+        context.ModelChanged(model.Document, "the model changed (surface split)");
+        string? status = StatusOf(split);
+        Face[] now = Late.TryGet(owner, "Body") is Body after ? BodyFaces(after) : [];
+        double area = now.Sum(f => f.Area);
+        string? problem = status is not ("ok" or "warning") ? $"status {status}"
+            : now.Length <= original.Length ? "the faces were not split"
+            : Math.Abs(area - before) > Math.Max(1e-12, before * 1e-6) ? "the area changed"
+            : null;
+        if (problem is not null)
+        {
+            TryDeleteSurface(split);
+            throw new ToolException("feature_failed", $"Solid Edge did not make the split ({problem}); it was deleted.",
+                "The tools must cross the surface: reference planes, other surfaces or curves. Solid Edge 2026 Community Edition leaves this feature failed.");
+        }
+
+        return new
+        {
+            feature = Describe(context, model, split),
+            facesBefore = original.Length,
+            faces = now.Length,
+            pieces = now.Where(f => !areas.TryGetValue(f.ID, out double was) || Math.Abs(f.Area - was) > Math.Max(1e-12, was * 1e-9))
+                .Select(f => new { handle = context.Register(f, "face", model.Document), area = Geo.Mm2(f.Area) }).ToArray(),
+            area = Geo.Mm2(area),
+            warnings = Warnings(switched, status == "warning"),
+        };
     }
 
     /// <summary>Extends a surface from free edges by a distance (mm): natural, linear or reflective.</summary>

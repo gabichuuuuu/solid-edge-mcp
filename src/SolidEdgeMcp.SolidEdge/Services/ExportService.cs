@@ -29,6 +29,7 @@ public static class ExportService
         [".3mf"] = "3MF",
         [".pdf"] = "PDF",
         [".catpart"] = "CATIA V5",
+        [".catproduct"] = "CATIA V5",
         [".model"] = "CATIA V4",
         [".obj"] = "OBJ",
         [".plmxml"] = "PLM XML",
@@ -37,11 +38,18 @@ public static class ExportService
     };
 
     /// <summary>
-    /// Formats Solid Edge 2026 writes for parts and sheet metal only. Verified: an assembly saved as .catproduct writes
-    /// nothing, as .catpart gives REGDB_E_CLASSNOTREG and as .model gives E_FAIL; OBJ, PLM XML, U3D and XGL take assemblies
-    /// too. Any other extension Solid Edge does not translate (.wrl, .bmp, .jpg, .emf, .dgn…) gets a copy in its own format.
+    /// The Solid Edge files that formats written only for some documents take; the others take every model document.
+    /// Verified: an assembly saved as .catpart gives REGDB_E_CLASSNOTREG. Solid Edge 2026 Foundation writes an assembly as
+    /// .catproduct (a .CATPart per part beside it) and .model, and both read back as an assembly of the same occurrences;
+    /// Community Edition writes nothing for .catproduct and gives E_FAIL for .model, which end in export_failed. Any other
+    /// extension Solid Edge does not translate (.wrl, .bmp, .jpg, .emf, .dgn…) gets a copy in its own format.
     /// </summary>
-    private static readonly HashSet<string> PartOnlyFormats = new(StringComparer.OrdinalIgnoreCase) { ".catpart", ".model" };
+    private static readonly Dictionary<string, string[]> FormatFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".catpart"] = [".par", ".psm"],
+        [".catproduct"] = [".asm"],
+        [".model"] = [".par", ".psm", ".asm"],
+    };
 
     /// <summary>The Solid Edge files a batch takes for each kind of format.</summary>
     private static readonly string[] ModelFiles = [".par", ".psm", ".asm", ".pwd"];
@@ -100,10 +108,10 @@ public static class ExportService
                 $"Use one of: {string.Join(", ", formats.Keys)}." + (draft ? "" : " For drawings, export the draft document."));
         }
 
-        if (!flatPattern && PartOnlyFormats.Contains(extension) && kind is not ("part" or "sheet_metal"))
+        if (!flatPattern && FormatFiles.TryGetValue(extension, out string[]? files) && !files.Contains(kind switch { "part" => ".par", "sheet_metal" => ".psm", "assembly" => ".asm", _ => "" }))
         {
-            throw ToolException.InvalidArgument($"Solid Edge writes {format} files of parts and sheet metal, not of a {kind.Replace('_', ' ')} document.",
-                "Export the parts one by one, or the assembly to STEP, JT, Parasolid or PLM XML.");
+            throw ToolException.InvalidArgument($"Solid Edge does not write a {kind.Replace('_', ' ')} document as {extension}.",
+                kind == "assembly" ? "Export the assembly to .catproduct or .model." : kind == "weldment" ? "Export it to STEP, JT, Parasolid or PLM XML." : "Export the part to .catpart or .model.");
         }
 
         object[]? models = null;
@@ -134,12 +142,21 @@ public static class ExportService
         Directory.CreateDirectory(folder);
         DateTime started = DateTime.UtcNow;
         bool wasDirty = document.Dirty;
+        string? flatNote = null;
         try
         {
             if (flatPattern)
             {
                 ModelDocument model = ModelDocument.From(document);
-                model.Models.SaveAsFlatDXFEx(target, null, null, null, true);
+                try
+                {
+                    model.Models.SaveAsFlatDXFEx(target, null, null, null, true);
+                }
+                // .NET turns E_INVALIDARG into an ArgumentException.
+                catch (Exception ex) when (ex is ArgumentException || (ex is COMException com && !ComErrors.IsGone(com)))
+                {
+                    flatNote = FlatThroughDrawing(context, document, target, ex);
+                }
             }
             else if (models is not null)
             {
@@ -174,8 +191,15 @@ public static class ExportService
         }
 
         // STL carries no unit and Solid Edge writes it in the unit of its STL translator options (inches by default): the
-        // file is scaled to mm, the unit of every tool.
+        // file is scaled to mm, the unit of every tool. Without the options file, the unit follows from the size of the file.
         double? stlUnit = format == "STL" ? StlUnit(context, "Export Units") : null;
+        bool unitBySize = false;
+        if (format == "STL" && stlUnit is null && StlUnitBySize(document, target) is { } bySize)
+        {
+            stlUnit = bySize;
+            unitBySize = true;
+        }
+
         StlFile.Info? stl = format != "STL" ? null : stlUnit is { } unit && unit != 1 ? StlFile.Scale(target, target, unit) : StlFile.Inspect(target);
         file.Refresh();
         // Some translators write files beside the target. Verified: OBJ writes its .mtl material file and a .log, PLM XML a
@@ -193,6 +217,10 @@ public static class ExportService
             : !wasDirty && document.Dirty
                 ? "Solid Edge marks the document as modified after this export although its content did not change: close it with saveChanges=false, or save it."
                 : null;
+        if (flatNote is not null)
+        {
+            note = note is null ? flatNote : $"{note} {flatNote}";
+        }
         // PDF files are read back: pages and their sizes (mm). Verified: a model writes one page with a picture of the view, not a
         // 3D PDF (that is Publish3DPDFEx, se_publish).
         PdfFile.Info? pdf = format.EndsWith("PDF", StringComparison.Ordinal) && PdfFile.IsPdf(target) ? PdfFile.Inspect(target) : null;
@@ -207,7 +235,9 @@ public static class ExportService
         {
             string stlNote = stlUnit is null
                 ? "STL files carry no unit: this one is in the unit of Solid Edge's STL translator options, which could not be read."
-                : $"Solid Edge writes STL in {(stlUnit == 25.4 ? "inches" : "metres")} (Export Units of its STL translator options): the server scaled the file to mm.";
+                : unitBySize
+                    ? $"Solid Edge wrote the STL in {UnitName(stlUnit.Value)} (its STL translator options could not be read; the unit follows from the size of the file against the model): the server scaled the file to mm."
+                    : $"Solid Edge writes STL in {UnitName(stlUnit.Value)} (Export Units of its STL translator options): the server scaled the file to mm.";
             note = note is null ? stlNote : $"{note} {stlNote}";
         }
 
@@ -244,6 +274,81 @@ public static class ExportService
     }
 
     /// <summary>
+    /// The flat pattern written through a temporary drawing when Solid Edge refuses to write it: a flat view of the saved
+    /// model at 1:1 on a sheet without background, exported and closed without saving. Verified with Solid Edge 2026
+    /// Foundation: every form of Models.SaveAsFlatDXF* fails there (E_INVALIDARG or E_FAIL, also once saved), while the
+    /// drawing writes the outline and bend lines in mm; setting no background gives E_FAIL although it removes it.
+    /// </summary>
+    private static string FlatThroughDrawing(SeContext context, SolidEdgeDocument document, string target, Exception refused)
+    {
+        string? file = DocumentService.PathOf(document);
+        if (file is null || document.Dirty)
+        {
+            throw new ToolException("export_failed",
+                $"Solid Edge could not write the flat pattern ({refused.Message.Trim()}), and the way through a drawing reads the saved file.",
+                "Create the flat pattern (se_sheetmetal action 'flatten'), save the document and export again.", refused);
+        }
+
+        if (File.Exists(target))
+        {
+            File.Delete(target);
+        }
+
+        var draft = (SolidEdgeDraft.DraftDocument)context.Application.Documents.Add("SolidEdge.DraftDocument");
+        try
+        {
+            SolidEdgeDraft.Sheet sheet = draft.ActiveSheet;
+            try
+            {
+                SolidEdgeDraft.ModelLink link = draft.ModelLinks.Add(file);
+                sheet.DrawingViews.AddSheetMetalView(link, SolidEdgeDraft.ViewOrientationConstants.igTopView, 1,
+                    sheet.SheetSetup.SheetWidth / 2, sheet.SheetSetup.SheetHeight / 2, SolidEdgeDraft.SheetMetalDrawingViewTypeConstants.seSheetMetalFlatView);
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+                throw new ToolException("export_failed",
+                    $"Solid Edge could not write the flat pattern ({refused.Message.Trim()}) nor show it on a drawing: {ex.Message.Trim()}",
+                    "Create the flat pattern first (se_sheetmetal action 'flatten') and save the document.", ex);
+            }
+
+            // The error of the setter is not the outcome: the background is read again.
+            try
+            {
+                sheet.Background = null;
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+            }
+
+            bool background;
+            try
+            {
+                background = sheet.Background is not null;
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+                background = false;
+            }
+
+            draft.SaveCopyAs(target);
+            return $"Solid Edge could not write the flat pattern directly ({refused.Message.Trim()}): it was written from a flat view at 1:1 on a temporary drawing, "
+                + "the outline and bend lines in mm at the place of the view on the sheet"
+                + (background ? ", with the border and title block of the sheet's background, which could not be removed." : ".");
+        }
+        finally
+        {
+            draft.Close(false);
+            try
+            {
+                document.Activate();
+            }
+            catch (COMException ex) when (!ComErrors.IsGone(ex))
+            {
+            }
+        }
+    }
+
+    /// <summary>
     /// Batch translation of saved files, as Solid Edge Translation Services does from the command line (it opens each file
     /// in Solid Edge, saves a copy in the format and closes it). Every Solid Edge file given, or found in the folders given,
     /// that the format takes (parts, sheet metal, assemblies and weldments for model formats, drawings for drawing formats)
@@ -272,7 +377,7 @@ public static class ExportService
             throw ToolException.InvalidArgument($"'{output}' is a file: with 'files', 'path' is the output folder.", "Give a folder.");
         }
 
-        string[] kinds = PartOnlyFormats.Contains(extension) ? [".par", ".psm"] : [.. (model ? ModelFiles : []), .. (drawing ? DraftFiles : [])];
+        string[] kinds = FormatFiles.TryGetValue(extension, out string[]? only) ? only : [.. (model ? ModelFiles : []), .. (drawing ? DraftFiles : [])];
         var jobs = new List<(string Source, string Target)>();
         foreach (string entry in files)
         {
@@ -400,6 +505,90 @@ public static class ExportService
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Millimetres per unit Solid Edge's STL translator reads without its options file: inches. Verified with Solid Edge
+    /// 2026 Foundation (no SESTL.ini): a block 100 mm long written 3.937 long is read back 100 mm long.
+    /// </summary>
+    private const double StlDefaultUnit = 25.4;
+
+    /// <summary>
+    /// Millimetres per unit of the STL translator when it reads a file: of its options, or the default without an options file.
+    /// Options that say something else are refused: scaling for a wrong unit would give a model of the wrong size.
+    /// </summary>
+    internal static double StlImportUnit(SeContext context)
+    {
+        if (StlUnit(context, "Import Units") is { } unit)
+        {
+            return unit;
+        }
+
+        string? install = SolidEdgeSettings.InstallFolder(context.Application);
+        if (install is not null && !File.Exists(Path.Combine(install, "Preferences", "Translators", "SESTL.ini")))
+        {
+            return StlDefaultUnit;
+        }
+
+        throw new ToolException("import_failed", "The unit Solid Edge's STL translator reads could not be told from its options (Import Units of SESTL.ini).",
+            "Set Import Units to Inch, Millimeter or Meter in the STL options of Solid Edge, or import STEP.");
+    }
+
+    /// <summary>Millimetres per unit an STL file can be written in, with the name of the unit.</summary>
+    private static readonly (double Mm, string Name)[] StlUnits = [(1, "mm"), (10, "centimetres"), (25.4, "inches"), (304.8, "feet"), (1000, "metres")];
+
+    private static string UnitName(double mmPerUnit) => StlUnits.FirstOrDefault(u => u.Mm == mmPerUnit).Name ?? $"units of {mmPerUnit} mm";
+
+    /// <summary>
+    /// Millimetres per unit of an STL file just written from <paramref name="document"/>, from the largest size of the file
+    /// against that of the model (the bodies of a part, the visible occurrences of an assembly): the unit whose ratio is
+    /// within 2 %, or null. Used where the installation has no SESTL.ini (verified with Solid Edge 2026 Foundation, which
+    /// installs none: a block 100 mm long is written 3.937 long, in inches).
+    /// </summary>
+    private static double? StlUnitBySize(SolidEdgeDocument document, string file)
+    {
+        double model;
+        try
+        {
+            (double[] lo, double[] hi) = document is SolidEdgeAssembly.AssemblyDocument assembly
+                ? OccurrenceRange(assembly)
+                : InspectService.Range(ModelDocument.From(document).Bodies().Select(b => b.Body));
+            model = hi.Zip(lo, (a, b) => a - b).Max();
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            return null;
+        }
+
+        StlFile.Info stl = StlFile.Inspect(file);
+        double size = stl.Max.Zip(stl.Min, (a, b) => a - b).Max();
+        if (!(model > 0) || !(size > 0))
+        {
+            return null;
+        }
+
+        double ratio = model / size;
+        return StlUnits.Where(u => Math.Abs(ratio / u.Mm - 1) < 0.02).Select(u => (double?)u.Mm).FirstOrDefault();
+    }
+
+    /// <summary>Box around the visible occurrences of an assembly, in mm.</summary>
+    private static (double[] Min, double[] Max) OccurrenceRange(SolidEdgeAssembly.AssemblyDocument assembly)
+    {
+        double[] lo = [double.MaxValue, double.MaxValue, double.MaxValue];
+        double[] hi = [double.MinValue, double.MinValue, double.MinValue];
+        foreach (SolidEdgeAssembly.Occurrence occurrence in Late.Items(assembly.Occurrences).OfType<SolidEdgeAssembly.Occurrence>().Where(o => o.Visible))
+        {
+            occurrence.Range(out double x0, out double y0, out double z0, out double x1, out double y1, out double z1);
+            double[] a = [Geo.Mm(x0), Geo.Mm(y0), Geo.Mm(z0)];
+            double[] b = [Geo.Mm(x1), Geo.Mm(y1), Geo.Mm(z1)];
+            for (int i = 0; i < 3; i++)
+            {
+                lo[i] = Math.Min(lo[i], a[i]);
+                hi[i] = Math.Max(hi[i], b[i]);
+            }
+        }
+
+        return (lo, hi);
     }
 
     /// <summary>

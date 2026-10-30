@@ -8,6 +8,16 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Changed
 
+- The generic layer refuses the Material Table members that write library files (`SetMatPropValue`,
+  `SetMaterialPropValueToLibrary`, `AddMaterial`, `AddMaterialToLibrary`, `DeleteMaterial`, `DeleteMaterialFromLibrary`,
+  `RenameMaterial`, `ImportMaterialDataFromFile`, `CreateNewMaterialLibrary`, `CreateNewDirectory`, `RenameLibrary`,
+  `RenameDirectory`, `DeleteDirectory`, `WriteMatLibFileFromXML`, `AddCustomProperty`, `DeleteCustomProperty`): they
+  change the person's libraries, outside the folders the server writes.
+- A message box that Solid Edge shows without an owner window (the licence message of Simulation) is reported as a
+  dialog that waits for an answer: the call fails with `dialog_open` instead of waiting until its time limit.
+- Tool descriptions and server instructions are sent with LF line endings, so a checkout with CRLF endings no longer
+  makes descriptions pass the 2,048 characters that Claude Code keeps.
+
 - Every sketch an operation uses is fully defined, by relations and dimensions as a designer would add them, without
   fixing what is drawn. `se_sketch close` adds what the sketch lacks where it lies:
   - the relations the drawing shows: connected ends, horizontal or vertical lines, ends on other elements, tangent,
@@ -40,10 +50,77 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Added
 
+- `se_surface split`: splits a construction surface by planes, surfaces, curves or edges that cross it, also in a part
+  with no solid; it checks that there are more faces and that the area stays.
+- `se_export` writes assemblies as CATIA V5 (.catproduct, with a .CATPart file per part) and CATIA V4 (.model), and
+  `se_documents import` reads them back with their occurrences (a .model of an assembly with kind assembly). .catpart
+  stays for parts and sheet metal.
+- `se_simulation`: finite element studies of parts and sheet metal, solved by Simcenter Nastran. `create` (static, modal
+  or buckling, on every body or some), `constrain` (fixed, pinned, no rotation, sliding, cylindrical), `load` (force along
+  a direction or normal to the faces, pressure that presses on them), `solve` (the largest displacement and von Mises
+  stress, the applied load and the reaction about the origin, the natural frequencies or the buckling load factors, read
+  from the Nastran output), `results` (displacement and stress components with their minimum and maximum, and the picture
+  of the plot), `close_results`, `list` and `delete`. Static and modal studies with fixed constraints, forces and
+  pressures are checked against beam theory on a steel cantilever. `list` gives the kinds the licence includes:
+  Simulation Express (Solid Edge Foundation) has only those, and the other kinds are refused with `not_licensed` before
+  Solid Edge shows its licence message, so they have not been solved yet. Solving first checks the material (elastic
+  modulus, Poisson ratio and, for modes, density).
+- `se_material` takes `folder`: `options` (the materials folder of the Solid Edge options, as before) or `installation`
+  (the libraries installed with Solid Edge, read from a copy in the work folder; the folder of the options is set back).
+  The libraries of a company often carry no elastic properties, which simulation needs. `se_sheetmetal gauge` takes the
+  same `folder`, for the gauges of the installed libraries.
 - `se_sketch close` takes `elements`: lines of the sketch to place it from first, such as a datum line or a projected
   edge.
+- `se_session answer` answers the Solid Edge dialog that waits for the person (such as Update Model Links, which asks
+  whether to update out-of-date part copies): it chooses an `option` (a radio button or check box) and presses a
+  `button`, both by the text they show, and the call the dialog blocked then finishes. `dialog` picks one by its title
+  when several wait. `se_session status` and the `dialog_open` error list the options of a dialog with the selected
+  one. An option such as "don't prompt me again" changes Solid Edge's options, so it is meant to be chosen only when the
+  person asks.
+  A file dialog (Open, Save As, a folder picker) is only cancelled: what it would choose is outside the allowed folders.
+- `se_sheetmetal transform` (Thin Part to Synchronous Sheet Metal): a part document of a flat thin part becomes a
+  synchronous sheet metal document in place, with the thickness of the part, given one face of the sheet. Solid Edge
+  2026 Foundation does it for a plate and refuses a box with walls (E_FAIL, also with corner edges to rip), which
+  `convert` handles.
+- `se_drawing parts_list` takes `columns`: the properties shown, in order, by their Solid Edge names (such as
+  "Quantity", "File Name (no extension)" or a custom property "Name/CP"), instead of the columns of the saved setting,
+  which each installation defines (one of them can leave every cell of a test assembly empty).
 
 ### Fixed
+
+- `se_drawing parts_list` with a `style` that is not a saved parts list setting made the list with the default one, as
+  Solid Edge does without an error: it is now refused with `not_found` and the names of the saved settings.
+
+- `se_interference` gave the pairs without their common volume where the document shows values without their unit
+  (Solid Edge 2026 Foundation writes "Interference Volume 1570.796" in its report): such a volume is now read in the
+  volume unit of the assembly.
+- STL files stayed in inches where Solid Edge has no STL translator options file (Solid Edge 2026 Foundation installs
+  no `SESTL.ini`): `se_export` left the file in inches, and `se_documents import` would have read an STL in mm as inches.
+  The export now takes the unit from the size of the file against the model and scales the file to mm; the import reads
+  the file in mm, giving the translator a copy in its default unit, inches.
+- `se_tube add` with a material that the libraries of the Solid Edge options do not have failed with only E_INVALIDARG
+  from Solid Edge (each installation has its own libraries): the material is now looked up first and an unknown one is
+  refused with `not_found`, before anything is drawn.
+- `se_export` with `flatPattern` failed with `internal_error` on Solid Edge 2026 Foundation, which refuses every form of
+  its flat pattern export (E_INVALIDARG or E_FAIL, also once the part is saved). The flat pattern of a saved part is now
+  written from a flat view at 1:1 on a temporary drawing without the sheet's background: the outline and bend lines in
+  mm, at the place of the view on the sheet; the result says so in its `note`.
+- `se_documents import` of a DXF or DWG file that Solid Edge refuses gave only "Property name is invalid": it is now
+  `import_failed`, and where the installation has no DXF/DWG translator settings (Solid Edge 2026 Foundation installs no
+  `Preferences\Translators\seacad.ini` and reads DXF and DWG through no API route) the hint says so and points to STEP,
+  IGES or Parasolid. `se_app reset_dxf_settings` says `written` false where Solid Edge wrote no settings file.
+- `se_part_family populate` with `overwrite` over an existing member file left Solid Edge to update it, and Solid Edge
+  2026 Foundation kept its copied part and added another (the member file had two bodies, twice the volume): the file
+  is now moved aside first, put back if the new one is not written, and refused with `file_in_use` while it is open.
+- `se_tube` read the diameter, wall, bend radius and flat length of a tube as millimetres when Solid Edge wrote them
+  without their unit (Solid Edge 2026 Foundation writes "0.472" in an assembly in inches): they are now read in the
+  distance unit of the assembly.
+- `se_links where_used` found no users where Solid Edge's search finds none (Solid Edge 2026 Foundation, with Fast
+  Search on, found none in the work folder): the links of the documents of the folders are then read with Design
+  Manager, and the result says which way was used (`searchedBy`).
+- `se_links cad_direct` and `cad_update` gave a box of ±1e33 when Solid Edge placed the component without geometry (as
+  Solid Edge 2026 Foundation does with STEP files): such an occurrence now has no box and `geometry` false, and the
+  result notes that `se_documents import` translates the file.
 
 - `se_sketch close` dimensioned the model edges brought in with `project` like drawn lines, so a length held each one
   when the model changed (a 40 mm edge driven to 60 kept a 40 mm line) and the sketch no longer matched the part. They

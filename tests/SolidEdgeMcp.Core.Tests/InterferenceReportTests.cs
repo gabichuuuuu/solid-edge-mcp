@@ -73,6 +73,43 @@ public sealed class InterferenceReportTests
         Assert.Equal(1570.8, pair.VolumeMm3!.Value, 6);
     }
 
+    // Real report from Solid Edge 2026 Foundation (block and one pin), where the document shows values without their unit.
+    private const string Unlabelled = """
+        Report Name: C:\temp\interference.txt
+        Report Time: 24/10/2026 2:22:57
+        Report Options:
+            Part Names
+            Interference Volumes
+
+        Select Set #1:
+            blk.par:1
+            pin.par:1
+
+        Interferences:
+            1 of 1
+            blk.par:1
+            pin.par:1
+            Interference Volume 1.571
+
+            1 Interferences Detected
+        """;
+
+    [Theory]
+    [InlineData(1000, 1571)]
+    [InlineData(1, 1.571)]
+    public void Reads_a_volume_without_unit_in_the_unit_of_the_document(double volumeUnitMm3, double expected)
+    {
+        InterferenceReport.Pair pair = Assert.Single(InterferenceReport.Parse(Unlabelled, volumeUnitMm3));
+
+        Assert.Equal(new InterferenceReport.Pair("blk.par:1", "pin.par:1", expected), pair);
+    }
+
+    [Fact]
+    public void Leaves_a_volume_without_unit_unread_without_the_unit_of_the_document()
+    {
+        Assert.Equal(new InterferenceReport.Pair("blk.par:1", "pin.par:1", null), Assert.Single(InterferenceReport.Parse(Unlabelled)));
+    }
+
     [Fact]
     public void No_interference_gives_no_pairs()
     {

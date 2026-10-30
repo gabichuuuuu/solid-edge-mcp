@@ -25,12 +25,12 @@ se_sketch {"action":"close","sketch":"{{k.sketch}}"}
 @edges = se_geometry {"action":"edges","source":"{{top2.items[0].handle}}","type":"line"}
 ?= edges.count 4
 se_material {"action":"libraries"}
-@ml = se_material {"action":"list","filter":"Steel"}
+@ml = se_material {"action":"list","filter":"Steel","folder":"installation"}
 # Material names are the library's: one that differs only in case is taken as the library writes it, and an unknown one
 #   is refused (the message names the closest materials the libraries have).
-@ap = se_material {"action":"apply","name":"steel"}
+@ap = se_material {"action":"apply","name":"steel","folder":"installation"}
 ?= ap.material Steel
-! [not_found] se_material {"action":"apply","name":"Stel"}
+! [not_found] se_material {"action":"apply","name":"Stel","folder":"installation"}
 @cur = se_material {"action":"current"}
 @vl = se_variables {"action":"list"}
 @va = se_variables {"action":"add","name":"Thick","value":10}

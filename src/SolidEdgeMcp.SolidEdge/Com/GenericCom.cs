@@ -163,7 +163,31 @@ public static class GenericCom
         ["Relations3d.AddBarrelCam"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the cylindrical face of the follower and a circular edge of the cam)", null),
         ["AssemblyDrivenPartFeaturesExtrudedCutouts.Add"] = ("closed Solid Edge (a cutout driven by the assembly into one of its parts)", "Cut the assembly with se_assembly_feature, or the part itself in its own document."),
         ["AssemblyFeaturesSweptProtrusions.Add"] = ("leaves Solid Edge unstable (RPC_E_SERVERFAULT, with the origins as an object array of numbers) and otherwise fails with E_INVALIDARG or DISP_E_TYPEMISMATCH", "Sweep the body in a part with se_loft_sweep sweep and place the part."),
+        ["MatTable.SetMatPropValue"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.SetMaterialPropValueToLibrary"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.AddMaterial"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.AddMaterialToLibrary"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.DeleteMaterial"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.DeleteMaterialFromLibrary"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.RenameMaterial"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.ImportMaterialDataFromFile"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.CreateNewMaterialLibrary"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.CreateNewDirectory"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.RenameLibrary"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.RenameDirectory"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.DeleteDirectory"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.WriteMatLibFileFromXML"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.AddCustomProperty"] = (LibraryWrite, LibraryInstead),
+        ["MatTable.DeleteCustomProperty"] = (LibraryWrite, LibraryInstead),
     };
+
+    /// <summary>
+    /// Verified with SetMatPropValue in Solid Edge 2026: it rewrites the .mtl file of the materials folder set in the options,
+    /// which is the person's (often shared) library and outside the folders the server may write.
+    /// </summary>
+    private const string LibraryWrite = "writes the material library files of the materials folder set in the Solid Edge options (the person's libraries, outside the folders the server writes)";
+
+    private const string LibraryInstead = "Edit materials in the Material Table of Solid Edge; se_material applies them to documents (folder 'installation' for the libraries installed with Solid Edge).";
 
     private static void RefuseUnsafe(Type? type, string member)
     {

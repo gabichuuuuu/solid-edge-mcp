@@ -28,7 +28,7 @@ se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
 ?= g2.boundingBox.min[2] -5
 @sv = se_documents {"action":"save"}
 ?~ sv.dirty false
-@mi = se_material {"action":"info","name":"Steel"}
+@mi = se_material {"action":"info","name":"Steel","folder":"installation"}
 ?~ mi 7833
 se_view {"action":"orient","orientation":"front"}
 se_view {"action":"orient","orientation":"back"}

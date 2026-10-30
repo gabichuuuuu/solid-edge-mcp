@@ -69,6 +69,8 @@ public static class TubeService
                 "Save the assembly first (se_documents save_as), then add the tube.");
         }
 
+        // Verified with Solid Edge 2026 Foundation: a material the libraries do not have gives only E_INVALIDARG.
+        string? tubeMaterial = string.IsNullOrWhiteSpace(material) ? null : MaterialService.RequireMaterial(context, material.Trim());
         string file = context.Paths.Check(path ?? NextTubeFile(folder, ((SolidEdgeDocument)assembly).Name), "path");
         if (!string.Equals(Path.GetExtension(file), ".par", StringComparison.OrdinalIgnoreCase))
         {
@@ -107,10 +109,10 @@ public static class TubeService
             Array path3d = segments.ToArray();
             string name = file;
             occurrence = assembly.Occurrences.AddTube(ref path3d, ref name, template, thickness == 0,
-                string.IsNullOrWhiteSpace(material) ? Type.Missing : material, Units.MmToM(radius), Units.MmToM(outerDiameter.Value),
+                tubeMaterial ?? Type.Missing, Units.MmToM(radius), Units.MmToM(outerDiameter.Value),
                 Type.Missing, thickness > 0 ? Units.MmToM(thickness) : Type.Missing);
         }
-        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        catch (Exception ex) when (ex is ArgumentException || ex is COMException com && !ComErrors.IsGone(com))
         {
             DeleteSegments(segments);
             throw new ToolException("tube_failed", $"Solid Edge could not route the tube: {ex.Message.Trim()}",
@@ -179,17 +181,17 @@ public static class TubeService
 
         ModelDocument part = AssemblyService.PartOf(occurrence);
         occurrence.Range(out double ax, out double ay, out double az, out double bx, out double by, out double bz);
-        double wall = Property(tube, WallPid) ?? 0;
+        double wall = Property(assembly, tube, WallPid) ?? 0;
         return new
         {
             handle = context.Register(occurrence, "occurrence", (SolidEdgeDocument)assembly),
             name = occurrence.Name,
             file = occurrence.OccurrenceFileName,
-            outerDiameter = Property(tube, OuterDiameterPid),
+            outerDiameter = Property(assembly, tube, OuterDiameterPid),
             wall = wall > 0 ? wall : (double?)null,
             solid = wall <= 0,
-            bendRadius = Property(tube, BendRadiusPid),
-            flatLength = Property(tube, FlatLengthPid),
+            bendRadius = Property(assembly, tube, BendRadiusPid),
+            flatLength = Property(assembly, tube, FlatLengthPid),
             material = Late.TryGetString(tube, "TubeMaterial") is { } m && m != "(None)" ? m : null,
             volume = Geo.Mm3(part.Volume()),
             boundingBox = new { min = new[] { Geo.Mm(ax), Geo.Mm(ay), Geo.Mm(az) }, max = new[] { Geo.Mm(bx), Geo.Mm(by), Geo.Mm(bz) } },
@@ -198,28 +200,20 @@ public static class TubeService
         };
     }
 
-    /// <summary>A tube property in mm: Solid Edge formats it in the document units (verified: "12.00 mm").</summary>
-    private static double? Property(Tube tube, TubePropertyPidConstants pid)
+    /// <summary>
+    /// A tube property in mm. Solid Edge formats it in the distance unit of the assembly, with the unit ("12.00 mm") or
+    /// without it (verified with Solid Edge 2026 Foundation: "12.00", and "0.472" once the assembly is in inches), so it is
+    /// read back with the assembly's ParseUnit.
+    /// </summary>
+    private static double? Property(AssemblyDocument assembly, Tube tube, TubePropertyPidConstants pid)
     {
         try
         {
             tube.GetTubePropertyNameAndValueByPid(pid, out _, out string value);
-            string[] parts = value.Trim().Split(' ', 2);
-            if (!double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double number))
-            {
-                return null;
-            }
-
-            return parts.Length < 2 ? number : parts[1].Trim() switch
-            {
-                "mm" => number,
-                "cm" => number * 10,
-                "m" => number * 1000,
-                "in" => number * 25.4,
-                _ => null,
-            };
+            object metres = ((SolidEdgeDocument)assembly).UnitsOfMeasure.ParseUnit((int)UnitTypeConstants.igUnitDistance, value.Trim());
+            return Geo.Mm(Convert.ToDouble(metres, CultureInfo.InvariantCulture));
         }
-        catch (COMException)
+        catch (Exception ex) when (ComErrors.IsCallFailure(ex))
         {
             return null;
         }

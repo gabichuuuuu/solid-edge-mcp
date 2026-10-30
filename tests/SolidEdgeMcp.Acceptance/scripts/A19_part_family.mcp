@@ -58,6 +58,9 @@ se_documents {"action":"save_as","path":"{{work}}\\fam_master.par","overwrite":t
 @p1 = se_part_family {"action":"populate","name":"Thin","overwrite":true,"document":"{{d.handle}}"}
 ?~ p1.file Thin.par
 ?= p1.member.status up_to_date
+# again over its own file, without overwrite: the file is written anew, without a second body (read back below)
+@p1b = se_part_family {"action":"populate","name":"Thin","document":"{{d.handle}}"}
+?~ p1b.file Thin.par
 ! [file_exists] se_part_family {"action":"populate","name":"Thick","path":"{{work}}\\Thin.par","document":"{{d.handle}}"}
 ! [invalid_argument] se_part_family {"action":"populate","name":"Thick","path":"{{work}}\\Thick.psm","document":"{{d.handle}}"}
 @dl = se_part_family {"action":"delete_member","name":"Thick","document":"{{d.handle}}"}

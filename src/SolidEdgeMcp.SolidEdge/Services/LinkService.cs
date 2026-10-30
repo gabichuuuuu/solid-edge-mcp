@@ -170,12 +170,18 @@ public static partial class LinkService
 
     /// <summary>
     /// Documents that use a file (FindWhereUsedDocuments): the assemblies, drawings and parts in the given folders that refer
-    /// to it directly; with <paramref name="indirect"/>, also those that use them, up to the top.
+    /// to it directly; with <paramref name="indirect"/>, also those that use them, up to the top. When Solid Edge's search finds
+    /// none, the links of the documents of the folders are read with Design Manager instead (<see cref="DesignManagerService.LinksIn"/>).
     /// </summary>
     public static object WhereUsed(SeContext context, string? path, string[]? folders, bool subfolders, bool indirect)
     {
         string file = context.Paths.Check(path, "path");
         List<string> scope = Folders(context, folders, System.IO.Path.GetDirectoryName(file)!);
+        List<string> direct = [.. UsersOf(context, file, scope, subfolders)];
+        DesignManagerService.LinkScan? scanned = direct.Count == 0 ? ScanLinks(context, scope, subfolders) : null;
+        IEnumerable<string> UsersOfFile(string current) => scanned is not null
+            ? scanned.Links.Where(d => d.Value.Any(l => Same(l, current))).Select(d => d.Key)
+            : Same(current, file) ? direct : UsersOf(context, current, scope, subfolders);
         var users = new List<object>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { file };
         var pending = new Queue<(string File, int Level)>();
@@ -183,7 +189,7 @@ public static partial class LinkService
         while (pending.Count > 0 && users.Count < MaxFiles)
         {
             (string current, int level) = pending.Dequeue();
-            foreach (string user in UsersOf(context, current, scope, subfolders))
+            foreach (string user in UsersOfFile(current))
             {
                 if (!seen.Add(user))
                 {
@@ -198,7 +204,43 @@ public static partial class LinkService
             }
         }
 
-        return new { file, folders = scope, subfolders, indirect, count = users.Count, users };
+        return new
+        {
+            file,
+            folders = scope,
+            subfolders,
+            indirect,
+            searchedBy = scanned is null ? "solid_edge" : "design_manager",
+            count = users.Count,
+            users,
+            skipped = scanned is { Skipped.Count: > 0 } ? scanned.Skipped : null,
+            truncated = scanned is { Truncated: true } ? true : (bool?)null,
+            note = scanned is not null
+                ? "Design Manager read the saved files, so what is not saved in an open document does not count."
+                    + (scanned.Skipped.Count > 0 ? " It could not read the files in 'skipped', which may use this one." : "")
+                    + (scanned.Truncated ? " The folders hold more documents than it reads in one call, so some were left out." : "")
+                : users.Count == 0
+                    ? "Solid Edge's search found no users and Design Manager, which would read the links of the documents instead, is not available."
+                    : null,
+        };
+    }
+
+    /// <summary>
+    /// The links of the documents of the folders, read with Design Manager; null when it is not installed. Verified with Solid
+    /// Edge 2026 Foundation: its search (FindWhereUsedDocuments) found no users of a part used by an assembly and a drawing of
+    /// the same folder (A25), with Fast Search on, which reads the Windows Search index, and the search not limited to a
+    /// scope; that the index not covering the folder is the cause was not checked (it needs Solid Edge restarted).
+    /// </summary>
+    private static DesignManagerService.LinkScan? ScanLinks(SeContext context, List<string> scope, bool subfolders)
+    {
+        try
+        {
+            return DesignManagerService.LinksIn(context, scope, subfolders);
+        }
+        catch (ToolException ex) when (ex.Code == "not_available")
+        {
+            return null;
+        }
     }
 
     /// <summary>Assemblies of a set that no other assembly of the set uses (GetTopLevelAssemblyFileNames).</summary>

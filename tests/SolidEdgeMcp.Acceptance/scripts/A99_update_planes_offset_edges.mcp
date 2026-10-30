@@ -4,6 +4,8 @@
 #   show_edges, clear_edges).
 # 1) A block 100 x 60 x 20 (120000 mm3) and a copy of it with Automatic Update off: the copy stays at 120000 when the block
 # goes to 30 high (180000 mm3) until it is recomputed (Update Relationships, Update Active Level).
+# Solid Edge restarted first: once answered "prompt me next time", Update Model Links asks again only in the next session.
+se_session {"action":"restart"}
 @s = se_documents {"action":"new","kind":"part"}
 @k = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
@@ -23,6 +25,15 @@ se_documents {"action":"save"}
 @vs = se_physical {"document":"{{s.handle}}"}
 ?= vs.volume 180000 0.01
 se_documents {"action":"activate","document":"{{d.handle}}"}
+# Solid Edge 2026 Foundation then asks whether to update the out-of-date copy (Update Model Links), which blocks the next
+# call: answered "not now" with se_session answer, an option that keeps the prompt for next time.
+! [dialog_open] se_physical {"document":"{{d.handle}}"}
+@st = se_session {"action":"status"}
+?~ st.dialogs[0].title Update Model Links
+! [not_found] se_session {"action":"answer","button":"No such button"}
+@an = se_session {"action":"answer","option":"Don't update now, but prompt me next time","button":"OK"}
+?= an.answer.closed true
+?= an.free true
 @vd = se_physical {"document":"{{d.handle}}"}
 ?= vd.volume 120000 0.01
 se_documents {"action":"recompute","document":"{{d.handle}}"}

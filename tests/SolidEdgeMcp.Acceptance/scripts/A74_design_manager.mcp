@@ -8,7 +8,8 @@
 # a set open in Solid Edge); the pin renamed (the assembly and use.asm, found in 'other', use the new name); the plate
 # copied as plate_v1.1.par (a dot in the name; the subassembly uses the copy) and replaced by the original again; the
 # pin moved to 'parts' without looking in 'other' (use.asm is left with a broken link, found by broken_links and fixed
-# by relink); the plate revised (plate-1.par, Revision 1, used by the set); the pin released and the assembly given In
+# by relink); the plate revised (its next revision, named after it: plate-1.par, or plate-a.par where the revisions are
+# letters; used by the set); the pin released and the assembly given In
 # Review (a list with a released file refused whole); a rename refused because a released document outside the set uses
 # the file; the subassembly's links under lib redefined to a packed copy of the set; duplicates by name and by document
 # ID (the packed copies keep the IDs of the originals); and Solid Edge reading every result.
@@ -117,9 +118,9 @@ se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
 ?= b2.count 0
 # Revise, release and status
 @v = se_design_manager {"action":"revise","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["{{work}}\\runs\\a74_{{run}}\\lib\\plate.par"],"to":["plate"]}
-?~ v.changed[0].to plate-1.par
-?= v.changed[0].revision 1
-?~ v.links plate-1.par
+?= v.changed[0].previousRevision 0
+?~ v.changed[0].to plate-{{v.changed[0].revision}}.par
+?~ v.links plate-{{v.changed[0].revision}}.par
 @rel = se_design_manager {"action":"release","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["{{work}}\\runs\\a74_{{run}}\\parts\\pin_v2.par"]}
 ?= rel.changed[0].status released
 ! [status_refused] se_design_manager {"action":"status","files":["{{work}}\\runs\\a74_{{run}}\\parts\\pin_v2.par"],"status":"available"}
@@ -138,15 +139,15 @@ se_design_manager {"action":"status","files":["{{work}}\\runs\\a74_{{run}}\\othe
 @k = se_links {"action":"pack","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","folder":"{{work}}\\runs\\a74_{{run}}\\pack"}
 @rd = se_design_manager {"action":"relink","path":"{{work}}\\runs\\a74_{{run}}\\src\\sub.asm","files":["{{work}}\\runs\\a74_{{run}}\\lib"],"to":["{{work}}\\runs\\a74_{{run}}\\pack"]}
 ?= rd.count 1
-?~ rd.changed[0].to pack\plate-1.par
+?~ rd.changed[0].to pack\plate-{{v.changed[0].revision}}.par
 @d = se_design_manager {"action":"duplicates","folders":["{{work}}\\runs\\a74_{{run}}"],"subfolders":true}
-?~ d.sameName plate-1.par
+?~ d.sameName plate-{{v.changed[0].revision}}.par
 ?~ d.sameDocumentId pack\\top.dft
 # Solid Edge reads the results
 @o2 = se_documents {"action":"open","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.asm"}
 @ll = se_links {"action":"list","recursive":true}
 ?~ ll.links parts\\pin_v2.par
-?~ ll.links pack\\plate-1.par
+?~ ll.links pack\\plate-{{v.changed[0].revision}}.par
 ?= ll.missing 0
 se_documents {"action":"close","document":"{{o2.handle}}","saveChanges":false}
 @o3 = se_documents {"action":"open","path":"{{work}}\\runs\\a74_{{run}}\\other\\use.asm"}

@@ -25,6 +25,7 @@ public enum SheetMetalAction
     BendAngle,
     BendRadius,
     Convert,
+    Transform,
     MatchFace,
     Louver,
     TabSlot,
@@ -160,18 +161,18 @@ public sealed class SheetMetalTools(ToolRunner runner)
         flange: one per straight edge of a sheet face, rising away from the material; length, angle, side, radius, dimension.
         hem: one per edge (usually a flange's free edge); hemType, length of the folded part, radius.
         break_corner: cornerType with 'size' on corner edges through the thickness.
-        flatten: flat pattern and cut size (x, y); export: se_export flatPattern=true.
+        flatten: flat pattern, cut size (x, y); DXF: se_export flatPattern.
         bend_angle: faces = a bend face, fixedFace = planar face that stays, angle | bend_radius: faces = bend faces, radius = inside radius.
         unbend: fixedFace, faces = bend faces (default all) -> flat; delete the feature to bend again.
         gusset: faces = a bend face, depth, width; distance from an end arc edge (edges; default middle), count or spacing.
         convert: thin part (se_part_feature copy_part) -> sheet metal; faces = base face, edges = corners to rip; set thickness = wall first.
+        transform: flat thin part document -> synchronous sheet metal; faces = a sheet face.
         match_face: faces = a flange face, plane = a parallel plane or face -> the flange moves onto it (distance mm short).
         louver: faces = a flat sheet face, point = middle of the opening edge, along = its direction (opens left seen from the normal).
         tab_slot: edges of one sheet body on faces of another -> tabs and slots; count or spacing, length, depth, gap, distance.
         bend_table: bends in sequence (feature, radius, angle, direction); sequence [from, to] moves a bend.
         tab, edge features, louvers: made in synchronous (then ordered again); flanges and hems need edges of synchronous features.
         Sketch-based features: se_sheetmetal_form. A feature that fails or does nothing is undone.
-        Example: {"action":"flange","edges":["edge:12"],"length":20}.
         """)]
     public Task<CallToolResult> SheetMetal(
         SheetMetalAction action,
@@ -211,6 +212,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
         [Description("tab_slot: slot clearance around each tab in mm (default 0).")] double gap = 0,
         [Description("gauge: gauge name as in the material library, e.g. '16 gage'.")] string? gauge = null,
         [Description("gauge: material library (se_material libraries); default: the first one that has the gauge.")] string? library = null,
+        [Description("gauge: where the libraries are, as in se_material: options (default, the materials folder of the Solid Edge options) | installation (the libraries installed with Solid Edge).")] MaterialFolder? folder = null,
         [Description("bend_table: [from, to] positions (1-based) in the bend sequence: the bend at 'from' moves to 'to'.")] int[]? sequence = null,
         [Description("Document handle; default: the document of the sketch/edges, or the active one.")] string? document = null,
         CancellationToken cancellationToken = default)
@@ -222,7 +224,8 @@ public sealed class SheetMetalTools(ToolRunner runner)
             SheetMetalAction.Settings => runner.RunAsync(tool, name, c => FeatureService.SheetSettings(c, document), cancellationToken),
             SheetMetalAction.SetSettings => runner.RunAsync(tool, name, c => FeatureService.SetSheetSettings(c, document,
                 new SheetMetalValues(thickness, bendRadius, reliefWidth, reliefDepth, neutralFactor)), cancellationToken),
-            SheetMetalAction.Gauge => runner.RunAsync(tool, name, c => FeatureService.SheetGauge(c, document, gauge, library), cancellationToken),
+            SheetMetalAction.Gauge => runner.RunAsync(tool, name, c => FeatureService.SheetGauge(c, document, gauge, library,
+                folder is { } f ? Snake(f) : null), cancellationToken),
             SheetMetalAction.Tab => runner.RunAsync(tool, name, c => FeatureService.Tab(c, document, RequireSketch(sketch, name), Snake(direction), newBody), cancellationToken),
             SheetMetalAction.ContourFlange => runner.RunAsync(tool, name, c => FeatureService.ContourFlange(c, document, RequireSketch(sketch, name),
                 width, Snake(direction), Snake(materialSide), radius), cancellationToken),
@@ -235,6 +238,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
             SheetMetalAction.BendAngle => runner.RunAsync(tool, name, c => FeatureService.BendAngle(c, document, faces, fixedFace, angle), cancellationToken),
             SheetMetalAction.BendRadius => runner.RunAsync(tool, name, c => FeatureService.BendRadius(c, document, faces, radius), cancellationToken),
             SheetMetalAction.Convert => runner.RunAsync(tool, name, c => FeatureService.ConvertToSheet(c, document, faces, edges), cancellationToken),
+            SheetMetalAction.Transform => runner.RunAsync(tool, name, c => FeatureService.TransformToSheet(c, document, faces, edges), cancellationToken),
             SheetMetalAction.MatchFace => runner.RunAsync(tool, name, c => FeatureService.MatchFace(c, document, faces, plane, distance), cancellationToken),
             SheetMetalAction.Louver => runner.RunAsync(tool, name, c => FeatureService.Louver(c, document,
                 new LouverSpec(faces, point, along, length, width, height, Snake(louverEnd), radius)), cancellationToken),

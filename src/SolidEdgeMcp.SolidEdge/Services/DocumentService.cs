@@ -170,7 +170,7 @@ public static class DocumentService
     {
         [".stp"] = "part", [".step"] = "part", [".igs"] = "part", [".iges"] = "part", [".x_t"] = "part", [".x_b"] = "part",
         [".jt"] = "part", [".sat"] = "part", [".stl"] = "part", [".obj"] = "part", [".3mf"] = "part",
-        [".catpart"] = "part", [".model"] = "part",
+        [".catpart"] = "part", [".catproduct"] = "assembly", [".model"] = "part",
         [".dxf"] = "draft", [".dwg"] = "draft",
     };
 
@@ -201,11 +201,13 @@ public static class DocumentService
             : DefaultTemplate(context, type) is { } byDefault && File.Exists(byDefault) ? byDefault
             : throw new ToolException("template_missing", $"Solid Edge has no default {target.Replace('_', ' ')} template.",
                 "Pass 'template' (se_documents templates lists them).");
-        // STL carries no unit: it is read in mm, so the translator (which reads the unit of its options, inches as installed)
-        // is given a copy scaled to that unit.
+        // STL carries no unit: it is read in mm, so the translator (which reads the unit of its options, inches as installed
+        // and without an options file) is given a copy scaled to that unit.
         string opened = source;
         string? scratch = null;
-        double? stlUnit = extension.Equals(".stl", StringComparison.OrdinalIgnoreCase) ? ExportService.StlUnit(context, "Import Units") : null;
+        double? stlUnit = extension.Equals(".stl", StringComparison.OrdinalIgnoreCase)
+            ? ExportService.StlImportUnit(context)
+            : null;
         if (stlUnit is { } unit && unit != 1)
         {
             scratch = System.IO.Path.Combine(context.Paths.WorkFolder, "import-" + Guid.NewGuid().ToString("N"));
@@ -228,6 +230,19 @@ public static class DocumentService
             // Verified in Solid Edge 2026 with STEP, IGES, Parasolid, STL and DXF files: no dialog, a new unsaved document.
             document = (SolidEdgeDocument)context.Application.Documents.OpenWithTemplate(opened, templatePath);
         }
+        catch (COMException ex) when (!ComErrors.IsGone(ex) && extension.ToLowerInvariant() is ".dxf" or ".dwg")
+        {
+            // Verified with Solid Edge 2026 Foundation: "Property name is invalid" with every template and kind, also for a DXF
+            // that Solid Edge wrote, and Documents.Open gives E_FAIL; Application.CreateSEDraftDocFromDXFAuto writes the
+            // template without the file's elements. That installation has no Preferences\Translators\seacad.ini, the DXF/DWG
+            // translator settings that Community Edition had when it opened the same files, and ResetConfigFile writes none.
+            string? install = SolidEdgeSettings.InstallFolder(context.Application);
+            bool noSettings = install is not null && !File.Exists(System.IO.Path.Combine(install, "Preferences", "Translators", "seacad.ini"));
+            throw new ToolException("import_failed", $"Solid Edge could not open '{System.IO.Path.GetFileName(source)}': {ex.Message.Trim()}",
+                noSettings
+                    ? "This installation has no DXF/DWG translator settings (Preferences\\Translators\\seacad.ini), and there Solid Edge reads DXF and DWG through no API route (as Solid Edge 2026 Foundation). Import STEP, IGES or Parasolid, or open the file in Solid Edge by hand."
+                    : "Open the file in Solid Edge by hand to see its message, or import STEP, IGES or Parasolid.", ex);
+        }
         finally
         {
             if (scratch is not null)
@@ -245,7 +260,8 @@ public static class DocumentService
 
         double? volume = document is SolidEdgePart.PartDocument or SolidEdgePart.SheetMetalDocument ? ModelDocument.From(document).Volume() : null;
         Dictionary<string, int>? elements = document is SolidEdgeDraft.DraftDocument draft ? DrawingService.SheetElements(draft.ActiveSheet) : null;
-        if (volume is <= 0 || elements?.GetValueOrDefault("total") == 0)
+        int? occurrences = document is SolidEdgeAssembly.AssemblyDocument assembly ? assembly.Occurrences.Count : null;
+        if (volume is <= 0 || elements?.GetValueOrDefault("total") == 0 || occurrences == 0)
         {
             TryClose(document);
             throw new ToolException("import_empty", $"Solid Edge translated no geometry from '{System.IO.Path.GetFileName(source)}', so the empty document was closed.",
@@ -258,6 +274,7 @@ public static class DocumentService
             source,
             template = templatePath,
             volume = volume is { } v ? Geo.Mm3(v) : (double?)null,
+            occurrences,
             elements,
             note = "Not saved yet: save_as writes it as a Solid Edge file."
                 + (stlUnit is null ? "" : stlUnit == 1 ? " STL files carry no unit: it was read in mm."

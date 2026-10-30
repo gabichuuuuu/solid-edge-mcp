@@ -124,6 +124,10 @@ se_sketch {"action":"close","sketch":"{{gk.sketch}}"}
 @mt = se_com_invoke {"target":"app","method":"GetMaterialTable"}
 @ml = se_com_invoke {"target":"{{mt.result.handle}}","method":"GetMaterialLibraryList","arguments":[null,null]}
 ?~ ml.outputs.MaterialLibList Materials
+! [unsafe_member] se_com_invoke {"target":"{{mt.result.handle}}","method":"SetMatPropValue","arguments":["x","y",0,0]}
+! [unsafe_member] se_com_invoke {"target":"{{mt.result.handle}}","method":"RenameLibrary","arguments":["x","y"]}
+! [unsafe_member] se_com_invoke {"target":"{{mt.result.handle}}","method":"DeleteDirectory","arguments":["x"]}
+! [unsafe_member] se_com_invoke {"target":"{{mt.result.handle}}","method":"WriteMatLibFileFromXML","arguments":["x"]}
 @gm = se_com_get {"target":"{{gx.handle}}","member":"Models"}
 @gm1 = se_com_invoke {"target":"{{gm.value.handle}}","method":"Item","arguments":[1]}
 @gb = se_com_get {"target":"{{gm1.result.handle}}","member":"Body"}

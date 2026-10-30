@@ -124,7 +124,7 @@ public static partial class FeatureService
     }
 
     /// <summary>Applies a gauge of a material library: thickness, bend radius and relief come from it; the model is updated.</summary>
-    public static object SheetGauge(SeContext context, string? documentHandle, string? gauge, string? library)
+    public static object SheetGauge(SeContext context, string? documentHandle, string? gauge, string? library, string? folder = null)
     {
         if (string.IsNullOrWhiteSpace(gauge))
         {
@@ -134,7 +134,7 @@ public static partial class FeatureService
         ModelDocument model = ModelDocument.Get(context, documentHandle);
         SheetMetalDocument sheet = Sheet(model);
         double before = model.Volume();
-        string lib = MaterialService.ApplyGauge(context, model.Document, gauge.Trim(), library);
+        string lib = MaterialService.ApplyGauge(context, model.Document, gauge.Trim(), library, folder);
         sheet.Recompute();
         context.ModelChanged(model.Document, "the sheet metal gauge changed");
         double after = model.Volume();
@@ -497,6 +497,63 @@ public static partial class FeatureService
         }
 
         return new { conversion = result, bendFaces = bends - bendsBefore };
+    }
+
+    /// <summary>
+    /// Thin Part to Synchronous Sheet Metal: the part document becomes a synchronous sheet metal document in place
+    /// (PartDocument.TransformToSynchronousSheetmetal), with the thickness of the part. Verified with Solid Edge 2026
+    /// Foundation: a 100 x 60 x 2 plate given its top face becomes a sheet metal document with one tab (thickness 2, the same
+    /// volume, flat pattern 100 x 60); without the edge count and array Solid Edge gives E_POINTER, and a box with walls
+    /// (a shell with an open top) gives E_FAIL with and without corner edges to rip through IDispatch. Solid Edge then gives
+    /// another document object, so the active document is described.
+    /// </summary>
+    public static object TransformToSheet(SeContext context, string? documentHandle, string[]? faces, string[]? edges)
+    {
+        if (faces is not [string faceHandle])
+        {
+            throw ToolException.InvalidArgument("transform requires 'faces' with one planar face of the sheet (e.g. its top face).",
+                "Get it with se_geometry action 'faces' (type plane).");
+        }
+
+        SolidEdgeFramework.SolidEdgeDocument document = context.GetDocument(documentHandle);
+        if (document is not PartDocument part)
+        {
+            throw new ToolException("wrong_document_type", $"'{document.Name}' is not a part document.",
+                "transform turns a part into sheet metal; in a sheet metal document use action 'convert'.");
+        }
+
+        Face face = context.Handles.Resolve<Face>(faceHandle, "faces");
+        Array rips = (edges ?? []).Select(h => (object)context.Handles.Resolve<Edge>(h, "edges")).ToArray();
+        document.Activate();
+        double before = ModelDocument.From(document).Volume();
+        try
+        {
+            part.TransformToSynchronousSheetmetal(face, rips.Length, ref rips);
+        }
+        catch (Exception ex) when (ComErrors.IsCallFailure(ex))
+        {
+            throw new ToolException("feature_failed", $"Solid Edge could not turn the part into sheet metal: {ComErrors.Unwrap(ex).Message.Trim()}",
+                "Give a face of a flat part of one even thickness; for a part with walls, copy it into a sheet metal document (se_part_feature copy_part) and use action 'convert' with the corner edges to rip.", ex);
+        }
+
+        context.ModelChanged(document, "the part became sheet metal");
+        var sheet = (SolidEdgeFramework.SolidEdgeDocument)context.Application.ActiveDocument;
+        if (DocumentKinds.ToKind(sheet.Type) != "sheet_metal")
+        {
+            throw new ToolException("feature_failed", "Solid Edge reported no error but the document is still a part.",
+                "Give a face of a flat part of one even thickness.");
+        }
+
+        DocumentInfo info = DocumentService.Describe(context, sheet, sheet);
+        ModelDocument model = ModelDocument.From(sheet);
+        return new
+        {
+            document = info,
+            volume = Geo.Mm3(model.Volume()),
+            volumeChange = Geo.Mm3(model.Volume() - before),
+            settings = SheetSettings(context, info.Handle),
+            note = "The document is now sheet metal in synchronous mode: its earlier handles expired. Save it as a .psm file (se_documents save_as).",
+        };
     }
 
     /// <summary>Cylindrical faces of the sheet (two per bend).</summary>

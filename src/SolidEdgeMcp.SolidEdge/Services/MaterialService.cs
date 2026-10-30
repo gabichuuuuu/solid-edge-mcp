@@ -30,11 +30,17 @@ public static class MaterialService
         (MatTablePropIndex.seSpecificHeat, "specificHeatJPerKgK", 1),
     ];
 
-    public static object Libraries(SeContext context) => new { libraries = LibraryNames(Table(context)) };
+    /// <summary>The materials folder set in the Solid Edge options (default) or the libraries installed with Solid Edge.</summary>
+    public static readonly IReadOnlyList<string> Folders = ["options", "installation"];
 
-    public static object List(SeContext context, string? library, string? filter)
+    public static object Libraries(SeContext context, string? folder = null) =>
+        InFolder(context, folder, table => new { folder = FolderName(folder), libraries = LibraryNames(table) });
+
+    public static object List(SeContext context, string? library, string? filter, string? folder = null) =>
+        InFolder(context, folder, table => List(context, table, library, filter, folder));
+
+    private static object List(SeContext context, MatTable table, string? library, string? filter, string? folder)
     {
-        MatTable table = Table(context);
         int budget = context.MaxListItems;
         var result = new List<object>();
         foreach (string name in library is null ? LibraryNames(table) : [RequireLibrary(table, library)])
@@ -46,16 +52,21 @@ public static class MaterialService
             result.Add(new { library = name, count = materials.Length, materials });
         }
 
-        return new { libraries = result, truncated = budget <= 0 ? true : (bool?)null };
+        return new { folder = FolderName(folder), libraries = result, truncated = budget <= 0 ? true : (bool?)null };
     }
 
-    public static object Info(SeContext context, string name, string? library)
+    /// <summary>
+    /// A material of the libraries of the options folder, as the library writes it, or not_found with the closest names: for
+    /// calls that take a material name and give only E_INVALIDARG for an unknown one (Occurrences.AddTube).
+    /// </summary>
+    internal static string RequireMaterial(SeContext context, string name) => FindLibrary(Table(context), name, null).Name;
+
+    public static object Info(SeContext context, string name, string? library, string? folder = null) => InFolder(context, folder, table =>
     {
-        MatTable table = Table(context);
-        (string lib, name) = FindLibrary(table, name, library);
-        return new { material = name, library = lib, properties = Properties(index =>
-            Late.CallByRef(table, "GetMaterialPropValueFromLibrary", [name, lib, (int)index, null], 3)[3]) };
-    }
+        (string lib, string found) = FindLibrary(table, name, library);
+        return new { material = found, library = lib, folder = FolderName(folder), properties = Properties(index =>
+            Late.CallByRef(table, "GetMaterialPropValueFromLibrary", [found, lib, (int)index, null], 3)[3]) };
+    });
 
     public static object Current(SeContext context, string? documentHandle)
     {
@@ -76,7 +87,10 @@ public static class MaterialService
     }
 
     /// <summary>The density of the document's material in kg/m³, or null (no material, or not readable).</summary>
-    internal static double? Density(SeContext context, SolidEdgeDocument document)
+    internal static double? Density(SeContext context, SolidEdgeDocument document) => DocumentValue(context, document, MatTablePropIndex.seDensity);
+
+    /// <summary>A property of the document's material in SI units, or null (no material, or not readable).</summary>
+    internal static double? DocumentValue(SeContext context, SolidEdgeDocument document, MatTablePropIndex index)
     {
         if (MaterialName(context, document) is null)
         {
@@ -85,7 +99,7 @@ public static class MaterialService
 
         try
         {
-            object? value = Late.CallByRef(Table(context), "GetMaterialPropValueFromDoc", [document, (int)MatTablePropIndex.seDensity, null], 2)[2];
+            object? value = Late.CallByRef(Table(context), "GetMaterialPropValueFromDoc", [document, (int)index, null], 2)[2];
             return value is null ? null : Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex))
@@ -108,27 +122,32 @@ public static class MaterialService
         }
     }
 
-    /// <summary>Applies a library material to the document and checks that it was assigned.</summary>
-    public static object Apply(SeContext context, string? documentHandle, string name, string? library)
+    /// <summary>
+    /// Applies a library material to the document and checks that it was assigned. The document keeps a copy of the
+    /// properties, so a material applied from the installed libraries stays when the folder of the options is put back.
+    /// </summary>
+    public static object Apply(SeContext context, string? documentHandle, string name, string? library, string? folder = null)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
-        MatTable table = Table(context);
-        (string lib, name) = FindLibrary(table, name, library);
-        if (document is AssemblyDocument assembly)
+        return InFolder(context, folder, table =>
         {
-            return ApplyToBeads(context, table, assembly, name, lib);
-        }
+            (string lib, string found) = FindLibrary(table, name, library);
+            if (document is AssemblyDocument assembly)
+            {
+                return ApplyToBeads(context, table, assembly, found, lib);
+            }
 
-        // The material changes density and appearance, not the topology: faces and edges stay valid (verified).
-        table.ApplyMaterialToDoc(document, name, lib);
-        table.GetCurrentMaterialName(document, out string applied);
-        if (!string.Equals(applied, name, StringComparison.Ordinal))
-        {
-            throw new ToolException("material_not_applied", $"Solid Edge did not assign '{name}' (the document material is '{applied}').",
-                "Check that the document is a part or sheet metal document and that it is not read-only.");
-        }
+            // The material changes density and appearance, not the topology: faces and edges stay valid (verified).
+            table.ApplyMaterialToDoc(document, found, lib);
+            table.GetCurrentMaterialName(document, out string applied);
+            if (!string.Equals(applied, found, StringComparison.Ordinal))
+            {
+                throw new ToolException("material_not_applied", $"Solid Edge did not assign '{found}' (the document material is '{applied}').",
+                    "Check that the document is a part or sheet metal document and that it is not read-only.");
+            }
 
-        return Describe(context, table, document, applied, lib);
+            return Describe(context, table, document, applied, lib, FolderName(folder));
+        });
     }
 
     /// <summary>
@@ -197,35 +216,36 @@ public static class MaterialService
     /// <summary>
     /// Applies a sheet metal gauge of a material library (thickness, bend radius, relief) and returns the library. Verified:
     /// ApplyGageFromLibraryToDoc(doc, "10 gage", "Materials") sets thickness and bend radius to 3.581 mm. Without a library,
-    /// each one is tried until the document reports the gauge.
+    /// each one is tried until the document reports the gauge. <paramref name="folder"/>: as in <see cref="Apply"/>.
     /// </summary>
-    public static string ApplyGauge(SeContext context, SolidEdgeDocument document, string gauge, string? library)
-    {
-        MatTable table = Table(context);
-        foreach (string lib in library is null ? LibraryNames(table) : [RequireLibrary(table, library)])
+    public static string ApplyGauge(SeContext context, SolidEdgeDocument document, string gauge, string? library, string? folder = null) =>
+        InFolder(context, FolderName(folder), table =>
         {
-            try
+            foreach (string lib in library is null ? LibraryNames(table) : [RequireLibrary(table, library)])
             {
-                table.ApplyGageFromLibraryToDoc(document, gauge, lib);
-            }
-            catch (Exception ex) when (ex is NullReferenceException || ex is COMException com && !ComErrors.IsGone(com))
-            {
-                // A gauge the library does not have gives E_POINTER (NullReferenceException) and leaves the document unchanged.
-                continue;
+                try
+                {
+                    table.ApplyGageFromLibraryToDoc(document, gauge, lib);
+                }
+                catch (Exception ex) when (ex is NullReferenceException || ex is COMException com && !ComErrors.IsGone(com))
+                {
+                    // A gauge the library does not have gives E_POINTER (NullReferenceException) and leaves the document unchanged.
+                    continue;
+                }
+
+                table.GetCurrentGageName(document, out string applied);
+                if (string.Equals(applied, gauge, StringComparison.OrdinalIgnoreCase))
+                {
+                    return lib;
+                }
             }
 
-            table.GetCurrentGageName(document, out string applied);
-            if (string.Equals(applied, gauge, StringComparison.OrdinalIgnoreCase))
-            {
-                return lib;
-            }
-        }
+            throw ToolException.NotFound($"There is no sheet metal gauge '{gauge}'{(library is null ? " in the material libraries" : $" in '{library}'")}.",
+                "Pass the gauge name as the library writes it, e.g. '16 gage' (se_sheetmetal 'settings' shows the current one).");
+        });
 
-        throw ToolException.NotFound($"There is no sheet metal gauge '{gauge}'{(library is null ? " in the material libraries" : $" in '{library}'")}.",
-            "Pass the gauge name as the library writes it, e.g. '16 gage' (se_sheetmetal 'settings' shows the current one).");
-    }
-
-    private static object Describe(SeContext context, MatTable table, SolidEdgeDocument document, string name, string? library = null)
+    private static object Describe(SeContext context, MatTable table, SolidEdgeDocument document, string name, string? library = null,
+        string? folder = null)
     {
         object? properties = string.IsNullOrEmpty(name) ? null : Properties(index =>
             Late.CallByRef(table, "GetMaterialPropValueFromDoc", [document, (int)index, null], 2)[2]);
@@ -244,6 +264,7 @@ public static class MaterialService
             document = context.DocumentHandle(document),
             material = string.IsNullOrEmpty(name) ? null : name,
             library,
+            folder,
             properties,
             documentDensityKgM3 = density,
             massKg = mass,
@@ -268,6 +289,60 @@ public static class MaterialService
     }
 
     private static MatTable Table(SeContext context) => context.Application.GetMaterialTable();
+
+    private static string? FolderName(string? folder) => folder is null or "options" ? null : folder;
+
+    /// <summary>
+    /// Runs <paramref name="work"/> on the libraries of <paramref name="folder"/>. MatTable only reads the libraries of the
+    /// materials folder set in the options, so for the installed ones that folder is switched to a copy of them in the work
+    /// folder of the server (Program Files is neither pointed at nor written) and put back afterwards, also when the work fails.
+    /// </summary>
+    private static T InFolder<T>(SeContext context, string? folder, Func<MatTable, T> work)
+    {
+        MatTable table = Table(context);
+        if (folder is null or "options")
+        {
+            return work(table);
+        }
+
+        if (folder != "installation")
+        {
+            throw ToolException.InvalidArgument($"Unknown folder '{folder}'.", $"Use one of: {string.Join(", ", Folders)}.");
+        }
+
+        string copy = InstalledCopy(context);
+        table.GetMaterialsFolderPath(out string original);
+        table.SetMaterialsFolderPath(copy);
+        try
+        {
+            return work(table);
+        }
+        finally
+        {
+            table.SetMaterialsFolderPath(original);
+        }
+    }
+
+    /// <summary>A copy of the installed .mtl libraries in the work folder, refreshed when an installed one changed.</summary>
+    private static string InstalledCopy(SeContext context)
+    {
+        string source = InstallationService.MaterialsFolder()
+            ?? throw new ToolException("not_found", "The materials folder of the Solid Edge installation was not found (Preferences\\Materials).",
+                "Use the libraries of the materials folder set in the options (folder 'options').");
+        string copy = System.IO.Path.Combine(context.AppPaths.Work, "materials-installation");
+        Directory.CreateDirectory(copy);
+        foreach (string file in Directory.EnumerateFiles(source, "*.mtl"))
+        {
+            var from = new FileInfo(file);
+            var to = new FileInfo(System.IO.Path.Combine(copy, from.Name));
+            if (!to.Exists || to.Length != from.Length || to.LastWriteTimeUtc != from.LastWriteTimeUtc)
+            {
+                from.CopyTo(to.FullName, overwrite: true);
+            }
+        }
+
+        return copy;
+    }
 
     private static string[] LibraryNames(MatTable table)
     {

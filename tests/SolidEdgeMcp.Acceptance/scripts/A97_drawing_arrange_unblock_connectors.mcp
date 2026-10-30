@@ -102,6 +102,12 @@ se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
 ?~ pm.columns Quantity (NoPin)
 ?= pm.count 1
 @pv = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a97_{{run}}\\plain.asm","orientation":"front","position":[300,100],"scale":0.5}
+@pc = se_drawing {"action":"parts_list","view":"{{fv.view.handle}}","family":true,"columns":["File Name (no extension)"],"balloons":false,"position":[250,150]}
+?= pc.count 2
+?~ pc.columns[0] File Name
+?~ pc.columns[1] WithPin
+?~ pc.columns[2] NoPin
+?~ pc.rows "pin","1","0"
 ! [not_family] se_drawing {"action":"parts_list","view":"{{pv.view.handle}}","family":true,"balloons":false}
 @tb = se_drawing {"action":"tables"}
 se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}

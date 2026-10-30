@@ -1,0 +1,91 @@
+# A136: simulation studies of a part with se_simulation, on a 100x20x10 steel cantilever fixed at x = 0 (Steel from the libraries installed with Solid Edge; the materials folder of the options stays as it was). Static: 100 N down on the free end -> 0.0995 mm and 29.2 MPa (beam theory 0.100 mm and 30 MPa), 100 N and 10 N*m reacted about the origin; 0.1 MPa on the top face presses it down with 200 N -> 0.0745 mm (theory 0.075 mm). Modal: 817.9 and 1594.5 Hz (Euler-Bernoulli 816 and 1632 Hz). The plot picture, closing the results, listing and deleting studies. The not_licensed checks are those of Simulation Express (Solid Edge Foundation): with Solid Edge Simulation those calls succeed. The part is closed without saving.
+@mt = se_com_invoke {"target":"app","method":"GetMaterialTable"}
+@mf0 = se_com_invoke {"target":"{{mt.result.handle}}","method":"GetMaterialsFolderPath","arguments":[null]}
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,20]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":10}
+@fx = se_geometry {"action":"faces","direction":[-1,0,0]}
+@fe = se_geometry {"action":"faces","direction":[1,0,0]}
+@ft = se_geometry {"action":"faces","direction":[0,0,1]}
+@sF = se_simulation {"action":"create"}
+?= sF.study.type static
+?= sF.study.bodies 1
+@cF = se_simulation {"action":"constrain","elements":["{{fx.items[0].handle}}"],"constraint":"fixed"}
+?= cF.constraint.kind fixed
+@lF = se_simulation {"action":"load","elements":["{{fe.items[0].handle}}"],"load":"force","value":100,"direction":[0,0,-1]}
+?= lF.load.direction[2] -1
+?= lF.state ready
+! [not_solved] se_simulation {"action":"results"}
+! [material_incomplete] se_simulation {"action":"solve"}
+! [invalid_argument] se_simulation {"action":"load","elements":["{{ft.items[0].handle}}"],"load":"pressure","value":0.1,"direction":[0,0,-1]}
+! [not_licensed] se_simulation {"action":"constrain","elements":["{{fx.items[0].handle}}"],"constraint":"pinned"}
+! [not_licensed] se_simulation {"action":"constrain","elements":["{{fx.items[0].handle}}"],"constraint":"no_rotation"}
+! [not_licensed] se_simulation {"action":"constrain","elements":["{{ft.items[0].handle}}"],"constraint":"sliding"}
+! [not_licensed] se_simulation {"action":"constrain","elements":["{{ft.items[0].handle}}"],"constraint":"cylindrical"}
+! [not_licensed] se_simulation {"action":"create","type":"buckling"}
+se_material {"action":"apply","name":"Steel","folder":"installation"}
+@mf1 = se_com_invoke {"target":"{{mt.result.handle}}","method":"GetMaterialsFolderPath","arguments":[null]}
+?~ mf1.outputs.bstrMtlFolderPath {{mf0.outputs.bstrMtlFolderPath}}
+@vF = se_simulation {"action":"solve"}
+?= vF.state solved
+?= vF.maxDisplacementMm 0.0995 0.003
+?= vF.maxVonMisesMPa 29.2 1.5
+?= vF.appliedLoad.forceN[2] -100 0.01
+?= vF.reaction.forceN[2] 100 0.01
+?= vF.reaction.momentNm[1] -10 0.01
+?= vF.environment FEAResultsPart
+@rZ = se_simulation {"action":"results","quantity":"displacement","component":"z"}
+?= rZ.min -0.0995 0.003
+?= rZ.unit mm
+@rV = se_simulation {"action":"results","path":"{{work}}\\A136\\von_mises.png"}
+?= rV.max 29.2 1.5
+?~ rV.savedTo von_mises.png
+@rM1 = se_simulation {"action":"results","quantity":"displacement","component":"magnitude"}
+?= rM1.max 0.0995 0.003
+@rX1 = se_simulation {"action":"results","quantity":"displacement","component":"x"}
+?= rX1.unit mm
+@rY1 = se_simulation {"action":"results","quantity":"displacement","component":"y"}
+?= rY1.unit mm
+@rXX = se_simulation {"action":"results","quantity":"stress","component":"xx"}
+?= rXX.max 33.9 3
+@rYY = se_simulation {"action":"results","component":"yy"}
+?= rYY.unit MPa
+@rZZ = se_simulation {"action":"results","component":"zz"}
+?= rZZ.unit MPa
+@rXY = se_simulation {"action":"results","component":"xy"}
+?= rXY.unit MPa
+@rYZ = se_simulation {"action":"results","component":"yz"}
+?= rYZ.unit MPa
+@rZX = se_simulation {"action":"results","component":"zx"}
+?= rZX.unit MPa
+! [invalid_argument] se_simulation {"action":"results","quantity":"displacement","component":"von_mises"}
+@cl = se_simulation {"action":"close_results"}
+?= cl.environment Part
+@sP = se_simulation {"action":"create"}
+se_simulation {"action":"constrain","study":"{{sP.study.handle}}","elements":["{{fx.items[0].handle}}"]}
+@lP = se_simulation {"action":"load","study":"{{sP.study.handle}}","elements":["{{ft.items[0].handle}}"],"load":"pressure","value":0.1}
+?= lP.load.value 0.1
+! [invalid_argument] se_simulation {"action":"solve"}
+@vP = se_simulation {"action":"solve","study":"{{sP.study.handle}}"}
+?= vP.appliedLoad.forceN[2] -200 0.01
+?= vP.reaction.forceN[2] 200 0.01
+?= vP.maxDisplacementMm 0.0745 0.003
+@sM = se_simulation {"action":"create","type":"modal","modes":3}
+?= sM.study.modes 3
+se_simulation {"action":"constrain","study":"{{sM.study.handle}}","elements":["{{fx.items[0].handle}}"]}
+@vM = se_simulation {"action":"solve","study":"{{sM.study.handle}}"}
+?= vM.frequenciesHz[0] 817.9 8
+?= vM.frequenciesHz[1] 1594.5 16
+@rM = se_simulation {"action":"results","study":"{{sM.study.handle}}","quantity":"displacement","mode":2}
+?= rM.mode 2
+! [not_found] se_simulation {"action":"results","study":"{{sM.study.handle}}","mode":9}
+se_simulation {"action":"close_results"}
+@ls = se_simulation {"action":"list"}
+?= ls.count 3
+?= ls.studies[0].state solved
+?= ls.licensed.loads[1] pressure
+@dl = se_simulation {"action":"delete","study":"{{sP.study.handle}}"}
+?= dl.remaining 2
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

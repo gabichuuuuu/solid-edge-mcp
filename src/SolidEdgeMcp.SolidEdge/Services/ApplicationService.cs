@@ -252,7 +252,8 @@ public static class ApplicationService
     /// <summary>
     /// Resets the DXF/DWG (AutoCAD) translation settings of import or export to Solid Edge's defaults (ResetConfigFile).
     /// Verified: resetting import and export rewrote Preferences\Translators\seacad.ini (15916 -> 16908 bytes: the default
-    /// template, paper space, layers and colour mapping written out). There is no undo.
+    /// template, paper space, layers and colour mapping written out). There is no undo. Solid Edge 2026 Foundation, which
+    /// installs no seacad.ini, writes none (also when given a file path) and reports no error.
     /// </summary>
     public static object ResetDxfSettings(SeContext context, string mode)
     {
@@ -264,8 +265,23 @@ public static class ApplicationService
         };
         object file = Missing.Value;
         object template = Missing.Value;
+        string? install = SolidEdgeSettings.InstallFolder(context.Application);
+        string? ini = install is null ? null : IOPath.Combine(install, "Preferences", "Translators", "seacad.ini");
+        DateTime? before = ini is not null && File.Exists(ini) ? File.GetLastWriteTimeUtc(ini) : null;
         context.Application.ResetConfigFile(ConfigResetType.seResetAll, ConfigForForeignFileType.seAutoCADConfigFile, translation, "", ref file, ref template);
-        return new { reset = "dxf_dwg_" + mode, note = "The DXF/DWG " + mode + " settings are back to Solid Edge's defaults." };
+        if (ini is null)
+        {
+            return new { reset = "dxf_dwg_" + mode, written = (bool?)null, note = "Solid Edge reported no error, but its installation folder is unknown, so the settings file could not be checked." };
+        }
+
+        if (!File.Exists(ini))
+        {
+            return new { reset = "dxf_dwg_" + mode, written = (bool?)false, note = "Solid Edge wrote no settings file: this installation has no Preferences\\Translators\\seacad.ini to reset (as Solid Edge 2026 Foundation)." };
+        }
+
+        return File.GetLastWriteTimeUtc(ini) != before
+            ? new { reset = "dxf_dwg_" + mode, written = (bool?)true, note = "The DXF/DWG " + mode + " settings are back to Solid Edge's defaults." }
+            : new { reset = "dxf_dwg_" + mode, written = (bool?)false, note = "Solid Edge reported no error but did not rewrite Preferences\\Translators\\seacad.ini: check that it can be written." };
     }
 
     public static object RecentList(SeContext context, string operation)

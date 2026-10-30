@@ -71,6 +71,26 @@ public sealed class SolidEdgeSession : IDisposable
         return _dispatcher.InvokeAsync(operation, () => Execute(operation, work, allowStart), limit, cancellationToken);
     }
 
+    /// <summary>
+    /// Waits until no call runs in Solid Edge, as after answering the dialog that blocked one; false when one still runs after
+    /// <paramref name="limit"/>.
+    /// </summary>
+    public async Task<bool> WaitIdleAsync(TimeSpan limit, CancellationToken cancellationToken)
+    {
+        DateTime end = DateTime.UtcNow + limit;
+        while (_dispatcher.Current is not null)
+        {
+            if (DateTime.UtcNow >= end)
+            {
+                return false;
+            }
+
+            await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+        }
+
+        return true;
+    }
+
     /// <summary>State without connecting to or starting anything.</summary>
     public async Task<SessionStatus> GetStatusAsync(CancellationToken cancellationToken)
     {

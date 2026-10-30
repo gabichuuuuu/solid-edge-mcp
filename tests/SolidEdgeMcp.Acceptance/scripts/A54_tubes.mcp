@@ -14,7 +14,10 @@ se_documents {"action":"save_as","path":"{{work}}\\a54\\a54.asm","overwrite":tru
 ?= t.tube.solid false
 ?= t.tube.boundingBox.max[0] 106 0.001
 ?~ t.tube.points [100,80,0]
-@r = se_tube {"action":"add","points":[0,0,30,0,50,30],"outerDiameter":10,"material":"Steel","path":"{{work}}\\a54\\a54_rod.par","overwrite":true}
+# The material is one of the libraries of the options (each installation has its own); an unknown one is refused.
+@ml = se_material {"action":"list"}
+! [not_found] se_tube {"action":"add","points":[0,0,30,0,50,30],"outerDiameter":10,"material":"No such material","path":"{{work}}\\a54\\a54_rod.par","overwrite":true}
+@r = se_tube {"action":"add","points":[0,0,30,0,50,30],"outerDiameter":10,"material":"{{ml.libraries[0].materials[0]}}","path":"{{work}}\\a54\\a54_rod.par","overwrite":true}
 ?= r.tube.volume 3926.991 0.05
 ?= r.tube.flatLength 50 0.01
 ?= r.tube.solid true
@@ -34,4 +37,10 @@ se_documents {"action":"open","path":"{{work}}\\a54\\a54.asm"}
 ?= l2.tubes[0].flatLength 171.42 0.01
 @ph = se_physical {}
 ?= ph.volume 9850.700 0.1
+# Solid Edge formats the tube properties in the distance unit of the assembly, without it in some editions (2026
+# Foundation): with the assembly in inches they still come back in mm.
+se_options {"action":"set_units","unitType":"distance","unit":"inch","precision":3}
+@l3 = se_tube {"action":"list"}
+?= l3.tubes[0].outerDiameter 12 0.02
+?= l3.tubes[0].flatLength 171.42 0.03
 se_documents {"action":"close","saveChanges":false}

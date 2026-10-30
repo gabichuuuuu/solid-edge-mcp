@@ -1,4 +1,4 @@
-# A42: surface edits (se_surface copy, trim, extend, intersect, bluesurf), curve edits (se_curve isocline, split) and face
+# A42: surface edits (se_surface copy, trim, split, extend, intersect, bluesurf), curve edits (se_curve isocline, split) and face
 # splits (se_face_split split, parting, offset_edge), merged faces (se_part_feature redefine_faces), face edits on the
 # second body of a split part, with the refusals, and the generic layer's SplitCurves guard.
 # Expected values are worked out by hand from the dimensions: block 100 x 60 x 20 (top 6000, front 2000, back 2000 mm2,
@@ -352,3 +352,28 @@ se_round {"edges":["{{er3.items[?start=[0,0,20]].handle}}"],"radius":5}
 ?= q5.bodies[1].volume 54000 0.01
 ?= q5.bodies[1].boundingBox.max[2] 30 0.001
 se_documents {"action":"close","saveChanges":false}
+# A surface split in a part with no solid: a flat surface 40 x 120 (x 0 to 40, y -10 to 110, z = 10, 4800 mm2) split by the plane XZ
+# at y = 0 (400 + 4400) and by a surface crossing it at x = 20 (a third and a fourth piece, the area unchanged). Solid Edge 2026
+# Community Edition leaves this feature failed: this script was run on Foundation.
+@sp = se_documents {"action":"new","kind":"part"}
+@ks = se_sketch {"action":"create","plane":"2"}
+se_sketch {"action":"line","sketch":"{{ks.sketch}}","points":[-10,10,110,10]}
+se_sketch {"action":"close","sketch":"{{ks.sketch}}","open":true}
+@ss = se_surface {"action":"extrude","sketch":"{{ks.sketch}}","depth":40}
+?= ss.surface.faces 1
+?= ss.surface.area 4800 0.01
+! [invalid_argument] se_surface {"action":"split","surfaces":["{{ss.surface.handle}}"]}
+! [invalid_argument] se_surface {"action":"split","tools":["3"]}
+@s1 = se_surface {"action":"split","surfaces":["{{ss.surface.handle}}"],"tools":["3"]}
+?= s1.facesBefore 1
+?= s1.faces 2
+?= s1.area 4800 0.01
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{k2.sketch}}","points":[20,-20,20,120]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}","open":true}
+@t2 = se_surface {"action":"extrude","sketch":"{{k2.sketch}}","depth":80,"direction":"symmetric"}
+@s2 = se_surface {"action":"split","surfaces":["{{ss.surface.handle}}"],"tools":["{{t2.surface.handle}}"]}
+?= s2.facesBefore 2
+?= s2.faces 4
+?= s2.area 4800 0.01
+se_documents {"action":"close","document":"{{sp.handle}}","saveChanges":false}

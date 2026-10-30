@@ -72,8 +72,9 @@ se_drawing_view {"action":"set_broken","view":"{{p.view.handle}}","broken":false
 ! [not_supported] se_drawing_view {"action":"to2d","view":"{{p.view.handle}}"}
 se_export {"path":"{{work}}\\a23_draft.dxf","overwrite":true}
 se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
-# Import: STEP, IGES and Parasolid give the block's volume; STL a faceted body of the same size; DXF a drawing with its lines;
-# open refuses those files (Solid Edge translates them; Documents.Open fails)
+# Import: STEP, IGES and Parasolid give the block's volume; STL a faceted body of the same size; DXF is refused with
+# import_failed by Solid Edge 2026 Foundation, through every API route (Community Edition opened it as a drawing with its
+# lines); open refuses those files (Solid Edge translates them; Documents.Open fails)
 ! [invalid_argument] se_documents {"action":"open","path":"{{work}}\\a23_blk.stp"}
 @i1 = se_documents {"action":"import","path":"{{work}}\\a23_blk.stp"}
 ?= i1.volume 118429.204 0.5
@@ -86,15 +87,10 @@ se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
 @g4 = se_geometry {"action":"summary"}
 ?= g4.boundingBox.size[0] 100 0.01
 ?= g4.boundingBox.size[2] 20 0.01
-@i5 = se_documents {"action":"import","path":"{{work}}\\a23_draft.dxf"}
-?= i5.document.kind draft
-@x1 = se_com_get {"target":"active_document","member":"ActiveSheet"}
-@x2 = se_com_get {"target":"{{x1.value.handle}}","member":"Lines2d"}
-@x3 = se_com_get {"target":"{{x2.value.handle}}","member":"Count"}
+! [import_failed] se_documents {"action":"import","path":"{{work}}\\a23_draft.dxf"}
 ! [invalid_argument] se_documents {"action":"import","path":"{{work}}\\a23_blk.par"}
 ! se_documents {"action":"import","path":"{{work}}\\a23_missing.stp"}
 se_documents {"action":"close","document":"{{i1.document.handle}}","saveChanges":false}
 se_documents {"action":"close","document":"{{i2.document.handle}}","saveChanges":false}
 se_documents {"action":"close","document":"{{i3.document.handle}}","saveChanges":false}
 se_documents {"action":"close","document":"{{i4.document.handle}}","saveChanges":false}
-se_documents {"action":"close","document":"{{i5.document.handle}}","saveChanges":false}

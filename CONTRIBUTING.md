@@ -15,7 +15,7 @@ writing code.
 
 ## Development set-up
 
-You need Windows x64, Solid Edge (validated with the 2026 Community Edition) and the .NET 10 SDK.
+You need Windows x64, Solid Edge (validated with the 2026 Foundation and Community Edition) and the .NET 10 SDK.
 
 ```powershell
 .\scripts\generate-interop.ps1    # interop from your Solid Edge installation, into lib\interop

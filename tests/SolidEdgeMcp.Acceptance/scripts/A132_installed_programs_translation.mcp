@@ -1,8 +1,8 @@
 # A132: the programs installed with Solid Edge beside Design Manager. The installation read by se_server_info (InstallData);
 # the thumbnails saved in closed files (SeThumbnail, 128 x 128); the formats of Solid Edge Translation Services that se_export
-# had not offered (CATIA V5 and V4 of a part, OBJ with its material file, PLM XML with a Parasolid file per body, U3D and
-# XGL, an assembly refused for CATIA), the CATIA files imported again with the volume of the plate (100 x 60 x 10 =
-# 60000 mm3); and batch exports of saved files and folders as Translation Services makes them: a folder with its subfolders
+# had not offered (CATIA V5 and V4 of a part and of an assembly, OBJ with its material file, PLM XML with a Parasolid file
+# per body, U3D and XGL, a part refused for .catproduct and an assembly for .catpart), the CATIA files imported again with
+# the volume of the plate (100 x 60 x 10 = 60000 mm3) and the two occurrences of the assembly; and batch exports of saved files and folders as Translation Services makes them: a folder with its subfolders
 # to STEP (drawings left out, the subfolder kept), two files that would write the same PDF (the second refused), a file
 # open in Solid Edge exported from its document, which stays open, an assembly in a CATIA batch refused without opening
 # it, and a STEP file of the batch read back.
@@ -61,9 +61,15 @@ se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}
 @e6 = se_export {"path":"{{work}}\\runs\\a132_{{run}}\\out\\plate.xgl"}
 ?= e6.format XGL
 ! [invalid_argument] se_export {"path":"{{work}}\\runs\\a132_{{run}}\\out\\plate.wrl"}
+! [invalid_argument] se_export {"path":"{{work}}\\runs\\a132_{{run}}\\out\\plate.catproduct"}
 se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
 @oa = se_documents {"action":"open","path":"{{work}}\\runs\\a132_{{run}}\\src\\top.asm"}
 ! [invalid_argument] se_export {"path":"{{work}}\\runs\\a132_{{run}}\\out\\top.catpart"}
+@e8 = se_export {"path":"{{work}}\\runs\\a132_{{run}}\\asm\\top.catproduct"}
+?~ e8.format V5
+?~ e8.alsoWritten plate.CATPart
+@e9 = se_export {"path":"{{work}}\\runs\\a132_{{run}}\\asm\\top.model"}
+?~ e9.format V4
 @e7 = se_export {"path":"{{work}}\\runs\\a132_{{run}}\\out\\top.obj"}
 ?~ e7.alsoWritten top.mtl
 se_documents {"action":"close","document":"{{oa.handle}}","saveChanges":false}
@@ -75,6 +81,15 @@ se_documents {"action":"close","document":"{{i1.document.handle}}","saveChanges"
 @i2 = se_documents {"action":"import","path":"{{work}}\\runs\\a132_{{run}}\\out\\plate.model"}
 ?= i2.volume 60000 0.01
 se_documents {"action":"close","document":"{{i2.document.handle}}","saveChanges":false}
+@i3 = se_documents {"action":"import","path":"{{work}}\\runs\\a132_{{run}}\\asm\\top.catproduct"}
+?= i3.document.kind assembly
+@l3 = se_assembly {"action":"list"}
+?= l3.count 2
+se_documents {"action":"close","document":"{{i3.document.handle}}","saveChanges":false}
+@i4 = se_documents {"action":"import","path":"{{work}}\\runs\\a132_{{run}}\\asm\\top.model","kind":"assembly"}
+@l4 = se_assembly {"action":"list"}
+?= l4.count 2
+se_documents {"action":"close","document":"{{i4.document.handle}}","saveChanges":false}
 # Batches, as Translation Services
 @b1 = se_export {"files":["{{work}}\\runs\\a132_{{run}}\\src"],"format":"step","path":"{{work}}\\runs\\a132_{{run}}\\step","subfolders":true}
 ?= b1.count 3
@@ -88,6 +103,10 @@ se_documents {"action":"close","document":"{{i2.document.handle}}","saveChanges"
 ?= b4.count 2
 ?= b4.exported 1
 ?~ b4.files invalid_argument
+@b5 = se_export {"files":["{{work}}\\runs\\a132_{{run}}\\src\\top.asm","{{work}}\\runs\\a132_{{run}}\\src\\plate.par"],"format":"catproduct","path":"{{work}}\\runs\\a132_{{run}}\\catasm"}
+?= b5.count 2
+?= b5.exported 1
+?~ b5.files invalid_argument
 @docs3 = se_documents {"action":"list"}
 ?= docs3.count 0 0
 @o2 = se_documents {"action":"open","path":"{{work}}\\runs\\a132_{{run}}\\src\\plate.par"}

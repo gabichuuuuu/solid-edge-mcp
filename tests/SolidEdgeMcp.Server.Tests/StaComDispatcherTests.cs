@@ -76,6 +76,19 @@ public sealed class StaComDispatcherTests
     }
 
     [Fact]
+    public void A_dialog_with_a_choice_names_its_options_and_the_selected_one()
+    {
+        var links = new DialogInfo("Update Model Links", "Some part copies are out of date.", ["OK", "Help"], false)
+        {
+            Options = ["Update now", "Don't update now"],
+            Selected = ["Update now"],
+        };
+
+        Assert.True(links.WaitsForAnswer);
+        Assert.Equal("'Update Model Links': \"Some part copies are out of date.\" [OK, Help] options [Update now (selected), Don't update now]", links.ToString());
+    }
+
+    [Fact]
     public async Task Without_dialogs_a_call_returns_its_result()
     {
         using StaComDispatcher dispatcher = Dispatcher();

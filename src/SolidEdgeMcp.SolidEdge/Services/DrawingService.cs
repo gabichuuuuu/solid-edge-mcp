@@ -1230,13 +1230,19 @@ public static partial class DrawingService
     /// once both are chosen and the list updated (block 1 and 1, pin 1 and 0); one member alone gives its column and rows.
     /// </summary>
     public static object PartsList(SeContext context, string? viewHandle, double[]? position, bool balloons, string? style,
-        bool family = false, string[]? members = null)
+        bool family = false, string[]? members = null, string[]? columns = null)
     {
         DrawingView view = ResolveView(context, viewHandle);
         DraftDocument draft = DraftFor(context, null, viewHandle);
         if (LinkOf(view) is not { } link || link.ModelType != ModelLinkTypeConstants.igAssemblyLink)
         {
             throw new ToolException("wrong_view", "A parts list needs a view of an assembly.", "Pass a drawing view created from an .asm file.");
+        }
+
+        string[]? properties = columns is null ? null : [.. columns.Select(c => c?.Trim() ?? "")];
+        if (properties is not null && (properties.Length == 0 || properties.Any(p => p.Length == 0)))
+        {
+            throw ToolException.InvalidArgument("'columns' needs one or more property names, none empty.", "E.g. [\"Quantity\", \"File Name (no extension)\", \"Material\"].");
         }
 
         family |= members is { Length: > 0 };
@@ -1259,9 +1265,18 @@ public static partial class DrawingService
                 style is null ? "Pass 'style' with the name of a saved parts list setting (e.g. 'Normal')." : "Check the saved setting name in 'style'.", ex);
         }
 
-        if (family)
+        // Verified with Solid Edge 2026: a saved setting that does not exist gives no error, the list takes the default one.
+        if (!string.IsNullOrWhiteSpace(style) && SavedSettings(list) is { } saved && !saved.Contains(style.Trim(), StringComparer.OrdinalIgnoreCase))
         {
-            ChooseFamilyMembers(view, list, members);
+            list.Delete();
+            throw ToolException.NotFound($"The drawing has no saved parts list setting '{style.Trim()}'.",
+                $"Use one of: {string.Join(", ", saved)}; or leave out 'style' for the default one.");
+        }
+
+        string[] chosen = family ? ChooseFamilyMembers(view, list, members) : [];
+        if (properties is not null)
+        {
+            ShowColumns(list, properties, chosen);
         }
 
         (TableAnchorPoint anchor, double x, double y) = TableCorner(view, position);
@@ -1271,7 +1286,7 @@ public static partial class DrawingService
     }
 
     /// <summary>Chooses the members of a family of assemblies parts list (default all), or deletes the list if that fails.</summary>
-    private static void ChooseFamilyMembers(DrawingView view, PartsList list, string[]? members)
+    private static string[] ChooseFamilyMembers(DrawingView view, PartsList list, string[]? members)
     {
         try
         {
@@ -1306,12 +1321,58 @@ public static partial class DrawingService
             {
                 throw new ToolException("parts_list_failed", $"Solid Edge kept the members {string.Join(", ", kept)} instead of {string.Join(", ", chosen)}.");
             }
+
+            return chosen;
         }
         catch (Exception ex) when (ex is ToolException || ComErrors.Unwrap(ex) is COMException && !ComErrors.IsGone(ex))
         {
             list.Delete();
             throw ex is ToolException ? ex : new ToolException("parts_list_failed",
                 $"Solid Edge could not choose the family members: {ComErrors.Unwrap(ex).Message.Trim()}", "Check the member names (se_assembly_family list).", ex);
+        }
+    }
+
+    /// <summary>
+    /// Shows the given properties as the columns of a parts list, in place of the columns of its saved setting (each
+    /// installation has its own), or deletes the list if that fails. A name is a property of the document of each row as
+    /// Solid Edge names it (e.g. "Quantity", "File Name (no extension)", "Material"; a custom property followed by "/CP"), or
+    /// a property text as given ("%{…}"). Verified with Solid Edge 2026: saved settings write "%{Quantity|G}" and
+    /// "%{Name/CP|G}"; without "|G" a column shows the property of the drawing instead. The quantity column of each member of
+    /// a family ("Quantity (WithPin)") stays, after the given ones: verified, without them the list has no rows.
+    /// </summary>
+    private static void ShowColumns(PartsList list, string[] properties, string[] familyMembers)
+    {
+        try
+        {
+            TableColumns all = list.Columns;
+            int saved = all.Count;
+            bool[] quantity = [.. Enumerable.Range(1, saved).Select(i => familyMembers.Any(m => (all.Item(i).Header ?? "").EndsWith($"({m})", StringComparison.OrdinalIgnoreCase)))];
+            int firstQuantity = Array.IndexOf(quantity, true);
+            int before = firstQuantity > 0 ? firstQuantity : saved;
+            for (int i = 0; i < properties.Length; i++)
+            {
+                string property = properties[i];
+                bool text = property.StartsWith("%{", StringComparison.Ordinal);
+                TableColumn column = all.Add(before + i, true);
+                column.PropertyText = text ? property : $"%{{{property}|G}}";
+                column.Header = text ? property.TrimStart('%', '{').Split('|', '}')[0].Replace("/CP", "", StringComparison.Ordinal) : property;
+            }
+
+            for (int i = saved; i >= 1; i--)
+            {
+                if (!quantity[i - 1])
+                {
+                    all.Item(i > before ? i + properties.Length : i).Delete();
+                }
+            }
+
+            list.Update();
+        }
+        catch (Exception ex) when (ComErrors.IsCallFailure(ex))
+        {
+            list.Delete();
+            throw new ToolException("parts_list_failed", $"Solid Edge could not set the columns of the parts list: {ComErrors.Unwrap(ex).Message.Trim()}",
+                "Give property names as Solid Edge shows them in its property text dialog.", ex);
         }
     }
 
@@ -1984,7 +2045,27 @@ public static partial class DrawingService
             columns = headers,
             count,
             rows,
+            savedSettings = SavedSettings(list),
         };
+    }
+
+    /// <summary>
+    /// Names of the saved settings of the parts list ('style' of parts_list), which each template and installation defines:
+    /// the columns and their properties come from the one used. Null when Solid Edge gives none.
+    /// </summary>
+    private static string[]? SavedSettings(PartsList list)
+    {
+        try
+        {
+            Array names = Array.Empty<object>();
+            list.GetListOfSavedSettings(out int count, ref names);
+            string[] found = [.. names.Cast<object?>().Take(count).Select(o => o?.ToString() ?? "").Where(n => n.Length > 0)];
+            return found.Length > 0 ? found : null;
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            return null;
+        }
     }
 
     /// <summary>

@@ -98,21 +98,20 @@ se_documents {"action":"close","document":"{{a2.handle}}","saveChanges":false}
 se_documents {"action":"save_as","path":"{{work}}\\runs\\a95_cadasm_{{run}}.asm"}
 ! [invalid_argument] se_links {"action":"cad_direct","path":"{{work}}\\a95_block.par"}
 ! [no_links] se_links {"action":"cad_update"}
-# The translated part takes the product name in the STEP file (that of a95_gone) and lives inside the assembly file, so its
-# box shows the geometry: the assembly's physical properties leave it out and its part cannot be opened.
+# The translated part takes the product name in the STEP file (that of a95_gone) and lives inside the assembly file. Solid
+# Edge 2026 Foundation places it without geometry (Community Edition: its box was 100 x 60 x 20, then 150 x 60 after the
+# update): the result says so. The assembly's physical properties leave it out and its part cannot be opened.
 @cd = se_links {"action":"cad_direct","path":"{{work}}\\runs\\a95_cad_{{run}}.stp"}
 ?~ cd.source a95_cad_
 ?~ cd.occurrences[0].file a95_cadasm_
 ?~ cd.occurrences[0].file _stp.par
-?= cd.occurrences[0].box.size[0] 100 0.01
-?= cd.occurrences[0].box.size[1] 60 0.01
-?= cd.occurrences[0].box.size[2] 20 0.01
+?= cd.occurrences[0].geometry false
+?~ cd.note without geometry
 ! [not_supported] se_geometry {"action":"summary","source":"{{cd.occurrences[0].handle}}"}
 se_export {"document":"{{q.handle}}","path":"{{work}}\\runs\\a95_cad_{{run}}.stp","overwrite":true}
 se_documents {"action":"activate","document":"{{c.handle}}"}
 @cu = se_links {"action":"cad_update"}
 ?~ cu.updated a95_cad_
-?= cu.occurrences[0].box.size[0] 150 0.01
-?= cu.occurrences[0].box.size[1] 60 0.01
+?= cu.occurrences[0].geometry false
 se_documents {"action":"close","document":"{{c.handle}}","saveChanges":false}
 se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}

@@ -16,7 +16,7 @@ se_documents {"action":"close","saveChanges":false}
 ?= t.volume 3000 0.001
 se_properties {"action":"set","set":"SummaryInformation","name":"Title","value":"Bracket"}
 se_properties {"action":"set","name":"Supplier","value":"ACME"}
-@tm = se_material {"action":"apply","name":"Steel"}
+@tm = se_material {"action":"apply","name":"Steel","folder":"installation"}
 ?= tm.material Steel
 se_documents {"action":"save_as","path":"{{work}}\\a31_tag.par","overwrite":true}
 se_documents {"action":"close","saveChanges":false}

@@ -128,7 +128,8 @@ public sealed class StaComDispatcher : IDisposable
     }
 
     private const string AnswerDialog =
-        "Ask the person to answer the dialog in Solid Edge (the server never presses dialog buttons: the answer may change options). " +
+        "Answer it with se_session 'answer' (its button, and an option first if it offers a choice) as the person would, or ask the person to " +
+        "answer it in Solid Edge: an option such as \"don't prompt me again\" changes Solid Edge's options. " +
         "The pending call then finishes in Solid Edge: check its result (e.g. se_documents list, se_feature_tree) before retrying.";
 
     /// <summary>Open modal dialogs of Solid Edge; never fails (an error finding them is logged and ignored).</summary>

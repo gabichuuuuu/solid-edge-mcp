@@ -1,5 +1,6 @@
 # A122: STL files in mm. STL carries no unit and Solid Edge writes and reads it in the unit of its STL translator options
-#   (inches as installed): a block 100 x 60 x 20 came out 3.937 x 2.362 x 0.787. se_export scales the file to mm and reads
+#   (inches as installed, and without its options file SESTL.ini, which Foundation does not install: the unit then follows
+#   from the size of the file against the model): a block 100 x 60 x 20 came out 3.937 x 2.362 x 0.787. se_export scales the file to mm and reads
 #   its box back; se_documents import reads a file in mm, so the block comes back 100 x 60 x 20. Two blocks stacked in an
 #   assembly: an STL 100 x 60 x 40.
 @b = se_documents {"action":"new","kind":"part"}

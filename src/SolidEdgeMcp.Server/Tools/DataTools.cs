@@ -72,6 +72,12 @@ public enum MaterialAction
     Info,
 }
 
+public enum MaterialFolder
+{
+    Options,
+    Installation,
+}
+
 /// <summary>Document data: variable table, properties and material.</summary>
 [McpServerToolType]
 public sealed class DataTools(ToolRunner runner)
@@ -240,8 +246,9 @@ public sealed class DataTools(ToolRunner runner)
         Materials from the Solid Edge libraries. current: material of a part or sheet metal document, its properties, the document density and the mass |
         apply (name, optional library; default: the first library that has it): assigns it, which updates density and mass; on a weldment, to its weld beads (their material and density) |
         libraries | list (optional library and filter text) | info (name, optional library): properties of a library material.
-        Properties: density kg/m3, elastic modulus and stresses MPa, Poisson ratio, thermal expansion 1/K, conductivity W/(m*K), specific heat J/(kg*K).
-        Example: {"action":"apply","name":"Aluminum, 6061-T6"}.
+        folder: options (default: the materials folder set in the Solid Edge options, which may be a company library) | installation (the libraries installed with Solid Edge: Materials, Materials-DIN...; the options are switched to a copy of them only during the call). The document keeps the properties of the material applied.
+        Properties: density kg/m3, elastic modulus and stresses MPa, Poisson ratio, thermal expansion 1/K, conductivity W/(m*K), specific heat J/(kg*K). A simulation needs elastic modulus, Poisson ratio and density.
+        Example: {"action":"apply","name":"Aluminum, 6061-T6"}; {"action":"apply","name":"Steel","folder":"installation"}.
         """)]
     public Task<CallToolResult> Material(
         MaterialAction action,
@@ -249,19 +256,21 @@ public sealed class DataTools(ToolRunner runner)
         [Description("Library name (see 'libraries'), e.g. 'Materials'.")] string? library = null,
         [Description("list: text contained in the material name.")] string? filter = null,
         [Description("Document handle; default: active document.")] string? document = null,
+        [Description("apply, libraries, list, info: where the libraries are (default options).")] MaterialFolder? folder = null,
         CancellationToken cancellationToken = default)
     {
         const string tool = "se_material";
         string actionName = FeatureTools.Snake(action);
+        string? from = folder is { } f ? FeatureTools.Snake(f) : null;
         return action switch
         {
             MaterialAction.Current => runner.RunAsync(tool, actionName, c => MaterialService.Current(c, document), cancellationToken),
             MaterialAction.Apply => runner.RunAsync(tool, actionName, c => MaterialService.Apply(c, document,
-                ToolRunner.Require(name, "name", actionName), library), cancellationToken),
-            MaterialAction.Libraries => runner.RunAsync(tool, actionName, MaterialService.Libraries, cancellationToken),
-            MaterialAction.List => runner.RunAsync(tool, actionName, c => MaterialService.List(c, library, filter), cancellationToken),
+                ToolRunner.Require(name, "name", actionName), library, from), cancellationToken),
+            MaterialAction.Libraries => runner.RunAsync(tool, actionName, c => MaterialService.Libraries(c, from), cancellationToken),
+            MaterialAction.List => runner.RunAsync(tool, actionName, c => MaterialService.List(c, library, filter, from), cancellationToken),
             MaterialAction.Info => runner.RunAsync(tool, actionName, c => MaterialService.Info(c,
-                ToolRunner.Require(name, "name", actionName), library), cancellationToken),
+                ToolRunner.Require(name, "name", actionName), library, from), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

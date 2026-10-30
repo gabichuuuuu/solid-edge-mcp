@@ -399,7 +399,10 @@ public static partial class AssemblyService
             assembly.CheckInterference(set1.Length, ref first, out status, method,
                 set2 is null ? Missing.Value : set2.Length, set2 is null ? Missing.Value : set2, false, report, 9,
                 out object _, ref none1, ref none2, ref none3, out object _);
-            found = File.Exists(report) ? InterferenceReport.Parse(File.ReadAllText(report)) : [];
+            // A report that writes the volume without its unit writes it in the volume unit of the document.
+            double volumeUnitMm3 = Units.M3ToMm3(Convert.ToDouble(((SolidEdgeDocument)assembly).UnitsOfMeasure.ParseUnit(
+                (int)UnitTypeConstants.igUnitVolume, "1"), CultureInfo.InvariantCulture));
+            found = File.Exists(report) ? InterferenceReport.Parse(File.ReadAllText(report), volumeUnitMm3) : [];
         }
         finally
         {

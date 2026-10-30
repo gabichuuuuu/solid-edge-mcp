@@ -54,6 +54,38 @@ public static class InstallationService
         }
     }
 
+    /// <summary>
+    /// The Materials folder of the installation's preferences, which holds the libraries installed with Solid Edge
+    /// (Materials, Materials-DIN, Materials-GOST in Solid Edge 2026), or null when it cannot be found.
+    /// </summary>
+    public static string? MaterialsFolder()
+    {
+        Type? type = Type.GetTypeFromProgID("SolidEdge.InstallData");
+        if (type is null)
+        {
+            return null;
+        }
+
+        object? data = null;
+        try
+        {
+            data = Activator.CreateInstance(type)!;
+            string? folder = Call(data, "GetPreferencesPath") is string preferences ? Path.Combine(preferences, "Materials") : null;
+            return folder is not null && Directory.Exists(folder) ? folder : null;
+        }
+        catch (Exception ex) when (Late.IsMemberFailure(ex) || ex is TargetInvocationException)
+        {
+            return null;
+        }
+        finally
+        {
+            if (data is not null)
+            {
+                Marshal.FinalReleaseComObject(data);
+            }
+        }
+    }
+
     private static object? Call(object target, string method) =>
         target.GetType().InvokeMember(method, BindingFlags.InvokeMethod, null, target, null, CultureInfo.InvariantCulture);
 

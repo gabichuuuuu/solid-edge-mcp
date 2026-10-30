@@ -96,13 +96,24 @@ public static partial class LinkService
 
         context.ModelChanged((SolidEdgeDocument)assembly, "a CAD Direct component was added");
         HashSet<int> grounded = AssemblyService.GroundedIds(assembly);
+        Dictionary<string, object?>[] rows = [.. added.Select(o => DescribeCad(context, assembly, o, grounded))];
         return new
         {
             source = link.SourcePath(),
-            occurrences = added.Select(o => DescribeCad(context, assembly, o, grounded)).ToArray(),
+            occurrences = rows,
             links = CadLinks(assembly),
+            note = NoGeometryNote(rows),
         };
     }
+
+    /// <summary>
+    /// Verified with Solid Edge 2026 Foundation: AsmCADDirects.Add of a STEP file places the occurrence with no geometry (empty
+    /// range, nothing on screen, also after saving and reopening), while se_documents import translates the same file.
+    /// </summary>
+    private static string? NoGeometryNote(IEnumerable<Dictionary<string, object?>> rows) =>
+        rows.Any(r => r["geometry"] is false)
+            ? "Solid Edge placed the CAD Direct component without geometry (as Solid Edge 2026 Foundation does): se_documents import opens the file as a part, which se_assembly insert can place."
+            : null;
 
     /// <summary>Reads the CAD Direct files again (all, or the one whose source is <paramref name="from"/>).</summary>
     public static object CadUpdate(SeContext context, string? documentHandle, string? from)
@@ -129,12 +140,14 @@ public static partial class LinkService
 
         context.ModelChanged((SolidEdgeDocument)assembly, "CAD Direct components were updated");
         HashSet<int> grounded = AssemblyService.GroundedIds(assembly);
+        Dictionary<string, object?>[] rows = [.. CadOccurrences(assembly, chosen).Select(o => DescribeCad(context, assembly, o, grounded))];
         return new
         {
             document = context.DocumentHandle((SolidEdgeDocument)assembly),
             updated = chosen.Select(l => l.SourcePath()).ToArray(),
             links = CadLinks(assembly),
-            occurrences = CadOccurrences(assembly, chosen).Select(o => DescribeCad(context, assembly, o, grounded)).ToArray(),
+            occurrences = rows,
+            note = NoGeometryNote(rows),
         };
     }
 
@@ -155,13 +168,15 @@ public static partial class LinkService
     /// <summary>
     /// An occurrence with its bounding box in assembly coordinates. The part of a CAD Direct component cannot be opened
     /// (E_ACCESSDENIED), its Body gives E_FAIL and the assembly's physical properties leave it out (verified in Solid Edge
-    /// 2026), so the box from Occurrence.Range is what shows its geometry.
+    /// 2026), so the box from Occurrence.Range is what shows its geometry. Without geometry the range is inverted (±1e33):
+    /// the row then has no box and geometry false.
     /// </summary>
     private static Dictionary<string, object?> DescribeCad(SeContext context, AssemblyDocument assembly, Occurrence occurrence, HashSet<int> grounded)
     {
         Dictionary<string, object?> row = AssemblyService.Describe(context, assembly, occurrence, grounded);
         occurrence.Range(out double x0, out double y0, out double z0, out double x1, out double y1, out double z1);
-        row["box"] = new
+        row["geometry"] = x1 >= x0;
+        row["box"] = x1 < x0 ? null : new
         {
             min = new[] { Geo.Mm(x0), Geo.Mm(y0), Geo.Mm(z0) },
             max = new[] { Geo.Mm(x1), Geo.Mm(y1), Geo.Mm(z1) },

@@ -42,7 +42,7 @@ se_documents {"action":"close","document":"{{r.handle}}","saveChanges":false}
 se_sketch {"action":"circle","sketch":"{{cs.sketch}}","center":[10,10],"radius":10}
 se_sketch {"action":"close","sketch":"{{cs.sketch}}"}
 se_extrude {"sketch":"{{cs.sketch}}","distance":10}
-@cm = se_material {"action":"apply","name":"steel"}
+@cm = se_material {"action":"apply","name":"steel","folder":"installation"}
 se_documents {"action":"save_as","path":"{{work}}\\a25\\a25_cyl.par","overwrite":true}
 se_documents {"action":"close","document":"{{c.handle}}","saveChanges":false}
 # a25_asm: two blocks; a25_top: a25_asm and the cylinder; a25_dft: a view of the block

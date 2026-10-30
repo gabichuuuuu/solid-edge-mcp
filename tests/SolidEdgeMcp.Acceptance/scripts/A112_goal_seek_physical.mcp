@@ -20,7 +20,7 @@ se_sketch {"action":"close","sketch":"{{k.sketch}}"}
 ?= gv.changed.value 15 0.00001
 ?= gv.volumeChange -30000 0.01
 # Steel (7833 kg/m3): 0.563976 kg is 72000 mm3, depth 12; the name in any case
-se_material {"action":"apply","name":"Steel"}
+se_material {"action":"apply","name":"Steel","folder":"installation"}
 @gm = se_variables {"action":"goal_seek","name":"mass","value":0.563976,"change":"ExtrudedProtrusion_1_FiniteDepth"}
 ?~ gm.target.name Mass
 ?= gm.target.value 0.563976 0.0000001
@@ -52,7 +52,7 @@ se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
 #   high on elliptical edges; se_physical, at the stored accuracy 0.99, 0.037 % high): 0.0738243 kg is 9424.778 mm3, a depth
 #   of 15 within that accuracy (14.9944)
 @d2 = se_documents {"action":"new","kind":"part"}
-se_material {"action":"apply","name":"Steel"}
+se_material {"action":"apply","name":"Steel","folder":"installation"}
 @k2 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"ellipse","sketch":"{{k2.sketch}}","center":[0,0],"radius":20,"minorRadius":10}
 se_sketch {"action":"close","sketch":"{{k2.sketch}}"}

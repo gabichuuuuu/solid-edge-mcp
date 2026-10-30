@@ -95,8 +95,8 @@ public static partial class SketchService
     /// but no minor or rotation one, while construction lines tied to its centre and axis key points take length and angle
     /// dimensions that drive it. A model edge brought in (Profile.IncludeEdge) is a line tied by an offset relation to a hidden
     /// copy of the edge: it follows the model, but its ends stay free along the edge, so Solid Edge sees the sketch as
-    /// under-defined until they meet other ends (the four edges of a face connected at its corners are defined), and only
-    /// Profile.End or a recompute refreshes IsUnderDefined then. A length on it holds it when the model changes (a 40 mm edge
+    /// under-defined until they meet other ends (the four edges of a face connected at its corners are defined); there, and
+    /// with Foundation after any relation, only Profile.End or a recompute refreshes IsUnderDefined. A length on it holds it when the model changes (a 40 mm edge
     /// driven to 60 kept a 40 mm line), and AddFix cuts it from the model.
     /// </remarks>
     internal static Definition Define(Profile profile, IReadOnlyList<Line2d>? from = null)
@@ -115,7 +115,9 @@ public static partial class SketchService
         bool IsLinked(object element) => linked.Any(l => ReferenceEquals(l, element));
         bool Done()
         {
-            if (linked.Count > 0)
+            // Verified with Solid Edge 2026 Foundation: IsUnderDefined can keep its value after the relations that define the
+            // sketch until Profile.End (a rectangle with all its relations and sizes, a circle on both base planes).
+            if (IsUnderDefined(profile) == true)
             {
                 profile.End(ProfileValidationType.igProfileAllowNested);
             }
@@ -178,6 +180,10 @@ public static partial class SketchService
                     // Placed from outlines only, not from construction lines (an ellipse's axes, kept from an earlier pass).
                     object[] outlines = [.. drawn.Where(e => !profile.IsConstructionElement(e) && !IsLinked(e))];
                     Positions(free, outlines, references, used, [.. linked.OfType<Line2d>()], preferred, dimensions, relations, Keep, Done, added, definition);
+                    if (!Done())
+                    {
+                        PlaceBlocks(profile, references, used, dimensions, relations, Keep, Done, added, definition);
+                    }
                 }
 
                 for (int i = references.Count - 1; i >= 0; i--)
@@ -349,6 +355,87 @@ public static partial class SketchService
     }
 
     /// <summary>
+    /// The block occurrences of the sketch, each a piece that moves and turns as a whole: its origin is placed from the base
+    /// planes (<see cref="PlaceFrom"/> with its origin reference) and its turn by the angle between one of its lines (its
+    /// member reference) and a base plane line that is not parallel to it. True when the sketch is done.
+    /// </summary>
+    private static bool PlaceBlocks(Profile profile, List<Line2d> references, bool[] used, Dimensions dimensions, Relations2d relations,
+        Func<Dimension, string, bool> keep, Func<bool> done, List<object> added, Definition definition)
+    {
+        if (Late.TryGet(profile, "BlockOccurrences") is not { } occurrences)
+        {
+            return false;
+        }
+
+        foreach (object occurrence in Late.Items(occurrences))
+        {
+            object origin = Late.Get(occurrence, "OriginReference")!;
+            object?[] at = Late.CallByRef(occurrence, "GetOrigin", [0.0, 0.0], 0, 1);
+            double x = Convert.ToDouble(at[0], CultureInfo.InvariantCulture);
+            double y = Convert.ToDouble(at[1], CultureInfo.InvariantCulture);
+            for (int i = 0; i < references.Count; i++)
+            {
+                if (PlaceFrom(references[i], origin, 0, x, y, dimensions, relations, keep, added, definition))
+                {
+                    used[i] = true;
+                    if (done())
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            if (Late.Get(occurrence, "BlockView") is not { } view || Late.Items(Late.Get(view, "Lines2d")!).OfType<Line2d>().FirstOrDefault() is not { } member)
+            {
+                continue;
+            }
+
+            ((double X, double Y) start, (double X, double Y) end) = Ends(member);
+            (double X, double Y) a = InSketch(occurrence, start);
+            (double X, double Y) b = InSketch(occurrence, end);
+            (double X, double Y) middle = ((a.X + b.X) / 2, (a.Y + b.Y) / 2);
+            object turned = Late.Get(occurrence, "MemberReference", member)!;
+            for (int i = 0; i < references.Count; i++)
+            {
+                Line2d reference = references[i];
+                ((double X, double Y) r1, (double X, double Y) r2) = Ends(reference);
+                if (Cross(Unit(b.X - a.X, b.Y - a.Y), Unit(r2.X - r1.X, r2.Y - r1.Y)) < AngleTolerance)
+                {
+                    continue;
+                }
+
+                (double X, double Y, bool _) pick = DefaultPick(reference);
+                Dimension? angle = Try(() => dimensions.AddAngleBetweenObjects(reference, pick.X, pick.Y, 0, false, turned, middle.X, middle.Y, 0, false));
+                if (angle is not null && angle.Value > Math.PI + AngleTolerance)
+                {
+                    Late.Call(angle, "Delete");
+                    angle = Try(() => dimensions.AddAngleBetweenObjects(turned, middle.X, middle.Y, 0, false, reference, pick.X, pick.Y, 0, false));
+                }
+
+                if (angle is not null && keep(angle, "Angle"))
+                {
+                    used[i] = true;
+                    if (done())
+                    {
+                        return true;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>A point of a block's view in the sketch, where the occurrence puts it (moved, turned and scaled).</summary>
+    private static (double X, double Y) InSketch(object occurrence, (double X, double Y) point)
+    {
+        object?[] r = Late.CallByRef(occurrence, "BlockViewToOccurrence", [point.X, point.Y, 0.0, 0.0], 2, 3);
+        return (Convert.ToDouble(r[2], CultureInfo.InvariantCulture), Convert.ToDouble(r[3], CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
     /// The lines a point is placed from: the <paramref name="preferred"/> ones (nearest first, index -1), a base plane line it
     /// lies on, then the nearest lines of the contours already placed (index -1), then the other base plane lines (index =
     /// position in <paramref name="references"/>).
@@ -476,20 +563,37 @@ public static partial class SketchService
         ((double X, double Y) start, (double X, double Y) end) = Ends(reference);
         // From a vertical line the distance runs along x, from a horizontal one along y.
         string role = Math.Abs(start.X - end.X) < Coincident ? "X" : Math.Abs(start.Y - end.Y) < Coincident ? "Y" : "Distance";
+        // A point on the line is related directly, which Solid Edge refuses when redundant: a zero distance is measured first
+        // to the end of the line, and as 0 once the measurement axis is reversed, which can make Solid Edge delete the dimension
+        // (verified with Solid Edge 2026 Foundation).
+        if (expected < Coincident && TryRelate(() => relations.AddPointOn(element, key, reference), added))
+        {
+            definition.Relations++;
+            return true;
+        }
+
         Dimension? dimension = Try(() => dimensions.AddDistanceBetweenObjects(reference, x, y, 0, false, element, x, y, 0, true));
         if (dimension is null)
         {
             return false;
         }
 
-        if (Math.Abs(dimension.Value - expected) > DistanceTolerance)
+        try
         {
-            dimension.MeasurementAxisDirection = !dimension.MeasurementAxisDirection;
-        }
+            if (Math.Abs(dimension.Value - expected) > DistanceTolerance)
+            {
+                dimension.MeasurementAxisDirection = !dimension.MeasurementAxisDirection;
+            }
 
-        if (Math.Abs(dimension.Value - expected) > DistanceTolerance)
+            if (Math.Abs(dimension.Value - expected) > DistanceTolerance)
+            {
+                Late.Call(dimension, "Delete");
+                return false;
+            }
+        }
+        catch (COMException ex) when (ex.HResult is ComErrors.RpcEDisconnected or ComErrors.CoEObjNotConnected && Reachable(dimensions))
         {
-            Late.Call(dimension, "Delete");
+            // Verified with Solid Edge 2026 Foundation: reversing the measurement axis can make Solid Edge delete the dimension.
             return false;
         }
 
@@ -523,6 +627,20 @@ public static partial class SketchService
 
     /// <summary>Sine of the largest angle between directions taken as parallel (or cosine, as perpendicular).</summary>
     private const double AngleTolerance = 1e-7;
+
+    /// <summary>Whether Solid Edge still answers through the sketch (a single object it deleted gives the same error as Solid Edge gone).</summary>
+    private static bool Reachable(Dimensions dimensions)
+    {
+        try
+        {
+            _ = dimensions.Count;
+            return true;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>The dimension, or null when Solid Edge refuses it (it measures nothing there or would add nothing).</summary>
     private static Dimension? Try(Func<Dimension?> add)

@@ -156,6 +156,7 @@ public enum SurfaceAction
     Bounded,
     Copy,
     Trim,
+    Split,
     Extend,
     Intersect,
     Bluesurf,
@@ -501,13 +502,14 @@ public sealed class PartTools(ToolRunner runner)
         bounded ('edges' = a closed chain of edge handles of the body, a surface or a curve: the surface that fills it) |
         copy ('faces' of the body or of surfaces, as one surface) |
         trim ('surfaces' = one surface; 'tools' = surfaces, faces of surfaces, curves or edges that cross it, not planes; 'point' [x,y,z] mm on the region to remove) |
+        split ('surfaces' = one surface or a face; 'tools' = planes, surfaces, curves or edges that cross it; the area stays) |
         extend ('edges' = free edges of one surface; 'distance' mm; extension natural | linear | reflective) |
         intersect ('surfaces' that enclose a volume, e.g. a tube and two caps: one construction body) |
         bluesurf ('edges' = one edge per section, in order, e.g. of curves; optional 'guides' = edges; endCaps) |
         blend ('faces' = one face of each of two surfaces; 'radius' mm; 'point' [x,y,z] mm in the corner where the blend goes; the surfaces are trimmed to it) |
         ruled ('edges' of a planar face, one surface each; 'faces' = that face; 'distance' = width mm; 'taper' degrees, + away from the face; direction normal = out of the material | reverse) | delete ('name').
         Each surface is checked (status, faces, area) and deleted if Solid Edge does not make it.
-        Example: {"action":"extrude","sketch":"sketch:5","depth":20}; {"action":"offset","faces":["face:12"],"distance":5}.
+        Example: {"action":"extrude","sketch":"sketch:5","depth":20}.
         """)]
     public Task<CallToolResult> Surface(
         SurfaceAction action,
@@ -522,10 +524,10 @@ public sealed class PartTools(ToolRunner runner)
         [Description("loft, sweep: section sketch handles, in order.")] string[]? sketches = null,
         [Description("sweep: path = sketch handle or curve handle (se_curve).")] string? path = null,
         [Description("loft, sweep: point [x, y] (sketch mm) of each section that is joined, [x1,y1,x2,y2,...]; default: the start of each section's first element.")] double[]? origins = null,
-        [Description("stitch, intersect: surface handles (action 'list'); trim: the one surface to trim.")] string[]? surfaces = null,
+        [Description("stitch, intersect: surface handles (action 'list'); trim, split: the one surface, or a face of it.")] string[]? surfaces = null,
         [Description("stitch: gap tolerance in mm (default: Solid Edge's); intersect: tolerance in mm (default 0.01).")] double? tolerance = null,
         [Description("bounded: edge handles of a closed chain; extend: free edges of one surface; bluesurf: one edge per section, in order; ruled: edges of the face (se_geometry edges, source = the face).")] string[]? edges = null,
-        [Description("trim: surfaces, faces of surfaces, curves or edges that cross the surface.")] string[]? tools = null,
+        [Description("trim, split: surfaces, faces of surfaces, curves or edges that cross the surface; split also reference planes.")] string[]? tools = null,
         [Description("trim: [x, y, z] in mm, a point on the region of the surface to remove; blend: a point in the corner where the blend goes.")] double[]? point = null,
         [Description("blend: radius in mm.")] double? radius = null,
         [Description("extend: natural (default) | linear | reflective.")] SurfaceExtension extension = SurfaceExtension.Natural,
@@ -549,6 +551,7 @@ public sealed class PartTools(ToolRunner runner)
             SurfaceAction.Bounded => runner.RunAsync(tool, act, c => FeatureService.BoundedSurface(c, document, edges), cancellationToken),
             SurfaceAction.Copy => runner.RunAsync(tool, act, c => FeatureService.CopySurface(c, document, faces), cancellationToken),
             SurfaceAction.Trim => runner.RunAsync(tool, act, c => FeatureService.TrimSurface(c, document, surfaces, tools, point), cancellationToken),
+            SurfaceAction.Split => runner.RunAsync(tool, act, c => FeatureService.SplitSurface(c, document, surfaces, tools), cancellationToken),
             SurfaceAction.Extend => runner.RunAsync(tool, act, c => FeatureService.ExtendSurface(c, document, edges, distance, Snake(extension)), cancellationToken),
             SurfaceAction.Intersect => runner.RunAsync(tool, act, c => FeatureService.IntersectSurfaces(c, document, surfaces, tolerance), cancellationToken),
             SurfaceAction.Bluesurf => runner.RunAsync(tool, act, c => FeatureService.BlueSurf(c, document, edges, guides, endCaps), cancellationToken),
