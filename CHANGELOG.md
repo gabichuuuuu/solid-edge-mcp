@@ -6,6 +6,14 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-30
+
+Design intent and Solid Edge 2026 Foundation: every sketch an operation uses is fully defined by relations and dimensions
+named after what they size, finite element studies with `se_simulation`, answers to the dialogs that wait for the person,
+and what running on Foundation brought to light. Tool names and parameters do not change; some were added. The acceptance
+scripts of what changed pass on Foundation. The full suite was not repeated for this version, and the Community Edition
+2026 was last tested on 2026-10-16.
+
 ### Changed
 
 - The generic layer refuses the Material Table members that write library files (`SetMatPropValue`,

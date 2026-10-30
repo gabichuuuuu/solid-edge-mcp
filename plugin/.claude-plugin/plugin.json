@@ -1,6 +1,6 @@
 {
   "name": "solid-edge-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Helps you work in Siemens Solid Edge from Claude Code: parts, sheet metal, assemblies, drawings, exports and Design Manager tasks through a local MCP server, while you stay in control and approve the changes. Windows x64 with Solid Edge installed.",
   "author": {
     "name": "Gabriel Spoleto Couto"

@@ -14,7 +14,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![87 tools](https://img.shields.io/badge/tools-87-2F6FEB)
 
-![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-2F6FEB)
+![Version 1.1.0](https://img.shields.io/badge/version-1.1.0-2F6FEB)
 [![Progress: 73 % of functions work through the MCP](https://img.shields.io/badge/progress-73%25-yellow)](docs/COVERAGE.md#progress)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 
@@ -67,7 +67,7 @@ for approval.
 </table>
 
 > [!NOTE]
-> Current version (1.0.0), tested with Solid Edge **2026 Foundation** and **Community Edition 2026** on Windows 11 x64. It
+> Current version (1.1.0), tested with Solid Edge **2026 Foundation** and, until 2026-10-16, **Community Edition 2026** on Windows 11 x64. It
 > works and has been validated end to end with Claude Code and Codex. Tool names and parameters are
 > stable: a change that breaks them waits for a new major version and is listed in the changelog.
 
@@ -752,7 +752,11 @@ what the commit contains.
 
 ## Project status
 
-- **Current version (1.0.0).** The complete, stable version: the base program, and the programs installed with Solid
+- **Current version (1.1.0).** Design intent and Solid Edge 2026 Foundation, on top of 1.0.0: every sketch an operation
+  uses is fully defined by relations and dimensions named after what they size, from the base planes, the model edges
+  brought into it or the lines the designer chooses; finite element studies; answers to the dialogs that wait for the
+  person. The acceptance scripts of what changed pass on Foundation; the full suite last passed for 1.0.0.
+- **Version 1.0.0.** The complete, stable version: the base program, and the programs installed with Solid
   Edge as far as their automation allows: Design Manager on closed files (links, rename, copy, replace, move, revise,
   release, document status, redefine links, broken links, duplicates), properties and thumbnails of closed files,
   batches and formats of Translation Services and the installation data. Every command on the ribbons and every
@@ -761,10 +765,8 @@ what the commit contains.
   Claude Code plugin, and is validated end to end, by the full acceptance suite and by sessions in which Claude uses
   Solid Edge from requests in plain language. Tool names and parameters are stable. Change history in
   [CHANGELOG.md](CHANGELOG.md).
-- **Next milestone (1.1): design intent.** Every sketch an operation uses is fully defined by relations and dimensions
-  named after what they size, from the base planes, the model edges brought into it or the lines the designer chooses
-  (under [Unreleased] in the change history); then the functions that the API blocks (✘ API in
-  [docs/COVERAGE.md](docs/COVERAGE.md)) tried again by other routes.
+- **Next.** No milestone is set. The functions that the API blocks were tried again on Foundation; those still marked ✘
+  in [docs/COVERAGE.md](docs/COVERAGE.md) list the reason and an alternative.
 - **Continuous integration** checks the license headers and runs the unit tests of the core library on every push to
   `main` and every pull request; the rest needs Solid Edge and is tested locally by the acceptance suite.
 
