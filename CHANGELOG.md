@@ -8,6 +8,8 @@ Relevant changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- The plugin failed to install its server when the client was started from PowerShell 7 (`Get-FileHash` not found): the
+  launcher no longer passes on the PowerShell 7 module path to Windows PowerShell.
 - `scripts/package.ps1` strips the build paths from the binaries and fails if a local path or user name remains. The
   1.1.0 package was rebuilt from its tag in this way and replaced in its release, so its SHA-256 changed.
 

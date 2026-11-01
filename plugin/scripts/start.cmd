@@ -7,6 +7,8 @@ rem Standard output is the MCP channel: only the server writes to it. install.ps
 rem server on standard output and its messages on standard error, and its standard input is NUL so that it
 rem cannot read the client's first messages.
 setlocal
+rem A client started from PowerShell 7 passes on its PSModulePath, whose modules Windows PowerShell 5.1 cannot load.
+set "PSModulePath="
 set "SERVER="
 for /f "usebackq delims=" %%p in (`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0install.ps1" ^<NUL`) do set "SERVER=%%p"
 if not defined SERVER exit /b 1
