@@ -39,9 +39,22 @@ foreach ($old in @($stage, $zip, "$zip.sha256")) {
     }
 }
 
-& dotnet publish $project -c Release -r win-x64 --self-contained -o $stage -p:SolidEdgeInteropCopyLocal=false -nologo -v:q
+& dotnet publish $project -c Release -r win-x64 --self-contained -o $stage -p:SolidEdgeInteropCopyLocal=false -p:ContinuousIntegrationBuild=true -nologo -v:q
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed ($LASTEXITCODE)."
+}
+
+# The binaries must not reveal the machine they were built on. Portable PDBs store path parts apart, so the user name is
+# looked for on its own.
+$local = @($root, $env:USERPROFILE, (Split-Path -Leaf $env:USERPROFILE))
+foreach ($binary in Get-ChildItem -LiteralPath $stage -File -Filter 'SolidEdgeMcp.*') {
+    $bytes = [IO.File]::ReadAllBytes($binary.FullName)
+    $texts = @([Text.Encoding]::UTF8.GetString($bytes), [Text.Encoding]::Unicode.GetString($bytes))
+    foreach ($value in $local) {
+        if ($texts | Where-Object { $_.IndexOf($value, [StringComparison]::OrdinalIgnoreCase) -ge 0 }) {
+            throw "$($binary.Name) contains a local path or user name."
+        }
+    }
 }
 
 # Nothing derived from Siemens files may be in the package.

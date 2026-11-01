@@ -6,6 +6,17 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `scripts/package.ps1` strips the build paths from the binaries and fails if a local path or user name remains. The
+  1.1.0 package was rebuilt from its tag in this way and replaced in its release, so its SHA-256 changed.
+
+### Documentation
+
+- README: the plugin install adds the marketplace first, and tells where the plugin keeps the policy example; the
+  license variable also covers Foundation with a license server; new Privacy section.
+- The plugin folder has its own README.
+
 ## [1.1.0] - 2026-10-30
 
 Design intent and Solid Edge 2026 Foundation: every sketch an operation uses is fully defined by relations and dimensions

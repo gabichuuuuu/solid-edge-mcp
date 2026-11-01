@@ -112,9 +112,9 @@ was measured afterwards, separately, by reopening the generated files.
   interop, and the plugin to install the server.
 - To build from source, the .NET 10 SDK (version pinned in `global.json`).
 
-With the Community Edition, the license is provided through the machine variable
-`SE_LICENSE_SERVER`. Processes opened before Solid Edge was installed do not have it; the server
-copies it when it starts `Edge.exe`.
+The Community Edition, and Foundation with a license server, get the license through the machine
+variable `SE_LICENSE_SERVER`. Processes opened before Solid Edge was installed do not have it; the
+server copies it when it starts `Edge.exe`.
 
 ### Install
 
@@ -125,7 +125,8 @@ from your installation on its first start, in a few seconds, and keeps it in
 **As a Claude Code plugin** (from 1.0.0):
 
 ```text
-/plugin install solid-edge-mcp --marketplace gabichuuuuu/solid-edge-mcp
+/plugin marketplace add gabichuuuuu/solid-edge-mcp
+/plugin install solid-edge-mcp@solid-edge-mcp
 ```
 
 Or from a terminal:
@@ -166,13 +167,17 @@ Optional: `.\scripts\dump-api.ps1` dumps the API to `reference\api\*.txt` so you
 signatures and constants. It is not versioned either.
 
 **Policy.** Without one, the server only works in `%LocalAppData%\SolidEdgeMcp\work`. Copy the
-example (in `config\` of the repository, and beside the server in the package) and adjust the
-allowed folders:
+example and adjust the allowed folders. It is in `config\` of the repository and beside the server in
+the package; the plugin keeps it in `%LocalAppData%\SolidEdgeMcp\server\<version>`, once its first
+start has installed the server.
 
 ```powershell
 New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\SolidEdgeMcp" | Out-Null
+# From the repository; with the plugin, use the path of the example given above
 Copy-Item config\policy.example.json "$env:LOCALAPPDATA\SolidEdgeMcp\policy.json"
 ```
+
+Restart the client after changing the policy, which the server reads when it starts.
 
 ### Register with your client
 
@@ -454,6 +459,20 @@ Logs go to `%LocalAppData%\SolidEdgeMcp\logs` (one UTF-8 file per day; each oper
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
+## Privacy
+
+- **The server collects nothing.** It has no telemetry or accounts and makes no network connections
+  of its own. It talks to your MCP client over standard input and output, and to Solid Edge through COM.
+- **What your AI client receives.** Tool results, such as names, properties, measurements and
+  captures of your documents, go to the MCP client, which may send them to its AI provider under that
+  provider's terms. Only use it on documents you are allowed to share that way.
+- **Local files.** The policy, the generated interop, the installed server and the logs stay in
+  `%LocalAppData%\SolidEdgeMcp`. The logs record operations and can include file paths; they are
+  never sent anywhere.
+- **Network use.** The plugin only downloads the server package from the GitHub release on its first
+  start for each version, and GitHub handles that request under its own terms. Solid Edge contacts its
+  license server on its own.
+
 ## Validation
 
 Results (unit tests and acceptance scripts run on 2026-10-16):
@@ -718,7 +737,7 @@ DLL, but not overwriting it. This is safe if the changed files are already loade
 
 `.\scripts\package.ps1` builds `artifacts\solid-edge-mcp-<version>-win-x64.zip` (self-contained,
 without the Solid Edge interop, with `generate-interop.ps1` beside the server) and its `.sha256`. It
-fails if an interop file or reference ends up in the package. Both files go to the GitHub release of
+fails if an interop file or reference, or a local path or user name, ends up in the package. Both files go to the GitHub release of
 the version. The plugin in `plugin/` installs the package of its own version, which
 `scripts\update-progress.ps1` keeps equal to the project version. To try a package before its
 release, point the launcher to it with `SOLID_EDGE_MCP_PACKAGE` (its `.sha256` beside it); it is
