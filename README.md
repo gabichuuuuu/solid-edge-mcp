@@ -9,7 +9,7 @@
 Claude Desktop, Codex or any other MCP client.**
 
 [![Core](https://github.com/gabichuuuuu/solid-edge-mcp/actions/workflows/core.yml/badge.svg)](https://github.com/gabichuuuuu/solid-edge-mcp/actions/workflows/core.yml)
-![Version 1.1.0](https://img.shields.io/badge/version-1.1.0-2F6FEB)
+![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-2F6FEB)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
@@ -35,7 +35,7 @@ does not depend on specific files, a specific machine or a specific workflow.
 - **Tested on real Solid Edge.** 136 acceptance scripts compare the results with values computed in advance.
 
 > [!NOTE]
-> Current version (1.1.0), tested with Solid Edge **2026 Foundation** and, until 2026-10-16, **Community Edition 2026** on
+> Current version (1.0.0), tested with Solid Edge **2026 Foundation** and, until 2026-10-16, **Community Edition 2026** on
 > Windows 11 x64. Tool names and parameters are stable: a change that breaks them waits for a new major version and is
 > listed in the changelog. Not every Solid Edge function can be used through its API: [docs/COVERAGE.md](docs/COVERAGE.md)
 > lists each one with its route, or the reason and the alternative.

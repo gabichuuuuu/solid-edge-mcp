@@ -3,14 +3,14 @@
 Latest results:
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge, at the 1.1.0 release: `SolidEdgeMcp.Core.Tests` 97 and `SolidEdgeMcp.Server.Tests` 760,
+- Tests without Solid Edge, at the 1.0.0 release: `SolidEdgeMcp.Core.Tests` 97 and `SolidEdgeMcp.Server.Tests` 760,
   all passing. Continuous integration runs the license header check and the `SolidEdgeMcp.Core` tests on every push to
   `main` and every pull request.
 - Acceptance suite against real Solid Edge, with expected values computed from formulas (or Solid Edge reference values
   when there is no simple formula, noted in the script). The last full run (2026-10-28/29, on Solid Edge 2026 Foundation)
   covered 136 scripts: 3 failed (two were fixed and one was an intermittent Solid Edge error), and those scripts and some
-  related ones passed when run again. The suite was not repeated after the later fixes of that release.
-- The full run for 1.0.0 (2026-10-16), against the distributed package with the interop it generated, made 7208 calls and
+  related ones passed when run again. The suite was not repeated after the later fixes of this release.
+- The previous full run (2026-10-16), against the distributed package with the interop it generated, made 7208 calls and
   3694 checks on the Community Edition 2026.
 - Coverage by value: every tool has correct calls, and `A10` runs every value of the action, orientation, direction,
   type and unit enumerations that the other scripts do not use.

@@ -6,36 +6,79 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
-### Fixed
+## [1.0.0] - 2026-11-01
 
-- The plugin failed to install its server when the client was started from PowerShell 7 (`Get-FileHash` not found): the
-  launcher no longer passes on the PowerShell 7 module path to Windows PowerShell.
-- `scripts/package.ps1` strips the build paths from the binaries and fails if a local path or user name remains. The
-  1.1.0 package was rebuilt from its tag in this way and replaced in its release, so its SHA-256 changed.
+The complete, stable version: the base program of Solid Edge and the programs installed with it, installable without
+compiling, with design intent and Solid Edge 2026 Foundation support. The release carries a package without the Solid
+Edge interop, which the server generates from the installed Solid Edge, and the Claude Code plugin installs that package
+and starts the server. Every sketch an operation uses is fully defined by relations and dimensions named after what they
+size, finite element studies run with `se_simulation`, and the server answers the dialogs that wait for the person. The
+last full acceptance run, on Foundation, was not repeated after the later fixes; the acceptance scripts of what changed
+pass there, and the Community Edition 2026 was last tested on 2026-10-16 ([validation](docs/VALIDATION.md)). From this
+version the tool names and parameters are stable: a change that breaks them waits for a new major version.
+
+### Added
+
+- A package that installs without compiling: `scripts/package.ps1` builds `solid-edge-mcp-<version>-win-x64.zip`
+  (self-contained, it does not need .NET) and its SHA-256, without the Solid Edge interop. The interop derives from
+  Siemens files, so the server now generates it from the installed Solid Edge on its first start, in a few seconds, and
+  keeps it in `%LocalAppData%\SolidEdgeMcp\interop\<Solid Edge version>`; a build from source still has it beside the
+  server. When it cannot be generated, the server starts anyway and its tools answer `interop_missing`.
+- A Claude Code plugin and its marketplace (`plugin/`, `.claude-plugin/marketplace.json`):
+  `claude plugin install solid-edge-mcp --marketplace gabichuuuuu/solid-edge-mcp`. On its first start the plugin
+  downloads the package of its version from the GitHub release, checks it against the SHA-256 published with it,
+  installs it in `%LocalAppData%\SolidEdgeMcp\server\<version>` and starts the server from there.
+- `se_surface split`: splits a construction surface by planes, surfaces, curves or edges that cross it, also in a part
+  with no solid; it checks that there are more faces and that the area stays.
+- `se_export` writes assemblies as CATIA V5 (.catproduct, with a .CATPart file per part) and CATIA V4 (.model), and
+  `se_documents import` reads them back with their occurrences (a .model of an assembly with kind assembly). .catpart
+  stays for parts and sheet metal.
+- `se_simulation`: finite element studies of parts and sheet metal, solved by Simcenter Nastran. `create` (static, modal
+  or buckling, on every body or some), `constrain` (fixed, pinned, no rotation, sliding, cylindrical), `load` (force along
+  a direction or normal to the faces, pressure that presses on them), `solve` (the largest displacement and von Mises
+  stress, the applied load and the reaction about the origin, the natural frequencies or the buckling load factors, read
+  from the Nastran output), `results` (displacement and stress components with their minimum and maximum, and the picture
+  of the plot), `close_results`, `list` and `delete`. Static and modal studies with fixed constraints, forces and
+  pressures are checked against beam theory on a steel cantilever. `list` gives the kinds the licence includes:
+  Simulation Express (Solid Edge Foundation) has only those, and the other kinds are refused with `not_licensed` before
+  Solid Edge shows its licence message, so they have not been solved yet. Solving first checks the material (elastic
+  modulus, Poisson ratio and, for modes, density).
+- `se_material` takes `folder`: `options` (the materials folder of the Solid Edge options, as before) or `installation`
+  (the libraries installed with Solid Edge, read from a copy in the work folder; the folder of the options is set back).
+  The libraries of a company often carry no elastic properties, which simulation needs. `se_sheetmetal gauge` takes the
+  same `folder`, for the gauges of the installed libraries.
+- `se_sketch close` takes `elements`: lines of the sketch to place it from first, such as a datum line or a projected
+  edge.
+- `se_session answer` answers the Solid Edge dialog that waits for the person (such as Update Model Links, which asks
+  whether to update out-of-date part copies): it chooses an `option` (a radio button or check box) and presses a
+  `button`, both by the text they show, and the call the dialog blocked then finishes. `dialog` picks one by its title
+  when several wait. `se_session status` and the `dialog_open` error list the options of a dialog with the selected
+  one. An option such as "don't prompt me again" changes Solid Edge's options, so it is meant to be chosen only when the
+  person asks.
+  A file dialog (Open, Save As, a folder picker) is only cancelled: what it would choose is outside the allowed folders.
+- `se_sheetmetal transform` (Thin Part to Synchronous Sheet Metal): a part document of a flat thin part becomes a
+  synchronous sheet metal document in place, with the thickness of the part, given one face of the sheet. Solid Edge
+  2026 Foundation does it for a plate and refuses a box with walls (E_FAIL, also with corner edges to rip), which
+  `convert` handles.
+- `se_drawing parts_list` takes `columns`: the properties shown, in order, by their Solid Edge names (such as
+  "Quantity", "File Name (no extension)" or a custom property "Name/CP"), instead of the columns of the saved setting,
+  which each installation defines (one of them can leave every cell of a test assembly empty).
 
 ### Changed
 
-- `scripts/update-progress.ps1` is now `scripts/update-docs.ps1`, and a local pre-commit hook has to call the new name. It
-  keeps the tool count, the versions and the check of the coverage rows; the progress badge, section and chart are gone.
-
-### Documentation
-
-- README: the plugin install adds the marketplace first, and tells where the plugin keeps the policy example; the
-  license variable also covers Foundation with a license server; new Privacy section.
-- The README is shorter: tools, examples, limitations, validation, architecture and development moved to `docs/`. Stale
-  statements were corrected (limitations that no longer apply, and the release packages, which carry no interop).
-- The plugin folder has its own README.
-
-## [1.1.0] - 2026-10-30
-
-Design intent and Solid Edge 2026 Foundation: every sketch an operation uses is fully defined by relations and dimensions
-named after what they size, finite element studies with `se_simulation`, answers to the dialogs that wait for the person,
-and what running on Foundation brought to light. Tool names and parameters do not change; some were added. The acceptance
-scripts of what changed pass on Foundation. The full suite was not repeated for this version, and the Community Edition
-2026 was last tested on 2026-10-16.
-
-### Changed
-
+- `se_assembly_config apply` of an explode configuration says that it shows in drawing views: applied to the assembly,
+  its components do not read as exploded.
+- `se_design_manager copy` takes the top document ('path') in 'files' too, as Design Manager does: a drawing or an
+  assembly is copied with its files, the copy uses the copies and the original is left as it was. The documents between
+  the top and a copied file must be copied as well (the refusal lists them), or the original would use the copies.
+- `se_documents open` of a STEP, IGES, Parasolid, DXF or other file of another CAD system says to use `import`: Solid Edge
+  failed with an unspecified error (E_FAIL).
+- An internal fault of Solid Edge (`RPC_E_SERVERFAULT`) is reported as such, with `se_session restart` as the next
+  step, and other Solid Edge errors mention the restart when calls that worked earlier start failing.
+- `se_app recent` says that Solid Edge may add the files saved with `save_as` while the list is suspended: it does not
+  always.
+- The server instructions point to the work on closed files (`se_design_manager`, `se_properties` with `path`,
+  `se_export` with `files` or `folders`).
 - The generic layer refuses the Material Table members that write library files (`SetMatPropValue`,
   `SetMaterialPropValueToLibrary`, `AddMaterial`, `AddMaterialToLibrary`, `DeleteMaterial`, `DeleteMaterialFromLibrary`,
   `RenameMaterial`, `ImportMaterialDataFromFile`, `CreateNewMaterialLibrary`, `CreateNewDirectory`, `RenameLibrary`,
@@ -75,47 +118,18 @@ scripts of what changed pass on Foundation. The full suite was not repeated for 
   of the face it is drawn on), so the sketch follows the model. Edges whose ends stay free (part of an outline) leave the
   sketch under-defined, and `close` says so. Bring them in as construction (`se_sketch_edit construction`) to use them
   only as references.
-
-### Added
-
-- `se_surface split`: splits a construction surface by planes, surfaces, curves or edges that cross it, also in a part
-  with no solid; it checks that there are more faces and that the area stays.
-- `se_export` writes assemblies as CATIA V5 (.catproduct, with a .CATPart file per part) and CATIA V4 (.model), and
-  `se_documents import` reads them back with their occurrences (a .model of an assembly with kind assembly). .catpart
-  stays for parts and sheet metal.
-- `se_simulation`: finite element studies of parts and sheet metal, solved by Simcenter Nastran. `create` (static, modal
-  or buckling, on every body or some), `constrain` (fixed, pinned, no rotation, sliding, cylindrical), `load` (force along
-  a direction or normal to the faces, pressure that presses on them), `solve` (the largest displacement and von Mises
-  stress, the applied load and the reaction about the origin, the natural frequencies or the buckling load factors, read
-  from the Nastran output), `results` (displacement and stress components with their minimum and maximum, and the picture
-  of the plot), `close_results`, `list` and `delete`. Static and modal studies with fixed constraints, forces and
-  pressures are checked against beam theory on a steel cantilever. `list` gives the kinds the licence includes:
-  Simulation Express (Solid Edge Foundation) has only those, and the other kinds are refused with `not_licensed` before
-  Solid Edge shows its licence message, so they have not been solved yet. Solving first checks the material (elastic
-  modulus, Poisson ratio and, for modes, density).
-- `se_material` takes `folder`: `options` (the materials folder of the Solid Edge options, as before) or `installation`
-  (the libraries installed with Solid Edge, read from a copy in the work folder; the folder of the options is set back).
-  The libraries of a company often carry no elastic properties, which simulation needs. `se_sheetmetal gauge` takes the
-  same `folder`, for the gauges of the installed libraries.
-- `se_sketch close` takes `elements`: lines of the sketch to place it from first, such as a datum line or a projected
-  edge.
-- `se_session answer` answers the Solid Edge dialog that waits for the person (such as Update Model Links, which asks
-  whether to update out-of-date part copies): it chooses an `option` (a radio button or check box) and presses a
-  `button`, both by the text they show, and the call the dialog blocked then finishes. `dialog` picks one by its title
-  when several wait. `se_session status` and the `dialog_open` error list the options of a dialog with the selected
-  one. An option such as "don't prompt me again" changes Solid Edge's options, so it is meant to be chosen only when the
-  person asks.
-  A file dialog (Open, Save As, a folder picker) is only cancelled: what it would choose is outside the allowed folders.
-- `se_sheetmetal transform` (Thin Part to Synchronous Sheet Metal): a part document of a flat thin part becomes a
-  synchronous sheet metal document in place, with the thickness of the part, given one face of the sheet. Solid Edge
-  2026 Foundation does it for a plate and refuses a box with walls (E_FAIL, also with corner edges to rip), which
-  `convert` handles.
-- `se_drawing parts_list` takes `columns`: the properties shown, in order, by their Solid Edge names (such as
-  "Quantity", "File Name (no extension)" or a custom property "Name/CP"), instead of the columns of the saved setting,
-  which each installation defines (one of them can leave every cell of a test assembly empty).
+- `scripts/update-progress.ps1` is now `scripts/update-docs.ps1`, and a local pre-commit hook has to call the new name. It
+  keeps the tool count, the versions and the check of the coverage rows; the progress badge, section and chart are gone.
 
 ### Fixed
 
+- `se_properties set` takes a date for a date property (ISO 8601, `2026-11-20` or `2026-11-20T10:30`): a text was
+  refused with a type mismatch, or written and then read back shifted. In a closed file the date is now read back as
+  given (the file property library stores it as UTC and Solid Edge reads it in local time), and so is the status date
+  written by `se_design_manager status`, which was off by the UTC offset.
+- `se_properties set` in an open document refuses the dates Solid Edge keeps in SummaryInformation (Total Editing Time,
+  Last Print Date, Origination Date, Last Save Date): written there, Last Print Date disappeared from the document and
+  saving it failed. They can be written to the closed file with `path`.
 - `se_drawing parts_list` with a `style` that is not a saved parts list setting made the list with the default one, as
   Solid Edge does without an error: it is now refused with `not_found` and the names of the saved settings.
 
@@ -170,53 +184,17 @@ scripts of what changed pass on Foundation. The full suite was not repeated for 
 - A build from source after `scripts/package.ps1` kept the `deps.json` of the package, without the Solid Edge interop:
   the server carried the interop beside it but could not load it, and its tools answered `interop_missing`. The
   `deps.json` is now built again when the package setting changes. The release package was not affected.
+- The plugin failed to install its server when the client was started from PowerShell 7 (`Get-FileHash` not found): the
+  launcher no longer passes on the PowerShell 7 module path to Windows PowerShell.
+- `scripts/package.ps1` strips the build paths from the binaries and fails if a local path or user name remains.
 
-## [1.0.0] - 2026-10-16
+### Documentation
 
-The complete, stable version: the base program of Solid Edge (0.8.0) and the programs installed with it (0.9.0), now
-installable without compiling. The release carries a package without the Solid Edge interop, which the server generates
-from the installed Solid Edge, and the Claude Code plugin installs that package and starts the server. The full
-acceptance run against the package made 7208 calls and 3694 checks: 129 scripts passed, and the other 3 after a restart
-of Solid Edge, which had become unstable. From this version the tool names and parameters are stable: a change that
-breaks them waits for a new major version.
-
-### Added
-
-- A package that installs without compiling: `scripts/package.ps1` builds `solid-edge-mcp-<version>-win-x64.zip`
-  (self-contained, it does not need .NET) and its SHA-256, without the Solid Edge interop. The interop derives from
-  Siemens files, so the server now generates it from the installed Solid Edge on its first start, in a few seconds, and
-  keeps it in `%LocalAppData%\SolidEdgeMcp\interop\<Solid Edge version>`; a build from source still has it beside the
-  server. When it cannot be generated, the server starts anyway and its tools answer `interop_missing`.
-- A Claude Code plugin and its marketplace (`plugin/`, `.claude-plugin/marketplace.json`):
-  `claude plugin install solid-edge-mcp --marketplace gabichuuuuu/solid-edge-mcp`. On its first start the plugin
-  downloads the package of its version from the GitHub release, checks it against the SHA-256 published with it,
-  installs it in `%LocalAppData%\SolidEdgeMcp\server\<version>` and starts the server from there.
-
-### Changed
-
-- `se_assembly_config apply` of an explode configuration says that it shows in drawing views: applied to the assembly,
-  its components do not read as exploded.
-- `se_design_manager copy` takes the top document ('path') in 'files' too, as Design Manager does: a drawing or an
-  assembly is copied with its files, the copy uses the copies and the original is left as it was. The documents between
-  the top and a copied file must be copied as well (the refusal lists them), or the original would use the copies.
-- `se_documents open` of a STEP, IGES, Parasolid, DXF or other file of another CAD system says to use `import`: Solid Edge
-  failed with an unspecified error (E_FAIL).
-- An internal fault of Solid Edge (`RPC_E_SERVERFAULT`) is reported as such, with `se_session restart` as the next
-  step, and other Solid Edge errors mention the restart when calls that worked earlier start failing.
-- `se_app recent` says that Solid Edge may add the files saved with `save_as` while the list is suspended: it does not
-  always.
-- The server instructions point to the work on closed files (`se_design_manager`, `se_properties` with `path`,
-  `se_export` with `files` or `folders`).
-
-### Fixed
-
-- `se_properties set` takes a date for a date property (ISO 8601, `2026-11-20` or `2026-11-20T10:30`): a text was
-  refused with a type mismatch, or written and then read back shifted. In a closed file the date is now read back as
-  given (the file property library stores it as UTC and Solid Edge reads it in local time), and so is the status date
-  written by `se_design_manager status`, which was off by the UTC offset.
-- `se_properties set` in an open document refuses the dates Solid Edge keeps in SummaryInformation (Total Editing Time,
-  Last Print Date, Origination Date, Last Save Date): written there, Last Print Date disappeared from the document and
-  saving it failed. They can be written to the closed file with `path`.
+- README: the plugin install adds the marketplace first, and tells where the plugin keeps the policy example; the
+  license variable also covers Foundation with a license server; new Privacy section.
+- The README is shorter: tools, examples, limitations, validation, architecture and development moved to `docs/`. Stale
+  statements were corrected (limitations that no longer apply, and the release packages, which carry no interop).
+- The plugin folder has its own README.
 
 ## [0.9.0] - 2026-10-16
 
