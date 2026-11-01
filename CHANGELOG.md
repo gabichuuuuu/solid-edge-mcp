@@ -13,10 +13,17 @@ Relevant changes to this project are recorded here. The format follows
 - `scripts/package.ps1` strips the build paths from the binaries and fails if a local path or user name remains. The
   1.1.0 package was rebuilt from its tag in this way and replaced in its release, so its SHA-256 changed.
 
+### Changed
+
+- `scripts/update-progress.ps1` is now `scripts/update-docs.ps1`, and a local pre-commit hook has to call the new name. It
+  keeps the tool count, the versions and the check of the coverage rows; the progress badge, section and chart are gone.
+
 ### Documentation
 
 - README: the plugin install adds the marketplace first, and tells where the plugin keeps the policy example; the
   license variable also covers Foundation with a license server; new Privacy section.
+- The README is shorter: tools, examples, limitations, validation, architecture and development moved to `docs/`. Stale
+  statements were corrected (limitations that no longer apply, and the release packages, which carry no interop).
 - The plugin folder has its own README.
 
 ## [1.1.0] - 2026-10-30

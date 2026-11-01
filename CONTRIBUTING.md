@@ -37,10 +37,10 @@ installation and are derived from Siemens software: never commit them.
   undone if it fails, with an error that has a code, a message and the next step.
 - Unit tests do not exercise COM: validate each new or changed tool against a real Solid Edge, with
   temporary documents in an allowed folder closed without saving, and check the measurable result.
-- In the same pull request, update the tool table of [README.md](README.md), the rows of
-  [docs/COVERAGE.md](docs/COVERAGE.md) with the status of the real test (✔, or ✘ with the reason and
-  the alternative) and an entry under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md). Then run
-  `scripts\update-progress.ps1`, which rewrites the progress section, chart and badge.
+- In the same pull request, update [docs/TOOLS.md](docs/TOOLS.md), the area table of [README.md](README.md),
+  the rows of [docs/COVERAGE.md](docs/COVERAGE.md) with the status of the real test (✔, or ✘ with the reason
+  and the alternative) and an entry under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md). Then run
+  `scripts\update-docs.ps1`, which updates the tool count and the version and checks the coverage rows.
 - Commits follow [Conventional Commits](https://www.conventionalcommits.org/), in English.
 - Every C# and PowerShell file starts with the copyright and license header (the build checks it for
   C#):
