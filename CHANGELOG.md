@@ -6,6 +6,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `se_view capture` failed with `E_FAIL` when a packaged client (Claude Desktop) started the server: `%LocalAppData%` is
+  redirected for the server but not for Solid Edge, so the images Solid Edge wrote to the work folder were not where the
+  server read them, and the colour sample BMP was not written at all. Captures now go to the resolved work folder.
+
 ## [1.0.0] - 2026-11-01
 
 The complete, stable version: the base program of Solid Edge and the programs installed with it, installable without
