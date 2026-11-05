@@ -37,4 +37,4 @@ flowchart LR
   (properties and thumbnails of closed files) and the installation data (`se_server_info`).
 - The Solid Edge interop is generated on each machine from the local installation
   (`scripts/generate-interop.ps1`): beside the server in a build from source, and by the server itself
-  on its first start in the distributed package (from 1.0.0). It is not versioned or distributed.
+  on its first start in the distributed package. It is not versioned or distributed.

@@ -2,6 +2,11 @@
 
 ## Supported versions
 
+| Version | Supported |
+|---|---|
+| 1.x (stable) | ✔ |
+| 0.x (development versions) | ✘ |
+
 Fixes go to the `main` branch and to the next release. Use the latest release or the latest commit of
 `main`.
 
