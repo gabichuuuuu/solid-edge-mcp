@@ -305,7 +305,7 @@ public static partial class ViewService
         string file;
         if (string.IsNullOrWhiteSpace(savePath))
         {
-            string folder = Path.Combine(context.AppPaths.Work, "captures");
+            string folder = CapturesFolder(context);
             Directory.CreateDirectory(folder);
             file = Path.Combine(folder, $"capture-{DateTime.Now:yyyyMMdd-HHmmss-fff}.png");
         }
@@ -363,7 +363,7 @@ public static partial class ViewService
     {
         const int sampleWidth = 160;
         int sampleHeight = Math.Max(16, (int)Math.Round(sampleWidth * (double)height / width));
-        string folder = Path.Combine(context.AppPaths.Work, "captures");
+        string folder = CapturesFolder(context);
         Directory.CreateDirectory(folder);
         string file = Path.Combine(folder, $"samples-{Guid.NewGuid():N}.bmp");
         try
@@ -376,6 +376,13 @@ public static partial class ViewService
             TryDelete(file);
         }
     }
+
+    /// <summary>
+    /// Captures folder under the resolved work folder. Solid Edge writes the images, so it gets the physical path: when a
+    /// packaged client (Claude Desktop) starts the server, %LocalAppData% is redirected for the server but not for
+    /// Solid Edge, and an image written to the unresolved path is not where the server reads it (BMP fails with E_FAIL).
+    /// </summary>
+    private static string CapturesFolder(SeContext context) => Path.Combine(context.Paths.WorkFolder, "captures");
 
     private static void Save(object target, string file, int width, int height, bool fit)
     {
