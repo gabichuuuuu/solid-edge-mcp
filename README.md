@@ -9,7 +9,7 @@
 Claude Desktop, Codex or any other MCP client.**
 
 [![Core](https://github.com/gabichuuuuu/solid-edge-mcp/actions/workflows/core.yml/badge.svg)](https://github.com/gabichuuuuu/solid-edge-mcp/actions/workflows/core.yml)
-![Version 1.0.1](https://img.shields.io/badge/version-1.0.1-2F6FEB)
+![Version 1.0.2](https://img.shields.io/badge/version-1.0.2-2F6FEB)
 ![Status: stable](https://img.shields.io/badge/status-stable-2EA043)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
@@ -36,7 +36,7 @@ does not depend on specific files, a specific machine or a specific workflow.
 - **Tested on real Solid Edge.** 136 acceptance scripts compare the results with values computed in advance.
 
 > [!NOTE]
-> Stable version (1.0.1), tested with Solid Edge **2026 Foundation** and **Community Edition 2026** on Windows 11 x64
+> Stable version (1.0.2), tested with Solid Edge **2026 Foundation** and **Community Edition 2026** on Windows 11 x64
 > ([validation](docs/VALIDATION.md)). Versions follow [Semantic Versioning](https://semver.org): tool names and parameters
 > are stable, and a change that breaks them waits for a new major version and is listed in the changelog. Not every Solid
 > Edge function can be used through its API: [docs/COVERAGE.md](docs/COVERAGE.md) lists each one with its route, or the
@@ -299,7 +299,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Project status
 
-Stable. The current version (1.0.1) is complete for the base program and for the programs installed with Solid Edge as far as their
+Stable. The current version (1.0.2) is complete for the base program and for the programs installed with Solid Edge as far as their
 automation allows, and it installs without compiling, from the release package or as a Claude Code plugin. Maintained by
 a single author: fixes go to `main` and to the next release, and versions follow Semantic Versioning. Change history in
 [CHANGELOG.md](CHANGELOG.md).

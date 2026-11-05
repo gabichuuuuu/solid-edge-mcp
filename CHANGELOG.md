@@ -6,6 +6,11 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-05
+
+A fix for the first start of the Claude Code plugin, found while testing 1.0.1 in Claude Desktop. The server itself
+does not change; no tool or parameter changes.
+
 ### Fixed
 
 - The first start of the plugin failed when the download of the server (about 40 MB) took longer than the client waits

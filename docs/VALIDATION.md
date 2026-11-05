@@ -3,9 +3,13 @@
 Latest results:
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge, at the 1.0.1 release: `SolidEdgeMcp.Core.Tests` 98 and `SolidEdgeMcp.Server.Tests` 760,
+- Tests without Solid Edge, at the 1.0.2 release: `SolidEdgeMcp.Core.Tests` 98 and `SolidEdgeMcp.Server.Tests` 760,
   all passing. Continuous integration runs the license header check and the `SolidEdgeMcp.Core` tests on every push to
   `main` and every pull request.
+- 1.0.2, the plugin launcher: with a scripted MCP client, the first start answered the client while the server was
+  being installed, then announced 87 tools and 4 prompts, which worked; the quick install and the installed server
+  started as before. With Claude Code and a server version not yet installed, it connected in 13 seconds and listed the
+  tools when the download ended, in the same session.
 - 1.0.1, on Solid Edge 2026 Foundation: the scripts of what changed (`A20`, `A22`, `A29`, `A32`, `A92`, `A94`, `A105`,
   `A116`, `A122`) pass, 433 calls and 270 checks. Under Claude Desktop, with Solid Edge outside its package, an image
   that Solid Edge saved in a folder the server had created in the work folder failed (BMP, `E_FAIL`) or was not where the
