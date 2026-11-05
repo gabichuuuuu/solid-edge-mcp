@@ -6,6 +6,13 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-05
+
+A fix for packaged clients such as Claude Desktop, where the files that the server and Solid Edge pass to each other
+(captures among them) were not where the other looked. It starts from the first outside contribution, by AReq401, who
+reported the failure and fixed it for captures; the same cause is fixed here for every such file. No tool or parameter
+changes.
+
 ### Fixed
 
 - `se_view capture` failed with `E_FAIL` when a packaged client (Claude Desktop) started the server: `%LocalAppData%` is
