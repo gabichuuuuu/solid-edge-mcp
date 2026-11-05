@@ -378,11 +378,11 @@ public static partial class ViewService
     }
 
     /// <summary>
-    /// Captures folder under the resolved work folder. Solid Edge writes the images, so it gets the physical path: when a
+    /// Captures folder in the exchange folder. Solid Edge writes the images, so it gets the physical path: when a
     /// packaged client (Claude Desktop) starts the server, %LocalAppData% is redirected for the server but not for
     /// Solid Edge, and an image written to the unresolved path is not where the server reads it (BMP fails with E_FAIL).
     /// </summary>
-    private static string CapturesFolder(SeContext context) => Path.Combine(context.Paths.WorkFolder, "captures");
+    private static string CapturesFolder(SeContext context) => Path.Combine(context.Paths.ExchangeFolder, "captures");
 
     private static void Save(object target, string file, int width, int height, bool fit)
     {

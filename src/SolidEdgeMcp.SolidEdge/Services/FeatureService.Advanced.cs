@@ -308,7 +308,7 @@ public static partial class FeatureService
             rows.Add([spec.Offsets[i], spec.Offsets[i + 1], spec.Offsets[i + 2]]);
         }
 
-        string folder = Path.Combine(context.AppPaths.Work, "tables");
+        string folder = Path.Combine(context.Paths.ExchangeFolder, "tables");
         Directory.CreateDirectory(folder);
         string file = Path.Combine(folder, $"pattern-{Guid.NewGuid():N}.xlsx");
         XlsxSheet.Write(file, rows);

@@ -620,7 +620,7 @@ public static class FrameService
                 $"List them with se_frame library (kind {(library == FramesLibrary ? "frames" : "pipes")}), or pass the absolute path of a part.");
         }
 
-        string target = IOPath.Combine(context.AppPaths.Work, "library", library, relative);
+        string target = IOPath.Combine(context.Paths.ExchangeFolder, "library", library, relative);
         if (!File.Exists(target))
         {
             Directory.CreateDirectory(IOPath.GetDirectoryName(target)!);

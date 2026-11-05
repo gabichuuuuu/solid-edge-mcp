@@ -329,7 +329,7 @@ public static class MaterialService
         string source = InstallationService.MaterialsFolder()
             ?? throw new ToolException("not_found", "The materials folder of the Solid Edge installation was not found (Preferences\\Materials).",
                 "Use the libraries of the materials folder set in the options (folder 'options').");
-        string copy = System.IO.Path.Combine(context.AppPaths.Work, "materials-installation");
+        string copy = System.IO.Path.Combine(context.Paths.ExchangeFolder, "materials-installation");
         Directory.CreateDirectory(copy);
         foreach (string file in Directory.EnumerateFiles(source, "*.mtl"))
         {

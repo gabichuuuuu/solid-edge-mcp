@@ -66,6 +66,15 @@ public sealed class PathGuardTests : IDisposable
     }
 
     [Fact]
+    public void Exchange_folder_is_the_work_folder_outside_a_package_and_leaves_no_probe()
+    {
+        PathGuard guard = Guard();
+        Assert.Equal(guard.WorkFolder, guard.ExchangeFolder, ignoreCase: true);
+        Assert.True(guard.IsAllowed(Path.Combine(guard.ExchangeFolder, "captures", "capture.png")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_work));
+    }
+
+    [Fact]
     public void Rejects_misleading_prefix()
     {
         // C:\...\Allowed2 is not inside C:\...\Allowed.

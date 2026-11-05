@@ -3,9 +3,13 @@
 Latest results:
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge, at the 1.0.0 release: `SolidEdgeMcp.Core.Tests` 97 and `SolidEdgeMcp.Server.Tests` 760,
+- Tests without Solid Edge, at the 1.0.1 release: `SolidEdgeMcp.Core.Tests` 98 and `SolidEdgeMcp.Server.Tests` 760,
   all passing. Continuous integration runs the license header check and the `SolidEdgeMcp.Core` tests on every push to
   `main` and every pull request.
+- 1.0.1, on Solid Edge 2026 Foundation: the scripts of what changed (`A20`, `A22`, `A29`, `A32`, `A92`, `A94`, `A105`,
+  `A116`, `A122`) pass, 433 calls and 270 checks. Under Claude Desktop, with Solid Edge outside its package, an image
+  that Solid Edge saved in a folder the server had created in the work folder failed (BMP, `E_FAIL`) or was not where the
+  server looked (PNG); in the exchange folder both were saved and found.
 - Acceptance suite against real Solid Edge, with expected values computed from formulas (or Solid Edge reference values
   when there is no simple formula, noted in the script). The last full run (2026-10-28/29, on Solid Edge 2026 Foundation)
   covered 136 scripts: 3 failed (two were fixed and one was an intermittent Solid Edge error), and those scripts and some

@@ -108,7 +108,7 @@ public static class PrintService
         }
 
         // Printed to a file, the spooler writes into a folder of the server first; the files are then moved to the target.
-        string? scratch = target is null ? null : Path.Combine(context.Paths.WorkFolder, "print", Guid.NewGuid().ToString("N")[..12]);
+        string? scratch = target is null ? null : Path.Combine(context.Paths.ExchangeFolder, "print", Guid.NewGuid().ToString("N")[..12]);
         try
         {
             if (scratch is not null)

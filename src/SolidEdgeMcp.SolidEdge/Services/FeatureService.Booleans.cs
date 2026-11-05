@@ -69,7 +69,7 @@ public static partial class FeatureService
         var text = new List<string>();
         foreach (Model owner in models)
         {
-            string file = Path.Combine(context.Paths.WorkFolder, $"heal_{Guid.NewGuid():N}.txt");
+            string file = Path.Combine(context.Paths.ExchangeFolder, $"heal_{Guid.NewGuid():N}.txt");
             try
             {
                 owner.HealAndOptimizeBodyEx(true, true, true, fullBody, true, file);

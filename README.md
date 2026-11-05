@@ -243,7 +243,10 @@ Full example in [config/policy.example.json](config/policy.example.json). `se_se
 effective folders and the configuration warnings.
 
 Logs go to `%LocalAppData%\SolidEdgeMcp\logs` (one UTF-8 file per day; each operation with its
-`op#`). Standard output is reserved for the MCP protocol.
+`op#`). Standard output is reserved for the MCP protocol. When a packaged client such as Claude Desktop starts the
+server, Windows keeps what the server writes under `%LocalAppData%` in that client's own folder, for Claude Desktop
+`%LocalAppData%\Packages\Claude_<id>\LocalCache\Local\SolidEdgeMcp` (logs, interop and work files); `se_server_info`
+shows the folders in use.
 
 ## Security
 
@@ -274,7 +277,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
   captures of your documents, go to the MCP client, which may send them to its AI provider under that
   provider's terms. Only use it on documents you are allowed to share that way.
 - **Local files.** The policy, the generated interop, the installed server and the logs stay in
-  `%LocalAppData%\SolidEdgeMcp`. The logs record operations and can include file paths; they are
+  `%LocalAppData%\SolidEdgeMcp` (or in the client's own folder, see [Configuration](#configuration)). The logs record operations and can include file paths; they are
   kept for 14 days and never sent anywhere.
 - **Network use.** The plugin only downloads the server package from the GitHub release on its first
   start for each version, and GitHub handles that request under its own terms. Solid Edge contacts its

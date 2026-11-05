@@ -107,7 +107,7 @@ public static class PublishService
                 "Save and close the documents you opened (se_documents close), or ask the person to close theirs, then publish again.");
         }
 
-        string scratch = Path.Combine(context.Paths.WorkFolder, "publish", Guid.NewGuid().ToString("N")[..12]);
+        string scratch = Path.Combine(context.Paths.ExchangeFolder, "publish", Guid.NewGuid().ToString("N")[..12]);
         string inbox = isFolder ? input : Path.Combine(scratch, "in");
         string outbox = Path.Combine(scratch, "out");
         try

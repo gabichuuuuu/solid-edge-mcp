@@ -23,6 +23,7 @@ public sealed class ServerTools(ToolRunner runner, ServerPolicy policy, PathGuar
             policyFile = policy.SourceFile,
             allowedFolders = guard.AllowedRoots,
             workFolder = guard.WorkFolder,
+            exchangeFolder = guard.ExchangeFolder,
             logFolder = paths.Logs,
             startSolidEdgeIfNotRunning = policy.StartSolidEdgeIfNotRunning,
             operationTimeoutSeconds = policy.OperationTimeoutSeconds,

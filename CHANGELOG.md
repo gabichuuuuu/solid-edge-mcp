@@ -12,6 +12,13 @@ Relevant changes to this project are recorded here. The format follows
   redirected for the server but not for Solid Edge, so the images Solid Edge wrote to the work folder were not where the
   server read them, and the colour sample BMP was not written at all. Captures now go to the resolved work folder
   (#2, thanks @AReq401).
+- The same redirection broke every other file the server and Solid Edge pass to each other, and captures too where the
+  work folder already existed outside the package (for example after using the server from Claude Code): what the server
+  creates in the work folder lands in the package's folder, while Solid Edge uses the real one. The server now finds,
+  when it starts, the physical folder where what it creates lands, and uses it for those files: captures, the scaled
+  copy of an STL import, the table of a pattern by table, the heal report, the backup before moving features to
+  synchronous, the library parts of frames and pipes, the copy of the installed material libraries, and the folders of
+  printing to a file and of 3D PDF publishing. `se_server_info` reports it as `exchangeFolder`, which is also allowed.
 
 ### Documentation
 

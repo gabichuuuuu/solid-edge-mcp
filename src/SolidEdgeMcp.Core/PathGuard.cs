@@ -25,6 +25,11 @@ public sealed partial class PathGuard
         Directory.CreateDirectory(workFolder);
         WorkFolder = ResolveExisting(Path.GetFullPath(workFolder));
         _roots.Add(WorkFolder);
+        ExchangeFolder = WhereNewEntriesLand(WorkFolder);
+        if (!ExchangeFolder.Equals(WorkFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            _roots.Add(ExchangeFolder);
+        }
 
         foreach (string configured in configuredRoots)
         {
@@ -59,6 +64,15 @@ public sealed partial class PathGuard
 
     /// <summary>Resolved work folder; always allowed.</summary>
     public string WorkFolder { get; }
+
+    /// <summary>
+    /// Physical folder where what the server creates in the work folder lands: the place for the files that Solid Edge
+    /// reads or writes (captures, copies it opens, reports it writes). It is the work folder, except when a packaged
+    /// client (Claude Desktop) starts the server: Windows then puts what the server creates under %LocalAppData% in the
+    /// package's own folder, while Solid Edge, outside the package, uses the real one, so a path under the work folder
+    /// would name two different places. Always allowed.
+    /// </summary>
+    public string ExchangeFolder { get; }
 
     /// <summary>Configured folders that exist, already resolved.</summary>
     public List<string> ConfiguredRoots { get; } = [];
@@ -207,6 +221,28 @@ public sealed partial class PathGuard
         }
 
         return resolved;
+    }
+
+    /// <summary>Physical folder of a new entry created in the folder (a probe folder, removed again).</summary>
+    private static string WhereNewEntriesLand(string folder)
+    {
+        string probe = Path.Combine(folder, ".probe-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(probe);
+        try
+        {
+            return Path.GetDirectoryName(ResolveExisting(probe)) ?? folder;
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(probe);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // An empty folder left in the work folder does no harm.
+            }
+        }
     }
 
     /// <summary>Removes the trailing separator except at the root of a drive (<c>C:\</c>).</summary>

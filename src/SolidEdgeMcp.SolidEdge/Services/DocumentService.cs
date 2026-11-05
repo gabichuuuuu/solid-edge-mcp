@@ -210,7 +210,7 @@ public static class DocumentService
             : null;
         if (stlUnit is { } unit && unit != 1)
         {
-            scratch = System.IO.Path.Combine(context.Paths.WorkFolder, "import-" + Guid.NewGuid().ToString("N"));
+            scratch = System.IO.Path.Combine(context.Paths.ExchangeFolder, "import-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(scratch);
             opened = System.IO.Path.Combine(scratch, System.IO.Path.GetFileName(source));
             try

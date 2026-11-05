@@ -326,7 +326,7 @@ public static partial class FeatureService
     /// <summary>Copy of the part in the work folder (backups), or null if Solid Edge does not save it.</summary>
     private static string? Backup(SeContext context, ModelDocument model)
     {
-        string folder = Path.Combine(context.AppPaths.Work, "backups");
+        string folder = Path.Combine(context.Paths.ExchangeFolder, "backups");
         string name = Path.GetFileNameWithoutExtension(model.Document.Name);
         string file = Path.Combine(folder, $"{name}-{DateTime.Now:yyyyMMdd-HHmmss}{(model.Document is PartDocument ? ".par" : ".psm")}");
         try
