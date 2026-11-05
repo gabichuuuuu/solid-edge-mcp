@@ -88,7 +88,8 @@ claude plugin install solid-edge-mcp --marketplace gabichuuuuu/solid-edge-mcp
 
 On its first start the plugin downloads the server package of its version from the GitHub release,
 checks it against the SHA-256 published with it and installs it in
-`%LocalAppData%\SolidEdgeMcp\server\<version>`; it then starts the server from there. Its tools are named `mcp__plugin_solid-edge-mcp_solid-edge__se_*`. Then write
+`%LocalAppData%\SolidEdgeMcp\server\<version>`; it then starts the server from there. The download takes
+about 40 MB: its tools appear when it ends, in the same session. Its tools are named `mcp__plugin_solid-edge-mcp_solid-edge__se_*`. Then write
 your policy (below).
 
 **From the release package**, for any MCP client: download `solid-edge-mcp-<version>-win-x64.zip` and

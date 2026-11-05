@@ -6,18 +6,25 @@
     Installs the server of the plugin's version, if needed, and prints the path of its executable.
 
 .DESCRIPTION
-    Run by start.cmd on every start, with Windows PowerShell 5.1. When %LocalAppData%\SolidEdgeMcp\server\<version>
-    already holds the server it only prints its path. Otherwise it downloads solid-edge-mcp-<version>-win-x64.zip and
-    its .sha256 from the GitHub release v<version>, checks the hash, extracts the package beside the target folder and
-    moves it into place, so an interrupted install leaves nothing half done. The package carries no Solid Edge interop:
-    the server generates it from the local installation on its first start.
+    Run with Windows PowerShell 5.1: by start.cmd on every start with -IfInstalled, and by bridge.ps1 when that printed
+    nothing. When %LocalAppData%\SolidEdgeMcp\server\<version> already holds the server it only prints its path; with
+    -IfInstalled it stops there. Otherwise it downloads solid-edge-mcp-<version>-win-x64.zip and its .sha256 from the
+    GitHub release v<version>, checks the hash, extracts the package beside the target folder and moves it into place,
+    so an interrupted install leaves nothing half done. One install of a version runs at a time: another start waits for
+    it and uses its result. The package carries no Solid Edge interop: the server generates it from the local
+    installation on its first start.
 
     Standard output carries only the path; messages go to standard error, because the standard output of the server
     is the MCP channel. SOLID_EDGE_MCP_PACKAGE may point to a package zip, with its .sha256 beside it, to install it
     without a download (to try a build before its release): it goes to server\<version>-local-<start of its hash>.
+
+.PARAMETER IfInstalled
+    Prints the path only when the server is already installed, and never installs it.
 #>
 [CmdletBinding()]
-param()
+param(
+    [switch]$IfInstalled
+)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -28,6 +35,7 @@ function Say([string]$message) {
 
 $download = $null
 $stage = $null
+$lock = $null
 try {
     $manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\.claude-plugin\plugin.json') -Raw | ConvertFrom-Json
     $version = [string]$manifest.version
@@ -49,6 +57,29 @@ try {
     }
 
     $exe = Join-Path $target 'SolidEdgeMcp.Server.exe'
+    if ((Test-Path -LiteralPath $exe) -or $IfInstalled) {
+        if (Test-Path -LiteralPath $exe) {
+            Write-Output $exe
+        }
+
+        exit 0
+    }
+
+    # Two sessions starting at once share one download.
+    $lock = New-Object Threading.Mutex($false, "Local\solid-edge-mcp-install-$(Split-Path -Leaf $target)")
+    try {
+        $owned = $lock.WaitOne([TimeSpan]::FromMinutes(15))
+    }
+    catch [Threading.AbandonedMutexException] {
+        # The previous install was interrupted; this one owns the lock now.
+        $owned = $true
+    }
+
+    if (-not $owned) {
+        $lock = $null
+        throw 'Another install of this version has been running for 15 minutes.'
+    }
+
     if (Test-Path -LiteralPath $exe) {
         Write-Output $exe
         exit 0
@@ -113,5 +144,9 @@ finally {
         if ($temporary -and (Test-Path -LiteralPath $temporary)) {
             Remove-Item -LiteralPath $temporary -Recurse -Force -ErrorAction SilentlyContinue
         }
+    }
+
+    if ($lock) {
+        $lock.ReleaseMutex()
     }
 }

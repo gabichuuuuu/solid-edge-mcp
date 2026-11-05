@@ -12,6 +12,9 @@ It needs Windows x64 with Solid Edge installed and licensed.
 - On the first start for each version, `install.ps1` downloads `solid-edge-mcp-<version>-win-x64.zip` and its `.sha256`
   from the [GitHub release](https://github.com/gabichuuuuu/solid-edge-mcp/releases) of that version, checks the SHA-256
   and installs the server in `%LocalAppData%\SolidEdgeMcp\server\<version>`. It runs the executable in that package.
+- While that first install lasts, `scripts/bridge.ps1` answers the client as a server with no tools, so that the
+  client does not give up on it; when the install ends, it starts the server, passes the messages between both and
+  tells the client that the tool list changed. The tools appear then, in the same session.
 - On its first start, the server generates the Solid Edge interop from your installation, with Windows PowerShell, in
   `%LocalAppData%\SolidEdgeMcp\interop`.
 

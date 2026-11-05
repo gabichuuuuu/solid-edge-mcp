@@ -6,6 +6,14 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The first start of the plugin failed when the download of the server (about 40 MB) took longer than the client waits
+  for a server to start (30 seconds in Claude Code, which then does not try again for 15 minutes), so its tools were
+  missing until a reconnection. When the install takes more than 10 seconds, the plugin now answers the client
+  meanwhile as a server with no tools, then starts the server and tells the client that the tool list changed: the
+  tools appear when the install ends, in the same session. Two sessions starting at once share one download.
+
 ## [1.0.1] - 2026-11-05
 
 A fix for packaged clients such as Claude Desktop, where the files that the server and Solid Edge pass to each other

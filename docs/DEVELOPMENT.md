@@ -24,7 +24,7 @@ solid-edge-mcp/
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
 │   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A136 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, package.ps1, update-docs.ps1
-├── plugin/                        Claude Code plugin: manifest and launcher (start.cmd, install.ps1)
+├── plugin/                        Claude Code plugin: manifest and launcher (start.cmd, install.ps1, bridge.ps1)
 ├── .claude-plugin/                marketplace.json, the marketplace of the plugin
 ├── config/                        policy.example.json
 ├── docs/                          COVERAGE.md, TOOLS.md, EXAMPLES.md, VALIDATION.md, LIMITATIONS.md, ARCHITECTURE.md, DEVELOPMENT.md, assets/
@@ -70,6 +70,12 @@ claude plugin validate . --strict
 $env:SOLID_EDGE_MCP_PACKAGE = "$PWD\artifacts\solid-edge-mcp-<version>-win-x64.zip"
 claude --plugin-dir .\plugin
 ```
+
+When the server is not installed, `start.cmd` hands over to `bridge.ps1`. It waits up to 10 seconds
+for the install and, if it lasts longer, answers the client as a server with no tools (the
+`server/discover` probe gets "method not found", so the client falls back to `initialize`) until it
+can start the server, repeat the client's `initialize` to it and send
+`notifications/tools/list_changed`; from then on it passes the messages both ways.
 
 ### Adding or changing a tool
 
