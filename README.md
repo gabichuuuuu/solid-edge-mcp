@@ -10,6 +10,7 @@ Claude Desktop, Codex or any other MCP client.**
 
 [![Core](https://github.com/gabichuuuuu/solid-edge-mcp/actions/workflows/core.yml/badge.svg)](https://github.com/gabichuuuuu/solid-edge-mcp/actions/workflows/core.yml)
 ![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-2F6FEB)
+![Status: stable](https://img.shields.io/badge/status-stable-2EA043)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
@@ -35,10 +36,11 @@ does not depend on specific files, a specific machine or a specific workflow.
 - **Tested on real Solid Edge.** 136 acceptance scripts compare the results with values computed in advance.
 
 > [!NOTE]
-> Current version (1.0.0), tested with Solid Edge **2026 Foundation** and, until 2026-10-16, **Community Edition 2026** on
-> Windows 11 x64. Tool names and parameters are stable: a change that breaks them waits for a new major version and is
-> listed in the changelog. Not every Solid Edge function can be used through its API: [docs/COVERAGE.md](docs/COVERAGE.md)
-> lists each one with its route, or the reason and the alternative.
+> Stable version (1.0.0), tested with Solid Edge **2026 Foundation** and **Community Edition 2026** on Windows 11 x64
+> ([validation](docs/VALIDATION.md)). Versions follow [Semantic Versioning](https://semver.org): tool names and parameters
+> are stable, and a change that breaks them waits for a new major version and is listed in the changelog. Not every Solid
+> Edge function can be used through its API: [docs/COVERAGE.md](docs/COVERAGE.md) lists each one with its route, or the
+> reason and the alternative.
 
 ## What you can ask for
 
@@ -71,7 +73,7 @@ The Solid Edge interop derives from Siemens files, so it is not distributed: the
 from your installation on its first start, in a few seconds, and keeps it in
 `%LocalAppData%\SolidEdgeMcp\interop\<Solid Edge version>`. Install the server in one of three ways.
 
-**As a Claude Code plugin** (from 1.0.0):
+**As a Claude Code plugin:**
 
 ```text
 /plugin marketplace add gabichuuuuu/solid-edge-mcp
@@ -89,7 +91,7 @@ checks it against the SHA-256 published with it and installs it in
 `%LocalAppData%\SolidEdgeMcp\server\<version>`; it then starts the server from there. Its tools are named `mcp__plugin_solid-edge-mcp_solid-edge__se_*`. Then write
 your policy (below).
 
-**From the release package** (from 1.0.0), for any MCP client: download `solid-edge-mcp-<version>-win-x64.zip` and
+**From the release package**, for any MCP client: download `solid-edge-mcp-<version>-win-x64.zip` and
 its `.sha256` from the [releases](https://github.com/gabichuuuuu/solid-edge-mcp/releases), check the
 hash and extract it to a folder of your own (`%LocalAppData%\SolidEdgeMcp\server` belongs to the
 plugin). The package is self-contained: it does not need .NET.
@@ -293,9 +295,10 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Project status
 
-Maintained by a single author. The current version is complete and stable for the base program and for the
-programs installed with Solid Edge as far as their automation allows. It installs without compiling, from the release
-package or as a Claude Code plugin. Change history in [CHANGELOG.md](CHANGELOG.md).
+Stable. The current version (1.0.0) is complete for the base program and for the programs installed with Solid Edge as far as their
+automation allows, and it installs without compiling, from the release package or as a Claude Code plugin. Maintained by
+a single author: fixes go to `main` and to the next release, and versions follow Semantic Versioning. Change history in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

@@ -10,7 +10,14 @@ Relevant changes to this project are recorded here. The format follows
 
 - `se_view capture` failed with `E_FAIL` when a packaged client (Claude Desktop) started the server: `%LocalAppData%` is
   redirected for the server but not for Solid Edge, so the images Solid Edge wrote to the work folder were not where the
-  server read them, and the colour sample BMP was not written at all. Captures now go to the resolved work folder.
+  server read them, and the colour sample BMP was not written at all. Captures now go to the resolved work folder
+  (#2, thanks @AReq401).
+
+### Documentation
+
+- The README, the security policy and the project status present 1.0.0 as the stable version. The GitHub releases of
+  the development versions 0.6.0 to 0.9.0 were removed; their tags and their sections below remain, without the
+  progress figures they carried.
 
 ## [1.0.0] - 2026-11-01
 
@@ -210,7 +217,7 @@ revise, release) on the files of a set with every document that uses them update
 broken links and duplicates. Closed files also give their properties and thumbnails; `se_export` writes batches of
 saved files and folders as Translation Services does, in more formats; and `se_server_info` reports the installation.
 Every program of the Start menu is named in the coverage map, with the reason and an alternative for those that only
-work through their own windows or need a server: 364 of the 501 functions work through the 86 tools (72 %). The
+work through their own windows or need a server: 364 of the 501 functions work through the 86 tools. The
 acceptance scripts A74, A131 and A132 pass, and an end-to-end session from a request in plain language used Design
 Manager, the batches and the thumbnails on the files it had modelled.
 
@@ -264,7 +271,7 @@ Manager, the batches and the thumbnails on the files it had modelled.
 
 The base program complete. Every command on the ribbons of the part, sheet metal, assembly and drawing environments of
 Solid Edge (731 commands) is named in the coverage map, and those the API allows are available: 351 of the 481
-functions work through the 85 tools (72 %; the map grew from 343 functions in 0.7.0 as every ribbon command was
+functions work through the 85 tools (the map grew from 343 functions in 0.7.0 as every ribbon command was
 added). Each of the other 130 is documented with the reason and an alternative when there is one: 63 have no route
 through the API of Solid Edge 2026, 10 leave it unstable and are refused by the generic layer, 13 need another edition
 or installation, 35 are interactive commands and 9 belong to separate programs. The acceptance scripts added since 0.7.0
@@ -496,7 +503,7 @@ or installation, 35 are interactive commands and 9 belong to separate programs. 
 
 The base program at its maximum. The functions of the coverage map that failed through the API were tried again by
 other routes (typed calls, other argument values and constants, collections, the selection), and new actions cover
-more of Solid Edge: 274 of the 343 functions work through the 81 tools (79 %, from 261 of 339 in 0.6.0). Each of the
+more of Solid Edge: 274 of the 343 functions work through the 81 tools (from 261 of 339 in 0.6.0). Each of the
 other 69 is documented with the reason and an alternative when there is one: 40 have no route through the API of
 Solid Edge 2026, 9 leave it unstable and are refused by the generic layer, and 20 need another edition or
 installation, an interactive command or a separate program. The acceptance scripts added since the last full run
@@ -542,7 +549,7 @@ installation, an interactive command or a separate program. The acceptance scrip
 First release of solid-edge-mcp, an MCP server through which Claude or another MCP client works in Solid Edge 2026 for
 the designer, who stays in control: it models, assembles, details, measures and exports on request, checks every change
 by its measured result and only reads and writes files in the allowed folders. 81 tools; 261 of the 339 Solid Edge
-functions of the coverage map work through them (76 %), and each of the other 78 is documented with the reason it does
+functions of the coverage map work through them, and each of the other 78 is documented with the reason it does
 not and an alternative when there is one. This release replaces the development releases published before (0.2.0 to
 1.5.0), which were withdrawn: 1.0.0 was kept for the complete version. Source only: the
 interop is generated from your own Solid Edge installation, so no binaries are published.
