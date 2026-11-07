@@ -6,6 +6,11 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-11-07
+
+The first version under the PolyForm Noncommercial License 1.0.0, with a separate commercial license. The server
+itself does not change; no tool or parameter changes.
+
 ### Changed
 
 - License: the project is now under the PolyForm Noncommercial License 1.0.0, with a separate commercial license,
@@ -21,6 +26,8 @@ Relevant changes to this project are recorded here. The format follows
 - Plainer wording in the README, the plugin marketplace and the coverage tables: the README and the 1.0.0 notes no
   longer call the version complete (it covers what the Solid Edge automation allows, see the limitations), and the
   coverage tables write None where a function has no route.
+- An Acknowledgements section in the README credits the first outside contribution, by
+  [@AReq401](https://github.com/AReq401), whose pull request does not carry over to the new repository.
 
 ## [1.0.2] - 2026-11-05
 
@@ -47,7 +54,7 @@ changes.
 - `se_view capture` failed with `E_FAIL` when a packaged client (Claude Desktop) started the server: `%LocalAppData%` is
   redirected for the server but not for Solid Edge, so the images Solid Edge wrote to the work folder were not where the
   server read them, and the colour sample BMP was not written at all. Captures now go to the resolved work folder
-  (#2, thanks @AReq401).
+  (pull request #2 by [@AReq401](https://github.com/AReq401), in the earlier repository; thanks).
 - The same redirection broke every other file the server and Solid Edge pass to each other, and captures too where the
   work folder already existed outside the package (for example after using the server from Claude Code): what the server
   creates in the work folder lands in the package's folder, while Solid Edge uses the real one. The server now finds,
