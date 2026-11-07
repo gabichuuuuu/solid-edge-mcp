@@ -1,0 +1,47 @@
+# A130: a hole table without chosen holes lists each hole once, by its narrowest circle: a counterbore (11 over 6.6), a countersink (13 over 6.6) and a tapered hole (a cut of 10 with a 10 degree draft, 6.47 at the top) each give one row, as a plain hole of 6 does (before, the counterbore gave two rows and the tapered hole none). A view out of date with its model lists every circle it shows and says so. Plate 120 x 60 x 10 = 72000 mm3 - counterbore pi (5.5^2 x 6.5 + 3.3^2 x 3.5) = 737.457 - countersink 482.595 - pi 3^2 x 10 = 282.743 - frustum pi 10/3 (5^2 + 5 r + r^2), r = 5 - 10 tan 10 = 3.23673, 540.983 = 69956.221 mm3.
+se_session {"action":"connect"}
+@docs0 = se_documents {"action":"list"}
+?= docs0.count 0 0
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,120,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":10}
+@tf = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+se_hole {"plane":"{{tf.items[0].handle}}","centers":[20,30,10],"type":"counterbore","diameter":6.6,"counterboreDiameter":11,"counterboreDepth":6.5}
+@tf2 = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+se_hole {"plane":"{{tf2.items[0].handle}}","centers":[50,30,10],"type":"countersink","diameter":6.6,"countersinkDiameter":13}
+@tf3 = se_geometry {"action":"faces","type":"plane","direction":[0,0,1]}
+se_hole {"plane":"{{tf3.items[0].handle}}","centers":[80,30,10],"diameter":6}
+@k2 = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"circle","sketch":"{{k2.sketch}}","center":[105,30],"radius":5}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@cut = se_extrude {"sketch":"{{k2.sketch}}","operation":"cut","distance":10,"draft":10,"draftSide":"inside"}
+?= cut.volume 69956.221 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a130_plate.par","overwrite":true}
+@g = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","model":"{{p.handle}}","orientation":"top","scale":1,"position":[150,150]}
+@ht = se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[0,0,10],"position":[260,260]}
+?= ht.count 4
+?~ ht.note 3 circle(s)
+?~ ht.rows[0].[3] 6.6 mm
+?~ ht.rows[1].[3] 6.6 mm
+?~ ht.rows[2].[3] 6 mm
+?~ ht.rows[3].[3] 6.47 mm
+# A hole added to the open part: the view is out of date until it is updated
+se_documents {"action":"activate","document":"{{p.handle}}"}
+se_hole {"plane":"xy","centers":[100,50,0],"diameter":4}
+se_documents {"action":"activate","document":"{{g.handle}}"}
+@vs = se_drawing {"action":"views","document":"{{g.handle}}"}
+?= vs.views[0].upToDate false
+@ht2 = se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[0,0,10],"position":[260,120]}
+?= ht2.count 7
+?~ ht2.note out of date
+se_drawing {"action":"update","document":"{{g.handle}}"}
+@ht3 = se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[0,0,10],"position":[20,120]}
+?= ht3.count 5
+?~ ht3.rows[4].[3] 4 mm
+se_documents {"action":"close","document":"{{g.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@docs1 = se_documents {"action":"list"}
+?= docs1.count 0 0

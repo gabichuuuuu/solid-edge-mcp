@@ -1,0 +1,189 @@
+# A33: more kinds of assembly relations (se_relations): center plane (two faces and one), connect (a point onto a face, onto another point, the middle of an edge), coordinate systems, gears with the axial rotation unlocked (40:20, flip) and a rack, refused cases, and the cam and path methods refused by the COM layer.
+# A: box 100 x 40 x 20 (x -50..50, y -20..20, z 0..20) with a coordinate system at its corner (50,20,20) turned 90 degrees about Z
+@pa = se_documents {"action":"new","kind":"part"}
+@ba = se_primitive {"shape":"box","center":[0,0,0],"size":[100,40],"depth":20}
+?= ba.volume 80000
+@csa = se_ref_plane {"action":"coordinate_system","origin":[50,20,20],"angles":[0,0,90]}
+se_documents {"action":"save_as","path":"{{work}}\\a33_a.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# B: box 20 x 20 x 10 (x -10..10, y -10..10, z 0..10) with a coordinate system at its corner (10,10,0)
+@pb = se_documents {"action":"new","kind":"part"}
+@bb = se_primitive {"shape":"box","center":[0,0,0],"size":[20,20],"depth":10}
+?= bb.volume 4000
+@csb = se_ref_plane {"action":"coordinate_system","origin":[10,10,0],"angles":[0,0,0]}
+se_documents {"action":"save_as","path":"{{work}}\\a33_b.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@as = se_documents {"action":"new","kind":"assembly"}
+@oa = se_assembly {"action":"insert","path":"{{work}}\\a33_a.par"}
+@ob = se_assembly {"action":"insert","path":"{{work}}\\a33_b.par","origin":[30,50,5],"ground":false}
+@fa1 = se_geometry {"action":"faces","source":"{{oa.handle}}","direction":[1,0,0]}
+@fa2 = se_geometry {"action":"faces","source":"{{oa.handle}}","direction":[-1,0,0]}
+@ta = se_geometry {"action":"faces","source":"{{oa.handle}}","direction":[0,0,1]}
+@fb1 = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[1,0,0]}
+@fb2 = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[-1,0,0]}
+@tb = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[0,0,1]}
+# Center plane, two faces: B's X faces centred between A's (x = -50 and 50): B spans x -10..10 and keeps y 40..60, z 5..15
+@c1 = se_relations {"action":"add","type":"center_plane","centered":["{{fb1.items[0].handle}}","{{fb2.items[0].handle}}"],"between":["{{fa1.items[0].handle}}","{{fa2.items[0].handle}}"]}
+?= c1.relations[0].type center_plane
+?= c1.relations[0].status solved
+@s1 = se_geometry {"action":"summary","source":"{{ob.handle}}"}
+?= s1.boundingBox.min[0] -10
+?= s1.boundingBox.max[0] 10
+?= s1.boundingBox.min[1] 40
+?= s1.boundingBox.min[2] 5
+@l1 = se_relations {"action":"list","occurrence":"{{ob.handle}}"}
+?= l1.count 1
+?~ l1.relations[0].occurrences[0] a33_b.par
+?~ l1.relations[0].occurrences[1] a33_a.par
+se_relations {"action":"delete","relation":"{{c1.relations[0].handle}}"}
+# One face: B's +X face centred (x = 0), so B spans x -20..0
+@c2 = se_relations {"action":"add","type":"center_plane","centered":["{{fb1.items[0].handle}}"],"between":["{{fa1.items[0].handle}}","{{fa2.items[0].handle}}"]}
+@s2 = se_geometry {"action":"summary","source":"{{ob.handle}}"}
+?= s2.boundingBox.min[0] -20
+?= s2.boundingBox.max[0] 0
+se_relations {"action":"delete","relation":"{{c2.relations[0].handle}}"}
+# Refused before touching the assembly: a centred face not parallel to the others, a 'between' face of the moving part, one 'between' face
+! [invalid_argument] se_relations {"action":"add","type":"center_plane","centered":["{{tb.items[0].handle}}"],"between":["{{fa1.items[0].handle}}","{{fa2.items[0].handle}}"]}
+! [invalid_argument] se_relations {"action":"add","type":"center_plane","centered":["{{fb1.items[0].handle}}"],"between":["{{fb2.items[0].handle}}","{{fa1.items[0].handle}}"]}
+! [invalid_argument] se_relations {"action":"add","type":"center_plane","centered":["{{fb1.items[0].handle}}"],"between":["{{fa1.items[0].handle}}"]}
+@s3 = se_geometry {"action":"summary","source":"{{ob.handle}}"}
+?= s3.boundingBox.min[0] -20
+# Connect: the start of a B edge along X onto A's top face (z = 20)
+@eb = se_geometry {"action":"edges","source":"{{ob.handle}}","type":"line","direction":[1,0,0]}
+@k1 = se_relations {"action":"add","type":"connect","element1":"{{eb.items[0].handle}}","point1":"start","element2":"{{ta.items[0].handle}}"}
+?= k1.relations[0].type connect
+?= k1.relations[0].status solved
+@e1 = se_geometry {"action":"edges","source":"{{ob.handle}}","type":"line","direction":[1,0,0]}
+?= e1.items[0].start[2] 20
+se_relations {"action":"delete","relation":"{{k1.relations[0].handle}}"}
+# The same start onto the end of an A edge along Y: the two points meet
+@ea = se_geometry {"action":"edges","source":"{{oa.handle}}","type":"line","direction":[0,1,0]}
+@k2 = se_relations {"action":"add","type":"connect","element1":"{{eb.items[0].handle}}","point1":"start","element2":"{{ea.items[0].handle}}","point2":"end"}
+@e2 = se_geometry {"action":"edges","source":"{{ob.handle}}","type":"line","direction":[1,0,0]}
+?= e2.items[0].start[0] {{ea.items[0].end[0]}}
+?= e2.items[0].start[1] {{ea.items[0].end[1]}}
+?= e2.items[0].start[2] {{ea.items[0].end[2]}}
+se_relations {"action":"delete","relation":"{{k2.relations[0].handle}}"}
+# The middle of that edge (20 long, along X) onto A's -X face (x = -50): B spans x -60..-40
+@k3 = se_relations {"action":"add","type":"connect","element1":"{{eb.items[0].handle}}","point1":"mid","element2":"{{fa2.items[0].handle}}"}
+@s4 = se_geometry {"action":"summary","source":"{{ob.handle}}"}
+?= s4.boundingBox.min[0] -60
+?= s4.boundingBox.max[0] -40
+se_relations {"action":"delete","relation":"{{k3.relations[0].handle}}"}
+# Refused: the centre of a straight edge; no 'point1'
+! [invalid_argument] se_relations {"action":"add","type":"connect","element1":"{{eb.items[0].handle}}","point1":"center","element2":"{{ta.items[0].handle}}"}
+! [invalid_argument] se_relations {"action":"add","type":"connect","element1":"{{eb.items[0].handle}}","element2":"{{ta.items[0].handle}}"}
+# Coordinate systems: B's corner system onto A's. A's system has its origin at (50,20,20) and X along +Y, so B turns 90 degrees
+# about Z and its point (10,10,0), turned to (-10,10,0), lands on (50,20,20): B's origin is (60,10,20)
+@cs = se_relations {"action":"add","type":"coordinate_system","occurrence1":"{{ob.handle}}","element1":"{{csb.name}}","occurrence2":"{{oa.handle}}","element2":"{{csa.name}}"}
+?= cs.relations[0].type coordinate_system
+?= cs.occurrence.origin[0] 60
+?= cs.occurrence.origin[1] 10
+?= cs.occurrence.origin[2] 20
+?= cs.occurrence.angles[2] 90
+?= cs.occurrence.status fully_constrained
+# The same system of B onto a coordinate system of the assembly at (0,0,50): B goes back to no turn, its origin to (-10,-10,50)
+se_relations {"action":"delete","relation":"{{cs.relations[0].handle}}"}
+@acs = se_ref_plane {"action":"coordinate_system","origin":[0,0,50],"angles":[0,0,0]}
+@cs2 = se_relations {"action":"add","type":"coordinate_system","occurrence1":"{{ob.handle}}","element1":"{{csb.name}}","element2":"{{acs.name}}"}
+?= cs2.relations[0].status solved
+?= cs2.occurrence.origin[0] -10
+?= cs2.occurrence.origin[1] -10
+?= cs2.occurrence.origin[2] 50
+?= cs2.occurrence.angles[2] 0
+! [not_found] se_relations {"action":"add","type":"coordinate_system","occurrence1":"{{ob.handle}}","element1":"No such system","occurrence2":"{{oa.handle}}","element2":"{{csa.name}}"}
+! [invalid_argument] se_relations {"action":"add","type":"planar","element1":"{{fb1.items[0].handle}}","element2":"{{fa1.items[0].handle}}","lockRotation":false}
+se_documents {"action":"close","document":"{{as.handle}}","saveChanges":false}
+# Gears: a base 200 x 100 x 10 with holes 10 at (-40,0) and (40,0): 200000 - 2 x pi x 5^2 x 10 = 198429.204
+@p1 = se_documents {"action":"new","kind":"part"}
+@b1 = se_primitive {"shape":"box","center":[0,0,0],"size":[200,100],"depth":10}
+@h1 = se_hole {"plane":"1","centers":[-40,0,0, 40,0,0],"diameter":10}
+?= h1.volume 198429.204 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a33_base.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# Bars 60 x 20 x 10 and 30 x 20 x 10 with a hole 10 in the middle: 12000 - 785.398 and 6000 - 785.398
+@p2 = se_documents {"action":"new","kind":"part"}
+@b2 = se_primitive {"shape":"box","center":[0,0,0],"size":[60,20],"depth":10}
+@h2 = se_hole {"plane":"1","centers":[0,0,0],"diameter":10}
+?= h2.volume 11214.602 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a33_g1.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@p3 = se_documents {"action":"new","kind":"part"}
+@b3 = se_primitive {"shape":"box","center":[0,0,0],"size":[30,20],"depth":10}
+@h3 = se_hole {"plane":"1","centers":[0,0,0],"diameter":10}
+?= h3.volume 5214.602 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a33_g2.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# A rack 120 x 10 x 10
+@p4 = se_documents {"action":"new","kind":"part"}
+@b4 = se_primitive {"shape":"box","center":[0,0,0],"size":[120,10],"depth":10}
+?= b4.volume 12000
+se_documents {"action":"save_as","path":"{{work}}\\a33_rack.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@as2 = se_documents {"action":"new","kind":"assembly"}
+@ob2 = se_assembly {"action":"insert","path":"{{work}}\\a33_base.par"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a33_g1.par","origin":[-40,0,30],"ground":false}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\a33_g2.par","origin":[40,0,30],"ground":false}
+@cb = se_geometry {"action":"faces","source":"{{ob2.handle}}","type":"cylinder"}
+?= cb.items[0].axisPoint[0] -40
+@tb2 = se_geometry {"action":"faces","source":"{{ob2.handle}}","direction":[0,0,1]}
+@yb = se_geometry {"action":"faces","source":"{{ob2.handle}}","direction":[0,1,0]}
+@c1f = se_geometry {"action":"faces","source":"{{o1.handle}}","type":"cylinder"}
+@d1 = se_geometry {"action":"faces","source":"{{o1.handle}}","direction":[0,0,-1]}
+@y1 = se_geometry {"action":"faces","source":"{{o1.handle}}","direction":[0,1,0]}
+@c2f = se_geometry {"action":"faces","source":"{{o2.handle}}","type":"cylinder"}
+@d2 = se_geometry {"action":"faces","source":"{{o2.handle}}","direction":[0,0,-1]}
+# Each bar on the base and on its hole, free to turn (an axial relation locks the rotation unless lockRotation is false)
+se_relations {"action":"add","type":"planar","element1":"{{d1.items[0].handle}}","element2":"{{tb2.items[0].handle}}"}
+@x1 = se_relations {"action":"add","type":"axial","element1":"{{c1f.items[0].handle}}","element2":"{{cb.items[0].handle}}","lockRotation":false}
+?= x1.relations[0].rotationLocked false
+?= x1.occurrence.status under_constrained
+se_relations {"action":"add","type":"planar","element1":"{{d2.items[0].handle}}","element2":"{{tb2.items[0].handle}}"}
+@x2 = se_relations {"action":"add","type":"axial","element1":"{{c2f.items[0].handle}}","element2":"{{cb.items[1].handle}}","lockRotation":false}
+@gr = se_relations {"action":"add","type":"gear","element1":"{{c1f.items[0].handle}}","element2":"{{c2f.items[0].handle}}","ratio":[40,20]}
+?= gr.relations[0].type gear
+?= gr.relations[0].status solved
+?= gr.relations[0].ratio[0] 40
+?= gr.relations[0].ratio[1] 20
+# Driven by an angle relation on g1 (its +Y face to the base's +Y face, measured in the XY plane): g1 at 30 degrees turns g2 60 degrees the same way
+@an = se_relations {"action":"add","type":"angle","element1":"{{y1.items[0].handle}}","element2":"{{yb.items[0].handle}}","angle":0,"plane":"1"}
+se_com_set {"target":"{{an.relations[0].handle}}","member":"Angle","value":0.5235987755982988}
+@l2 = se_assembly {"action":"list"}
+?= l2.occurrences[1].angles[2] 30
+?= l2.occurrences[2].angles[2] 60
+# Flip: the gear again, turning the other way; g1 from 30 to 60 degrees turns g2 back from 60 to 0
+se_relations {"action":"delete","relation":"{{gr.relations[0].handle}}"}
+@gf = se_relations {"action":"add","type":"gear","element1":"{{c1f.items[0].handle}}","element2":"{{c2f.items[0].handle}}","ratio":[40,20],"flip":true}
+se_com_set {"target":"{{an.relations[0].handle}}","member":"Angle","value":1.0471975511965976}
+@l3 = se_assembly {"action":"list"}
+?= l3.occurrences[1].angles[2] 60
+?= l3.occurrences[2].angles[2] 0
+# Rack and pinion: the rack on the base, its -Y face 25 mm inside the base's +Y face (y 25..35), moving 100 mm per turn of g1
+@orr = se_assembly {"action":"insert","path":"{{work}}\\a33_rack.par","origin":[0,30,40],"ground":false}
+@dr = se_geometry {"action":"faces","source":"{{orr.handle}}","direction":[0,0,-1]}
+@ry = se_geometry {"action":"faces","source":"{{orr.handle}}","direction":[0,-1,0]}
+@re = se_geometry {"action":"edges","source":"{{orr.handle}}","type":"line","direction":[1,0,0]}
+se_relations {"action":"add","type":"planar","element1":"{{dr.items[0].handle}}","element2":"{{tb2.items[0].handle}}"}
+@rr = se_relations {"action":"add","type":"planar","element1":"{{ry.items[0].handle}}","element2":"{{yb.items[0].handle}}","offset":-25}
+?= rr.occurrence.origin[1] 30
+@rp = se_relations {"action":"add","type":"gear","element1":"{{c1f.items[0].handle}}","element2":"{{re.items[0].handle}}","ratio":[1,100],"ratioBy":"turns"}
+?= rp.relations[0].ratio[1] 100
+?= rp.relations[0].rack true
+# g1 from 60 to 0 degrees moves the rack -16.667 mm (60/360 x 100), then to 90 degrees +25 mm more
+se_com_set {"target":"{{an.relations[0].handle}}","member":"Angle","value":0}
+@l4 = se_assembly {"action":"list"}
+?= l4.occurrences[3].origin[0] -16.667 0.01
+se_com_set {"target":"{{an.relations[0].handle}}","member":"Angle","value":1.5707963267948966}
+@l5 = se_assembly {"action":"list"}
+?= l5.occurrences[3].origin[0] 8.333 0.01
+# Refused: a ratio of 0, a planar face as the driving element, a rack counted in teeth
+! [invalid_argument] se_relations {"action":"add","type":"gear","element1":"{{c1f.items[0].handle}}","element2":"{{c2f.items[0].handle}}","ratio":[40,0]}
+! [invalid_argument] se_relations {"action":"add","type":"gear","element1":"{{d1.items[0].handle}}","element2":"{{c2f.items[0].handle}}","ratio":[40,20]}
+! [invalid_argument] se_relations {"action":"add","type":"gear","element1":"{{c1f.items[0].handle}}","element2":"{{re.items[0].handle}}","ratio":[1,100]}
+# Cam and path relations leave Solid Edge 2026 unstable (RPC_E_SERVERFAULT): the COM layer refuses them
+@rel = se_com_get {"target":"active_document","member":"Relations3d"}
+! [unsafe_member] se_com_invoke {"target":"{{rel.value.handle}}","method":"AddPath","arguments":[{"handle":"{{re.items[0].handle}}"},{"type":"object[]","value":[{"handle":"{{re.items[1].handle}}"}]}]}
+! [unsafe_member] se_com_invoke {"target":"{{rel.value.handle}}","method":"AddPlanarCam","arguments":[{"handle":"{{c2f.items[0].handle}}"},{"type":"object[]","value":[{"handle":"{{c1f.items[0].handle}}"}]}]}
+@ll = se_relations {"action":"list"}
+?= ll.relations[?type="gear"].ratio[0] 40
+se_documents {"action":"close","document":"{{as2.handle}}","saveChanges":false}

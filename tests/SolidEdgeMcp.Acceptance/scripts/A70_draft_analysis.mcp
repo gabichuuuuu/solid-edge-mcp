@@ -1,0 +1,35 @@
+# A70: draft analysis (se_geometry draft), from the face normals along a pull direction. A 100 x 60 block 20 high extruded with
+# a 5° draft inwards (narrower on top) and a vertical hole Ø10, pulled along +z: the four sides lean 5° towards the pull, the top
+# 90° and the bottom -90°, the hole wall 0° (insufficient). Along -z every sign turns. A horizontal cylinder r10 pulled along +z
+# goes from -90° to 90° (mixed) and its flat ends are walls (insufficient).
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20,"draft":5}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{top.items[0].handle}}","centers":[50,30,20],"diameter":10}
+! [invalid_argument] se_geometry {"action":"draft"}
+@a = se_geometry {"action":"draft","direction":[0,0,1]}
+?= a.count 7
+?= a.counts.positive 5
+?= a.counts.negative 1
+?= a.counts.insufficient 1
+?~ a.faces "draft":[5,5]
+?~ a.faces "draft":[90,90]
+?~ a.faces "draft":[0,0]
+@b = se_geometry {"action":"draft","direction":[0,0,-1],"minDraft":6}
+?= b.counts.positive 1
+?= b.counts.negative 1
+?= b.counts.insufficient 5
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@d2 = se_documents {"action":"new","kind":"part"}
+@k2 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"circle","sketch":"{{k2.sketch}}","center":[0,0],"radius":10}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+se_extrude {"sketch":"{{k2.sketch}}","distance":50}
+@c = se_geometry {"action":"draft","direction":[0,0,1]}
+?= c.counts.mixed 1
+?= c.counts.insufficient 2
+?~ c.faces "draft":[-90,90]
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}

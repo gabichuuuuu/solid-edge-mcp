@@ -1,0 +1,50 @@
+# A12: UI (se_ui). Main window, document windows, environments and ribbon. At the end the main window is left
+# in its initial state and the windows that remain maximized. Activating a tab was checked with a
+# screenshot of the window (Surfacing, which remained selected). The tab is View, which every ribbon shows: a
+# ribbon theme can hide others, such as Surfacing.
+@st0 = se_ui {"action":"status"}
+@sm = se_ui {"action":"state","state":"maximized"}
+?= sm.state maximized
+@env = se_ui {"action":"environments"}
+?~ env.environments SheetMetal
+?~ env.environments Detail
+@d1 = se_documents {"action":"new","kind":"part"}
+@d2 = se_documents {"action":"new","kind":"draft"}
+@w = se_ui {"action":"windows"}
+?= w.activeEnvironment Detail
+?= w.windows[?environment="Detail"].active true
+@a1 = se_ui {"action":"activate","window":"{{d1.handle}}"}
+?= a1.activated.document {{d1.handle}}
+?= a1.activated.active true
+?= a1.activeEnvironment Part
+@s1 = se_ui {"action":"status"}
+?= s1.activeDocument {{d1.handle}}
+@ar = se_ui {"action":"arrange","style":"vertical"}
+@ws = se_ui {"action":"state","window":"{{d1.handle}}","state":"maximized"}
+?= ws.state maximized
+# Part ribbon: tabs, groups and buttons with their command id
+@rb = se_ui {"action":"ribbon"}
+?= rb.environment Part
+?= rb.tabs[0].name Home
+?~ rb.tabs[0].groups Solids
+@rh = se_ui {"action":"ribbon","tab":"Home"}
+?~ rh.groups[?name="Solids"].controls Extrude
+@rs = se_ui {"action":"ribbon","environment":"SheetMetal"}
+?= rs.environment SheetMetal
+@t = se_ui {"action":"tab","tab":"View"}
+?= t.activated View
+se_ui {"action":"tab","tab":"0"}
+! [not_found] se_ui {"action":"tab","tab":"NoSuchTab"}
+! [not_found] se_ui {"action":"ribbon","environment":"NoSuchEnvironment"}
+! [not_found] se_ui {"action":"activate","window":"99"}
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}
+# Maximized before closing: the windows of other open documents follow it (MDI), and none may remain.
+se_ui {"action":"state","window":"{{d1.handle}}","state":"maximized"}
+se_documents {"action":"close","document":"{{d1.handle}}","saveChanges":false}
+@sr = se_ui {"action":"state","state":"{{st0.state}}"}
+?= sr.state {{st0.state}}
+# Buttons found by the text this Solid Edge shows (read from the live ribbon of the active theme): where they are and their id.
+@fh = se_ui {"action":"find","query":"hole","environment":"Part"}
+?~ fh.controls[0].name ole
+@fz = se_ui {"action":"find","query":"Xyzzy","environment":"Part"}
+?= fz.count 0

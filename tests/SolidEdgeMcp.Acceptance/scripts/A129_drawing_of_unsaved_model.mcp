@@ -1,0 +1,45 @@
+# A129: a drawing view of an open model with unsaved changes shows them and leaves the model marked as changed, so closing it with saveChanges writes them (before, making the view cleared the mark and the file kept the old part); also when the view fails, and the note that the view does not fit the sheet is kept. A disc 80 x 6 (30159.289 mm3) is saved, then given a bar 120 x 20 x 6: (pi x 40^2 + 120 x 20 - 2 x (10 sqrt(1500) + 1600 asin(0.25))) x 6 = 35060.249 mm3, and the top view is 120 + 12.7 wide.
+se_session {"action":"connect"}
+@docs0 = se_documents {"action":"list"}
+?= docs0.count 0 0
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[0,0],"radius":40}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@e1 = se_extrude {"sketch":"{{k.sketch}}","distance":6}
+?= e1.volume 30159.289 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a129_disc.par","overwrite":true}
+@k2 = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[-60,-10,60,10]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@e2 = se_extrude {"sketch":"{{k2.sketch}}","distance":6}
+@i1 = se_documents {"action":"info","document":"{{p.handle}}"}
+?= i1.dirty true
+@g = se_documents {"action":"new","kind":"draft"}
+! [not_found] se_drawing {"action":"base_view","model":"{{p.handle}}","modelView":"No such view","scale":1,"position":[150,150]}
+@i0 = se_documents {"action":"info","document":"{{p.handle}}"}
+?= i0.dirty true
+@bv = se_drawing {"action":"base_view","model":"{{p.handle}}","orientation":"top","scale":1,"position":[150,150]}
+?= bv.view.size[0] 132.7 0.01
+?~ bv.note does not have them
+@i2 = se_documents {"action":"info","document":"{{p.handle}}"}
+?= i2.dirty true
+# A view made from the path of the open model is the same case
+@bv2 = se_drawing {"action":"base_view","path":"{{work}}\\a129_disc.par","orientation":"front","scale":1,"position":[150,60]}
+?~ bv2.note does not have them
+@bv3 = se_drawing {"action":"base_view","path":"{{work}}\\a129_disc.par","orientation":"top","scale":5,"position":[150,150]}
+?~ bv3.note does not have them
+?~ bv3.note does not fit
+@up = se_drawing {"action":"update","document":"{{g.handle}}"}
+@i3 = se_documents {"action":"info","document":"{{p.handle}}"}
+?= i3.dirty true
+se_documents {"action":"close","document":"{{g.handle}}","saveChanges":false}
+@c = se_documents {"action":"close","document":"{{p.handle}}","saveChanges":true}
+?= c.saved true
+@o = se_documents {"action":"open","path":"{{work}}\\a129_disc.par"}
+@s = se_geometry {"action":"summary"}
+?= s.volume 35060.249 0.01
+?= s.boundingBox.size[0] 120
+se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
+@docs1 = se_documents {"action":"list"}
+?= docs1.count 0 0

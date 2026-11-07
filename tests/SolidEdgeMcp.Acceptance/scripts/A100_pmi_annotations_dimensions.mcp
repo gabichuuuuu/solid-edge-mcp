@@ -1,0 +1,136 @@
+# A100: PMI annotations and new PMI dimensions (se_pmi_annotation; se_pmi dimension): each annotation of the PMI tab
+#   attached to an edge of the model, drawn in a reference plane, and linear, diameter, radius and angle dimensions.
+# A block 100 x 60 x 20 with three holes of 8 mm at (30,20), (50,40) and (70,20): 120000 - 3 x 1005.31 mm3.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[30,20],"radius":4}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[50,40],"radius":4}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[70,20],"radius":4}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@v = se_physical {}
+?= v.volume 116984.071 0.01
+# 1) On a leader from the front edges, in the front plane ('3'): the leader ends at the position projected onto the plane,
+# 15 mm along the plane's x and y by default.
+@b = se_pmi_annotation {"action":"balloon","plane":"3","points":[50,0,20],"text":"7","position":[80,0,45]}
+?= b.annotation.text 7
+?= b.annotation.attached true
+?= b.annotation.at[0] 50
+?= b.annotation.position[0] 80
+?= b.annotation.position[2] 45
+@c = se_pmi_annotation {"action":"callout","plane":"3","points":[20,0,20],"text":"SEE NOTE"}
+?= c.annotation.callout true
+?~ c.annotation.text SEE NOTE
+?= c.annotation.position[0] 35
+?= c.annotation.position[2] 35
+@l = se_pmi_annotation {"action":"leader","plane":"3","points":[100,0,10],"position":[115,0,30]}
+?= l.annotation.attached true
+?= l.annotation.position[0] 115
+?= l.annotation.position[2] 30
+@d = se_pmi_annotation {"action":"datum","plane":"3","points":[0,0,10],"text":"A"}
+?= d.annotation.text A
+?= d.annotation.attached true
+# A datum's leader is drawn square to its edge, as long as asked (18.03 mm): straight up from the top edge.
+@dh = se_pmi_annotation {"action":"datum","plane":"3","points":[50,0,20],"text":"C","position":[60,0,35]}
+?= dh.annotation.position[0] 50
+?= dh.annotation.position[2] 38.027756 0.001
+@dt = se_pmi_annotation {"action":"datum_target","plane":"3","points":[70,0,0],"text":"A1","position":[75,0,-15]}
+?= dt.annotation.text A1
+?= dt.annotation.position[2] -15
+@dp = se_pmi_annotation {"action":"datum_point","plane":"3","points":[0,0,0]}
+?= dp.annotation.kind datum_point
+?= dp.annotation.at[2] 0
+@sf = se_pmi_annotation {"action":"surface_finish","plane":"3","points":[30,0,20],"text":"Ra 3.2","position":[35,0,35]}
+?~ sf.annotation.text Ra 3.2
+?= sf.annotation.finish machined
+@f = se_pmi_annotation {"action":"feature_control_frame","plane":"3","points":[60,0,20],"characteristic":"flatness","tolerance":"0.05","position":[60,0,40]}
+?= f.annotation.characteristic flatness
+?= f.annotation.text %FL%VB0.05
+@f2 = se_pmi_annotation {"action":"feature_control_frame","plane":"3","points":[100,0,18],"characteristic":"position","tolerance":"⌀0.1","datums":["A","B"],"rows":["⌀0.05|A"],"composite":true,"position":[125,0,10]}
+?= f2.annotation.text %PO%VB%DI0.1%VBA%VBB
+?= f2.annotation.rows[0] %DI0.05%VBA
+?= f2.annotation.composite true
+@w = se_pmi_annotation {"action":"weld","plane":"3","points":[90,0,0],"weld":"fillet","text":"a5","allAround":true}
+?= w.annotation.weld fillet
+?= w.annotation.side arrow
+?= w.annotation.text a5
+?= w.annotation.allAround true
+@g = se_pmi_annotation {"action":"gost_weld","plane":"3","points":[0,0,15],"text":"GOST 5264|T1","position":[-20,0,35]}
+?~ g.annotation.text GOST 5264|T1
+?= g.annotation.attached true
+@cr = se_pmi_annotation {"action":"corner","plane":"3","points":[40,0,0],"text":"+0.3|-0.1"}
+?= cr.annotation.text +0.3|-0.1
+?= cr.annotation.attached true
+# 2) In the top plane ('1'): a text, a centre mark, centre lines between two holes and between the long edges of the top,
+# and a bolt hole circle through the three holes (centre (50,20), radius 20).
+@t = se_pmi_annotation {"action":"text","plane":"1","text":"NOTE 1\nDEBURR","position":[0,70,20]}
+?~ t.annotation.text DEBURR
+?= t.annotation.at[1] 70
+@cm = se_pmi_annotation {"action":"center_mark","plane":"1","points":[34,20,20]}
+?= cm.annotation.at[0] 30
+?= cm.annotation.at[1] 20
+@cl = se_pmi_annotation {"action":"centerline","plane":"1","points":[34,20,20,74,20,20]}
+?= cl.annotation.at[0] 50
+?= cl.annotation.at[1] 20
+@cl2 = se_pmi_annotation {"action":"centerline","plane":"1","points":[50,0,20,50,60,20]}
+?= cl2.annotation.at[1] 30
+@bc = se_pmi_annotation {"action":"bolt_circle","plane":"1","points":[34,20,20,54,40,20,74,20,20]}
+?= bc.annotation.radius 20
+?= bc.annotation.at[0] 50
+?= bc.annotation.at[1] 20
+# The bolt hole circle adds a centre mark on each hole: 18 annotations and 3 marks.
+@ls = se_pmi_annotation {"action":"list"}
+?= ls.count 21
+@lm = se_pmi_annotation {"action":"list","kind":"center_mark"}
+?= lm.count 4
+# 3) Without 'plane', the locked PMI plane.
+se_pmi {"action":"plane","plane":"3"}
+@b2 = se_pmi_annotation {"action":"balloon","points":[10,0,20],"text":"8"}
+?= b2.annotation.plane active
+?= b2.annotation.position[0] 25
+se_pmi {"action":"plane"}
+# 4) Refused, leaving nothing: a point off the edges, no plane, a centre mark on a straight edge, two points on one edge,
+# a centre line from a straight edge to a circle, a leader of no length in the plane, and a bad label.
+! [not_found] se_pmi_annotation {"action":"balloon","plane":"3","points":[50,10,20],"text":"X"}
+! [invalid_argument] se_pmi_annotation {"action":"balloon","points":[50,0,20],"text":"X"}
+! [not_found] se_pmi_annotation {"action":"center_mark","plane":"1","points":[50,0,20]}
+! [invalid_argument] se_pmi_annotation {"action":"centerline","plane":"1","points":[40,0,20,60,0,20]}
+! [invalid_argument] se_pmi_annotation {"action":"centerline","plane":"1","points":[34,20,20,50,0,20]}
+! [invalid_argument] se_pmi_annotation {"action":"leader","plane":"3","points":[50,0,20],"position":[50,30,20]}
+! [invalid_argument] se_pmi_annotation {"action":"datum_target","plane":"3","points":[70,0,0],"text":"12"}
+se_pmi_annotation {"action":"delete","annotation":"{{b2.annotation.handle}}"}
+@ls2 = se_pmi_annotation {"action":"list"}
+?= ls2.count 21
+# 5) New PMI dimensions, checked against the geometry; distance stands the dimension line off along the plane's normal.
+@d1 = se_pmi {"action":"dimension","type":"linear","plane":"3","points":[0,0,20,100,0,20]}
+?= d1.dimension.value 100
+?= d1.dimension.type linear
+?= d1.dimension.status not_drivable
+?= d1.distance 0
+@d2 = se_pmi {"action":"dimension","type":"linear","plane":"3","points":[0,0,0,100,0,20],"distance":15}
+?= d2.dimension.value 101.980390 0.0001
+?= d2.distance 15
+@d3 = se_pmi {"action":"dimension","type":"linear","plane":"2","points":[0,0,10],"distance":-10}
+?= d3.dimension.value 20
+?= d3.distance -10
+@d4 = se_pmi {"action":"dimension","type":"diameter","plane":"1","points":[34,20,20]}
+?= d4.dimension.type diameter
+?= d4.dimension.value 8
+@d5 = se_pmi {"action":"dimension","type":"radius","plane":"1","points":[54,40,20]}
+?= d5.dimension.type radius
+?= d5.dimension.value 4
+@d6 = se_pmi {"action":"dimension","type":"angle","plane":"3","points":[50,0,20,0,0,10]}
+?= d6.dimension.type angle
+?= d6.dimension.value 270
+! [invalid_argument] se_pmi {"action":"dimension","type":"linear","plane":"3","points":[0,0,20,50,0,20]}
+! [invalid_argument] se_pmi {"action":"dimension","type":"angle","plane":"3","points":[50,0,20,50,0,0]}
+! [dimension_failed] se_pmi {"action":"dimension","type":"linear","plane":"3","points":[100,30,20]}
+! [invalid_argument] se_pmi {"action":"dimension","plane":"3","points":[0,0,20,100,0,20]}
+@pl = se_pmi {"action":"list"}
+?= pl.count 6
+@v2 = se_physical {}
+?= v2.volume 116984.071 0.01
+se_view {"action":"orient","orientation":"iso"}
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a100_pmi.png"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

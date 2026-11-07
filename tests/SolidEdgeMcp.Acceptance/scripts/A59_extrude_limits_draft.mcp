@@ -1,0 +1,62 @@
+# A59: extrusion limits and draft (se_extrude extent to / from_to, draft, draftSide).
+# Draft: a 40 x 40 square extruded 30 with 5° inside is a frustum 40 -> 40 - 2·30·tan 5° = 34.75: 10·(1600 + 1207.61 + 1390.03) =
+# 41976.37; outside it widens to 45.25 at the top (bounding box ±22.62). Symmetric 30 with 5° inside tapers both halves from the sketch
+# plane: 2·5·(1600 + 37.375² + 40·37.375) = 44919.30.
+@d1 = se_documents {"action":"new","kind":"part"}
+@k1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[-20,-20,20,20]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+! [invalid_argument] se_extrude {"sketch":"{{k1.sketch}}","distance":30,"draft":95}
+@e1 = se_extrude {"sketch":"{{k1.sketch}}","distance":30,"draft":5}
+?= e1.volume 41976.37 0.01
+se_documents {"action":"close","saveChanges":false}
+@d2 = se_documents {"action":"new","kind":"part"}
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[-20,-20,20,20]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@e2 = se_extrude {"sketch":"{{k2.sketch}}","distance":30,"draft":5,"draftSide":"outside"}
+?= e2.volume 54574.74 0.01
+@g2 = se_geometry {"action":"summary"}
+?= g2.boundingBox.max[0] 22.62 0.01
+@k2s = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2s.sketch}}","points":[100,-20,140,20]}
+se_sketch {"action":"close","sketch":"{{k2s.sketch}}"}
+@e2s = se_extrude {"sketch":"{{k2s.sketch}}","distance":30,"direction":"symmetric","draft":5}
+?= e2s.volumeChange 44919.30 0.01
+se_documents {"action":"close","saveChanges":false}
+# Limits: a 40 x 40 x 5 base (8000). A 20 x 20 square at x 10..30 extruded 'to' a plane at z 50 adds 20·20·50 less the 1000 it
+# shares with the base = 19000; a 20 x 20 square at x -30..-10 extruded from the plane at z 10 to the one at z 50 adds 16000; a
+# circle r5 at (0, 0) on the z 50 plane extruded to the top face of the base (z 5) adds a post π·25·45 = 3534.29; a circle r3 at
+# (20, 0) on the z 50 plane cut to the z 10 plane removes π·9·40 = 1130.97 from the block at x 10..30.
+@d3 = se_documents {"action":"new","kind":"part"}
+@k3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k3.sketch}}","points":[-20,-20,20,20]}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}"}
+@b3 = se_extrude {"sketch":"{{k3.sketch}}","distance":5}
+?= b3.volume 8000 0.001
+@p50 = se_ref_plane {"action":"offset","plane":"1","distance":50}
+@p10 = se_ref_plane {"action":"offset","plane":"1","distance":10}
+@k4 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k4.sketch}}","points":[10,-10,30,10]}
+se_sketch {"action":"close","sketch":"{{k4.sketch}}"}
+! [invalid_argument] se_extrude {"sketch":"{{k4.sketch}}","extent":"to"}
+@e4 = se_extrude {"sketch":"{{k4.sketch}}","extent":"to","to":"{{p50.handle}}"}
+?= e4.volumeChange 19000 0.001
+@k5 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k5.sketch}}","points":[-30,-10,-10,10]}
+se_sketch {"action":"close","sketch":"{{k5.sketch}}"}
+@e5 = se_extrude {"sketch":"{{k5.sketch}}","extent":"from_to","from":"{{p10.handle}}","to":"{{p50.handle}}"}
+?= e5.volumeChange 16000 0.001
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@k6 = se_sketch {"action":"create","plane":"{{p50.handle}}"}
+se_sketch {"action":"circle","sketch":"{{k6.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{k6.sketch}}"}
+?= top.items[1].area 1400 0.001
+@c6 = se_extrude {"sketch":"{{k6.sketch}}","extent":"to","to":"{{top.items[1].handle}}"}
+?= c6.volumeChange 3534.29 0.01
+@k7 = se_sketch {"action":"create","plane":"{{p50.handle}}"}
+se_sketch {"action":"circle","sketch":"{{k7.sketch}}","center":[20,0],"radius":3}
+se_sketch {"action":"close","sketch":"{{k7.sketch}}"}
+@c7 = se_extrude {"sketch":"{{k7.sketch}}","operation":"cut","extent":"to","to":"{{p10.handle}}"}
+?= c7.volumeChange -1130.97 0.01
+se_documents {"action":"close","saveChanges":false}

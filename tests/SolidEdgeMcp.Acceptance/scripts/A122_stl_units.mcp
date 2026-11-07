@@ -1,0 +1,36 @@
+# A122: STL files in mm. STL carries no unit and Solid Edge writes and reads it in the unit of its STL translator options
+#   (inches as installed, and without its options file SESTL.ini, which Foundation does not install: the unit then follows
+#   from the size of the file against the model): a block 100 x 60 x 20 came out 3.937 x 2.362 x 0.787. se_export scales the file to mm and reads
+#   its box back; se_documents import reads a file in mm, so the block comes back 100 x 60 x 20. Two blocks stacked in an
+#   assembly: an STL 100 x 60 x 40.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":20}
+?= e.volume 120000 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a122_blk.par","overwrite":true}
+@s = se_export {"path":"{{work}}\\a122_blk.stl","overwrite":true}
+?= s.format STL
+?= s.stl.units mm
+?= s.stl.triangles 12
+?= s.stl.boundingBox.size[0] 100 0.001
+?= s.stl.boundingBox.size[1] 60 0.001
+?= s.stl.boundingBox.size[2] 20 0.001
+?= s.stl.boundingBox.max[0] 100 0.001
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@i = se_documents {"action":"import","path":"{{work}}\\a122_blk.stl"}
+?~ i.note read in mm
+@g = se_geometry {"action":"summary"}
+?= g.boundingBox.size[0] 100 0.01
+?= g.boundingBox.size[1] 60 0.01
+?= g.boundingBox.size[2] 20 0.01
+se_documents {"action":"close","document":"{{i.document.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a122_blk.par","origin":[0,0,0]}
+se_assembly {"action":"insert","path":"{{work}}\\a122_blk.par","origin":[0,0,20]}
+@sa = se_export {"path":"{{work}}\\a122_asm.stl","overwrite":true}
+?= sa.stl.boundingBox.size[0] 100 0.001
+?= sa.stl.boundingBox.size[2] 40 0.001
+?= sa.stl.triangles 24
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}

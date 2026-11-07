@@ -1,0 +1,28 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Applies the .editorconfig rules in the build: every C# file must carry the copyright and license header. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Deterministic>true</Deterministic>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Also restores for win-x64 (self-contained publish): without this, building and publishing rewrite the lock files. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <!-- The built-in .NET COM interop does not support AOT or trimming. -->
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+    <SatelliteResourceLanguages>en;es</SatelliteResourceLanguages>
+    <InteropDir>$(MSBuildThisFileDirectory)lib\interop\</InteropDir>
+    <Authors>Gabriel Spoleto Couto</Authors>
+    <Product>solid-edge-mcp</Product>
+    <Copyright>Copyright (c) 2026 Gabriel Spoleto Couto</Copyright>
+    <PackageLicenseExpression>PolyForm-Noncommercial-1.0.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/gabichuuuuu/solid-edge-mcp</RepositoryUrl>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,69 @@
+# A11: Solid Edge options and units (se_options). Changed application options are restored to the value they were read as.
+# Part: with the distance unit in inches, a 40x20x10 extrusion is still measured in mm: V = 8000.
+@lst = se_options {"action":"list","filter":"UndoSteps"}
+?~ lst PartandAsmUndoSteps
+?~ lst ProfileUndoSteps
+@u0 = se_options {"action":"get","name":"seApplicationGlobalProfileUndoSteps"}
+@u1 = se_options {"action":"set","name":"ProfileUndoSteps","value":42}
+?= u1.value 42
+?= u1.previous {{u0.value}}
+@u2 = se_options {"action":"set","name":"ProfileUndoSteps","value":{{u0.value}}}
+?= u2.value {{u0.value}}
+@sys = se_options {"action":"get","name":"SystemInfo"}
+?~ sys.value Solid Edge version
+! [invalid_argument] se_options {"action":"set","name":"ProfileUndoSteps","value":"many"}
+! [not_found] se_options {"action":"get","name":"NoSuchOption"}
+! [invalid_argument] se_options {"action":"set","name":"ColorBackground","value":"#12345"}
+# Options and units of a part
+@d = se_documents {"action":"new","kind":"part"}
+# Display colors are changed with a document window open (with none, Solid Edge may answer E_FAIL)
+@c0 = se_options {"action":"get","name":"ColorBackground"}
+@c1 = se_options {"action":"set","name":"ColorBackground","value":"#102030"}
+?= c1.color #102030
+?= c1.value 3153936
+@c2 = se_options {"action":"set","name":"ColorBackground","value":"{{c0.color}}"}
+?= c2.value {{c0.value}}
+@po = se_options {"action":"list","scope":"document"}
+?= po.scope part
+?~ po AccuracyForDensity
+@pu = se_options {"action":"set","scope":"document","name":"UpdatePhysicalPropertiesOnSave","value":false}
+?= pu.value false
+@un = se_options {"action":"units"}
+?= un.units[?type="distance"].unit millimeter
+@su = se_options {"action":"set_units","unitType":"distance","unit":"inch","precision":3}
+?= su.current.unit inch
+?= su.current.precision 3
+?= su.previous.unit millimeter
+! [invalid_argument] se_options {"action":"set_units","unitType":"distance","unit":"parsec"}
+! [not_found] se_options {"action":"set_units","unitType":"warp","unit":"inch"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,40,20]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@x = se_extrude {"sketch":"{{k.sketch}}","distance":10}
+?= x.volume 8000
+# With inches and radians on display the tools still take and return mm and degrees: hole D6 through 10 -> -9*pi*10;
+#   a 30 degree variable reads back as 30; a plane at 30 degrees from XY about YZ has the normal (sin 30, 0, cos 30)
+se_options {"action":"set_units","unitType":"angle","unit":"radian"}
+@h = se_hole {"plane":"1","centers":[20,10,0],"diameter":6}
+?= h.volumeChange -282.743 0.01
+se_variables {"action":"add","name":"Ang","value":30,"units":"angle"}
+@va = se_variables {"action":"get","name":"Ang"}
+?= va.value 30
+?= va.unit deg
+@rp = se_ref_plane {"action":"angle","plane":"1","pivot":"2","angle":30}
+?= rp.normal[0] 0.5 0.000001
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# Options for sheet metal, assembly and drawing
+@s = se_documents {"action":"new","kind":"sheet_metal"}
+@so = se_options {"action":"get","scope":"document","name":"NeutralFactor"}
+?= so.value 0.33 0.5
+se_documents {"action":"close","document":"{{s.handle}}","saveChanges":false}
+@m = se_documents {"action":"new","kind":"assembly"}
+@mo = se_options {"action":"list","scope":"document","filter":"Tube"}
+?= mo.scope assembly
+se_documents {"action":"close","document":"{{m.handle}}","saveChanges":false}
+@r = se_documents {"action":"new","kind":"draft"}
+@ro = se_options {"action":"set","scope":"document","name":"SelectToolTextFilter","value":false}
+?= ro.value false
+se_documents {"action":"close","document":"{{r.handle}}","saveChanges":false}
+se_documents {"action":"list"}

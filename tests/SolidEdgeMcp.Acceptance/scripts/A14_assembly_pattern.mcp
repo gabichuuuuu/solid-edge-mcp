@@ -1,0 +1,369 @@
+# A14: component patterns (se_assembly_pattern). Plate 100x60x10 with a hole Ø10 at (20,30) repeated 3x1 every 30 mm
+# (Pattern_1): 60000 - 3·pi·5²·10 = 57643.806. A pin Ø10x30 placed in the first hole is repeated on the other two
+# (x = 50 and 80); deleting the pattern removes the copies and dissolving it keeps them as ordinary occurrences.
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ps.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+se_extrude {"sketch":"{{ps.sketch}}","distance":10}
+@pt = se_geometry {"action":"faces","direction":[0,0,1]}
+@h = se_hole {"plane":"{{pt.items[0].handle}}","centers":[20,30,10],"diameter":10}
+@pat = se_pattern {"type":"rectangular","features":["{{h.feature.handle}}"],"plane":"1","countX":3,"countY":1,"spacingX":30,"spacingY":10}
+?= pat.volume 57643.806 0.01
+?= pat.feature.name Pattern_1
+se_documents {"action":"save_as","path":"{{work}}\\a14_plate.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@q = se_documents {"action":"new","kind":"part"}
+@qs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{qs.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{qs.sketch}}"}
+se_extrude {"sketch":"{{qs.sketch}}","distance":30}
+se_documents {"action":"save_as","path":"{{work}}\\a14_pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@op = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par"}
+@oq = se_assembly {"action":"insert","path":"{{work}}\\a14_pin.par","origin":[20,30,0]}
+! [invalid_argument] se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","pattern":"Pattern_9"}
+! [invalid_argument] se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","reference":"Hole_9"}
+! [invalid_argument] se_assembly_pattern {"action":"create","source":"{{op.handle}}"}
+# Pattern deleted with its copies.
+@c = se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","name":"Pins"}
+?= c.added 2
+?= c.occurrences 4
+?= c.pattern.type part_pattern
+?~ c.pattern.occurrences "origin":[50,30,0]
+?~ c.pattern.occurrences "origin":[80,30,0]
+@l = se_assembly_pattern {"action":"list"}
+?= l.count 1
+?= l.patterns[0].name Pins
+! [invalid_argument] se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","name":"Pins"}
+@d1 = se_assembly_pattern {"action":"delete","name":"Pins"}
+?= d1.removed 2
+?= d1.occurrences 2
+# Pattern with the default name, with the reference feature given, then dissolved.
+@c2 = se_assembly_pattern {"action":"create","occurrences":["{{oq.handle}}"],"source":"{{op.handle}}","pattern":"Pattern_1","reference":"Hole_1"}
+?= c2.added 2
+?~ c2.pattern.name Pattern
+se_view {"action":"fit"}
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a14_pattern.png"}
+@dz = se_assembly_pattern {"action":"dissolve","name":"{{c2.pattern.name}}"}
+?= dz.occurrences 4
+@l2 = se_assembly_pattern {"action":"list"}
+?= l2.count 0
+@ls = se_assembly {"action":"list"}
+?= ls.count 4
+! [invalid_argument] se_assembly_pattern {"action":"delete","name":"Pins"}
+# Display configurations (se_assembly_config): refused while the assembly was never saved. "Without pins" keeps the 3 pins
+#   hidden; after showing them, applying it hides them again and leaves the plate shown.
+! [not_supported] se_assembly_config {"action":"save","name":"Todo"}
+@svcfg = se_documents {"action":"save_as","path":"{{work}}\\a14_config.asm","overwrite":true}
+?= svcfg.dirty false
+@cl0 = se_assembly_config {"action":"list"}
+se_assembly {"action":"hide","occurrence":"{{ls.occurrences[1].handle}}"}
+se_assembly {"action":"hide","occurrence":"{{ls.occurrences[2].handle}}"}
+se_assembly {"action":"hide","occurrence":"{{ls.occurrences[3].handle}}"}
+@cs = se_assembly_config {"action":"save","name":"Without pins"}
+?= cs.saved.type display
+?~ cs.hidden a14_pin
+se_assembly {"action":"show","occurrence":"{{ls.occurrences[1].handle}}"}
+se_assembly {"action":"show","occurrence":"{{ls.occurrences[2].handle}}"}
+se_assembly {"action":"show","occurrence":"{{ls.occurrences[3].handle}}"}
+@cl1 = se_assembly_config {"action":"list"}
+?~ cl1.hidden []
+@ca = se_assembly_config {"action":"apply","name":"without pins"}
+?~ ca.applied Without pins
+?~ ca.hidden a14_pin
+@ls3 = se_assembly {"action":"list"}
+?= ls3.occurrences[0].visible true
+?= ls3.occurrences[1].visible false
+?= ls3.occurrences[3].visible false
+! [invalid_argument] se_assembly_config {"action":"save","name":"Without pins"}
+! [not_found] se_assembly_config {"action":"apply","name":"Nope"}
+@cd = se_assembly_config {"action":"delete","name":"Without pins"}
+?= cd.count {{cl0.count}}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# Duplicate pattern: the pin on the first plate copied onto a plate 100 mm along y and onto a plate turned 90° about z at
+#   (0,200,0); each copy keeps its place relative to its plate: (20,130,0) and (-30,220,0).
+@b = se_documents {"action":"new","kind":"assembly"}
+@b1 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par"}
+@b2 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,100,0]}
+@b3 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,200,0],"angles":[0,0,90]}
+@bq = se_assembly {"action":"insert","path":"{{work}}\\a14_pin.par","origin":[20,30,0]}
+! [invalid_argument] se_assembly_pattern {"action":"duplicate","occurrences":["{{bq.handle}}"],"source":"{{b1.handle}}"}
+! [invalid_argument] se_assembly_pattern {"action":"duplicate","source":"{{b1.handle}}","targets":["{{b2.handle}}"]}
+! [invalid_argument] se_assembly_pattern {"action":"duplicate","occurrences":["{{bq.handle}}"],"source":"{{b1.handle}}","targets":["{{b1.handle}}"]}
+@du = se_assembly_pattern {"action":"duplicate","occurrences":["{{bq.handle}}"],"source":"{{b1.handle}}","targets":["{{b2.handle}}","{{b3.handle}}"],"name":"Copias"}
+?= du.added 2
+?= du.occurrences 6
+?= du.pattern.type duplicate
+?= du.pattern.instances 2
+?~ du.pattern.occurrences "origin":[20,130,0]
+?~ du.pattern.occurrences "origin":[-30,220,0]
+@dd = se_assembly_pattern {"action":"delete","name":"Copias"}
+?= dd.removed 2
+?= dd.occurrences 4
+# A face read from an occurrence goes into the generic layer as its reference in the assembly (selected here).
+@bf = se_geometry {"action":"faces","source":"{{b2.handle}}","direction":[0,0,1]}
+@ss = se_com_get {"target":"active_document","member":"SelectSet"}
+se_com_invoke {"target":"{{ss.value.handle}}","method":"RemoveAll"}
+se_com_invoke {"target":"{{ss.value.handle}}","method":"Add","arguments":[{"handle":"{{bf.items[0].handle}}"}]}
+@sc = se_com_get {"target":"{{ss.value.handle}}","member":"Count"}
+?= sc.value 1
+se_com_invoke {"target":"{{ss.value.handle}}","method":"RemoveAll"}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+# Assembly features (se_assembly_feature) from sketches drawn in the assembly. Plates at z 0-10 and 20-30; a circle r5 at (50,10)
+#   on base plane 1 cut through all: one cylindrical face 2pi*5*10 = 314.159 on each plate. A circle r5 at (20,10) cut 4 deep in the
+#   lower plate: wall 2pi*5*4 + floor 25pi = 204.204 (2 faces). A cut 4 deep aimed at the upper plate misses it and is removed. The part
+#   file does not change: the occurrence shows its own body (Occurrence.Body), the plate's 9 faces plus the 2 of the cut left.
+@f = se_documents {"action":"new","kind":"assembly"}
+@f1 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par"}
+@f2 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,0,20]}
+! [invalid_argument] se_sketch {"action":"create","plane":"4"}
+@fs = se_sketch {"action":"create","plane":"1"}
+?= fs.frame.normal[2] 1
+se_sketch {"action":"circle","sketch":"{{fs.sketch}}","center":[50,10],"radius":5}
+se_sketch {"action":"close","sketch":"{{fs.sketch}}"}
+! [invalid_argument] se_assembly_feature {"action":"cut","sketch":"{{fs.sketch}}"}
+@fc = se_assembly_feature {"action":"cut","sketch":"{{fs.sketch}}","occurrences":["{{f1.handle}}","{{f2.handle}}"],"name":"Bore"}
+?= fc.name Bore
+?= fc.status ok
+?= fc.extent through_all
+?= fc.side normal
+?= fc.parts[0].faces 1
+?= fc.parts[0].area 314.159265 0.001
+?= fc.parts[1].area 314.159265 0.001
+@fs2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{fs2.sketch}}","center":[20,10],"radius":5}
+se_sketch {"action":"close","sketch":"{{fs2.sketch}}"}
+@fc2 = se_assembly_feature {"action":"cut","sketch":"{{fs2.sketch}}","occurrences":["{{f1.handle}}"],"depth":4}
+?= fc2.extent finite
+?= fc2.depth 4
+?= fc2.parts[0].faces 2
+?= fc2.parts[0].area 204.203522 0.001
+@fs3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{fs3.sketch}}","center":[80,10],"radius":5}
+se_sketch {"action":"close","sketch":"{{fs3.sketch}}"}
+! [feature_failed] se_assembly_feature {"action":"cut","sketch":"{{fs3.sketch}}","occurrences":["{{f2.handle}}"],"depth":4}
+@fl = se_assembly_feature {"action":"list"}
+?= fl.count 2
+@fd = se_assembly_feature {"action":"delete","name":"Bore"}
+?= fd.count 1
+! [invalid_argument] se_assembly_feature {"action":"delete","name":"Bore"}
+@ff = se_geometry {"action":"faces","source":"{{f1.handle}}"}
+?= ff.count 11
+se_view {"action":"fit"}
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a14_cut.png"}
+se_documents {"action":"close","document":"{{f.handle}}","saveChanges":false}
+# Revolved cutouts and holes in the assembly. Plates at z 0-10 and 20-30, moved 30 mm toward -y (their holes at y = 0, x = 20, 50, 80).
+#   A rectangle (35,-5)-(40,15) on plane 3 turned 360° about its side x = 35: a hole r5, one face 2pi*5*10 = 314.159. A rectangle
+#   (65,5)-(70,15) turned 180° about x = 65: a half pocket r5, 5 deep: pi*5*5 + 12.5pi + 10*5 = 167.810 in 3 faces. Holes Ø8 through all at
+#   (35,20) and (65,-20) in both plates: 2*pi*8*10 = 502.655 in 2 faces on each. Ø6 4 deep: pi*6*4 + 9pi = 103.673 (flat bottom).
+#   Ø6 countersunk Ø12 90°: pi*9*3*sqrt(2) + pi*6*7 = 251.905. Tapped holes and a counterbore without its diameter and depth are refused (A64 makes counterbores).
+#   A cut r4 at (50,15) through both plates mirrored about plane 3 (y = 0) lands at (50,-15); the mirror reports its faces in the
+#   first plate: 2*pi*4*10 = 251.327. About plane 2 (x = 0) it would land outside the plates: it fails and is removed. Holes are
+#   not mirrored (Solid Edge reports a mirrored hole fine even outside the parts).
+@g = se_documents {"action":"new","kind":"assembly"}
+@g1 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,-30,0],"document":"{{g.handle}}"}
+@g2 = se_assembly {"action":"insert","path":"{{work}}\\a14_plate.par","origin":[0,-30,20],"document":"{{g.handle}}"}
+@rs = se_sketch {"action":"create","plane":"3","document":"{{g.handle}}"}
+@rr = se_sketch {"action":"rectangle","sketch":"{{rs.sketch}}","points":[35,-5,40,15]}
+@ra = se_sketch {"action":"axis","sketch":"{{rs.sketch}}","element":"{{rr.elements[3]}}"}
+se_sketch {"action":"close","sketch":"{{rs.sketch}}"}
+! [invalid_argument] se_assembly_feature {"action":"revolve","sketch":"{{rs.sketch}}","occurrences":["{{g1.handle}}"]}
+@r1 = se_assembly_feature {"action":"revolve","sketch":"{{rs.sketch}}","axis":"{{ra.axis}}","occurrences":["{{g1.handle}}"],"name":"Turn"}
+?~ r1.type revolved_cutout
+?= r1.angle 360
+?= r1.parts[0].faces 1
+?= r1.parts[0].area 314.159265 0.001
+@rs2 = se_sketch {"action":"create","plane":"3","document":"{{g.handle}}"}
+@rr2 = se_sketch {"action":"rectangle","sketch":"{{rs2.sketch}}","points":[65,5,70,15]}
+@ra2 = se_sketch {"action":"axis","sketch":"{{rs2.sketch}}","element":"{{rr2.elements[3]}}"}
+se_sketch {"action":"close","sketch":"{{rs2.sketch}}"}
+@r2 = se_assembly_feature {"action":"revolve","sketch":"{{rs2.sketch}}","axis":"{{ra2.axis}}","occurrences":["{{g1.handle}}"],"angle":180,"side":"normal"}
+?= r2.angle 180
+?= r2.parts[0].faces 3
+?= r2.parts[0].area 167.809725 0.001
+! [invalid_argument] se_assembly_feature {"action":"hole","centers":[35,20,0],"diameter":8,"occurrences":["{{g1.handle}}"]}
+! [invalid_argument] se_assembly_feature {"action":"hole","plane":"1","centers":[35,20,0],"diameter":8,"type":"counterbore","occurrences":["{{g1.handle}}"]}
+@h1 = se_assembly_feature {"action":"hole","plane":"1","centers":[35,20,0,65,-20,0],"diameter":8,"occurrences":["{{g1.handle}}","{{g2.handle}}"]}
+?~ h1.type hole
+?~ h1.extent through_all
+?= h1.parts[0].faces 2
+?= h1.parts[0].area 502.654825 0.001
+?= h1.parts[1].area 502.654825 0.001
+?= h1.parts[0].occurrence {{g1.handle}}
+?= h1.parts[1].occurrence {{g2.handle}}
+@h2 = se_assembly_feature {"action":"hole","plane":"1","centers":[10,20,0],"diameter":6,"extent":"finite","depth":4,"occurrences":["{{g1.handle}}"]}
+?= h2.depth 4
+?= h2.parts[0].area 103.672558 0.001
+@h3 = se_assembly_feature {"action":"hole","plane":"1","centers":[10,-20,0],"diameter":6,"type":"countersink","countersinkDiameter":12,"occurrences":["{{g1.handle}}"]}
+?= h3.parts[0].area 251.904731 0.001
+! [feature_failed] se_assembly_feature {"action":"hole","plane":"1","centers":[90,20,0],"diameter":6,"extent":"finite","depth":4,"occurrences":["{{g2.handle}}"]}
+# After the failed hole (removed with its profile first) the base planes are still there: plane 1 is still xy.
+@ms = se_sketch {"action":"create","plane":"1","document":"{{g.handle}}"}
+?= ms.frame.normal[2] 1
+se_sketch {"action":"circle","sketch":"{{ms.sketch}}","center":[50,15],"radius":4}
+se_sketch {"action":"close","sketch":"{{ms.sketch}}"}
+@mc = se_assembly_feature {"action":"cut","sketch":"{{ms.sketch}}","occurrences":["{{g1.handle}}","{{g2.handle}}"],"name":"Pin_bore","document":"{{g.handle}}"}
+?= mc.parts[1].area 251.327412 0.001
+! [invalid_argument] se_assembly_feature {"action":"cut","sketch":"{{ms.sketch}}","occurrences":["{{g1.handle}}"],"document":"{{g.handle}}"}
+! [invalid_argument] se_assembly_feature {"action":"mirror","features":["Pin_bore"],"document":"{{g.handle}}"}
+! [invalid_argument] se_assembly_feature {"action":"mirror","features":["{{h1.name}}"],"plane":"3","document":"{{g.handle}}"}
+! [feature_failed] se_assembly_feature {"action":"mirror","features":["Pin_bore"],"plane":"2","document":"{{g.handle}}"}
+@m1 = se_assembly_feature {"action":"mirror","features":["Pin_bore"],"plane":"3","name":"Pin_bore_mirror","document":"{{g.handle}}"}
+?= m1.type mirror
+?= m1.status ok
+?= m1.mirrorOf[0] Pin_bore
+?= m1.faces 1
+?= m1.area 251.327412 0.001
+?~ m1.note first part
+?= m1.parts[0].occurrence {{g1.handle}}
+?= m1.parts[1].occurrence {{g2.handle}}
+@gl = se_assembly_feature {"action":"list","document":"{{g.handle}}"}
+?= gl.count 7
+?= gl.features[?type="mirror"].name Pin_bore_mirror
+@gd = se_assembly_feature {"action":"delete","name":"Turn","document":"{{g.handle}}"}
+?= gd.count 6
+# "Turn" was sketched on plane 3: deleting it (sketch first) keeps that base plane, still xz.
+@p3 = se_sketch {"action":"create","plane":"3","document":"{{g.handle}}"}
+?= p3.frame.normal[1] -1
+# The lower plate shows its 9 faces plus those of the features left on it: half pocket 3, holes 2 + 2 + 2, Pin_bore and its mirror 1 + 1.
+@gf = se_geometry {"action":"faces","source":"{{g1.handle}}"}
+?= gf.count 20
+se_documents {"action":"close","document":"{{g.handle}}","saveChanges":false}
+# Protrusions, patterns and welds made in the assembly. Slab 100x60x10 (a14_slab.par).
+#   protrusion: rectangle (0,-40)-(20,-20) on plane 1, 10 up: an assembly body of its own, 4000 mm3, z 0-10; a second one 20 deep
+#   symmetric: 8000, z -10-10. revolved_protrusion: rectangle x 0-10, z 0-10 on plane 3 about x = 0: a cylinder r10 h10 = 3141.593.
+#   pattern: a cut r5 at (20,10) repeated in 3 columns every 30 mm: copies at x = 50 and 80, 2 faces, x 45-85; a cut r5 at (80,48)
+#   with the rows turned 180°: copies at x = 50 and 20, x 15-55; a hole Ø8 at (35,30) in 2 columns: copy at x = 65, x 61-69.
+#   Copies 200 mm away miss the slab: the pattern fails and is removed.
+@sl = se_documents {"action":"new","kind":"part"}
+@sls = se_sketch {"action":"create","plane":"1","document":"{{sl.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{sls.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{sls.sketch}}"}
+se_extrude {"sketch":"{{sls.sketch}}","distance":10,"document":"{{sl.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\a14_slab.par","overwrite":true,"document":"{{sl.handle}}"}
+se_documents {"action":"close","document":"{{sl.handle}}","saveChanges":false}
+@k = se_documents {"action":"new","kind":"assembly"}
+@k1 = se_assembly {"action":"insert","path":"{{work}}\\a14_slab.par","document":"{{k.handle}}"}
+@kb = se_sketch {"action":"create","plane":"1","document":"{{k.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{kb.sketch}}","points":[0,-40,20,-20]}
+! [invalid_argument] se_assembly_feature {"action":"protrusion","sketch":"{{kb.sketch}}","document":"{{k.handle}}"}
+se_sketch {"action":"close","sketch":"{{kb.sketch}}"}
+@x1 = se_assembly_feature {"action":"protrusion","sketch":"{{kb.sketch}}","depth":10,"name":"Boss","document":"{{k.handle}}"}
+?= x1.type protrusion
+?= x1.status ok
+?= x1.volume 4000 0.001
+?= x1.depth 10
+?= x1.side normal
+?= x1.boundingBox.max[2] 10 0.001
+?= x1.boundingBox.min[1] -40 0.001
+@kb2 = se_sketch {"action":"create","plane":"1","document":"{{k.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{kb2.sketch}}","points":[40,-40,60,-20]}
+se_sketch {"action":"close","sketch":"{{kb2.sketch}}"}
+@x2 = se_assembly_feature {"action":"protrusion","sketch":"{{kb2.sketch}}","depth":20,"side":"symmetric","document":"{{k.handle}}"}
+?= x2.volume 8000 0.001
+?= x2.side symmetric
+?= x2.boundingBox.min[2] -10 0.001
+@kr = se_sketch {"action":"create","plane":"3","document":"{{k.handle}}"}
+@krr = se_sketch {"action":"rectangle","sketch":"{{kr.sketch}}","points":[0,0,10,10]}
+@kra = se_sketch {"action":"axis","sketch":"{{kr.sketch}}","element":"{{krr.elements[3]}}"}
+se_sketch {"action":"close","sketch":"{{kr.sketch}}"}
+@x3 = se_assembly_feature {"action":"revolved_protrusion","sketch":"{{kr.sketch}}","axis":"{{kra.axis}}","document":"{{k.handle}}"}
+?= x3.type revolved_protrusion
+?= x3.volume 3141.592654 0.01
+?= x3.angle 360
+@kbd = se_com_get {"target":"{{k.handle}}","member":"AssemblyBodies"}
+@kbc = se_com_get {"target":"{{kbd.value.handle}}","member":"Count"}
+?= kbc.value 3
+# Patterns
+@kc = se_sketch {"action":"create","plane":"1","document":"{{k.handle}}"}
+se_sketch {"action":"circle","sketch":"{{kc.sketch}}","center":[20,10],"radius":5}
+se_sketch {"action":"close","sketch":"{{kc.sketch}}"}
+se_assembly_feature {"action":"cut","sketch":"{{kc.sketch}}","occurrences":["{{k1.handle}}"],"name":"Bore","document":"{{k.handle}}"}
+@kc2 = se_sketch {"action":"create","plane":"1","document":"{{k.handle}}"}
+se_sketch {"action":"circle","sketch":"{{kc2.sketch}}","center":[80,48],"radius":5}
+se_sketch {"action":"close","sketch":"{{kc2.sketch}}"}
+se_assembly_feature {"action":"cut","sketch":"{{kc2.sketch}}","occurrences":["{{k1.handle}}"],"name":"Bore2","document":"{{k.handle}}"}
+se_assembly_feature {"action":"hole","plane":"1","centers":[35,30,0],"diameter":8,"occurrences":["{{k1.handle}}"],"name":"Hole8","document":"{{k.handle}}"}
+! [invalid_argument] se_assembly_feature {"action":"pattern","features":["Bore"],"plane":"1","count":[1],"spacing":[30],"document":"{{k.handle}}"}
+! [invalid_argument] se_assembly_feature {"action":"pattern","features":["Bore"],"plane":"1","count":[3],"document":"{{k.handle}}"}
+! [invalid_argument] se_assembly_feature {"action":"pattern","features":["Boss"],"plane":"1","count":[3],"spacing":[30],"document":"{{k.handle}}"}
+@pa = se_assembly_feature {"action":"pattern","features":["Bore"],"plane":"1","count":[3],"spacing":[30],"name":"Row","document":"{{k.handle}}"}
+?= pa.name Row
+?= pa.type pattern
+?= pa.status ok
+?= pa.patternOf[0] Bore
+?= pa.faces 2
+?= pa.area 628.318531 0.001
+?= pa.boundingBox.min[0] 45 0.001
+?= pa.boundingBox.max[0] 85 0.001
+?= pa.parts[0].occurrence {{k1.handle}}
+@pb = se_assembly_feature {"action":"pattern","features":["Bore2"],"plane":"1","count":[3],"spacing":[30],"angle":180,"document":"{{k.handle}}"}
+?= pb.faces 2
+?= pb.boundingBox.min[0] 15 0.001
+?= pb.boundingBox.max[0] 55 0.001
+@pc = se_assembly_feature {"action":"pattern","features":["Hole8"],"plane":"1","count":[2],"spacing":[30],"document":"{{k.handle}}"}
+?= pc.faces 1
+?= pc.boundingBox.min[0] 61 0.001
+?= pc.boundingBox.max[0] 69 0.001
+! [feature_failed] se_assembly_feature {"action":"pattern","features":["Bore"],"plane":"1","count":[2],"spacing":[200],"document":"{{k.handle}}"}
+@kl = se_assembly_feature {"action":"list","document":"{{k.handle}}"}
+?= kl.count 9
+?= kl.features[?name="Boss"].volume 4000 0.001
+@kd = se_assembly_feature {"action":"delete","name":"Row","document":"{{k.handle}}"}
+?= kd.count 8
+@kd2 = se_assembly_feature {"action":"delete","name":"Boss","document":"{{k.handle}}"}
+?= kd2.count 7
+@kbc2 = se_com_get {"target":"{{kbd.value.handle}}","member":"Count"}
+?= kbc2.value 2
+# The base planes survive: plane 1 is still xy.
+@kp = se_sketch {"action":"create","plane":"1","document":"{{k.handle}}"}
+?= kp.frame.normal[2] 1
+@kf = se_geometry {"action":"faces","source":"{{k1.handle}}","direction":[0,0,1],"document":"{{k.handle}}"}
+@kfe = se_geometry {"action":"edges","source":"{{kf.items[0].handle}}","direction":[1,0,0],"document":"{{k.handle}}"}
+! [wrong_document_type] se_assembly_feature {"action":"label_weld","edges":["{{kfe.items[0].handle}}"],"document":"{{k.handle}}"}
+se_documents {"action":"close","document":"{{k.handle}}","saveChanges":false}
+# Welds in a weldment. Slab w1 at the origin; slab w2 on it at (0,30,10) (its face y = 30 meets w1's top along y = 30, z = 10); slab w3
+#   on it at (0,-50,10) (its face y = 10 meets w1's top along y = 10). Fillet 5 x 5 along 100 mm: bead 1250 mm3, y 25-30, z 10-15.
+#   Legs 5 on the base (w1's top) and 3 on the target: 750 mm3, y 10-15, z 10-13. Faces that do not meet fail and leave nothing.
+@w = se_documents {"action":"new","kind":"weldment"}
+@w1 = se_assembly {"action":"insert","path":"{{work}}\\a14_slab.par","document":"{{w.handle}}"}
+@w2 = se_assembly {"action":"insert","path":"{{work}}\\a14_slab.par","origin":[0,30,10],"document":"{{w.handle}}"}
+@w3 = se_assembly {"action":"insert","path":"{{work}}\\a14_slab.par","origin":[0,-50,10],"document":"{{w.handle}}"}
+@wt = se_geometry {"action":"faces","source":"{{w1.handle}}","direction":[0,0,1],"document":"{{w.handle}}"}
+@wb = se_geometry {"action":"faces","source":"{{w1.handle}}","direction":[0,0,-1],"document":"{{w.handle}}"}
+@ws = se_geometry {"action":"faces","source":"{{w2.handle}}","direction":[0,-1,0],"document":"{{w.handle}}"}
+@ws3 = se_geometry {"action":"faces","source":"{{w3.handle}}","direction":[0,1,0],"document":"{{w.handle}}"}
+! [invalid_argument] se_assembly_feature {"action":"fillet_weld","faces":["{{wt.items[0].handle}}"],"targetFaces":["{{ws.items[0].handle}}"],"document":"{{w.handle}}"}
+! [handle_wrong_type] se_assembly_feature {"action":"fillet_weld","faces":["{{w1.handle}}"],"targetFaces":["{{ws.items[0].handle}}"],"leg":5,"document":"{{w.handle}}"}
+@f1 = se_assembly_feature {"action":"fillet_weld","faces":["{{wt.items[0].handle}}"],"targetFaces":["{{ws.items[0].handle}}"],"leg":5,"name":"Seam_A","document":"{{w.handle}}"}
+?= f1.name Seam_A
+?= f1.type fillet_weld
+?= f1.status ok
+?= f1.volume 1250 0.001
+?= f1.legs[0] 5
+?= f1.legs[1] 5
+?= f1.boundingBox.min[1] 25 0.001
+?= f1.boundingBox.max[2] 15 0.001
+@f2 = se_assembly_feature {"action":"fillet_weld","faces":["{{wt.items[0].handle}}"],"targetFaces":["{{ws3.items[0].handle}}"],"leg":5,"leg2":3,"document":"{{w.handle}}"}
+?= f2.volume 750 0.001
+?= f2.legs[1] 3
+?= f2.boundingBox.max[1] 15 0.001
+?= f2.boundingBox.max[2] 13 0.001
+! [feature_failed] se_assembly_feature {"action":"fillet_weld","faces":["{{wb.items[0].handle}}"],"targetFaces":["{{ws.items[0].handle}}"],"leg":5,"document":"{{w.handle}}"}
+@wbd = se_com_get {"target":"{{w.handle}}","member":"AssemblyBodies"}
+@wbc = se_com_get {"target":"{{wbd.value.handle}}","member":"Count"}
+?= wbc.value 2
+@we = se_geometry {"action":"edges","source":"{{ws.items[0].handle}}","direction":[1,0,0],"document":"{{w.handle}}"}
+@lb = se_assembly_feature {"action":"label_weld","edges":["{{we.items[0].handle}}"],"name":"Mark","document":"{{w.handle}}"}
+?= lb.type label_weld
+?= lb.status ok
+@wl = se_assembly_feature {"action":"list","document":"{{w.handle}}"}
+?= wl.count 3
+?= wl.features[?type="label_weld"].name Mark
+@wd = se_assembly_feature {"action":"delete","name":"Seam_A","document":"{{w.handle}}"}
+?= wd.count 2
+@wbc2 = se_com_get {"target":"{{wbd.value.handle}}","member":"Count"}
+?= wbc2.value 1
+se_documents {"action":"close","document":"{{w.handle}}","saveChanges":false}

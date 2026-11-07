@@ -1,0 +1,61 @@
+# A126: a sheet metal U as a contour flange unfolds with the document's bend calculation, like the same U made of flanges (before, its flanges unfolded with a neutral factor of 0: 170.283). Stainless U 100 x 40 x 40 outside, 60 wide, 2 mm thick, 2 mm bends: profile 100 x 2 + 2 x 38 x 2 - 2 x (12 - pi/4 x (16 - 4)) = 346.85 mm2, x 60 = 20810.97 mm3; flat 92 + 2 x 36 + 2 x pi/2 x (2 + k x 2) = 164 + 2 pi (1 + k): 172.357 at k 0.33, 173.425 at k 0.5; with bend deduction (1.91 by default) 100 + 2 x 40 - 2 x 1.91 = 176.18; with a bend allowance of 5, 164 + 2 x 5 = 174. A dimensioned sketch gets a note: its dimensions no longer drive the flange.
+se_session {"action":"connect"}
+@docs0 = se_documents {"action":"list"}
+?= docs0.count 0 0
+@sm = se_documents {"action":"new","kind":"sheet_metal"}
+se_sheetmetal {"action":"set_settings","thickness":2,"bendRadius":2}
+@st = se_sheetmetal {"action":"settings"}
+?= st.neutralFactor 0.33
+@k = se_sketch {"action":"create","plane":"xz"}
+@u = se_sketch {"action":"polyline","sketch":"{{k.sketch}}","points":[-50,40,-50,0,50,0,50,40],"closed":false}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"vertical","elements":["{{u.elements[0]}}"]}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"horizontal","elements":["{{u.elements[1]}}"]}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"vertical","elements":["{{u.elements[2]}}"]}
+se_sketch_constraint {"action":"dimension","sketch":"{{k.sketch}}","dimension":"length","elements":["{{u.elements[0]}}"],"value":40}
+se_sketch {"action":"close","sketch":"{{k.sketch}}","open":true}
+@cf = se_sheetmetal {"action":"contour_flange","sketch":"{{k.sketch}}","width":60,"materialSide":"left","radius":2}
+?= cf.volume 20810.97 0.05
+?~ cf.note no longer drive
+@f1 = se_sheetmetal {"action":"flatten"}
+?= f1.cutSize.x 172.357 0.01
+?= f1.cutSize.y 60 0.01
+se_documents {"action":"close","document":"{{sm.handle}}","saveChanges":false}
+# Neutral factor 0.5 from the document settings
+@sm2 = se_documents {"action":"new","kind":"sheet_metal"}
+se_sheetmetal {"action":"set_settings","thickness":2,"bendRadius":2,"neutralFactor":0.5}
+@k2 = se_sketch {"action":"create","plane":"xz"}
+se_sketch {"action":"polyline","sketch":"{{k2.sketch}}","points":[-50,40,-50,0,50,0,50,40],"closed":false}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}","open":true}
+@cf2 = se_sheetmetal {"action":"contour_flange","sketch":"{{k2.sketch}}","width":60,"materialSide":"left","radius":2}
+?= cf2.volume 20810.97 0.05
+@f2 = se_sheetmetal {"action":"flatten"}
+?= f2.cutSize.x 173.425 0.01
+se_documents {"action":"close","document":"{{sm2.handle}}","saveChanges":false}
+# Bend deduction as the document's bend calculation method (SheetMetalGlobalConstants 24 = 1)
+@sm3 = se_documents {"action":"new","kind":"sheet_metal"}
+se_sheetmetal {"action":"set_settings","thickness":2,"bendRadius":2}
+se_com_invoke {"target":"active_document","method":"SetGlobalParameter","arguments":[24,1]}
+@bd = se_com_invoke {"target":"active_document","method":"GetGlobalParameter","arguments":[25,null]}
+?= bd.outputs.Value 0.00191 0.000001
+@k3 = se_sketch {"action":"create","plane":"xz"}
+se_sketch {"action":"polyline","sketch":"{{k3.sketch}}","points":[-50,40,-50,0,50,0,50,40],"closed":false}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}","open":true}
+@cf3 = se_sheetmetal {"action":"contour_flange","sketch":"{{k3.sketch}}","width":60,"materialSide":"left","radius":2}
+?= cf3.volume 20810.97 0.05
+@f3 = se_sheetmetal {"action":"flatten"}
+?= f3.cutSize.x 176.18 0.01
+se_documents {"action":"close","document":"{{sm3.handle}}","saveChanges":false}
+# Bend allowance (method 2) of 5 mm
+@sm4 = se_documents {"action":"new","kind":"sheet_metal"}
+se_sheetmetal {"action":"set_settings","thickness":2,"bendRadius":2}
+se_com_invoke {"target":"active_document","method":"SetGlobalParameter","arguments":[24,2]}
+se_com_invoke {"target":"active_document","method":"SetGlobalParameter","arguments":[26,0.005]}
+@k4 = se_sketch {"action":"create","plane":"xz"}
+se_sketch {"action":"polyline","sketch":"{{k4.sketch}}","points":[-50,40,-50,0,50,0,50,40],"closed":false}
+se_sketch {"action":"close","sketch":"{{k4.sketch}}","open":true}
+@cf4 = se_sheetmetal {"action":"contour_flange","sketch":"{{k4.sketch}}","width":60,"materialSide":"left","radius":2}
+@f4 = se_sheetmetal {"action":"flatten"}
+?= f4.cutSize.x 174 0.01
+se_documents {"action":"close","document":"{{sm4.handle}}","saveChanges":false}
+@docs1 = se_documents {"action":"list"}
+?= docs1.count 0 0

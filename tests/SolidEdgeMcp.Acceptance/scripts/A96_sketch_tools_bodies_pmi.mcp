@@ -1,0 +1,191 @@
+# A96: sketch tools (se_sketch_tools), Multi-Body Publish (se_body publish), Save Selected Model (se_export bodies), PMI text
+#   size, plane and axis (se_pmi), Update Model View (se_model_view update), part snapshots (COM), the simplified model of a
+#   part written as Parasolid (se_simplify save_as) and Copy Sketch of an assembly layout (se_sketch_tools copy).
+# A part with two design bodies: the block 100 x 60 x 20 (120000) and a box 40 x 30 x 10 (12000) beside it, saved.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[200,0,240,30]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@s = se_surface {"action":"extrude","sketch":"{{k2.sketch}}","depth":10,"endCaps":true}
+@d = se_body {"action":"to_design","bodies":["{{s.surface.handle}}"]}
+?= d.bodies[1].volume 12000 0.01
+! [never_saved] se_body {"action":"publish","bodies":["{{d.bodies[1].handle}}"]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a96_{{run}}\\mb.par"}
+@bl = se_body {"action":"list"}
+# Multi-Body Publish: the box alone as a part next to the part, with an assembly of it
+@pub = se_body {"action":"publish","bodies":["{{bl.design[1].handle}}"],"assembly":"{{work}}\\runs\\a96_{{run}}\\mb.asm"}
+?~ pub.files[0] .par
+?~ pub.assembly mb.asm
+# Solid Edge renews the bodies of the part: their handles are taken again
+@bl2 = se_body {"action":"list"}
+! [file_exists] se_body {"action":"publish","bodies":["{{bl2.design[1].handle}}"]}
+@po = se_documents {"action":"open","path":"{{esc:pub.files[0]}}"}
+@pv = se_physical {"document":"{{po.handle}}"}
+?= pv.volume 12000 0.01
+se_documents {"action":"close","document":"{{po.handle}}","saveChanges":false}
+@pa = se_documents {"action":"open","path":"{{work}}\\runs\\a96_{{run}}\\mb.asm"}
+@pal = se_assembly {"action":"list"}
+?= pal.count 1
+se_documents {"action":"close","document":"{{pa.handle}}","saveChanges":false}
+# Save Selected Model: the box alone as Parasolid; imported back it holds 12000
+@ex = se_export {"document":"{{p.handle}}","path":"{{work}}\\runs\\a96_box_{{run}}.x_t","bodies":["{{bl2.design[1].handle}}"]}
+?= ex.bodies 1
+! [invalid_argument] se_export {"document":"{{p.handle}}","path":"{{work}}\\runs\\a96_box_{{run}}.stp","bodies":["{{bl2.design[1].handle}}"]}
+@ix = se_documents {"action":"import","path":"{{work}}\\runs\\a96_box_{{run}}.x_t"}
+?= ix.volume 12000 0.01
+se_documents {"action":"close","document":"{{ix.document.handle}}","saveChanges":false}
+# Both bodies
+@ex2 = se_export {"document":"{{p.handle}}","path":"{{work}}\\runs\\a96_both_{{run}}.x_b","bodies":["{{bl2.design[0].handle}}","{{bl2.design[1].handle}}"]}
+?= ex2.bodies 2
+@ix2 = se_documents {"action":"import","path":"{{work}}\\runs\\a96_both_{{run}}.x_b"}
+?= ix2.volume 132000 0.01
+se_documents {"action":"close","document":"{{ix2.document.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# Sketch tools on a new block part
+@q = se_documents {"action":"new","kind":"part"}
+@kq = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kq.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kq.sketch}}"}
+se_extrude {"sketch":"{{kq.sketch}}","distance":20}
+# Clean Sketch: two identical lines and one far shorter than the tolerance leave one line
+@kc = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kc.sketch}}","points":[0,100,50,100]}
+se_sketch {"action":"line","sketch":"{{kc.sketch}}","points":[0,100,50,100]}
+se_sketch {"action":"line","sketch":"{{kc.sketch}}","points":[50,100,50.00001,100]}
+@cl = se_sketch_tools {"action":"clean","sketch":"{{kc.sketch}}"}
+?= cl.before.lines 3
+?= cl.after.lines 1
+?= cl.removed 2
+@cl2 = se_sketch_tools {"action":"clean","sketch":"{{kc.sketch}}"}
+?= cl2.removed 0
+# Convert to Curve: a 50 mm line and a quarter arc of radius 20 (31.416) become two B-splines of the same length
+@kv = se_sketch {"action":"create","plane":"1"}
+@ln = se_sketch {"action":"line","sketch":"{{kv.sketch}}","points":[0,200,50,200]}
+@ar = se_sketch {"action":"arc","sketch":"{{kv.sketch}}","center":[50,220],"start":[50,200],"end":[70,220]}
+@cv = se_sketch_tools {"action":"convert","sketch":"{{kv.sketch}}","elements":["{{ln.element}}","{{ar.element}}"]}
+?= cv.lengthBefore 81.416 0.01
+?= cv.length 81.416 0.01
+?= cv.curves[0].geometry.type spline
+?= cv.curves[1].geometry.type spline
+# Total Length: the rectangle of the block's sketch (320) and the two curves (81.416)
+@tl = se_sketch_tools {"action":"length","sketch":"{{kq.sketch}}"}
+?= tl.length 320 0.001
+?= tl.elements 4
+@tl2 = se_sketch_tools {"action":"length","sketch":"{{kv.sketch}}"}
+?= tl2.length 81.416 0.01
+# Reposition Origin, then Zero Origin
+@ko = se_sketch {"action":"create","plane":"1"}
+@or = se_sketch_tools {"action":"origin","sketch":"{{ko.sketch}}","origin":[10,20],"angle":90}
+?= or.origin[0] 10
+?= or.origin[1] 20
+?= or.angle 90
+@oz = se_sketch_tools {"action":"origin","sketch":"{{ko.sketch}}"}
+?= oz.origin[0] 0
+?= oz.angle 0
+?= oz.previous.origin[1] 20
+# Image: a picture of the view, 800 x 600 pixels, placed 40 mm wide (30 mm high)
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\runs\\a96_pic_{{run}}.png"}
+@im = se_sketch_tools {"action":"image","sketch":"{{ko.sketch}}","path":"{{work}}\\runs\\a96_pic_{{run}}.png","position":[5,5],"width":40}
+?= im.width 40 0.01
+?= im.height 30 0.05
+?= im.position[0] 5
+! [not_found] se_sketch_tools {"action":"image","sketch":"{{ko.sketch}}","path":"{{work}}\\runs\\a96_none_{{run}}.png"}
+# Section Sketches: the base plane and 3 planes 5 mm apart cut the block in rectangles
+@sec = se_sketch_tools {"action":"sections","plane":"1","count":3,"spacing":5}
+?= sec.count 4
+?= sec.added 4
+?= sec.sketches[0].elements.lines 4
+?= sec.sketches[1].elements.lines 4
+?= sec.sketches[3].elements.lines 4
+?= sec.partial false
+# PMI text size, plane and axis
+@ps = se_pmi {"action":"size","pixelMode":true,"pixelSize":30}
+?= ps.pixelMode true
+?= ps.pixelSize 30
+@ps2 = se_pmi {"action":"size","pixelMode":false}
+?= ps2.pixelMode false
+?= ps2.previous.pixelSize 30
+! [invalid_argument] se_pmi {"action":"size","pixelSize":20}
+@pp = se_pmi {"action":"plane","plane":"1"}
+?= pp.locked true
+@pp2 = se_pmi {"action":"plane"}
+?= pp2.locked false
+?= pp2.previous true
+@ge = se_geometry {"action":"edges"}
+@px = se_pmi {"action":"axis","edge":"{{ge.items[0].handle}}"}
+?= px.axis true
+@px2 = se_pmi {"action":"axis"}
+?= px2.axis false
+# Update Model View: a front view takes the isometric orientation of the window
+se_model_view {"action":"add","orientation":"front","name":"A96"}
+se_view {"action":"orient","orientation":"iso"}
+@ci = se_view {"action":"camera"}
+@mu = se_model_view {"action":"update","view":"A96"}
+?= mu.updated A96
+se_view {"action":"orient","orientation":"top"}
+se_model_view {"action":"apply","view":"A96"}
+@cm = se_view {"action":"camera"}
+?= cm.camera.direction[0] {{ci.camera.direction[0]}} 0.001
+?= cm.camera.direction[1] {{ci.camera.direction[1]}} 0.001
+?= cm.camera.direction[2] {{ci.camera.direction[2]}} 0.001
+# Snapshot of the part display (PartConfigurations.TakeSnapshot / RestoreSnapshot): a plane hidden after it comes back
+@cf = se_com_get {"target":"active_document","member":"PartConfigurations"}
+@rps = se_com_get {"target":"active_document","member":"RefPlanes"}
+@rp1 = se_com_invoke {"target":"{{rps.value.handle}}","method":"Item","arguments":[1]}
+se_com_set {"target":"{{rp1.result.handle}}","member":"Visible","value":true}
+se_com_invoke {"target":"{{cf.value.handle}}","method":"TakeSnapshot"}
+se_com_set {"target":"{{rp1.result.handle}}","member":"Visible","value":false}
+@v0 = se_com_get {"target":"{{rp1.result.handle}}","member":"Visible"}
+?= v0.value false
+se_com_invoke {"target":"{{cf.value.handle}}","method":"RestoreSnapshot"}
+@v1 = se_com_get {"target":"{{rp1.result.handle}}","member":"Visible"}
+?= v1.value true
+# Simplified model of the part written as Parasolid: imported back it holds the block
+se_simplify {"action":"create"}
+@sx = se_simplify {"action":"save_as","path":"{{work}}\\runs\\a96_simple_{{run}}.x_t"}
+?~ sx.path a96_simple_
+! [invalid_argument] se_simplify {"action":"save_as","path":"{{work}}\\runs\\a96_simple_{{run}}.par"}
+@sxi = se_documents {"action":"import","path":"{{work}}\\runs\\a96_simple_{{run}}.x_t"}
+?= sxi.volume 120000 0.01
+se_documents {"action":"close","document":"{{sxi.document.handle}}","saveChanges":false}
+se_documents {"action":"save_as","document":"{{q.handle}}","path":"{{work}}\\runs\\a96_q_{{run}}.par"}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+# Copy Sketch: an assembly layout copied into the part of an occurrence
+@a = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\runs\\a96_q_{{run}}.par"}
+@ly = se_sketch {"action":"create","plane":"xy","layout":true}
+se_sketch {"action":"rectangle","sketch":"{{ly.sketch}}","points":[0,0,80,40]}
+se_sketch {"action":"close","sketch":"{{ly.sketch}}"}
+@cp = se_sketch_tools {"action":"copy","sketch":"{{ly.sketch}}","occurrence":"{{o1.handle}}"}
+?= cp.elements.lines 4
+?= cp.associative false
+@ka = se_sketch {"action":"create","plane":"1"}
+! [invalid_argument] se_sketch_tools {"action":"copy","sketch":"{{ka.sketch}}","occurrence":"{{o1.handle}}"}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# Clean Sketch, Total Length and Convert to Curve on a drawing sheet
+@dr = se_documents {"action":"new","kind":"draft"}
+@sh = se_drawing {"action":"sheets"}
+se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[50,50,100,50]}
+se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[50,50,100,50]}
+se_sketch {"action":"line","sketch":"{{sh.sheets[0].handle}}","points":[100,50,100.00001,50]}
+se_sketch {"action":"circle","sketch":"{{sh.sheets[0].handle}}","center":[150,80],"radius":10}
+@cs = se_sketch_tools {"action":"clean","sketch":"{{sh.sheets[0].handle}}"}
+?= cs.before.lines 3
+?= cs.after.lines 1
+?= cs.removed 2
+@ts = se_sketch_tools {"action":"length","sketch":"{{sh.sheets[0].handle}}"}
+?= ts.elements 2
+?= ts.length 112.832 0.001
+# Clean keeps either of the identical lines (Solid Edge's choice), so the line left is read again
+@cl = se_sketch {"action":"info","sketch":"{{sh.sheets[0].handle}}"}
+?= cl.items[0].geometry.type line
+@sc = se_sketch_tools {"action":"convert","sketch":"{{sh.sheets[0].handle}}","elements":["{{cl.items[0].element}}"]}
+?= sc.length 50 0.001
+?= sc.curves[0].geometry.type spline
+@si = se_sketch {"action":"info","sketch":"{{sh.sheets[0].handle}}"}
+?= si.elements.lines 0
+se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}

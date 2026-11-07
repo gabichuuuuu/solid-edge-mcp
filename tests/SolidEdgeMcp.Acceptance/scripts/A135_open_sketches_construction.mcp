@@ -1,0 +1,104 @@
+# A135: operations on open sketches that carry a construction line beside the profile build from the sketch's own profile and ignore the construction line: the same volume changes as A03, A05 and A10 without it. Each part is closed without saving.
+# A: 100x60x20 block; on its top plane a slot along (20,30)-(80,30), width 10 -> -13570.796, then driving its length (Sketch_2_Width 60 -> 40): the slot shrinks by 20*10*20 = 4000 -> +4000. W: the block shelled 2 thick open at the top (23232), a web network along x = 50 -> 18*56*2 = +2016
+@dA = se_documents {"action":"new","kind":"part"}
+@kA = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kA.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kA.sketch}}"}
+se_extrude {"sketch":"{{kA.sketch}}","distance":20}
+@pA = se_ref_plane {"action":"offset","plane":"1","distance":20}
+@kS = se_sketch {"action":"create","plane":"{{pA.handle}}"}
+se_sketch {"action":"line","sketch":"{{kS.sketch}}","points":[20,30,80,30]}
+@cS = se_sketch {"action":"line","sketch":"{{kS.sketch}}","points":[20,50,80,50]}
+se_sketch_edit {"action":"construction","sketch":"{{kS.sketch}}","elements":["{{cS.element}}"]}
+@zS = se_sketch {"action":"close","sketch":"{{kS.sketch}}","open":true}
+?= zS.fullyDefined true
+@sl = se_part_feature {"action":"slot","sketch":"{{kS.sketch}}","width":10}
+?= sl.volumeChange -13570.796 0.05
+@ss = se_variables {"action":"set","name":"Sketch_2_Width","value":40}
+?= ss.volumeChange 4000 0.05
+se_documents {"action":"close","document":"{{dA.handle}}","saveChanges":false}
+@dW = se_documents {"action":"new","kind":"part"}
+@kR = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kR.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kR.sketch}}"}
+se_extrude {"sketch":"{{kR.sketch}}","distance":20}
+@tW = se_geometry {"action":"faces","direction":[0,0,1]}
+@shW = se_shell {"thickness":2,"openFaces":["{{tW.items[0].handle}}"]}
+?= shW.volume 23232 0.05
+@pW = se_ref_plane {"action":"offset","plane":"1","distance":20}
+@kW = se_sketch {"action":"create","plane":"{{pW.handle}}"}
+se_sketch {"action":"line","sketch":"{{kW.sketch}}","points":[50,0,50,60]}
+@cW = se_sketch {"action":"line","sketch":"{{kW.sketch}}","points":[90,10,90,50]}
+se_sketch_edit {"action":"construction","sketch":"{{kW.sketch}}","elements":["{{cW.element}}"]}
+se_sketch {"action":"close","sketch":"{{kW.sketch}}","open":true}
+@wn = se_part_feature {"action":"web_network","sketch":"{{kW.sketch}}","thickness":2}
+?= wn.volumeChange 2016 0.05
+se_documents {"action":"close","document":"{{dW.handle}}","saveChanges":false}
+# B: a r5 circle swept along the open path (0,0)-(0,50)-(30,80) on the xz plane, with a construction line beside the path -> 7263.08
+@dB = se_documents {"action":"new","kind":"part"}
+@kP = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"polyline","sketch":"{{kP.sketch}}","points":[0,0,0,50,30,80],"closed":false}
+@cP = se_sketch {"action":"line","sketch":"{{kP.sketch}}","points":[60,0,60,20]}
+se_sketch_edit {"action":"construction","sketch":"{{kP.sketch}}","elements":["{{cP.element}}"]}
+se_sketch {"action":"close","sketch":"{{kP.sketch}}","open":true}
+@kC = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kC.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{kC.sketch}}"}
+@sw = se_loft_sweep {"action":"sweep","sketches":["{{kC.sketch}}"],"path":"{{kP.sketch}}"}
+?= sw.volume 7263.08 0.05
+se_documents {"action":"close","document":"{{dB.handle}}","saveChanges":false}
+# C: 100x60 tab: a 60° bend along x = 60 -> +21.363
+@dC = se_documents {"action":"new","kind":"sheet_metal"}
+@kT = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kT.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kT.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{kT.sketch}}"}
+@kL = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kL.sketch}}","points":[60,0,60,60]}
+@cL = se_sketch {"action":"line","sketch":"{{kL.sketch}}","points":[80,10,80,50]}
+se_sketch_edit {"action":"construction","sketch":"{{kL.sketch}}","elements":["{{cL.element}}"]}
+se_sketch {"action":"close","sketch":"{{kL.sketch}}","open":true}
+@bn = se_sheetmetal_form {"action":"bend","sketch":"{{kL.sketch}}","angle":60}
+?= bn.volumeChange 21.363 0.01
+se_documents {"action":"close","document":"{{dC.handle}}","saveChanges":false}
+# D: 100x60 tab and a 30x40 tab on its edge x = 100 (7200): a bead height 3, width 8 along y = 15 -> +325.645; an etch along y = 45 -> 0
+@dD = se_documents {"action":"new","kind":"sheet_metal"}
+@kD = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kD.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kD.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{kD.sketch}}"}
+@kE = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kE.sketch}}","points":[100,10,130,50]}
+se_sketch {"action":"close","sketch":"{{kE.sketch}}"}
+@tE = se_sheetmetal {"action":"tab","sketch":"{{kE.sketch}}"}
+?= tE.volume 7200
+@kB = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kB.sketch}}","points":[20,15,80,15]}
+@cB = se_sketch {"action":"line","sketch":"{{kB.sketch}}","points":[20,5,80,5]}
+se_sketch_edit {"action":"construction","sketch":"{{kB.sketch}}","elements":["{{cB.element}}"]}
+se_sketch {"action":"close","sketch":"{{kB.sketch}}","open":true}
+@bd = se_sheetmetal_form {"action":"bead","sketch":"{{kB.sketch}}","height":3,"width":8}
+?= bd.volumeChange 325.645 0.01
+@kH = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kH.sketch}}","points":[50,45,90,45]}
+@cH = se_sketch {"action":"line","sketch":"{{kH.sketch}}","points":[50,55,90,55]}
+se_sketch_edit {"action":"construction","sketch":"{{kH.sketch}}","elements":["{{cH.element}}"]}
+se_sketch {"action":"close","sketch":"{{kH.sketch}}","open":true}
+@et = se_sheetmetal_form {"action":"etch","sketch":"{{kH.sketch}}"}
+?= et.volumeChange 0
+?~ et.feature.type Etch
+se_documents {"action":"close","document":"{{dD.handle}}","saveChanges":false}
+# E: 100x60 tab: a jog of 5 along y = 30, material outside -> +371.239
+@dE = se_documents {"action":"new","kind":"sheet_metal"}
+@kJ = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kJ.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kJ.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{kJ.sketch}}"}
+@kG = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kG.sketch}}","points":[0,30,100,30]}
+@cG = se_sketch {"action":"line","sketch":"{{kG.sketch}}","points":[10,45,90,45]}
+se_sketch_edit {"action":"construction","sketch":"{{kG.sketch}}","elements":["{{cG.element}}"]}
+se_sketch {"action":"close","sketch":"{{kG.sketch}}","open":true}
+@jg = se_sheetmetal_form {"action":"jog","sketch":"{{kG.sketch}}","height":5,"side":"outside"}
+?= jg.volumeChange 371.239 0.01
+se_documents {"action":"close","document":"{{dE.handle}}","saveChanges":false}

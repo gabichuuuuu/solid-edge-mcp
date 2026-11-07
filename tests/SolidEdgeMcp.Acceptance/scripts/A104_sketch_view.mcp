@@ -1,0 +1,39 @@
+# A104: Sketch View (se_view orient with 'plane'): the camera looks square at a sketch (its x axis to the right), a base
+#   plane, a planar face and a plane at an angle, and the model is fitted. Block 100 x 60 x 20 on the top plane.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+# A sketch on the front plane ('3', frame normal -y): looked at along +y, its y axis (model z) up.
+@kf = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"circle","sketch":"{{kf.sketch}}","center":[50,10],"radius":5}
+@sf = se_view {"action":"orient","plane":"{{kf.sketch}}"}
+?= sf.normal[1] {{kf.frame.normal[1]}}
+?= sf.up[2] {{kf.frame.yAxis[2]}}
+?= sf.view.camera.direction[1] 1
+?= sf.view.camera.up[2] 1
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a104_sketch_view.png"}
+# The top plane: looked at from above, the model y axis up.
+@st = se_view {"action":"orient","plane":"1"}
+?= st.view.camera.direction[2] -1
+?= st.view.camera.up[1] 1
+# The right face of the block (x = 100): looked at along -x, z up.
+@fr = se_geometry {"action":"faces","direction":[1,0,0]}
+@sr = se_view {"action":"orient","plane":"{{fr.items[0].handle}}"}
+?= sr.view.camera.direction[0] -1
+?= sr.view.camera.up[2] 1
+# The top plane turned 30 degrees about the right plane: normal (+-0.5, 0, 0.866), looked at against it; the up
+#   direction is z projected onto the plane: (-+0.866, 0, 0.5).
+@ap = se_ref_plane {"action":"angle","plane":"1","pivot":"2","angle":30}
+@sa = se_view {"action":"orient","plane":"{{ap.handle}}"}
+?= sa.normal[2] 0.866025
+?= sa.view.camera.direction[2] -0.866025
+?= sa.view.camera.up[2] 0.5
+@cam = se_view {"action":"camera"}
+?= cam.camera.direction[0] {{sa.view.camera.direction[0]}}
+# Refused: both an orientation and a plane; a handle that is not a plane.
+! [invalid_argument] se_view {"action":"orient","orientation":"top","plane":"1"}
+@ed = se_geometry {"action":"edges","limit":1}
+! [handle_wrong_type] se_view {"action":"orient","plane":"{{ed.items[0].handle}}"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

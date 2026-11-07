@@ -1,0 +1,80 @@
+# A34: more drawing dimensions and annotations: coordinate dimensions (horizontal and vertical, also at 1:2), angular coordinate dimensions, a chamfer dimension, a bolt hole circle, a datum target and a datum point, with the refused cases.
+# Plate 100 x 60 x 10 (x 0..100, y 0..60) with holes 10 at (25,30) and (75,30): 60000 - 2 x pi x 5^2 x 10 = 58429.204
+@pp = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":10}
+@h = se_hole {"plane":"1","centers":[25,30,0, 75,30,0],"diameter":10}
+?= h.volume 58429.204 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a34_plate.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# A plate 100 x 60 x 10 without holes, with 5 mm chamfers on its four vertical edges: 60000 - 4 x 5 x 5 / 2 x 10 = 59500
+@pc = se_documents {"action":"new","kind":"part"}
+@b2 = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":10}
+@ve = se_geometry {"action":"edges","type":"line","direction":[0,0,1]}
+@ch = se_chamfer {"edges":["{{ve.items[0].handle}}","{{ve.items[1].handle}}","{{ve.items[2].handle}}","{{ve.items[3].handle}}"],"distance":5}
+?= ch.volume 59500 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a34_chamfer.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# Flange r 50 x 10 with a centre hole 20 and holes 8 at r 35 and 0, 60 and 150 degrees
+@pf = se_documents {"action":"new","kind":"part"}
+@f = se_primitive {"shape":"cylinder","plane":"1","center":[0,0,0],"radius":50,"depth":10}
+@fh = se_hole {"plane":"1","centers":[0,0,0],"diameter":20}
+@fh2 = se_hole {"plane":"1","centers":[35,0,0, 17.5,30.31088913,0, -30.31088913,17.5,0],"diameter":8}
+se_documents {"action":"save_as","path":"{{work}}\\a34_flange.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+# Coordinate dimensions from the plate corner (0,0): horizontal 25, 75, 100; vertical 30, 60
+@v1 = se_drawing {"action":"base_view","path":"{{work}}\\a34_plate.par","orientation":"top","position":[150,150],"scale":1}
+@cx = se_drawing {"action":"dimension","view":"{{v1.view.handle}}","kind":"coordinate","points":[0,0,10, 25,30,10, 75,30,10, 100,60,10]}
+?= cx.dimensions[0].value 0
+?= cx.dimensions[1].value 25
+?= cx.dimensions[2].value 75
+?= cx.dimensions[3].value 100
+?= cx.dimensions[1].type coordinate
+@cy = se_drawing {"action":"dimension","view":"{{v1.view.handle}}","kind":"coordinate","measure":"vertical","points":[0,0,10, 25,30,10, 100,60,10]}
+?= cy.dimensions[1].value 30
+?= cy.dimensions[2].value 60
+# Refused: an origin that is not a vertex or centre, a single point
+! [invalid_argument] se_drawing {"action":"dimension","view":"{{v1.view.handle}}","kind":"coordinate","points":[50,0,10, 25,30,10]}
+! [invalid_argument] se_drawing {"action":"dimension","view":"{{v1.view.handle}}","kind":"coordinate","points":[0,0,10]}
+# A view at 1:2 still reads model distances
+@v2 = se_drawing {"action":"base_view","path":"{{work}}\\a34_plate.par","orientation":"top","position":[300,80],"scale":0.5}
+@c2 = se_drawing {"action":"dimension","view":"{{v2.view.handle}}","kind":"coordinate","points":[0,0,10, 75,30,10]}
+?= c2.dimensions[1].value 75
+# Datum target A1 on the bottom edge, its symbol 30 mm below; a datum point on the corner (0,0): sheet (100,120)
+@dt = se_annotation {"action":"datum_target","view":"{{v1.view.handle}}","points":[50,0,10],"text":"A1","position":[150,90]}
+?= dt.annotation.kind datum_target
+?= dt.annotation.text A1
+?= dt.annotation.attached true
+! [invalid_argument] se_annotation {"action":"datum_target","view":"{{v1.view.handle}}","points":[50,0,10],"text":"A"}
+@dp = se_annotation {"action":"datum_point","view":"{{v1.view.handle}}","points":[0,0,10]}
+?= dp.annotation.at[0] 100
+?= dp.annotation.at[1] 120
+@all = se_drawing {"action":"dimensions"}
+?= all.count 9
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@d2 = se_documents {"action":"new","kind":"draft"}
+# Chamfer: a point on the chamfer at the corner (100,60) and one on the top edge: 5 mm
+@v3 = se_drawing {"action":"base_view","path":"{{work}}\\a34_chamfer.par","orientation":"top","position":[100,200],"scale":1}
+@cd = se_drawing {"action":"dimension","view":"{{v3.view.handle}}","kind":"chamfer","points":[97.5,57.5,10, 50,60,10]}
+?= cd.dimension.type chamfer
+?= cd.dimension.value 5
+! [invalid_argument] se_drawing {"action":"dimension","view":"{{v3.view.handle}}","kind":"chamfer","points":[50,60,10, 50,0,10]}
+# Angular coordinates about the flange centre from the hole at 0 degrees: 60 and 150 counterclockwise, 300 and 210 clockwise
+@v4 = se_drawing {"action":"base_view","path":"{{work}}\\a34_flange.par","orientation":"top","position":[250,120],"scale":1}
+@ac = se_drawing {"action":"dimension","view":"{{v4.view.handle}}","kind":"angular_coordinate","points":[0,0,10, 35,0,10, 17.5,30.31088913,10, -30.31088913,17.5,10]}
+?= ac.dimensions[1].value 60 0.001
+?= ac.dimensions[2].value 150 0.001
+?= ac.dimensions[2].type angular_coordinate
+@aw = se_drawing {"action":"dimension","view":"{{v4.view.handle}}","kind":"angular_coordinate","measure":"clockwise","points":[0,0,10, 35,0,10, 17.5,30.31088913,10]}
+?= aw.dimensions[1].value 300 0.001
+! [invalid_argument] se_drawing {"action":"dimension","view":"{{v4.view.handle}}","kind":"angular_coordinate","points":[0,0,10, 35,0,10]}
+# Bolt hole circle through the three holes: centre (250,120) on the sheet, radius 35
+@bc = se_annotation {"action":"bolt_circle","view":"{{v4.view.handle}}","points":[35,0,10, 17.5,30.31088913,10, -30.31088913,17.5,10]}
+?= bc.annotation.kind bolt_circle
+?= bc.annotation.radius 35 0.001
+?= bc.annotation.centre[0] 250 0.001
+?= bc.annotation.centre[1] 120 0.001
+! [invalid_argument] se_annotation {"action":"bolt_circle","view":"{{v4.view.handle}}","points":[35,0,10, 35,0,10, -30.31088913,17.5,10]}
+@la = se_annotation {"action":"list","kind":"bolt_circle"}
+?= la.count 1
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}

@@ -1,0 +1,145 @@
+# A08: server, generic COM layer (se_com_*), commands (se_command), tree and feature editing, undo/redo with steps and selection.
+# Values from A01.out, A02.out, t13.out, t71.out or by formula. Uses its own temporary part, which is closed without saving.
+@info = se_server_info {}
+?= info.limits.maxListItems 500
+@k = se_com_constants {"query":"igRight"}
+?= k.enums[0].values.igRight 2
+@ds = se_com_describe {"type":"SolidEdgePart.ExtrudedProtrusions","filter":"AddFinite","limit":10}
+?~ ds.members AddFinite(SolidEdgePart.Profile Profile
+! [not_found] se_com_describe {"type":"SolidEdgePart.NoSuchInterface"}
+@cf = se_command {"action":"find","query":"ISOView","environment":"Part"}
+?= cf.commands[0].id 32810
+@v = se_com_get {"target":"app","member":"Version"}
+?~ v.value 226.
+# Errors of the generic layer (codes of GenericCom/HandleRegistry): nonexistent member, read-only property, property used as a method, nonexistent handle
+! [member_not_found] se_com_get {"target":"app","member":"NoSuchMember"}
+! [read_only_property] se_com_set {"target":"app","member":"Version","value":"1"}
+! [not_a_method] se_com_invoke {"target":"app","method":"Version"}
+! [handle_not_found] se_com_get {"target":"feature:99999","member":"Name"}
+# New part in ordered mode (t71.out); setting the same mode returns the value read; 3 base reference planes
+@d = se_documents {"action":"new","kind":"part"}
+@mm = se_com_get {"target":"active_document","member":"ModelingMode"}
+?= mm.value seModelingModeOrdered
+@ms = se_com_set {"target":"active_document","member":"ModelingMode","value":2}
+?= ms.value seModelingModeOrdered
+@dt = se_com_describe {"target":"active_document","filter":"ModelingMode"}
+?~ dt.members ModelingMode
+@rp = se_com_items {"target":"active_document","member":"RefPlanes"}
+?= rp.count 3
+# Plate 100x60x10 = 60000 mm3 = 6e-5 m3 (the COM layer works in meters)
+@k1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+@e = se_extrude {"sketch":"{{k1.sketch}}","distance":10}
+?= e.volume 60000
+@models = se_com_get {"target":"active_document","member":"Models"}
+@m = se_com_invoke {"target":"{{models.value.handle}}","method":"Item","arguments":[1]}
+?= m.result.type SolidEdgePart.Model
+@body = se_com_get {"target":"{{m.result.handle}}","member":"Body"}
+@bv = se_com_get {"target":"{{body.value.handle}}","member":"Volume"}
+?= bv.value 6e-5 1e-9
+@nm = se_com_get {"target":"{{e.feature.handle}}","member":"Name"}
+?= nm.value ExtrudedProtrusion_1
+! [member_not_found] se_com_invoke {"target":"{{e.feature.handle}}","method":"NoSuchMethod"}
+# UI commands: isometric view of the Part environment (t13.out); nonexistent command -> not_found
+@run = se_command {"action":"run","command":"PartViewISOView"}
+?= run.environment Part
+! [not_found] se_command {"action":"run","command":"NoSuchCommand"}
+# Two through holes Ø6.6 (A02 recipe): each one -pi*3.3²*10 = -342.119 -> 59657.881 and 59315.762
+@t = se_geometry {"action":"faces","direction":[0,0,1]}
+# An argument of the wrong type (an array where Face.GetNormal takes the number of points) is the caller's error
+! [invalid_argument] se_com_invoke {"target":"{{t.items[0].handle}}","method":"GetNormal","arguments":[{"type":"double[]","value":[0,0,0]}]}
+@hA =se_hole {"plane":"{{t.items[0].handle}}","centers":[10,10,10],"diameter":6.6}
+?= hA.volume 59657.881 0.01
+@t2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@hB = se_hole {"plane":"{{t2.items[0].handle}}","centers":[90,50,10],"diameter":6.6}
+?= hB.volume 59315.762 0.01
+# Tree: 3 planes + sketch + extrusion + 2 holes = 7 (A02.out: planes, Sketch_1, extrusion, Hole_n); suppress, recover and rename
+@tr = se_feature_tree {}
+?= tr.count 7
+@su = se_feature_edit {"feature":"{{hB.feature.handle}}","action":"suppress"}
+?= su.volume 59657.881 0.01
+@un = se_feature_edit {"feature":"{{hB.feature.handle}}","action":"unsuppress"}
+?= un.volume 59315.762 0.01
+se_feature_edit {"feature":"{{e.feature.handle}}","action":"rename","name":"Base"}
+@tr2 = se_feature_tree {}
+?~ tr2.features Base
+# Undo: Solid Edge does not record the operations made through the API from sketches (the plate comes from a sketch),
+# so in this document there is nothing to undo and the tool says so instead of pretending.
+! [nothing_to_undo] se_documents {"action":"undo"}
+# In the saved and reopened part they are recorded: delete the two holes (59657.881 and 60000),
+# undo 2 steps -> both come back (59315.762), redo 1 -> one remains (59657.881)
+se_documents {"action":"save_as","path":"{{work}}\\a08_undo.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@ro = se_documents {"action":"open","path":"{{work}}\\a08_undo.par"}
+@rt = se_feature_tree {}
+@x1 = se_feature_edit {"feature":"{{rt.features[?name="Hole_2"].handle}}","action":"delete"}
+?= x1.volume 59657.881 0.01
+@rt2 = se_feature_tree {}
+@x2 = se_feature_edit {"feature":"{{rt2.features[?name="Hole_1"].handle}}","action":"delete"}
+?= x2.volume 60000
+@un2 = se_documents {"action":"undo","steps":2}
+?= un2.steps 2
+@ph1 = se_physical {}
+?= ph1.volume 59315.762 0.01
+@re1 = se_documents {"action":"redo","steps":1}
+?= re1.steps 1
+@ph2 = se_physical {}
+?= ph2.volume 59657.881 0.01
+# Selection: set the top face (1), add a side one (2), clear (0)
+@t3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@ss = se_selection {"action":"set","handles":["{{t3.items[0].handle}}"]}
+?= ss.count 1
+@side = se_geometry {"action":"faces","direction":[1,0,0]}
+@sa = se_selection {"action":"add","handles":["{{side.items[0].handle}}"]}
+?= sa.count 2
+se_selection {"action":"clear"}
+@sg = se_selection {"action":"get"}
+?= sg.count 0
+se_documents {"action":"close","document":"{{ro.handle}}","saveChanges":false}
+# Routes of the generic layer verified for features without a tool, on a box 100x60x20 (120000 mm3):
+#   3D sketch: a line from (0,0,20) to (100,60,20) in Sketches3D measures sqrt(100² + 60²) = 116.619 mm (Line3D.Length in m).
+#   PMI model view by standard orientation (front, 3 = shaded with edges): named "Front".
+#   Material libraries: GetMaterialLibraryList of the material table lists the installed libraries (read only).
+#   Convert to mesh: the body becomes a mesh feature; se_physical still gives the volume, se_feature_tree lists "Mesh Body_1"
+#   with a note instead of the volume and se_geometry refuses faces with no_brep_body (Solid Edge cannot read the body).
+@gx = se_documents {"action":"new","kind":"part"}
+@gk = se_sketch {"action":"create","plane":"1","document":"{{gx.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{gk.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{gk.sketch}}"}
+@ge = se_extrude {"sketch":"{{gk.sketch}}","distance":20,"document":"{{gx.handle}}"}
+@s3 = se_com_get {"target":"{{gx.handle}}","member":"Sketches3D"}
+@sk3 = se_com_invoke {"target":"{{s3.value.handle}}","method":"Add"}
+@ln3 = se_com_get {"target":"{{sk3.result.handle}}","member":"Lines3D"}
+@l3 = se_com_invoke {"target":"{{ln3.value.handle}}","method":"Add","arguments":[0,0,0.02,0.1,0.06,0.02]}
+@l3l = se_com_get {"target":"{{l3.result.handle}}","member":"Length"}
+?= l3l.value 0.116619 0.000001
+@pmi = se_com_get {"target":"{{gx.handle}}","member":"PMI"}
+@mvs = se_com_get {"target":"{{pmi.value.handle}}","member":"PMIModelViews"}
+@mv = se_com_invoke {"target":"{{mvs.value.handle}}","method":"AddByStandardViewOrientation","arguments":[0,3,0]}
+@mvn = se_com_get {"target":"{{mv.result.handle}}","member":"Name"}
+?= mvn.value Front
+@mvc = se_com_get {"target":"{{mvs.value.handle}}","member":"Count"}
+?= mvc.value 1
+@mt = se_com_invoke {"target":"app","method":"GetMaterialTable"}
+@ml = se_com_invoke {"target":"{{mt.result.handle}}","method":"GetMaterialLibraryList","arguments":[null,null]}
+?~ ml.outputs.MaterialLibList Materials
+! [unsafe_member] se_com_invoke {"target":"{{mt.result.handle}}","method":"SetMatPropValue","arguments":["x","y",0,0]}
+! [unsafe_member] se_com_invoke {"target":"{{mt.result.handle}}","method":"RenameLibrary","arguments":["x","y"]}
+! [unsafe_member] se_com_invoke {"target":"{{mt.result.handle}}","method":"DeleteDirectory","arguments":["x"]}
+! [unsafe_member] se_com_invoke {"target":"{{mt.result.handle}}","method":"WriteMatLibFileFromXML","arguments":["x"]}
+@gm = se_com_get {"target":"{{gx.handle}}","member":"Models"}
+@gm1 = se_com_invoke {"target":"{{gm.value.handle}}","method":"Item","arguments":[1]}
+@gb = se_com_get {"target":"{{gm1.result.handle}}","member":"Body"}
+@gc = se_com_get {"target":"{{gx.handle}}","member":"Constructions"}
+@gcm = se_com_get {"target":"{{gc.value.handle}}","member":"ConvertToMeshes"}
+@mesh = se_com_invoke {"target":"{{gcm.value.handle}}","method":"Add","arguments":[{"handle":"{{gb.value.handle}}"}]}
+@mph = se_physical {"document":"{{gx.handle}}"}
+?= mph.volume 120000 0.01
+@mft = se_feature_tree {"document":"{{gx.handle}}"}
+?~ mft.features[?type="ConvertToMesh"].name Mesh
+?~ mft.note converted to a mesh
+! [no_brep_body] se_geometry {"action":"faces","document":"{{gx.handle}}"}
+! [no_brep_body] se_geometry {"action":"summary","document":"{{gx.handle}}"}
+se_documents {"action":"close","document":"{{gx.handle}}","saveChanges":false}
+se_documents {"action":"list"}

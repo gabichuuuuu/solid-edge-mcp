@@ -1,0 +1,55 @@
+# A32: printing drawing sheets (se_print). Only to files, with the "Microsoft Print to PDF" printer of Windows: nothing goes on paper.
+# A 40x20x10 block in a drawing with two sheets: Sheet1 (A2, a view of the block) and "Detail A" (A4).
+@pb = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[30,0,0],"size":[40,20],"depth":10}
+?= b.volume 8000 0.001
+se_documents {"action":"save_as","path":"{{work}}\\a32_block.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+@v = se_drawing {"action":"base_view","path":"{{work}}\\a32_block.par","orientation":"top","position":[150,150],"scale":1}
+@s2 = se_drawing {"action":"add_sheet","name":"Detail A","paper":"a4"}
+se_documents {"action":"save_as","path":"{{work}}\\a32_drawing.dft","overwrite":true}
+# The printers of Windows and the print settings of Solid Edge before printing
+@pr = se_print {"action":"printers"}
+?= pr.printers[?name="Microsoft\u0020Print\u0020to\u0020PDF"].asksForFile true
+?= pr.printers[?name="Microsoft\u0020Print\u0020to\u0020PDF"].connection local
+# Refused: a printer that asks for a file name without 'folder', an unknown printer, an unknown sheet, a bad scale
+! [invalid_argument] se_print {"action":"print","printer":"Microsoft Print to PDF"}
+! [not_found] se_print {"action":"print","printer":"No such printer 32","folder":"{{work}}\\a32"}
+! [not_found] se_print {"action":"print","printer":"Microsoft Print to PDF","folder":"{{work}}\\a32","sheets":["Detail B"]}
+! [invalid_argument] se_print {"action":"print","printer":"Microsoft Print to PDF","folder":"{{work}}\\a32","scale":0}
+# Every working sheet on A4 fitted to the paper: one PDF per sheet, A4 landscape (297 x 210 mm), one page each
+@p1 = se_print {"action":"print","printer":"Microsoft Print to PDF","folder":"{{work}}\\a32","paper":"a4","overwrite":true}
+?= p1.sheets[0] Sheet1
+?= p1.settings.paper a4
+?= p1.settings.scale fit
+?~ p1.files[0].path a32_drawing_Detail A.pdf
+?~ p1.files[1].path a32_drawing_Sheet1.pdf
+?= p1.files[0].format pdf
+?= p1.files[1].pages 1
+?= p1.files[1].pageSize[0] 297 0.2
+?= p1.files[1].pageSize[1] 210 0.2
+?= p1.restored true
+# Solid Edge records the print date in the saved drawing, which is then marked as modified
+?~ p1.modified Last Print Date
+# The files exist now: refused without overwrite. Sheet1 on A3 portrait at half size, as black, two copies: two A3 portrait pages
+! [file_exists] se_print {"action":"print","printer":"Microsoft Print to PDF","folder":"{{work}}\\a32","sheets":["Sheet1"]}
+@p2 = se_print {"action":"print","printer":"Microsoft Print to PDF","folder":"{{work}}\\a32","sheets":["sheet1"],"paper":"a3","orientation":"portrait","scale":0.5,"black":true,"copies":2,"overwrite":true}
+?= p2.sheets[0] Sheet1
+?= p2.settings.orientation portrait
+?= p2.settings.scale 0.5
+?= p2.settings.copies 2
+?= p2.settings.black true
+?= p2.files[0].pages 2
+?= p2.files[0].pageSize[0] 297 0.2
+?= p2.files[0].pageSize[1] 420 0.2
+?= p2.restored true
+# Solid Edge's print settings are as they were
+@pa = se_print {"action":"printers"}
+?~ pa.solidEdge.printer {{pr.solidEdge.printer}}
+?= pa.solidEdge.paper {{pr.solidEdge.paper}}
+?= pa.solidEdge.orientation {{pr.solidEdge.orientation}}
+?= pa.solidEdge.scale {{pr.solidEdge.scale}}
+?= pa.solidEdge.copies {{pr.solidEdge.copies}}
+?= pa.solidEdge.black {{pr.solidEdge.black}}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

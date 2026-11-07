@@ -1,0 +1,26 @@
+# A127: overall dimensions on the drawing view of a flat pattern, whose model points are those of the flat pattern, not of the folded part; a point off every edge of the view names the nearest edge in model coordinates. The U of A126 (k 0.33) flattens to 172.357 x 60, from x -40.178 to 132.178 and y -60 to 0.
+se_session {"action":"connect"}
+@docs0 = se_documents {"action":"list"}
+?= docs0.count 0 0
+@sm = se_documents {"action":"new","kind":"sheet_metal"}
+se_sheetmetal {"action":"set_settings","thickness":2,"bendRadius":2}
+@k = se_sketch {"action":"create","plane":"xz"}
+se_sketch {"action":"polyline","sketch":"{{k.sketch}}","points":[-50,40,-50,0,50,0,50,40],"closed":false}
+se_sketch {"action":"close","sketch":"{{k.sketch}}","open":true}
+se_sheetmetal {"action":"contour_flange","sketch":"{{k.sketch}}","width":60,"materialSide":"left","radius":2}
+@f1 = se_sheetmetal {"action":"flatten"}
+?= f1.cutSize.x 172.357 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a127_u.psm","overwrite":true}
+se_documents {"action":"close","document":"{{sm.handle}}","saveChanges":false}
+@g = se_documents {"action":"new","kind":"draft"}
+@fv = se_drawing {"action":"base_view","path":"{{work}}\\a127_u.psm","flat":true,"position":[150,150],"scale":1}
+?= fv.view.size[0] 185.057 0.01
+# Points of the folded part are not on the flat view: the error names the nearest edge of the view in model coordinates
+! [not_found] se_drawing {"action":"dimension","view":"{{fv.view.handle}}","kind":"distance","measure":"horizontal","points":[-50,0,40,50,0,40]}
+@dx = se_drawing {"action":"dimension","view":"{{fv.view.handle}}","kind":"distance","measure":"horizontal","points":[-40.1783,0,0,132.1783,0,0]}
+?= dx.dimension.value 172.357 0.01
+@dy = se_drawing {"action":"dimension","view":"{{fv.view.handle}}","kind":"distance","measure":"vertical","points":[132.1783,0,0,132.1783,-60,0]}
+?= dy.dimension.value 60 0.01
+se_documents {"action":"close","document":"{{g.handle}}","saveChanges":false}
+@docs1 = se_documents {"action":"list"}
+?= docs1.count 0 0

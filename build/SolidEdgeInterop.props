@@ -1,0 +1,42 @@
+<Project>
+  <!--
+    Interop generated from the type libraries of the local Solid Edge installation
+    (scripts/generate-interop.ps1). The Interop.SolidEdge NuGet package is not used: it is deprecated.
+    Imported in every project that loads the interop (executables and tests too): direct references
+    to DLLs do not flow into the deps.json of the projects that reference another project.
+  -->
+  <PropertyGroup>
+    <!-- false in the distributed package (scripts/package.ps1): the interop is compiled against but not copied; the server
+         generates it on the machine at its first start (InteropBootstrap). -->
+    <SolidEdgeInteropCopyLocal Condition="'$(SolidEdgeInteropCopyLocal)' == ''">true</SolidEdgeInteropCopyLocal>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Interop.SolidEdgeConstants" HintPath="$(InteropDir)Interop.SolidEdgeConstants.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeFramework" HintPath="$(InteropDir)Interop.SolidEdgeFramework.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeFrameworkSupport" HintPath="$(InteropDir)Interop.SolidEdgeFrameworkSupport.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeGeometry" HintPath="$(InteropDir)Interop.SolidEdgeGeometry.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgePart" HintPath="$(InteropDir)Interop.SolidEdgePart.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeAssembly" HintPath="$(InteropDir)Interop.SolidEdgeAssembly.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+    <Reference Include="Interop.SolidEdgeDraft" HintPath="$(InteropDir)Interop.SolidEdgeDraft.dll" EmbedInteropTypes="false" Private="$(SolidEdgeInteropCopyLocal)" />
+  </ItemGroup>
+
+  <!-- The deps.json is rebuilt only when the restore or the project files change, not when SolidEdgeInteropCopyLocal does:
+       a build from source after scripts/package.ps1 kept the deps.json without the interop, and the server could not load
+       the interop beside it. This stamp, rewritten when the value changes, is one more input of that step. -->
+  <Target Name="StampSolidEdgeInteropCopyLocal" BeforeTargets="GenerateBuildDependencyFile">
+    <WriteLinesToFile File="$(IntermediateOutputPath)SolidEdgeInterop.copylocal" Lines="$(SolidEdgeInteropCopyLocal)"
+                      Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <PropertyGroup>
+      <MSBuildAllProjects>$(MSBuildAllProjects);$(IntermediateOutputPath)SolidEdgeInterop.copylocal</MSBuildAllProjects>
+    </PropertyGroup>
+    <ItemGroup>
+      <FileWrites Include="$(IntermediateOutputPath)SolidEdgeInterop.copylocal" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CheckSolidEdgeInterop" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(InteropDir)Interop.SolidEdgeFramework.dll')"
+           Text="Solid Edge interop is missing in $(InteropDir). Run scripts\generate-interop.ps1 on a machine with Solid Edge installed." />
+  </Target>
+</Project>

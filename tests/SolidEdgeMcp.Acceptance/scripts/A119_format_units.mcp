@@ -1,0 +1,24 @@
+# A119: values in the document's display units (se_options format). With the distance unit in inches and precision 2,
+#   60 mm reads "2.36 in" (60 / 25.4 = 2.362); the text "2.5 in" is 63.5 mm and a number alone is in the document's unit
+#   (2 -> 50.8 mm). Angles: 30 degrees reads 30; "0.5 rad" is 28.648 degrees. Text Solid Edge cannot read is refused.
+#   Back in millimetres 60 reads 60.
+@p = se_documents {"action":"new","kind":"part"}
+se_options {"action":"set_units","unitType":"distance","unit":"inch","precision":2}
+@f1 = se_options {"action":"format","value":60}
+?~ f1.text 2.36
+?~ f1.displayUnit inch
+@p1 = se_options {"action":"format","value":"2.5 in"}
+?= p1.value 63.5 0.000001
+@p2 = se_options {"action":"format","value":"2"}
+?= p2.value 50.8 0.000001
+@a1 = se_options {"action":"format","unitType":"angle","value":30}
+?~ a1.text 30
+@a2 = se_options {"action":"format","unitType":"angle","value":"0.5 rad"}
+?= a2.value 28.647889757 0.000001
+! [invalid_argument] se_options {"action":"format","value":"abc"}
+! [not_found] se_options {"action":"format","unitType":"colour","value":1}
+se_options {"action":"set_units","unitType":"distance","unit":"millimeter"}
+@f2 = se_options {"action":"format","value":60}
+?~ f2.text 60
+?~ f2.displayUnit millimeter
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

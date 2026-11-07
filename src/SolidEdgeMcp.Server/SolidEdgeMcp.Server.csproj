@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\..\build\SolidEdgeInterop.props" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>SolidEdgeMcp.Server</RootNamespace>
+    <AssemblyName>SolidEdgeMcp.Server</AssemblyName>
+    <Version>1.0.2</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SolidEdgeMcp.Core\SolidEdgeMcp.Core.csproj" />
+    <ProjectReference Include="..\SolidEdgeMcp.SolidEdge\SolidEdgeMcp.SolidEdge.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SolidEdgeMcp.Server.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The generator the server runs on its first start when the interop is not beside it (InteropBootstrap). -->
+    <None Include="..\..\scripts\generate-interop.ps1" Link="scripts\generate-interop.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

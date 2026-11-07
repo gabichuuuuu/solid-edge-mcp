@@ -1,0 +1,56 @@
+# A47: corner annotations (edge conditions, ISO 13715) on the edges of a drawing view (se_annotation corner) and smart frames
+# on a sheet (se_sheet_content frame).
+# A block 100 x 60 x 20 seen from the top.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\a47_blk.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\a47_blk.par","orientation":"top","position":[160,200],"scale":1}
+# 1) Deviations are signed numbers, one or two
+! [invalid_argument] se_annotation {"action":"corner","view":"{{bv.view.handle}}","points":[100,30,20]}
+! [invalid_argument] se_annotation {"action":"corner","view":"{{bv.view.handle}}","points":[100,30,20],"text":"burr"}
+! [invalid_argument] se_annotation {"action":"corner","view":"{{bv.view.handle}}","points":[100,30,20],"text":"+0.3|+0.1|0"}
+@l0 = se_annotation {"action":"list","kind":"corner"}
+?= l0.count 0
+# 2) One deviation at the picked edge, and a range on a leader
+@c1 = se_annotation {"action":"corner","view":"{{bv.view.handle}}","points":[100,30,20],"text":"+0.3"}
+?= c1.annotation.kind corner
+@u1 = se_com_get {"target":"{{c1.annotation.handle}}","member":"UpperToleranceForEnhancedSymbol"}
+?= u1.value 0.3
+@c2 = se_annotation {"action":"corner","view":"{{bv.view.handle}}","points":[50,60,20],"text":"-0.1|-0.3","position":[150,260]}
+@u2 = se_com_get {"target":"{{c2.annotation.handle}}","member":"UpperToleranceForEnhancedSymbol"}
+?= u2.value -0.1
+@w2 = se_com_get {"target":"{{c2.annotation.handle}}","member":"LowerToleranceForEnhancedSymbol"}
+?= w2.value -0.3
+@i2 = se_com_get {"target":"{{c2.annotation.handle}}","member":"UseISODIN2000CornerAnnot"}
+?= i2.value true
+@l1 = se_annotation {"action":"list","kind":"corner"}
+?= l1.count 2
+# 3) Delete one
+se_annotation {"action":"delete","annotation":"{{c1.annotation.handle}}"}
+@l2 = se_annotation {"action":"list","kind":"corner"}
+?= l2.count 1
+# 4) Smart frames: an empty frame of the default style, read back; a style that sizes the frame to its content is refused
+! [invalid_argument] se_sheet_content {"action":"frame","position":[40,40]}
+! [not_found] se_sheet_content {"action":"frame","position":[40,40],"width":80,"height":50,"style":"No such style"}
+@fr = se_sheet_content {"action":"frame","position":[40,40],"width":80,"height":50}
+?= fr.frame.position[0] 40
+?= fr.frame.size[0] 80
+?= fr.frame.size[1] 50
+se_styles {"action":"add","type":"frame","name":"A47 box","document":"{{d.handle}}"}
+se_styles {"action":"set","type":"frame","name":"A47 box","property":"SizeMode","value":"igFrameChangesSize","document":"{{d.handle}}"}
+! [invalid_argument] se_sheet_content {"action":"frame","position":[200,40],"width":60,"height":40,"style":"A47 box"}
+se_styles {"action":"set","type":"frame","name":"A47 box","property":"SizeMode","value":"igFrameCrops","document":"{{d.handle}}"}
+@fb = se_sheet_content {"action":"frame","position":[200,40],"width":60,"height":40,"style":"A47 box"}
+?~ fb.frame.style A47
+?= fb.frame.size[0] 60
+@lf = se_sheet_content {"action":"list"}
+?= lf.frames[1].size[0] 60
+se_sheet_content {"action":"delete","item":"{{fr.frame.handle}}"}
+@lg = se_sheet_content {"action":"list"}
+?= lg.frames[0].size[0] 60
+se_documents {"action":"close","saveChanges":false}

@@ -1,0 +1,18 @@
+{
+  "name": "solid-edge-mcp",
+  "version": "1.0.2",
+  "description": "Helps you work in Siemens Solid Edge from Claude Code: parts, sheet metal, assemblies, drawings, exports and Design Manager tasks through a local MCP server, while you stay in control and approve the changes. Windows x64 with Solid Edge installed.",
+  "author": {
+    "name": "Gabriel Spoleto Couto"
+  },
+  "homepage": "https://github.com/gabichuuuuu/solid-edge-mcp",
+  "repository": "https://github.com/gabichuuuuu/solid-edge-mcp",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["solid-edge", "cad", "mcp", "windows"],
+  "mcpServers": {
+    "solid-edge": {
+      "command": "cmd.exe",
+      "args": ["/d", "/c", "${CLAUDE_PLUGIN_ROOT}\\scripts\\start.cmd"]
+    }
+  }
+}

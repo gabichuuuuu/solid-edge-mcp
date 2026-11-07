@@ -1,0 +1,157 @@
+# A43: part fillet welds (se_part_feature fillet_weld), copies of construction geometry and of the whole part (se_pattern
+# with surfaces and part: true), the 3D print mesh (se_print mesh), delete_holes on every body of a split part and the
+# simplified model (se_simplify).
+# Expected values are worked out by hand from the dimensions: plate 100 x 60 x 10 (60000 mm3) with a rib 100 x 10 x 40 on it
+# (40000 mm3); a fillet weld of leg 5 along 100 mm is 5 x 5 / 2 x 100 = 1250 mm3, and with legs 5 and 8, 5 x 8 / 2 x 100 =
+# 2000 mm3; a wall 50 x 20 at x = 10 (1000 mm2); a block 100 x 60 x 20 (120000 mm3) with a hole of 10 mm (118429.203673 mm3,
+# 18871.238898 mm2) and with two (116858.407346 mm3).
+# 1) Fillet welds between the top of the plate and the inner side of the rib
+@pa = se_documents {"action":"new","kind":"part"}
+@k1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+se_extrude {"sketch":"{{k1.sketch}}","distance":10}
+@r10 = se_ref_plane {"action":"offset","plane":"xy","distance":10}
+@k2 = se_sketch {"action":"create","plane":"{{r10.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[0,0,100,10]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+se_extrude {"sketch":"{{k2.sketch}}","distance":40}
+@tp = se_geometry {"action":"faces","direction":[0,0,1]}
+@sd = se_geometry {"action":"faces","direction":[0,1,0]}
+@bt = se_geometry {"action":"faces","direction":[0,0,-1]}
+! [invalid_argument] se_part_feature {"action":"fillet_weld","faces":["{{tp.items[?area=5000].handle}}"],"leg":5}
+! [invalid_argument] se_part_feature {"action":"fillet_weld","faces":["{{tp.items[?area=5000].handle}}"],"targetFaces":["{{sd.items[?area=4000].handle}}"]}
+! [feature_failed] se_part_feature {"action":"fillet_weld","faces":["{{bt.items[0].handle}}"],"targetFaces":["{{sd.items[?area=4000].handle}}"],"leg":5}
+@g0 = se_geometry {"action":"summary"}
+?= g0.volume 100000 0.01
+@tp2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@sd2 = se_geometry {"action":"faces","direction":[0,1,0]}
+@w1 = se_part_feature {"action":"fillet_weld","faces":["{{tp2.items[?area=5000].handle}}"],"targetFaces":["{{sd2.items[?area=4000].handle}}"],"leg":5}
+?= w1.feature.type PartFilletWeld
+?= w1.feature.status ok
+?= w1.volume 101250 0.01
+?= w1.volumeChange 1250 0.01
+@b1 = se_body {"action":"list"}
+?= b1.design[1].volume 1250 0.01
+se_feature_edit {"action":"delete","feature":"{{w1.feature.handle}}"}
+@tp3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@sd3 = se_geometry {"action":"faces","direction":[0,1,0]}
+@w2 = se_part_feature {"action":"fillet_weld","faces":["{{tp3.items[?area=5000].handle}}"],"targetFaces":["{{sd3.items[?area=4000].handle}}"],"leg":5,"leg2":8}
+?= w2.volumeChange 2000 0.01
+@b2 = se_body {"action":"list"}
+?= b2.design[1].boundingBox.size[0] 100 0.001
+?= b2.design[1].boundingBox.size[1] 5 0.001
+?= b2.design[1].boundingBox.size[2] 8 0.001
+se_documents {"action":"close","saveChanges":false}
+# 2) Construction geometry: a wall mirrored about YZ and copied along a curve; the refusals
+@pb = se_documents {"action":"new","kind":"part"}
+@kb = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kb.sketch}}","points":[10,0,10,50]}
+se_sketch {"action":"close","sketch":"{{kb.sketch}}","open":true}
+@sa = se_surface {"action":"extrude","sketch":"{{kb.sketch}}","depth":20}
+! [invalid_argument] se_pattern {"type":"rectangular","features":["{{sa.surface.handle}}"],"plane":"1","countX":2,"spacingX":20}
+@m1 = se_pattern {"type":"mirror","features":["{{sa.surface.handle}}"],"plane":"yz"}
+?= m1.feature.type MirrorCopyGeometry
+?= m1.copies[0].kind surface
+?= m1.copies[0].boundingBox.min[0] -10 0.001
+?= m1.copies[0].boundingBox.max[0] -10 0.001
+?= m1.copies[0].boundingBox.max[1] 50 0.001
+@cv = se_curve {"action":"points","points":[10,0,0,60,0,0,110,0,0]}
+@ce = se_geometry {"action":"edges","source":"{{cv.curve.handle}}"}
+@bl = se_body {"action":"list"}
+@p1 = se_pattern {"type":"curve","features":["{{bl.construction[0].handle}}"],"curve":"{{ce.items[0].handle}}","count":3,"spacing":20}
+?= p1.feature.type PatternCopyGeometry
+?= p1.copies[0].boundingBox.min[0] 30 0.001
+?= p1.copies[1].boundingBox.min[0] 50 0.001
+se_documents {"action":"close","saveChanges":false}
+# 3) The whole part three times every 150 mm along a 400 mm curve; the refusals
+@pc = se_documents {"action":"new","kind":"part"}
+@kc = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kc.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kc.sketch}}"}
+@e1 = se_extrude {"sketch":"{{kc.sketch}}","distance":20}
+@cd = se_curve {"action":"points","points":[0,-20,0,200,-20,0,400,-20,0]}
+@de = se_geometry {"action":"edges","source":"{{cd.curve.handle}}"}
+! [invalid_argument] se_pattern {"type":"rectangular","part":true,"plane":"1","countX":2,"spacingX":150}
+! [invalid_argument] se_pattern {"type":"curve","part":true,"features":["{{e1.feature.handle}}"],"curve":"{{de.items[0].handle}}","count":3,"spacing":150}
+! [invalid_argument] se_pattern {"type":"curve","features":["{{e1.feature.handle}}","{{cd.curve.handle}}"],"curve":"{{de.items[0].handle}}","count":3,"spacing":150}
+@pp = se_pattern {"type":"curve","part":true,"curve":"{{de.items[0].handle}}","count":3,"spacing":150}
+?= pp.feature.type PatternPart
+?= pp.volume 360000 0.01
+@gp = se_geometry {"action":"summary"}
+?= gp.boundingBox.size[0] 400 0.001
+se_documents {"action":"close","saveChanges":false}
+# 4) The 3D print mesh of a block with a hole: its area and volume within 0.1 % of the model's
+@pd = se_documents {"action":"new","kind":"part"}
+@kd = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kd.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kd.sketch}}"}
+se_extrude {"sketch":"{{kd.sketch}}","distance":20}
+@kh = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kh.sketch}}","center":[25,30],"radius":5}
+se_sketch {"action":"circle","sketch":"{{kh.sketch}}","center":[75,30],"radius":5}
+se_sketch {"action":"close","sketch":"{{kh.sketch}}"}
+se_extrude {"sketch":"{{kh.sketch}}","operation":"cut","extent":"through_all"}
+@ms = se_print {"action":"mesh"}
+?= ms.angleTolerance 30 0.001
+?= ms.volumeDeviationPercent 0 0.2
+?= ms.modelVolume 116858.407346 0.01
+?= ms.meshVolume 116858.407346 200
+?= ms.meshArea 19342.477795 20
+# 5) delete_holes on both bodies of the block split at x = 50
+@rp = se_ref_plane {"action":"offset","plane":"yz","distance":50}
+@sp = se_part_feature {"action":"split","plane":"{{rp.handle}}"}
+@gs = se_geometry {"action":"summary"}
+?= gs.bodies[1].volume 58429.203673 0.01
+@dh = se_part_feature {"action":"delete_holes","diameter":12}
+?= dh.features[1].type DeleteHole
+?= dh.volume 120000 0.01
+! [feature_failed] se_part_feature {"action":"delete_holes","diameter":12}
+se_documents {"action":"close","saveChanges":false}
+# 6) Simplified model of a block with a 10 mm hole and a 5 mm round on one top edge (117892.699082 mm3): without the round
+# 118429.203673, without the hole too 120000; the design body never changes
+@pf = se_documents {"action":"new","kind":"part"}
+@kf = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kf.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kf.sketch}}"}
+se_extrude {"sketch":"{{kf.sketch}}","distance":20}
+@kg = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kg.sketch}}","center":[50,30],"radius":5}
+se_sketch {"action":"close","sketch":"{{kg.sketch}}"}
+se_extrude {"sketch":"{{kg.sketch}}","operation":"cut","extent":"through_all"}
+@te = se_geometry {"action":"edges","direction":[1,0,0]}
+se_round {"edges":["{{te.items[?start=[0,0,20]].handle}}"],"radius":5}
+@s0 = se_simplify {"action":"status"}
+?= s0.simplified false
+?= s0.designVolume 117892.699082 0.01
+! [no_simplified_model] se_simplify {"action":"delete_holes","diameter":12}
+@s1 = se_simplify {"action":"create"}
+?= s1.simplified true
+?= s1.active simplified
+?= s1.volume 117892.699082 0.01
+! [already_exists] se_simplify {"action":"create"}
+@sf = se_geometry {"action":"faces","source":"{{s1.body}}"}
+@df = se_geometry {"action":"faces","direction":[0,0,-1]}
+! [invalid_argument] se_simplify {"action":"delete_rounds","faces":["{{df.items[0].handle}}"]}
+@r = se_simplify {"action":"delete_rounds","faces":["{{sf.items[?area=785.398163].handle}}"]}
+?= r.feature.type DeleteBlend
+?= r.volume 118429.203673 0.01
+?= r.designVolume 117892.699082 0.01
+?= r.designChanged false
+@h = se_simplify {"action":"delete_holes","diameter":12}
+?= h.volume 120000 0.01
+! [feature_failed] se_simplify {"action":"delete_holes","diameter":12}
+@a = se_simplify {"action":"activate","model":"design"}
+?= a.active design
+@a2 = se_simplify {"action":"activate","model":"simplified"}
+?= a2.active simplified
+?= a2.features[1].type DeleteHole
+@d = se_simplify {"action":"delete","feature":"{{a2.features[1].handle}}"}
+?= d.volume 118429.203673 0.01
+?= d.designVolume 117892.699082 0.01
+# The hole face (628.318531 mm2) deleted and healed: the hole fills again
+@sh = se_geometry {"action":"faces","source":"{{d.body}}"}
+@f = se_simplify {"action":"delete_faces","faces":["{{sh.items[?area=628.318531].handle}}"]}
+?= f.volume 120000 0.01
+?= f.designChanged false
+se_documents {"action":"close","saveChanges":false}

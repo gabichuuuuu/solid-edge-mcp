@@ -1,0 +1,34 @@
+# A56: assembly additions: a component mirrored about an assembly plane (se_assembly mirror) and components found by their
+# document status (se_component_query, criterion status). A 10 mm cube in work and another available; the cube at x 50
+# mirrored about the yz plane lands at x -50.
+@pa = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"box","center":[0,0,0],"size":[10,10],"depth":10}
+se_documents {"action":"save_as","path":"{{work}}\\a56\\a56_work.par","overwrite":true}
+@st = se_documents {"action":"status","value":"in_work"}
+se_documents {"action":"save"}
+se_documents {"action":"close","saveChanges":false}
+@pb = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"box","center":[0,0,0],"size":[10,10],"depth":10}
+se_documents {"action":"save_as","path":"{{work}}\\a56\\a56_free.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@as = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a56\\a56_work.par","origin":[50,10,0],"ground":false}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\a56\\a56_free.par","origin":[0,40,0]}
+@m = se_assembly {"action":"mirror","occurrence":"{{o1.handle}}","plane":"yz"}
+?= m.mirrored.origin[0] -50 0.001
+?~ m.mirrored.name a56_work.par:2
+?~ m.of a56_work.par:1
+@g = se_geometry {"source":"{{m.mirrored.handle}}"}
+?= g.boundingBox.max[0] -45 0.001
+?= g.boundingBox.min[0] -55 0.001
+! [invalid_argument] se_assembly {"action":"mirror","occurrence":"{{o1.handle}}"}
+@q = se_component_query {"action":"find","criteria":[{"property":"status","value":"in_work"}]}
+?= q.count 2
+?~ q.components a56_work.par
+@q0 = se_component_query {"action":"find","criteria":[{"property":"status","value":"available"}]}
+?= q0.count 1
+?~ q0.components a56_free.par
+@qn = se_component_query {"action":"find","criteria":[{"property":"status","condition":"is_not","value":"in_work"}]}
+?= qn.count 1
+! [invalid_argument] se_component_query {"action":"find","criteria":[{"property":"status","value":"done"}]}
+se_documents {"action":"close","saveChanges":false}

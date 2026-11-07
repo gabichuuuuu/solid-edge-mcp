@@ -1,0 +1,48 @@
+# A86: hole tables (se_drawing hole_table): an origin at a vertex or hole centre of a view and one row per hole (label, X and
+#   Y from the origin, size). A plate 100 x 60 x 10 with holes of 6.6 at (15, 15) and (85, 15) and 12 at (50, 40) (58184.788)
+#   and its top view at 1:1: by default the origin is the lower left corner (0, 0) and every circle is listed; the corner
+#   (100, 0) as the origin gives negative X; a hole centre as the origin and two chosen holes give their offsets from it.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":10}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{top.items[0].handle}}","centers":[15,15,10,85,15,10],"diameter":6.6}
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{top2.items[0].handle}}","centers":[50,40,10],"diameter":12}
+@ph = se_physical {}
+?= ph.volume 58184.788 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a86_plate.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\a86_plate.par","orientation":"top","position":[120,200],"scale":1}
+# by default: the lower left corner and every hole, above the title block
+@t1 = se_drawing {"action":"hole_table","view":"{{bv.view.handle}}"}
+?= t1.count 3
+?= t1.anchor lower_right
+?~ t1.columns "Hole","X","Y","Size"
+?~ t1.rows[0] "15 mm","15 mm","6.6 mm"
+?~ t1.rows[1] "85 mm","15 mm","6.6 mm"
+?~ t1.rows[2] "50 mm","40 mm","12 mm"
+# the corner (100, 0) as the origin, the table at a position
+@t2 = se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[100,0,10],"position":[20,280]}
+?= t2.count 3
+?= t2.anchor upper_left
+?= t2.origin[0] 20
+?= t2.origin[1] 280
+?~ t2.rows[0] "-85 mm","15 mm","6.6 mm"
+?~ t2.rows[1] "-15 mm","15 mm","6.6 mm"
+?~ t2.rows[2] "-50 mm","40 mm","12 mm"
+# a hole centre as the origin and two chosen holes
+@t3 = se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[50,40,10, 85,15,10, 15,15,10],"position":[20,200]}
+?= t3.count 2
+?~ t3.rows[0] "35 mm","-25 mm","6.6 mm"
+?~ t3.rows[1] "-35 mm","-25 mm","6.6 mm"
+@all = se_drawing {"action":"tables"}
+?~ all.tables[?kind="hole_table"].columns "Hole"
+# refusals: an origin on an edge (not a vertex), a point with no hole, the same hole twice
+! [invalid_argument] se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[50,0,10]}
+! [not_found] se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[0,0,10, 30,30,10]}
+! [invalid_argument] se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[0,0,10, 15,15,10, 15,15,10]}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

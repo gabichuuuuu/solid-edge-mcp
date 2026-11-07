@@ -1,0 +1,67 @@
+# A82: unbend (se_sheetmetal unbend): bends of the sheet body flat about a planar face that stays in place, the chosen ones
+#   or all of them; deleting the unbend bends the sheet again. A tab 100 x 60 (t = 1, r = 1) with flanges of 20 on its two x
+#   edges (9871.239, as in A05) and a hole of radius 5 in the middle (-78.540): each flange lies flat 19.09 mm beyond its edge
+#   (19 past the bend + pi/2 * (r + 0.33 t) - (r + t), neutral factor 0.33) and loses 26.703 mm3. The hole's cylinder is not a
+#   bend face (Solid Edge would throw a server fault with it alone).
+@d = se_documents {"action":"new","kind":"sheet_metal"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k.sketch}}"}
+# a sheet without bends
+@b0 = se_geometry {"action":"faces","direction":[0,0,-1]}
+! [not_found] se_sheetmetal {"action":"unbend","fixedFace":"{{b0.items[0].handle}}"}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@te = se_geometry {"action":"edges","source":"{{top.items[0].handle}}","direction":[1,0,0]}
+@fl = se_sheetmetal {"action":"flange","edges":["{{te.items[0].handle}}","{{te.items[1].handle}}"],"length":20}
+?= fl.volume 9871.239 0.01
+@kh = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kh.sketch}}","center":[50,30],"radius":5}
+se_sketch {"action":"close","sketch":"{{kh.sketch}}"}
+@h = se_sheetmetal_form {"action":"normal_cutout","sketch":"{{kh.sketch}}"}
+?= h.volume 9792.699 0.01
+# refusals: no face, a bend face as the fixed face, the hole's face and a planar face as bends
+! [invalid_argument] se_sheetmetal {"action":"unbend"}
+@cy = se_geometry {"action":"faces","type":"cylinder"}
+?= cy.count 5
+! [invalid_argument] se_sheetmetal {"action":"unbend","fixedFace":"{{cy.items[0].handle}}"}
+@bot = se_geometry {"action":"faces","direction":[0,0,-1]}
+! [invalid_argument] se_sheetmetal {"action":"unbend","fixedFace":"{{bot.items[0].handle}}","faces":["{{cy.items[?radius=5].handle}}"]}
+! [invalid_argument] se_sheetmetal {"action":"unbend","fixedFace":"{{bot.items[0].handle}}","faces":["{{bot.items[0].handle}}"]}
+# one bend: the flange at y = 0 lies flat, the other stays up
+@u1 = se_sheetmetal {"action":"unbend","fixedFace":"{{bot.items[0].handle}}","faces":["{{cy.items[?axisPoint=[100,2,2]].handle}}"]}
+?= u1.feature.status ok
+?= u1.volumeChange -26.703 0.01
+?= u1.range.min[1] -19.09 0.01
+?= u1.range.max[1] 60 0.001
+?= u1.range.max[2] 21 0.001
+se_feature_edit {"action":"delete","feature":"{{u1.feature.handle}}"}
+@ph1 = se_physical {}
+?= ph1.volume 9792.699 0.01
+# every bend
+@bot2 = se_geometry {"action":"faces","direction":[0,0,-1]}
+@u = se_sheetmetal {"action":"unbend","fixedFace":"{{bot2.items[0].handle}}"}
+?= u.feature.status ok
+?= u.volume 9739.293 0.01
+?= u.volumeChange -53.406 0.01
+?= u.range.min[1] -19.09 0.01
+?= u.range.max[1] 79.09 0.01
+?= u.range.min[2] 0 0.001
+?= u.range.max[2] 1 0.001
+@cy2 = se_geometry {"action":"faces","type":"cylinder"}
+?= cy2.count 1
+@tree = se_feature_tree {}
+?~ tree {{u.feature.name}}
+# rebend: delete the unbend
+se_feature_edit {"action":"delete","feature":"{{u.feature.handle}}"}
+@ph = se_physical {}
+?= ph.volume 9792.699 0.01
+@cy3 = se_geometry {"action":"faces","type":"cylinder"}
+?= cy3.count 5
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# a part document
+@p = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@pf = se_geometry {"action":"faces","direction":[0,0,1]}
+! [wrong_document_type] se_sheetmetal {"action":"unbend","fixedFace":"{{pf.items[0].handle}}"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

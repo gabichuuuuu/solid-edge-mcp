@@ -1,0 +1,40 @@
+# A128: a hole table without chosen holes lists only the holes of the part, not the outline of a round part or the edge of a chamfer; a hole table (and the other se_drawing tables) can be deleted with se_sheet_content. Disc 80 x 6 with a hole of 10 in the centre, six holes of 6 on a circle of 30 and a 1 mm chamfer on its top edge: 30159.289 - 471.239 - 6 x 169.646 - 124.617 = 28545.558 mm3. Its top view shows 9 circles (80, 78 of the chamfer, 10 and six of 6): 7 holes.
+se_session {"action":"connect"}
+@docs0 = se_documents {"action":"list"}
+?= docs0.count 0 0
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[0,0],"radius":40}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":6}
+se_hole {"plane":"xy","centers":[0,0,0],"diameter":10}
+@h2 = se_hole {"plane":"xy","centers":[30,0,0],"diameter":6}
+se_pattern {"type":"circular","features":["{{h2.feature.handle}}"],"plane":"xy","count":6,"center":[0,0,0]}
+@ce = se_geometry {"action":"edges","type":"circle"}
+?= ce.items[0].radius 40
+?= ce.items[0].center[2] 6
+@ch = se_chamfer {"edges":["{{ce.items[0].handle}}"],"distance":1}
+?= ch.volume 28545.558 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a128_tapa.par","overwrite":true}
+@g = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","model":"{{p.handle}}","orientation":"top","scale":1,"position":[150,150]}
+@ht = se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[0,0,6],"position":[260,260]}
+?= ht.count 7
+?~ ht.note 2 circle(s)
+?~ ht.rows 10 mm
+@t1 = se_drawing {"action":"tables"}
+?= t1.count 1
+@del = se_sheet_content {"action":"delete","item":"{{ht.handle}}"}
+?= del.deleted {{ht.handle}}
+@t2 = se_drawing {"action":"tables"}
+?= t2.count 0
+# With the part closed the drawing still reads its holes
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@ht2 = se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[0,0,6],"position":[260,260]}
+?= ht2.count 7
+# Holes chosen by points are taken as given
+@ht3 = se_drawing {"action":"hole_table","view":"{{bv.view.handle}}","points":[0,0,6,30,0,6,-30,0,6],"position":[260,120]}
+?= ht3.count 2
+se_documents {"action":"close","document":"{{g.handle}}","saveChanges":false}
+@docs1 = se_documents {"action":"list"}
+?= docs1.count 0 0

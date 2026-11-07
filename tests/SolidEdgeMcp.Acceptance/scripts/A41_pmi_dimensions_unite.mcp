@@ -1,0 +1,144 @@
+# A41: PMI dimensions (se_pmi): list, display, set with the three directions and by name, index and handle, locked or
+# not, a value Solid Edge rejects (the old one stays), lock, unlock, set_display, delete, a cylinder's diameter; and
+# se_body unite: closed construction bodies added to the design body (one tool, two tools, a tool inside the body).
+# Expected values are box and cylinder volumes worked out by hand from the dimensions.
+# Unite: block 100 x 60 x 20 (120000 mm3) and a closed surface 40 x 20 x 30 at x 80..120, y 20..40 that overlaps it by
+# 20 x 20 x 20: 120000 + 24000 - 8000 = 136000 mm3
+@pu = se_documents {"action":"new","kind":"part"}
+@ku = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ku.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ku.sketch}}"}
+se_extrude {"sketch":"{{ku.sketch}}","distance":20}
+@k1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[80,20,120,40]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+@s1 = se_surface {"action":"extrude","sketch":"{{k1.sketch}}","depth":30,"endCaps":true}
+# An open surface at x = 30 cannot be united; the design body cannot be its own tool; tools are needed
+@ko = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{ko.sketch}}","points":[30,-10,30,70]}
+se_sketch {"action":"close","sketch":"{{ko.sketch}}","open":true}
+@so = se_surface {"action":"extrude","sketch":"{{ko.sketch}}","depth":30}
+@lb = se_body {"action":"list"}
+! [invalid_argument] se_body {"action":"unite"}
+! [invalid_argument] se_body {"action":"unite","tools":["{{so.surface.handle}}"]}
+! [invalid_argument] se_body {"action":"unite","tools":["{{lb.design[0].handle}}"]}
+@u1 = se_body {"action":"unite","tools":["{{s1.surface.handle}}"]}
+?= u1.volume 136000 0.01
+?= u1.volumeChange 16000 0.01
+?= u1.feature.type BooleanFeature
+?= u1.bodies[0].boundingBox.max[0] 120 0.001
+?= u1.bodies[0].boundingBox.max[2] 30 0.001
+?= u1.construction[0].volume 24000 0.01
+# A closed tool inside the body adds nothing: the feature is deleted and the volume stays
+@k4 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k4.sketch}}","points":[10,10,20,20]}
+se_sketch {"action":"close","sketch":"{{k4.sketch}}"}
+@s4 = se_surface {"action":"extrude","sketch":"{{k4.sketch}}","depth":10,"endCaps":true}
+! [feature_failed] se_body {"action":"unite","tools":["{{s4.surface.handle}}"]}
+@v4 = se_physical {}
+?= v4.volume 136000 0.01
+# Two tools at once: 30 x 20 x 10 at x -20..10 and 20 x 30 x 10 at y 50..80, each overlapping the block by 2000: + 8000 = 144000
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[-20,20,10,40]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@s2 = se_surface {"action":"extrude","sketch":"{{k2.sketch}}","depth":10,"endCaps":true}
+@k3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k3.sketch}}","points":[40,50,60,80]}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}"}
+@s3 = se_surface {"action":"extrude","sketch":"{{k3.sketch}}","depth":10,"endCaps":true}
+@u2 = se_body {"action":"unite","tools":["{{s2.surface.handle}}","{{s3.surface.handle}}"]}
+?= u2.volume 144000 0.01
+?= u2.bodies[0].boundingBox.min[0] -20 0.001
+?= u2.bodies[0].boundingBox.max[1] 80 0.001
+se_documents {"action":"close","saveChanges":false}
+# PMI: a synchronous box 100 x 60 x 20 (x 0..100, y 0..60, z 0..20) carries its height, width and length
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@l = se_pmi {"action":"list"}
+?= l.count 3
+?= l.dimensions[0].name Linear_1
+?= l.dimensions[0].value 20 0.000001
+?= l.dimensions[1].value 60 0.000001
+?= l.dimensions[2].value 100 0.000001
+?= l.dimensions[2].type linear
+?= l.dimensions[2].units mm
+?= l.dimensions[2].locked false
+?= l.dimensions[2].status driven
+@d = se_pmi {"action":"display"}
+?= d.showDimensions true
+?= d.dimensions 3
+# Width 60 -> 80 by name, the measured end moving: y 0..80, 100 x 80 x 20 = 160000; it stays unlocked
+@s1 = se_pmi {"action":"set","dimensions":["Linear_2"],"value":80,"direction":"measure"}
+?= s1.dimension.value 80 0.000001
+?= s1.previous 60 0.000001
+?= s1.volume 160000 0.01
+?= s1.bodies[0].boundingBox.min[1] 0 0.001
+?= s1.bodies[0].boundingBox.max[1] 80 0.001
+?= s1.dimension.locked false
+?= s1.dimension.status driven
+# Length 100 -> 120 by index, the origin end moving: x -20..100, 120 x 80 x 20 = 192000
+@s2 = se_pmi {"action":"set","dimensions":["3"],"value":120,"direction":"origin"}
+?= s2.volume 192000 0.01
+?= s2.bodies[0].boundingBox.min[0] -20 0.001
+?= s2.bodies[0].boundingBox.max[0] 100 0.001
+# Length 120 -> 140 by handle, both ends moving by 10 and the dimension left locked: x -30..110, 224000
+@s3 = se_pmi {"action":"set","dimensions":["{{l.dimensions[2].handle}}"],"value":140,"direction":"symmetric","locked":true}
+?= s3.volume 224000 0.01
+?= s3.bodies[0].boundingBox.min[0] -30 0.001
+?= s3.bodies[0].boundingBox.max[0] 110 0.001
+?= s3.dimension.locked true
+?= s3.dimension.status driving
+# A height of 0.000001 mm is rejected: the model keeps 20
+! [value_rejected] se_pmi {"action":"set","dimensions":["Linear_1"],"value":0.000001}
+@g = se_geometry {"action":"summary"}
+?= g.volume 224000 0.01
+?= g.boundingBox.size[2] 20 0.001
+# Lock and unlock
+@lk = se_pmi {"action":"lock","dimensions":["Linear_1"]}
+?= lk.dimensions[0].locked true
+?= lk.dimensions[0].status driving
+@ul = se_pmi {"action":"unlock","dimensions":["1","3"]}
+?= ul.dimensions[0].locked false
+?= ul.dimensions[1].locked false
+?= ul.dimensions[1].status driven
+?= ul.dimensions[1].value 140 0.000001
+# Display: hide the dimensions and show them again
+@sd = se_pmi {"action":"set_display","showDimensions":false}
+?= sd.previous.showDimensions true
+?= sd.showDimensions false
+@d2 = se_pmi {"action":"display"}
+?= d2.showDimensions false
+@sd2 = se_pmi {"action":"set_display","showDimensions":true}
+?= sd2.showDimensions true
+# Refusals, before anything changes
+! [invalid_argument] se_pmi {"action":"set","dimensions":["1","2"],"value":10}
+! [invalid_argument] se_pmi {"action":"set","dimensions":["1"]}
+! [invalid_argument] se_pmi {"action":"set","dimensions":["1"],"value":0}
+! [not_found] se_pmi {"action":"set","dimensions":["9"],"value":10}
+! [not_found] se_pmi {"action":"lock","dimensions":["Linear_9"]}
+! [invalid_argument] se_pmi {"action":"set_display"}
+! [invalid_argument] se_pmi {"action":"delete"}
+# Delete the height: the model stays as it is
+@del = se_pmi {"action":"delete","dimensions":["Linear_1"]}
+?= del.count 2
+?= del.volumeChange 0 0.001
+@l2 = se_pmi {"action":"list"}
+?= l2.count 2
+?= l2.dimensions[0].name Linear_2
+se_documents {"action":"close","saveChanges":false}
+# A cylinder of radius 20 and height 30 (37699.111843 mm3) carries its height and diameter; diameter 40 -> 50: pi x 25^2 x 30
+@pc = se_documents {"action":"new","kind":"part"}
+@c = se_primitive {"shape":"cylinder","plane":"1","center":[0,0,0],"radius":20,"depth":30}
+?= c.volume 37699.111843 0.01
+@lc = se_pmi {"action":"list"}
+?= lc.count 2
+?= lc.dimensions[1].type diameter
+?= lc.dimensions[1].value 40 0.000001
+@sc = se_pmi {"action":"set","dimensions":["{{lc.dimensions[1].name}}"],"value":50,"direction":"symmetric"}
+?= sc.volume 58904.862255 0.01
+?= sc.bodies[0].boundingBox.min[0] -25 0.001
+?= sc.bodies[0].boundingBox.max[0] 25 0.001
+se_documents {"action":"close","saveChanges":false}
+@dr = se_documents {"action":"new","kind":"draft"}
+! [wrong_document_type] se_pmi {"action":"list"}
+se_documents {"action":"close","saveChanges":false}

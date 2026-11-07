@@ -1,0 +1,36 @@
+# A01: server, session, constants, commands, COM layer and argument rejections
+@info = se_server_info {}
+se_session {"action":"status"}
+se_session {"action":"connect"}
+@st = se_session {"action":"status"}
+@k = se_com_constants {"query":"igRight"}
+@cmd = se_command {"action":"find","query":"ISOView","environment":"Part"}
+@desc = se_com_describe {"type":"SolidEdgePart.ExtrudedProtrusions","filter":"AddFinite","limit":10}
+@ver = se_com_get {"target":"app","member":"Version"}
+@docs = se_com_items {"target":"app","member":"Documents"}
+! [invalid_argument] se_documents {"action":"saveas"}
+! [invalid_argument] se_extrude {"sketch":"sketch:1","distance":"20mm"}
+! se_documents {"action":"open","path":"C:\\Windows\\win.ini"}
+! se_export {"path":"C:\\Windows\\Temp\\x.stp"}
+! [handle_not_found] se_sketch {"action":"info","sketch":"sketch:99999"}
+se_documents {"action":"list"}
+# Templates of this installation (its options and template folders), not remembered names.
+@tp = se_documents {"action":"templates"}
+?~ tp.defaults.part .par
+?~ tp.defaults.weldment .asm
+# Quit and restart: refused while a document has unsaved changes (the server never discards them); with none, Solid Edge is
+#   closed and started again, and the old handles expire.
+@qp = se_documents {"action":"new","kind":"part"}
+@qk = se_sketch {"action":"create","plane":"1","document":"{{qp.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{qk.sketch}}","points":[0,0,10,10]}
+se_sketch {"action":"close","sketch":"{{qk.sketch}}"}
+se_extrude {"sketch":"{{qk.sketch}}","distance":10,"document":"{{qp.handle}}"}
+! [unsaved_changes] se_session {"action":"quit"}
+se_documents {"action":"close","document":"{{qp.handle}}","saveChanges":false}
+@rs = se_session {"action":"restart"}
+?= rs.quit.quit true
+?= rs.connect.connected true
+?= rs.connect.openDocuments 0
+! [handle_expired] se_documents {"action":"activate","document":"{{qp.handle}}"}
+@st2 = se_session {"action":"status"}
+?= st2.connected true

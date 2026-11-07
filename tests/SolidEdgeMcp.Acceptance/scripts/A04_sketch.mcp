@@ -1,0 +1,177 @@
+# A04: sketches (se_sketch) and constraints (se_sketch_constraint); recipe validated in t123.out. Each part is closed without saving.
+# A: ellipse a=20 b=10 at 30°, h=10 -> V = pi*a*b*h = 6283.185 (Body.Volume reads ~0.4 % high: tol 0.5 % = 31.4). G: project its top edge onto a sketch on the face z=10 (the projected ellipse keeps the 30° rotation) and extrude 5 -> +pi*20*10*5 = 3141.593; total 9424.778 (tol 0.5 % = 47.1)
+@dA = se_documents {"action":"new","kind":"part"}
+@kA = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"ellipse","sketch":"{{kA.sketch}}","center":[0,0],"radius":20,"minorRadius":10,"angle":30}
+se_sketch {"action":"close","sketch":"{{kA.sketch}}"}
+@xA = se_extrude {"sketch":"{{kA.sketch}}","distance":10}
+?= xA.volume 6283.185 31.4
+@tA = se_geometry {"action":"faces","direction":[0,0,1]}
+@eA = se_geometry {"action":"edges","source":"{{tA.items[0].handle}}"}
+@kG = se_sketch {"action":"create","plane":"{{tA.items[0].handle}}"}
+@pG = se_sketch {"action":"project","sketch":"{{kG.sketch}}","elements":["{{eA.items[0].handle}}"]}
+?= pG.elements[0].geometry.angle 30
+se_sketch {"action":"close","sketch":"{{kG.sketch}}"}
+@xG = se_extrude {"sketch":"{{kG.sketch}}","distance":5}
+?= xG.volume 9424.778 47.1
+se_documents {"action":"close","document":"{{dA.handle}}","saveChanges":false}
+# B: 40x20 rectangle, r5 fillet at the corner (40,0): A = 800 - (r² - pi*r²/4) = 794.635 -> V = 7946.350. Error: fillet of the parallel lines [1] (x=40) and [3] (x=0)
+@dB = se_documents {"action":"new","kind":"part"}
+@kB = se_sketch {"action":"create","plane":"1"}
+@rB = se_sketch {"action":"rectangle","sketch":"{{kB.sketch}}","points":[0,0,40,20]}
+se_sketch {"action":"fillet","sketch":"{{kB.sketch}}","elements":["{{rB.elements[0]}}","{{rB.elements[1]}}"],"radius":5}
+! [fillet_failed] se_sketch {"action":"fillet","sketch":"{{kB.sketch}}","elements":["{{rB.elements[1]}}","{{rB.elements[3]}}"],"radius":5}
+se_sketch {"action":"close","sketch":"{{kB.sketch}}"}
+@xB = se_extrude {"sketch":"{{kB.sketch}}","distance":10}
+?= xB.volume 7946.350 0.01
+se_documents {"action":"close","document":"{{dB.handle}}","saveChanges":false}
+# C: 40x20 rectangle; distance [0]-[2] = 30 and length of [0] = 50 -> 50x30x10 = 15000; variable of the distance = 25 -> 50x25x10 = 12500 (change -2500). Error: length dimension on a dimension. H: the same rectangle on plane 3 (normal (0,-1,0)), without an operation: distance 30 -> [2] stays at y=30 (t123.out)
+@dC = se_documents {"action":"new","kind":"part"}
+@kC = se_sketch {"action":"create","plane":"1"}
+@rC = se_sketch {"action":"rectangle","sketch":"{{kC.sketch}}","points":[0,0,40,20]}
+@vC1 = se_sketch_constraint {"action":"dimension","sketch":"{{kC.sketch}}","dimension":"distance","elements":["{{rC.elements[0]}}","{{rC.elements[2]}}"],"value":30}
+se_sketch_constraint {"action":"dimension","sketch":"{{kC.sketch}}","dimension":"length","elements":["{{rC.elements[0]}}"],"value":50}
+! [invalid_argument] se_sketch_constraint {"action":"dimension","sketch":"{{kC.sketch}}","dimension":"length","elements":["{{vC1.dimension}}"]}
+se_sketch {"action":"close","sketch":"{{kC.sketch}}"}
+@xC = se_extrude {"sketch":"{{kC.sketch}}","distance":10}
+?= xC.volume 15000
+@sC = se_variables {"action":"set","name":"{{vC1.variable}}","value":25}
+?= sC.volumeChange -2500
+@kH = se_sketch {"action":"create","plane":"3"}
+@rH = se_sketch {"action":"rectangle","sketch":"{{kH.sketch}}","points":[0,0,40,20]}
+@vH = se_sketch_constraint {"action":"dimension","sketch":"{{kH.sketch}}","dimension":"distance","elements":["{{rH.elements[0]}}","{{rH.elements[2]}}"],"value":30}
+?= vH.elements[1].start[1] 30
+se_documents {"action":"close","document":"{{dC.handle}}","saveChanges":false}
+# E: triangle (0,0)(40,0)(0,30), [0] horizontal and fixed, [2] vertical; angle [0]-[1] = 45 (previously measured atan(30/40) = 36.8699) -> vertical leg 40*tan45 = 40; V = 40*40/2*10 = 8000. Error: angle of 200 (> 180)
+@dE = se_documents {"action":"new","kind":"part"}
+@kE = se_sketch {"action":"create","plane":"1"}
+@pE = se_sketch {"action":"polyline","sketch":"{{kE.sketch}}","points":[0,0,40,0,0,30]}
+se_sketch_constraint {"action":"relation","sketch":"{{kE.sketch}}","relation":"horizontal","elements":["{{pE.elements[0]}}"]}
+se_sketch_constraint {"action":"relation","sketch":"{{kE.sketch}}","relation":"vertical","elements":["{{pE.elements[2]}}"]}
+se_sketch_constraint {"action":"relation","sketch":"{{kE.sketch}}","relation":"fix","elements":["{{pE.elements[0]}}"]}
+@aE = se_sketch_constraint {"action":"dimension","sketch":"{{kE.sketch}}","dimension":"angle","elements":["{{pE.elements[0]}}","{{pE.elements[1]}}"],"value":45}
+?= aE.measured 36.8699 0.001
+! [invalid_argument] se_sketch_constraint {"action":"dimension","sketch":"{{kE.sketch}}","dimension":"angle","elements":["{{pE.elements[0]}}","{{pE.elements[1]}}"],"value":200}
+se_sketch {"action":"close","sketch":"{{kE.sketch}}"}
+@xE = se_extrude {"sketch":"{{kE.sketch}}","distance":10}
+?= xE.volume 8000
+se_documents {"action":"close","document":"{{dE.handle}}","saveChanges":false}
+# K: sketch without an operation. Tangent: the horizontal line (y=7) moves down to y=r=5; symmetric about x=60: (55,3) -> (65,3); diameter 30 on a circle r10 -> r=15; list: 8 relations added - 1 deleted = 7. Errors: parallel with a single element; deleting something that is not a relation.
+@dK = se_documents {"action":"new","kind":"part"}
+@kK = se_sketch {"action":"create","plane":"1"}
+@c1 = se_sketch {"action":"circle","sketch":"{{kK.sketch}}","center":[0,0],"radius":5}
+@c2 = se_sketch {"action":"circle","sketch":"{{kK.sketch}}","center":[1,1],"radius":8}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"fix","elements":["{{c1.element}}"]}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"concentric","elements":["{{c1.element}}","{{c2.element}}"]}
+@eqK = se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"equal","elements":["{{c1.element}}","{{c2.element}}"]}
+@l1 = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[-20,7,20,9]}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"horizontal","elements":["{{l1.element}}"]}
+@tg = se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"tangent","elements":["{{l1.element}}","{{c1.element}}"]}
+?= tg.elements[0].start[1] 5
+@l2 = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[30,0,35,20]}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"perpendicular","elements":["{{l1.element}}","{{l2.element}}"]}
+@l3 = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[40,0,48,22]}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"parallel","elements":["{{l2.element}}","{{l3.element}}"]}
+@ax = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[60,-10,60,10]}
+@p1 = se_sketch {"action":"point","sketch":"{{kK.sketch}}","points":[55,3]}
+@p2 = se_sketch {"action":"point","sketch":"{{kK.sketch}}","points":[66,2]}
+@sy = se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"symmetric","elements":["{{ax.element}}","{{p1.element}}","{{p2.element}}"]}
+?= sy.elements[2].point[0] 65
+@c3 = se_sketch {"action":"circle","sketch":"{{kK.sketch}}","center":[100,0],"radius":10}
+@vD = se_sketch_constraint {"action":"dimension","sketch":"{{kK.sketch}}","dimension":"diameter","elements":["{{c3.element}}"],"value":30}
+?= vD.elements[0].radius 15
+se_sketch {"action":"spline","sketch":"{{kK.sketch}}","points":[10,0,0,10,-10,0,0,-10],"closed":true}
+! [invalid_argument] se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"parallel","elements":["{{l2.element}}"]}
+! [handle_wrong_type] se_sketch_constraint {"action":"delete","constraint":"{{l2.element}}"}
+se_sketch_constraint {"action":"delete","constraint":"{{eqK.relation}}"}
+@lK = se_sketch_constraint {"action":"list","sketch":"{{kK.sketch}}"}
+?= lK.relationCount 7
+?~ lK.relations tangent
+?~ lK.relations symmetric
+@iK = se_sketch {"action":"info","sketch":"{{kK.sketch}}"}
+?~ iK.items spline
+se_documents {"action":"close","document":"{{dK.handle}}","saveChanges":false}
+# L: list of an 80x60 rectangle: 4 joins (the first one, end of [0] (80,0) with start of [1]) + 2 horizontals + 2 verticals; info with the 4 lines. Error: repeated horizontal on [0]
+@dL = se_documents {"action":"new","kind":"part"}
+@kL = se_sketch {"action":"create","plane":"1"}
+@rL = se_sketch {"action":"rectangle","sketch":"{{kL.sketch}}","points":[0,0,80,60]}
+@lL = se_sketch_constraint {"action":"list","sketch":"{{kL.sketch}}"}
+?= lL.relationCount 8
+?= lL.relations[0].type connect
+?= lL.relations[0].elements[0].element {{rL.elements[0]}}
+?= lL.relations[0].elements[0].keypoint 1
+?= lL.relations[0].elements[0].point[0] 80
+?= lL.relations[0].elements[1].element {{rL.elements[1]}}
+?~ lL.relations horizontal
+?~ lL.relations vertical
+@iL = se_sketch {"action":"info","sketch":"{{kL.sketch}}"}
+?= iL.items[0].element {{rL.elements[0]}}
+?= iL.items[0].geometry.length 80
+?= iL.items[1].geometry.length 60
+! [relation_failed] se_sketch_constraint {"action":"relation","sketch":"{{kL.sketch}}","relation":"horizontal","elements":["{{rL.elements[0]}}"]}
+se_documents {"action":"close","document":"{{dL.handle}}","saveChanges":false}
+# M: the same 2D tools on a drawing sheet (sheet handle or drawing handle = its active sheet), in mm from its lower-left
+#   corner. Fillet R5 at (150,50) trims the bottom side to 95 and the right one to 55; a length dimension of 80 moves the end
+#   of the line, a 30 diameter shrinks the circle and a horizontal relation levels the line at y=50. A spline through 3 points
+#   ends at the last one. Validating or deleting a sheet as a sketch fails
+@dM = se_documents {"action":"new","kind":"draft"}
+@shM = se_drawing {"action":"sheets"}
+@rM = se_sketch {"action":"rectangle","sketch":"{{shM.sheets[0].handle}}","points":[50,50,150,110]}
+@cM = se_sketch {"action":"circle","sketch":"{{dM.handle}}","center":[100,80],"radius":20}
+@lM = se_sketch {"action":"line","sketch":"{{dM.handle}}","points":[200,50,260,90]}
+@sM = se_sketch {"action":"spline","sketch":"{{dM.handle}}","points":[50,200,80,230,120,210]}
+?= sM.geometry.end[0] 120
+?= sM.geometry.end[1] 210
+@fM = se_sketch {"action":"fillet","sketch":"{{dM.handle}}","elements":["{{rM.elements[0]}}","{{rM.elements[1]}}"],"radius":5}
+?= fM.geometry.center[0] 145
+?= fM.trimmed[0].length 95
+?= fM.trimmed[1].length 55
+@dlM = se_sketch_constraint {"action":"dimension","sketch":"{{dM.handle}}","dimension":"length","elements":["{{lM.element}}"],"value":80}
+?= dlM.value 80
+@ddM = se_sketch_constraint {"action":"dimension","sketch":"{{dM.handle}}","dimension":"diameter","elements":["{{cM.element}}"],"value":30}
+?= ddM.elements[0].radius 15
+@hM = se_sketch_constraint {"action":"relation","sketch":"{{dM.handle}}","relation":"horizontal","elements":["{{lM.element}}"]}
+?= hM.elements[0].end[1] 50
+?= hM.elements[0].length 80
+@iM = se_sketch {"action":"info","sketch":"{{shM.sheets[0].handle}}"}
+?= iM.sheet true
+?= iM.elements.lines 5
+?= iM.elements.dimensions 2
+@gM = se_drawing {"action":"dimensions"}
+?= gM.count 2
+! [not_supported] se_sketch {"action":"close","sketch":"{{dM.handle}}"}
+! [not_supported] se_sketch {"action":"delete","sketch":"{{shM.sheets[0].handle}}"}
+se_documents {"action":"close","document":"{{dM.handle}}","saveChanges":false}
+# N: chamfer of the corner (40,20) of a 40x20 rectangle, 5 along the right side [1] and 10 along the top [2]: A = 800 - 5*10/2 = 775 -> V = 7750;
+#   the right side is trimmed to 15 and the top to 30. Corner (0,0): 2 along the bottom [0] (-> 38) and 6 along the left side [3] (-> 14):
+#   A = 775 - 2*6/2 = 769 -> V = 7690. Errors: parallel sides [1] (x=40) and [3] (x=0); no setbacks
+@dN = se_documents {"action":"new","kind":"part"}
+@kN = se_sketch {"action":"create","plane":"1"}
+@rN = se_sketch {"action":"rectangle","sketch":"{{kN.sketch}}","points":[0,0,40,20]}
+@cN = se_sketch {"action":"chamfer","sketch":"{{kN.sketch}}","elements":["{{rN.elements[1]}}","{{rN.elements[2]}}"],"setbacks":[5,10]}
+?= cN.trimmed[0].length 15
+?= cN.trimmed[1].length 30
+?= cN.geometry.length 11.180340
+@cN2 = se_sketch {"action":"chamfer","sketch":"{{kN.sketch}}","elements":["{{rN.elements[0]}}","{{rN.elements[3]}}"],"setbacks":[2,6]}
+?= cN2.trimmed[0].length 38
+?= cN2.trimmed[1].length 14
+! [chamfer_failed] se_sketch {"action":"chamfer","sketch":"{{kN.sketch}}","elements":["{{rN.elements[1]}}","{{rN.elements[3]}}"],"setbacks":[5]}
+! [invalid_argument] se_sketch {"action":"chamfer","sketch":"{{kN.sketch}}","elements":["{{rN.elements[0]}}","{{rN.elements[3]}}"]}
+se_sketch {"action":"close","sketch":"{{kN.sketch}}"}
+@xN = se_extrude {"sketch":"{{kN.sketch}}","distance":10}
+?= xN.volume 7690 0.01
+se_documents {"action":"close","document":"{{dN.handle}}","saveChanges":false}
+se_documents {"action":"list"}
+# Base planes by orientation ('xy', 'yz', 'xz'): found by their normal through the origin, whatever the template's order.
+@ox = se_documents {"action":"new","kind":"part"}
+@oxy = se_sketch {"action":"create","plane":"xy","document":"{{ox.handle}}"}
+?= oxy.frame.normal[2] 1
+@oyz = se_sketch {"action":"create","plane":"YZ","document":"{{ox.handle}}"}
+?= oyz.frame.normal[0] 1
+@oxz = se_sketch {"action":"create","plane":"xz","document":"{{ox.handle}}"}
+?= oxz.frame.normal[1] -1
+se_documents {"action":"close","document":"{{ox.handle}}","saveChanges":false}
+@oa = se_documents {"action":"new","kind":"assembly"}
+@oaz = se_sketch {"action":"create","plane":"xz","document":"{{oa.handle}}"}
+?= oaz.frame.normal[1] -1
+se_documents {"action":"close","document":"{{oa.handle}}","saveChanges":false}

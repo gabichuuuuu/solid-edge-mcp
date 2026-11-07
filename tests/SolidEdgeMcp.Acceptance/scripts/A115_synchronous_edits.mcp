@@ -1,0 +1,66 @@
+# A115: a synchronous part stays synchronous. se_documents modeling_mode switches it; rounds, chamfers and the face edits
+#   offset_faces, delete_rounds and delete_faces are then made in synchronous modelling (the last three change the body
+#   without a feature); a variable round is still ordered and switches the part.
+#   Block 80 x 50 x 30 (x -40..40, y -25..25) with a 12 mm through hole: 120000 - pi 36 30 = 116607.080.
+#   Right face 15 out: + 50 x 30 x 15 = 22500; left face 10 in: - 15000 (x -30..55, 124107.080).
+#   Rounds of 4 on the four vertical edges: - 4 (16 - 4 pi) 30 = - 412.036; deleting them gives it back.
+#   Deleting the hole face fills the hole: 85 x 50 x 30 = 127500. Chamfer 2 on the 50 mm top edge of the right face: - 100.
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[0,0,0],"size":[80,50],"depth":30}
+@m1 = se_documents {"action":"modeling_mode","mode":"synchronous"}
+?~ m1.modelingMode synchronous
+?~ m1.previous ordered
+?= m1.volume 120000 0.001
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@h = se_primitive {"shape":"cylinder","operation":"cut","plane":"{{top.items[0].handle}}","center":[0,0,30],"radius":6,"depth":30}
+?= h.volume 116607.080 0.001
+@rf = se_geometry {"action":"faces","direction":[1,0,0]}
+@o1 = se_part_feature {"action":"offset_faces","faces":["{{rf.items[0].handle}}"],"distance":15}
+?= o1.volumeChange 22500 0.001
+?~ o1.modelingMode synchronous
+?~ o1.note not a feature
+@lf = se_geometry {"action":"faces","direction":[-1,0,0]}
+@o2 = se_part_feature {"action":"offset_faces","faces":["{{lf.items[0].handle}}"],"distance":-10}
+?= o2.volume 124107.080 0.001
+@g1 = se_geometry {"action":"summary"}
+?= g1.boundingBox.min[0] -30 0.0001
+?= g1.boundingBox.max[0] 55 0.0001
+# An offset that would go through the part is not applied
+@rf2 = se_geometry {"action":"faces","direction":[1,0,0]}
+! [feature_failed] se_part_feature {"action":"offset_faces","faces":["{{rf2.items[0].handle}}"],"distance":-200}
+@g2 = se_geometry {"action":"summary"}
+?= g2.volume 124107.080 0.001
+@ve = se_geometry {"action":"edges","direction":[0,0,1],"type":"line"}
+?= ve.count 4 0
+@r = se_round {"edges":["{{ve.items[0].handle}}","{{ve.items[1].handle}}","{{ve.items[2].handle}}","{{ve.items[3].handle}}"],"radius":4}
+?= r.volumeChange -412.036 0.001
+?~ r.modelingMode synchronous
+# A round Solid Edge cannot make (on an edge where a round meets a face, tangent) leaves the body as it was
+@ve2 = se_geometry {"action":"edges","direction":[0,0,1],"type":"line"}
+?= ve2.count 8 0
+! [feature_failed] se_round {"edges":["{{ve2.items[0].handle}}"],"radius":2}
+@g3 = se_geometry {"action":"summary"}
+?= g3.volume 123695.044 0.001
+@rc = se_geometry {"action":"faces","source":"{{r.feature.handle}}"}
+?= rc.count 4 0
+@dr = se_part_feature {"action":"delete_rounds","faces":["{{rc.items[0].handle}}","{{rc.items[1].handle}}","{{rc.items[2].handle}}","{{rc.items[3].handle}}"]}
+?= dr.volume 124107.080 0.001
+?~ dr.modelingMode synchronous
+@cy = se_geometry {"action":"faces","type":"cylinder"}
+@df = se_part_feature {"action":"delete_faces","faces":["{{cy.items[0].handle}}"]}
+?= df.volume 127500 0.001
+@t2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te = se_geometry {"action":"edges","source":"{{t2.items[0].handle}}","direction":[0,1,0]}
+@c = se_chamfer {"edges":["{{te.items[1].handle}}"],"distance":2}
+?= c.volumeChange -100 0.001
+?~ c.modelingMode synchronous
+@m2 = se_documents {"action":"modeling_mode"}
+?~ m2.modelingMode synchronous
+# A variable round is ordered: the part is switched
+@ve3 = se_geometry {"action":"edges","direction":[0,0,1],"type":"line"}
+@vr = se_round {"edges":["{{ve3.items[0].handle}}"],"radii":[3,6]}
+?= vr.volumeChange -127.543 0.01
+?~ vr.warnings[0] switched to ordered
+@m3 = se_documents {"action":"modeling_mode"}
+?~ m3.modelingMode ordered
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

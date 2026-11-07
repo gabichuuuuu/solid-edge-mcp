@@ -1,0 +1,102 @@
+# A37: feature tree editing (se_feature_edit group, ungroup, reorder, roll_to, roll_to_end), variable-radius rounds (se_round radii) and resized holes and rounds (se_part_feature resize_holes, resize_rounds).
+# Block 100 x 60 x 20 with through holes of 10 mm at x = 25 and 75 and a blind hole of 6 mm, 10 deep, at x = 50:
+# 120000 - 2 x pi x 25 x 20 - pi x 9 x 10 = 116575.664
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@h1 = se_hole {"plane":"1","centers":[25,30,0],"diameter":10}
+@h2 = se_hole {"plane":"1","centers":[75,30,0],"diameter":10}
+@h3 = se_hole {"plane":"1","centers":[50,30,0],"diameter":6,"extent":"finite","depth":10}
+?= h3.volume 116575.664 0.01
+# Groups: holes 1 and 3 are not next to each other in the tree (refused); holes 2 and 1, in any order, make a group placed before them
+! [invalid_argument] se_feature_edit {"action":"group","features":["{{h1.feature.handle}}","{{h3.feature.handle}}"]}
+@g = se_feature_edit {"action":"group","features":["{{h2.feature.handle}}","{{h1.feature.handle}}"],"name":"Bolt holes"}
+?~ g.group.name Bolt holes
+?= g.group.members 2
+?= g.group.index 5
+?= g.members[0] Hole_1
+?= g.members[1] Hole_2
+# A hole already in a group cannot go into another one
+! [invalid_argument] se_feature_edit {"action":"group","features":["{{h2.feature.handle}}","{{h3.feature.handle}}"]}
+# Suppressing the group suppresses both holes: + 2 x pi x 25 x 20 = 3141.593
+@s = se_feature_edit {"action":"suppress","feature":"{{g.group.handle}}"}
+?= s.volumeChange 3141.593 0.01
+@t1 = se_feature_tree {}
+?= t1.features[?name="Hole_2"].status suppressed
+@u = se_feature_edit {"action":"unsuppress","feature":"{{g.group.handle}}"}
+?= u.volume 116575.664 0.01
+@ug = se_feature_edit {"action":"ungroup","feature":"{{g.group.handle}}"}
+?~ ug.ungrouped Bolt holes
+! [invalid_argument] se_feature_edit {"action":"ungroup","feature":"{{h1.feature.handle}}"}
+@t2 = se_feature_tree {}
+?= t2.count 7
+# Reorder: hole 3 before hole 1, then after hole 2; a hole cannot go before the box (a synchronous feature)
+@r = se_feature_edit {"action":"reorder","feature":"{{h3.feature.handle}}","target":"{{h1.feature.handle}}"}
+?= r.feature.index 5
+?= r.volumeChange 0 0.001
+! [invalid_argument] se_feature_edit {"action":"reorder","feature":"{{h1.feature.handle}}","target":"{{b.feature.handle}}"}
+@ra = se_feature_edit {"action":"reorder","feature":"{{h3.feature.handle}}","target":"{{h2.feature.handle}}","position":"after"}
+?= ra.feature.index 7
+# Roll back to hole 1 (Go To): holes 2 and 3 are rolled back, 120000 - pi x 25 x 20 = 118429.204
+@rb = se_feature_edit {"action":"roll_to","feature":"{{h1.feature.handle}}"}
+?= rb.rolledBack[0] Hole_2
+?= rb.rolledBack[1] Hole_3
+?= rb.volume 118429.204 0.01
+# A variable round from 2 to 8 mm along the top front edge goes in after hole 1: 601.2 mm3 (circular sections: 0.2146 x 2800 = 600.9)
+@e = se_geometry {"action":"edges","type":"line","direction":[1,0,0]}
+@rv = se_round {"edges":["{{e.items[?start=[0,0,20]].handle}}"],"radii":[2,8]}
+?= rv.volumeChange -601.236 0.01
+@t3 = se_feature_tree {}
+?= t3.features[?name="Round_1"].index 6
+?= t3.features[?name="Hole_3"].status rolled_back
+@re = se_feature_edit {"action":"roll_to_end"}
+?= re.rolledTo.name Hole_3
+?= re.volume 115974.428 0.01
+# Wrong number of radii, and both radius and radii, are refused
+@e2 = se_geometry {"action":"edges","type":"line","direction":[1,0,0]}
+! [invalid_argument] se_round {"edges":["{{e2.items[0].handle}}"],"radii":[2]}
+! [invalid_argument] se_round {"edges":["{{e2.items[0].handle}}"],"radius":2,"radii":[2,3]}
+# The three holes resized to 8 mm: the through holes shrink (+ 2 x pi x 9 x 20 = 1130.973), the blind one grows and keeps its depth (- pi x 7 x 10 = 219.911)
+@cy = se_geometry {"action":"faces","type":"cylinder"}
+@rh = se_part_feature {"action":"resize_holes","faces":["{{cy.items[0].handle}}","{{cy.items[1].handle}}","{{cy.items[2].handle}}"],"diameter":8}
+?= rh.volumeChange 911.062 0.01
+@cy2 = se_geometry {"action":"faces","type":"cylinder"}
+?= cy2.items[?axisPoint=[50,30,0]].radius 4
+?= cy2.items[?axisPoint=[50,30,0]].boundingBox.max[2] 10
+?= cy2.items[?axisPoint=[75,30,0]].radius 4
+# A constant round of 5 mm on the top back edge resized to 8 mm: (1 - pi/4) x (64 - 25) x 100 = 836.947 more removed
+@e3 = se_geometry {"action":"edges","type":"line","direction":[-1,0,0]}
+@rc = se_round {"edges":["{{e3.items[?start=[100,60,20]].handle}}"],"radius":5}
+?= rc.volumeChange -536.505 0.01
+@rf = se_geometry {"action":"faces","source":"{{rc.feature.handle}}"}
+@rr = se_part_feature {"action":"resize_rounds","faces":["{{rf.items[0].handle}}"],"radius":8}
+?= rr.volumeChange -836.947 0.01
+# The face of the variable round cannot be resized (the failed feature is deleted), and resize_holes needs a diameter
+@vf = se_geometry {"action":"faces","source":"{{rv.feature.handle}}"}
+! [feature_failed] se_part_feature {"action":"resize_rounds","faces":["{{vf.items[0].handle}}"],"radius":4}
+@cy3 = se_geometry {"action":"faces","type":"cylinder"}
+! [invalid_argument] se_part_feature {"action":"resize_holes","faces":["{{cy3.items[0].handle}}"]}
+# The generic layer refuses Rounds.AddBlend (it brought Solid Edge down) and ResizeHoles.Add (without a HoleData it leaves Solid Edge unstable)
+@ms = se_com_get {"target":"active_document","member":"Models"}
+@m1 = se_com_invoke {"target":"{{ms.value.handle}}","method":"Item","arguments":[1]}
+@rs = se_com_get {"target":"{{m1.result.handle}}","member":"Rounds"}
+! [unsafe_member] se_com_invoke {"target":"{{rs.value.handle}}","method":"AddBlend","arguments":[1,[],[0.005]]}
+@rhs = se_com_get {"target":"{{m1.result.handle}}","member":"ResizeHoles"}
+! [unsafe_member] se_com_invoke {"target":"{{rhs.value.handle}}","method":"Add","arguments":[1,[],0.008,13,null]}
+# User-defined sets exist only in synchronous modelling (in ordered, PartDocument.UserDefinedSets gives 0x80004021): one with the box, then dissolved
+! [solid_edge_error] se_com_get {"target":"active_document","member":"UserDefinedSets"}
+se_com_set {"target":"active_document","member":"ModelingMode","value":1}
+@uds = se_com_get {"target":"active_document","member":"UserDefinedSets"}
+@us1 = se_com_invoke {"target":"{{uds.value.handle}}","method":"AddUserDefinedSetsBySet","arguments":[1,{"type":"object[]","value":[{"handle":"{{b.feature.handle}}"}]}]}
+@usn = se_com_get {"target":"{{us1.result.handle}}","member":"Count"}
+?= usn.value 1
+@usc = se_com_get {"target":"{{uds.value.handle}}","member":"Count"}
+?= usc.value 1
+se_com_invoke {"target":"{{us1.result.handle}}","method":"Dissolve"}
+@usc2 = se_com_get {"target":"{{uds.value.handle}}","member":"Count"}
+?= usc2.value 0
+se_com_set {"target":"active_document","member":"ModelingMode","value":2}
+@t4 = se_feature_tree {}
+?= t4.count 11
+?= t4.modelingMode ordered
+?= t4.volume 115512.038 0.01
+se_documents {"action":"close","saveChanges":false}

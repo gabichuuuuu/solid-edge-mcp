@@ -1,0 +1,52 @@
+# A60: fill pattern (se_pattern fill): copies of a feature on a grid inside a closed region sketch, the grid starting at the feature.
+# A 100 x 60 x 5 plate with a Ø4 hole at (10, 10) (62.832 mm3 each) and the region 5..95 x 5..55: spacing 10 x 10 -> 9 x 5 nodes,
+# 44 copies (-2764.60); every other row shifted 5 mm -> rows of 9 and 10, 46 copies (-2890.27); the grid turned 45° -> 45 copies (-2827.43).
+@dr = se_documents {"action":"new","kind":"part"}
+@kr = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kr.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kr.sketch}}"}
+se_extrude {"sketch":"{{kr.sketch}}","distance":5}
+@hr = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{hr.sketch}}","center":[10,10],"radius":2}
+se_sketch {"action":"close","sketch":"{{hr.sketch}}"}
+@cr = se_extrude {"sketch":"{{hr.sketch}}","operation":"cut","extent":"through_all"}
+?= cr.volumeChange -62.832 0.001
+@gr = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{gr.sketch}}","points":[5,5,95,55]}
+se_sketch {"action":"close","sketch":"{{gr.sketch}}"}
+@fr = se_pattern {"type":"fill","features":["{{cr.feature.handle}}"],"region":"{{gr.sketch}}","spacingX":10}
+?= fr.volumeChange -2764.60 0.01
+se_documents {"action":"close","saveChanges":false}
+@ds = se_documents {"action":"new","kind":"part"}
+@ks = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ks.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ks.sketch}}"}
+se_extrude {"sketch":"{{ks.sketch}}","distance":5}
+@hs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{hs.sketch}}","center":[10,10],"radius":2}
+se_sketch {"action":"close","sketch":"{{hs.sketch}}"}
+@cs = se_extrude {"sketch":"{{hs.sketch}}","operation":"cut","extent":"through_all"}
+?= cs.volumeChange -62.832 0.001
+@gs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{gs.sketch}}","points":[5,5,95,55]}
+se_sketch {"action":"close","sketch":"{{gs.sketch}}"}
+@fs = se_pattern {"type":"fill","features":["{{cs.feature.handle}}"],"region":"{{gs.sketch}}","spacingX":10,"stagger":5}
+?= fs.volumeChange -2890.27 0.01
+se_documents {"action":"close","saveChanges":false}
+@dt = se_documents {"action":"new","kind":"part"}
+@kt = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kt.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{kt.sketch}}"}
+se_extrude {"sketch":"{{kt.sketch}}","distance":5}
+@ht = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{ht.sketch}}","center":[10,10],"radius":2}
+se_sketch {"action":"close","sketch":"{{ht.sketch}}"}
+@ct = se_extrude {"sketch":"{{ht.sketch}}","operation":"cut","extent":"through_all"}
+?= ct.volumeChange -62.832 0.001
+@gt = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{gt.sketch}}","points":[5,5,95,55]}
+se_sketch {"action":"close","sketch":"{{gt.sketch}}"}
+@ft = se_pattern {"type":"fill","features":["{{ct.feature.handle}}"],"region":"{{gt.sketch}}","spacingX":10,"spacingY":10,"angle":45}
+?= ft.volumeChange -2827.43 0.01
+! [invalid_argument] se_pattern {"type":"fill","features":["{{ct.feature.handle}}"],"spacingX":10}
+se_documents {"action":"close","saveChanges":false}

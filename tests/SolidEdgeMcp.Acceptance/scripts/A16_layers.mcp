@@ -1,0 +1,94 @@
+# A16: layers. A part keeps its layers in the document (they hold sketch geometry); a drawing, in each sheet (views,
+#   dimensions, annotations). New elements go to the active layer, which Solid Edge never hides; only an empty layer that
+#   is not active can be deleted.
+@d = se_documents {"action":"new","kind":"part"}
+@l0 = se_layer {"action":"list"}
+?= l0.count 1
+?= l0.active Default
+@c = se_layer {"action":"create","name":"Construction","activate":true}
+?= c.created.active true
+?= c.created.empty true
+! [invalid_argument] se_layer {"action":"create","name":"construction"}
+@k = se_sketch {"action":"create","plane":"1"}
+@r = se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+@l1 = se_layer {"action":"list"}
+?= l1.layers[?name="Construction"].empty false
+?= l1.layers[?name="Default"].empty true
+! [not_supported] se_layer {"action":"set","name":"Construction","shown":false}
+! [not_supported] se_layer {"action":"delete","name":"Construction"}
+se_layer {"action":"activate","name":"Default"}
+! [not_supported] se_layer {"action":"delete","name":"Construction"}
+@h = se_layer {"action":"set","name":"Construction","shown":false,"locatable":false}
+?= h.layer.shown false
+?= h.layer.locatable false
+# activating a hidden layer also shows it
+@ac = se_layer {"action":"activate","name":"Construction"}
+?= ac.active.shown true
+se_layer {"action":"activate","name":"Default"}
+@as = se_layer {"action":"assign","name":"Default","objects":["{{r.elements[0]}}","{{r.elements[1]}}","{{r.elements[2]}}","{{r.elements[3]}}"]}
+?= as.moved[0].from Construction
+@l2 = se_layer {"action":"list"}
+?= l2.layers[?name="Construction"].empty true
+?= l2.layers[?name="Default"].empty false
+@del = se_layer {"action":"delete","name":"Construction"}
+?= del.deleted Construction
+@l3 = se_layer {"action":"list"}
+?= l3.count 1
+! [not_found] se_layer {"action":"activate","name":"Construction"}
+! [invalid_argument] se_layer {"action":"set","name":"Default"}
+! [invalid_argument] se_layer {"action":"list","sheet":"Sheet1"}
+! [invalid_argument] se_layer {"action":"assign","name":"Default","objects":["{{d.handle}}"]}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":10}
+?= e.volume 60000
+se_documents {"action":"save_as","path":"{{work}}\\a16_plate.par","overwrite":true}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# Drawing: annotations go to the active layer of their sheet; a view and a text are moved to other layers
+@dr = se_documents {"action":"new","kind":"draft"}
+@m0 = se_layer {"action":"list"}
+?= m0.count 1
+?~ m0.owner Sheet1
+@n = se_layer {"action":"create","name":"Notes","activate":true}
+@tx = se_annotation {"action":"text","text":"LAYER TEST","position":[40,40]}
+@m1 = se_layer {"action":"list"}
+?= m1.layers[?name="Notes"].empty false
+se_layer {"action":"activate","name":"Default"}
+@tx2 = se_annotation {"action":"text","text":"SECOND","position":[40,60]}
+@an = se_layer {"action":"assign","name":"Notes","objects":["{{tx2.annotation.handle}}"]}
+?= an.moved[0].from Default
+@vw = se_drawing {"action":"base_view","path":"{{work}}\\a16_plate.par","orientation":"top","position":[200,150],"scale":1}
+se_layer {"action":"create","name":"Views"}
+@av = se_layer {"action":"assign","name":"Views","objects":["{{vw.view.handle}}"]}
+?= av.moved[0].from Default
+@hs = se_layer {"action":"set","name":"Notes","shown":false}
+?= hs.layer.shown false
+@m2 = se_layer {"action":"list","sheet":"Sheet1"}
+?= m2.count 3
+?= m2.layers[?name="Notes"].shown false
+?= m2.layers[?name="Views"].empty false
+! [not_supported] se_layer {"action":"delete","name":"Notes"}
+! [not_found] se_layer {"action":"assign","name":"Missing","objects":["{{tx.annotation.handle}}"]}
+# the names are shared by all the sheets; the active layer and the visibility are kept per sheet (Notes is hidden only on
+#   Sheet1). Reading Sheet1 while Details is active activates it for the call and then restores Details
+@s2 = se_drawing {"action":"add_sheet","name":"Details","paper":"a3"}
+@d0 = se_layer {"action":"list","sheet":"Details"}
+?= d0.count 3
+?~ d0.owner Details
+?= d0.active Default
+?= d0.layers[?name="Notes"].shown true
+@d1 = se_layer {"action":"activate","name":"Notes","sheet":"Details"}
+?= d1.active.active true
+@d2 = se_layer {"action":"list","sheet":"Sheet1"}
+?= d2.active Default
+?= d2.layers[?name="Notes"].shown false
+@ss = se_drawing {"action":"sheets"}
+?= ss.sheets[?name="Details"].active true
+@d3 = se_layer {"action":"list"}
+?= d3.active Notes
+se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}
+# assemblies keep their layers in the document too
+@as1 = se_documents {"action":"new","kind":"assembly"}
+@al = se_layer {"action":"create","name":"Sketches","activate":true}
+?= al.created.active true
+@al2 = se_layer {"action":"list"}
+?= al2.count 2
+se_documents {"action":"close","document":"{{as1.handle}}","saveChanges":false}

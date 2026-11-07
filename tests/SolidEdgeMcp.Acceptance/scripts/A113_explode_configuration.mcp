@@ -1,0 +1,54 @@
+# A113: keeping an exploded view. Saving the exploded assembly stores the explode as the explode configuration
+#   "explode,Solid Edge"; a display configuration saved meanwhile does not keep it. A drawing view of the explode
+#   configuration is exploded (in the orientation stored with it); one of the display configuration is not.
+# Block 100 x 60 x 20 with a 10 mm hole, pin 10 x 40 inserted in it (top at z=60); auto explode 50 lifts the pin 50 mm.
+@b = se_documents {"action":"new","kind":"part"}
+@bs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{bs.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{bs.sketch}}"}
+se_extrude {"sketch":"{{bs.sketch}}","distance":20}
+@bt = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{bt.items[0].handle}}","centers":[50,30,20],"diameter":10}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a113_{{run}}\\blk.par"}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{ps.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+se_extrude {"sketch":"{{ps.sketch}}","distance":40}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a113_{{run}}\\pin.par"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@eb = se_assembly {"action":"insert","path":"{{work}}\\runs\\a113_{{run}}\\blk.par"}
+@ep = se_assembly {"action":"insert","path":"{{work}}\\runs\\a113_{{run}}\\pin.par","origin":[300,0,0]}
+@et = se_geometry {"action":"faces","source":"{{eb.handle}}","direction":[0,0,1]}
+@eh = se_geometry {"action":"faces","source":"{{eb.handle}}","type":"cylinder"}
+@ec = se_geometry {"action":"faces","source":"{{ep.handle}}","type":"cylinder"}
+@ef = se_geometry {"action":"faces","source":"{{ep.handle}}","direction":[0,0,-1]}
+se_relations {"action":"add","type":"insert","occurrence1":"{{ep.handle}}","element1":"{{ef.items[0].handle}}","occurrence2":"{{eb.handle}}","element2":"{{et.items[0].handle}}","axis1":"{{ec.items[0].handle}}","axis2":"{{eh.items[0].handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a113_{{run}}\\a113.asm"}
+@l0 = se_assembly_config {"action":"list"}
+?= l0.count 1
+@ex = se_assembly_config {"action":"explode","spread":50}
+?= ex.moved 1
+?~ ex.note explode,Solid Edge
+# A display configuration of the exploded assembly says it does not keep the explode; still no explode configuration
+@sv = se_assembly_config {"action":"save","name":"Disp"}
+?~ sv.note does not keep the explode
+@l1 = se_assembly_config {"action":"list"}
+?= l1.count 2
+# Saving the assembly creates the explode configuration
+se_documents {"action":"save","document":"{{a.handle}}"}
+@l2 = se_assembly_config {"action":"list"}
+?= l2.count 3
+?~ l2.configurations[2].name explode,Solid Edge
+?~ l2.configurations[2].type explode
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# Drawing: the explode configuration gives an exploded view (taller than the assembly's 72.7 mm front view)
+@dr = se_documents {"action":"new","kind":"draft"}
+@v1 = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a113_{{run}}\\a113.asm","orientation":"front","configuration":"explode,Solid Edge","scale":1,"position":[150,200]}
+?~ v1.view.orientation custom
+?= v1.view.size[1] 133.3 1
+@v2 = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a113_{{run}}\\a113.asm","orientation":"front","configuration":"Disp","scale":1,"position":[400,200]}
+?= v2.view.size[1] 72.7 0.01
+se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}

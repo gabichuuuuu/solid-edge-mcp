@@ -1,0 +1,82 @@
+# A87: ruled surfaces (se_surface ruled): one band per edge of a planar face, standing on that face along the edge, square to
+#   it or leaning by the taper. A box 100 x 60 x 20 (120000, unchanged by the surfaces); a width of 10 gives 1000 mm² on a
+#   100 mm edge, 600 on a 60 mm edge and 200 on a 20 mm edge. Square to the top face: z 20..30 out of the material, 10..20
+#   reversed. A taper of 30 degrees leans 10 sin 30 = 5 mm and rises 10 cos 30 = 8.660254: on the front face (y = 0) every
+#   band goes to y -8.660254 and leans away from the face (the bottom edge down to z -5, the top edge up to 25, the sides
+#   out to x 105 and -5); reversed (into the material, y 0..8.660254) with -30 the bands lean over the face (z 0..5, 15..20).
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+# square to the top face, on its four edges
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@te = se_geometry {"action":"edges","source":"{{top.items[0].handle}}"}
+@r1 = se_surface {"action":"ruled","edges":["{{te.items[?direction=[1,0,0]].handle}}","{{te.items[?direction=[0,1,0]].handle}}","{{te.items[?direction=[-1,0,0]].handle}}","{{te.items[?direction=[0,-1,0]].handle}}"],"faces":["{{top.items[0].handle}}"],"distance":10}
+?= r1.count 4
+?= r1.surfaces[0].surface.type ruled
+?= r1.surfaces[0].surface.area 1000 0.001
+?= r1.surfaces[1].surface.area 600 0.001
+?= r1.surfaces[2].surface.area 1000 0.001
+?= r1.surfaces[3].surface.area 600 0.001
+?= r1.surfaces[0].surface.boundingBox.min[2] 20 0.001
+?= r1.surfaces[0].surface.boundingBox.max[2] 30 0.001
+?= r1.surfaces[1].surface.boundingBox.max[2] 30 0.001
+?= r1.surfaces[2].surface.boundingBox.max[2] 30 0.001
+?= r1.surfaces[3].surface.boundingBox.max[2] 30 0.001
+?= r1.surfaces[3].surface.boundingBox.min[0] 0 0.001
+# reversed, into the material
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te2 = se_geometry {"action":"edges","source":"{{top2.items[0].handle}}"}
+@r2 = se_surface {"action":"ruled","edges":["{{te2.items[?direction=[1,0,0]].handle}}"],"faces":["{{top2.items[0].handle}}"],"distance":10,"direction":"reverse"}
+?= r2.surfaces[0].surface.boundingBox.min[2] 10 0.001
+?= r2.surfaces[0].surface.boundingBox.max[2] 20 0.001
+# leaning 30 degrees away from the front face, on its four edges
+@fr = se_geometry {"action":"faces","direction":[0,-1,0]}
+@fe = se_geometry {"action":"edges","source":"{{fr.items[0].handle}}"}
+@r3 = se_surface {"action":"ruled","edges":["{{fe.items[?start=[0,0,0]].handle}}","{{fe.items[?start=[100,0,20]].handle}}","{{fe.items[?end=[100,0,20]].handle}}","{{fe.items[?end=[0,0,0]].handle}}"],"faces":["{{fr.items[0].handle}}"],"distance":10,"taper":30}
+?= r3.count 4
+?= r3.surfaces[0].surface.area 1000 0.001
+?= r3.surfaces[1].surface.area 200 0.001
+?= r3.surfaces[0].surface.boundingBox.min[1] -8.660254 0.001
+?= r3.surfaces[0].surface.boundingBox.min[2] -5 0.001
+?= r3.surfaces[1].surface.boundingBox.max[0] 105 0.001
+?= r3.surfaces[2].surface.boundingBox.max[2] 25 0.001
+?= r3.surfaces[3].surface.boundingBox.min[0] -5 0.001
+# reversed with -30: into the material, leaning over the face
+@fr2 = se_geometry {"action":"faces","direction":[0,-1,0]}
+@fe2 = se_geometry {"action":"edges","source":"{{fr2.items[0].handle}}"}
+@r4 = se_surface {"action":"ruled","edges":["{{fe2.items[?start=[0,0,0]].handle}}","{{fe2.items[?end=[100,0,20]].handle}}"],"faces":["{{fr2.items[0].handle}}"],"distance":10,"taper":-30,"direction":"reverse"}
+?= r4.surfaces[0].surface.boundingBox.max[1] 8.660254 0.001
+?= r4.surfaces[0].surface.boundingBox.max[2] 5 0.001
+?= r4.surfaces[1].surface.boundingBox.min[2] 15 0.001
+@all = se_surface {"action":"list"}
+?= all.count 11
+?= all.surfaces[?name="Ruled_Surface_11"].type ruled
+@ph = se_physical {}
+?= ph.volume 120000 0.01
+# refusals: no edges, no width, a taper of 90, two faces, a reference plane, an edge that is not on the face
+@top5 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te5 = se_geometry {"action":"edges","source":"{{top5.items[0].handle}}"}
+@fr5 = se_geometry {"action":"faces","direction":[0,-1,0]}
+! [invalid_argument] se_surface {"action":"ruled","faces":["{{top5.items[0].handle}}"],"distance":10}
+! [invalid_argument] se_surface {"action":"ruled","edges":["{{te5.items[0].handle}}"],"faces":["{{top5.items[0].handle}}"]}
+! [invalid_argument] se_surface {"action":"ruled","edges":["{{te5.items[0].handle}}"],"faces":["{{top5.items[0].handle}}"],"distance":10,"taper":90}
+! [invalid_argument] se_surface {"action":"ruled","edges":["{{te5.items[0].handle}}"],"faces":["{{top5.items[0].handle}}","{{fr5.items[0].handle}}"],"distance":10}
+@rp = se_ref_plane {"action":"offset","plane":"xy","distance":20}
+! [handle_wrong_type] se_surface {"action":"ruled","edges":["{{te5.items[0].handle}}"],"faces":["{{rp.handle}}"],"distance":10}
+! [invalid_argument] se_surface {"action":"ruled","edges":["{{te5.items[?direction=[-1,0,0]].handle}}"],"faces":["{{fr5.items[0].handle}}"],"distance":10}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# a cylindrical face
+@p2 = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"cylinder","center":[0,0,0],"radius":20,"depth":30}
+@cf = se_geometry {"action":"faces","type":"cylinder"}
+@ce = se_geometry {"action":"edges","source":"{{cf.items[0].handle}}"}
+! [invalid_argument] se_surface {"action":"ruled","edges":["{{ce.items[0].handle}}"],"faces":["{{cf.items[0].handle}}"],"distance":10}
+# the circular edge of the cylinder's top: a band 2 pi 20 x 10 up to z 40
+@cap = se_geometry {"action":"faces","direction":[0,0,1]}
+@capE = se_geometry {"action":"edges","source":"{{cap.items[0].handle}}"}
+@rc = se_surface {"action":"ruled","edges":["{{capE.items[0].handle}}"],"faces":["{{cap.items[0].handle}}"],"distance":10}
+?= rc.surfaces[0].surface.area 1256.637061 0.001
+?= rc.surfaces[0].surface.boundingBox.max[2] 40 0.001
+se_documents {"action":"close","document":"{{p2.handle}}","saveChanges":false}

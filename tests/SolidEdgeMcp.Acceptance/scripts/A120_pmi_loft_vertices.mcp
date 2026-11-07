@@ -1,0 +1,25 @@
+# A120: PMI linear dimensions between vertices of a loft. Loft from an 80 x 60 rectangle at z = 0 to a circle of 25 at
+#   z = 40 (131907.848 mm3): the circle comes out as four B-spline edges whose ends are the top vertices. Solid Edge took
+#   the far end of the B-spline picked for a top vertex (77.39 mm instead of a value of the geometry), so the tool tries
+#   every edge at each vertex, straight edges first, until the value is one of the geometry's: the true distance, its
+#   projection onto the plane, or onto one of the plane's axes. In the XZ plane: sqrt(20^2 + 40^2) = 44.721 and
+#   sqrt(20.926^2 + 40^2) = 45.143; in YZ: sqrt(13.839^2 + 40^2) = 42.326. No dimension of a rejected attempt is left.
+@p = se_documents {"action":"new","kind":"part"}
+@rp = se_ref_plane {"action":"offset","plane":"xy","distance":40}
+@k1 = se_sketch {"action":"create","plane":"xy"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[-40,-30,40,30]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+@k2 = se_sketch {"action":"create","plane":"{{rp.handle}}"}
+se_sketch {"action":"circle","sketch":"{{k2.sketch}}","center":[0,0],"radius":25}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@l = se_loft_sweep {"action":"loft","sketches":["{{k1.sketch}}","{{k2.sketch}}"]}
+?= l.volume 131907.848 0.001
+@d1 = se_pmi {"action":"dimension","type":"linear","plane":"xz","points":[40,-30,0,20,-15,40]}
+?= d1.dimension.value 44.72135955 0.000001
+@d2 = se_pmi {"action":"dimension","type":"linear","plane":"xz","points":[-40,-30,0,-19.074337362,-16.160744234,40]}
+?= d2.dimension.value 45.142921448 0.000001
+@d3 = se_pmi {"action":"dimension","type":"linear","plane":"yz","points":[40,30,0,19.074337362,16.160744234,40]}
+?= d3.dimension.value 42.326410197 0.000001
+@ls = se_pmi {"action":"list"}
+?= ls.count 3 0
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

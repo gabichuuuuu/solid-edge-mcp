@@ -1,0 +1,59 @@
+# A46: family of parts and block tables on drawings (se_drawing family_table, block_table), read back with se_drawing tables.
+# A block 100 x 60 x 20 whose depth is the family variable, with members Thick (30) and Thin (10); a sheet block placed twice.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\a46_family.par","overwrite":true}
+se_part_family {"action":"add_variables","variables":["ExtrudedProtrusion_1_FiniteDepth"]}
+se_part_family {"action":"add_member","name":"Thin","variables":["ExtrudedProtrusion_1_FiniteDepth"],"values":[10]}
+se_part_family {"action":"add_member","name":"Thick","variables":["ExtrudedProtrusion_1_FiniteDepth"],"values":[30]}
+se_documents {"action":"save"}
+se_documents {"action":"close","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@kp = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kp.sketch}}","points":[0,0,50,50]}
+se_sketch {"action":"close","sketch":"{{kp.sketch}}"}
+se_extrude {"sketch":"{{kp.sketch}}","distance":10}
+se_documents {"action":"save_as","path":"{{work}}\\a46_plain.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@dr = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\a46_family.par","orientation":"front","position":[150,200],"scale":1}
+@bv2 = se_drawing {"action":"base_view","path":"{{work}}\\a46_plain.par","orientation":"top","position":[300,200],"scale":1}
+# 1) A part without a family and a sheet without blocks are refused, and no table is left behind
+! [family_table_failed] se_drawing {"action":"family_table","view":"{{bv2.view.handle}}"}
+! [block_table_failed] se_drawing {"action":"block_table"}
+@ft = se_com_get {"target":"active_document","member":"FOPTables"}
+@fc = se_com_get {"target":"{{ft.value.handle}}","member":"Count"}
+?= fc.value 0
+# 2) Family of parts table: one row per member with the value of the family variable
+@f = se_drawing {"action":"family_table","view":"{{bv.view.handle}}","position":[20,280]}
+?= f.count 2
+?= f.origin[0] 20
+?= f.anchor upper_left
+?~ f.rows[0] Thick
+?~ f.rows[0] 30.000
+?~ f.rows[1] Thin
+?~ f.rows[1] 10.000
+# 3) Block table: the block placed twice gives one row with quantity 2, above the title block by default
+@bsh = se_drawing {"action":"sheets"}
+@br = se_sketch {"action":"rectangle","sketch":"{{bsh.sheets[0].handle}}","points":[50,50,90,70]}
+se_drawing {"action":"create_block","name":"Frame","elements":["{{br.elements[0]}}","{{br.elements[1]}}","{{br.elements[2]}}","{{br.elements[3]}}"],"position":[50,50]}
+se_drawing {"action":"place_block","name":"Frame","position":[250,60]}
+@b = se_drawing {"action":"block_table"}
+?= b.count 1
+?= b.anchor lower_right
+?~ b.rows[0] Frame
+?~ b.rows[0] "2"
+# 4) The tables of a drawing opened from its file are read back: the family of parts table and the block table with their cells
+se_documents {"action":"save_as","path":"{{work}}\\a46_tables.dft","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+se_documents {"action":"open","path":"{{work}}\\a46_tables.dft"}
+@tb = se_drawing {"action":"tables"}
+?= tb.count 2
+?~ tb.tables family_table
+?~ tb.tables Thick
+?~ tb.tables block_table
+?~ tb.tables Frame
+se_documents {"action":"close","saveChanges":false}

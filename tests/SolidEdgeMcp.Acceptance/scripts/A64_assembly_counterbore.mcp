@@ -1,0 +1,46 @@
+# A64: counterbore holes made in an assembly (se_assembly_feature hole, type counterbore): a simple hole plus an extruded cutout of
+# the counterbore diameter and depth. Plates 100x60x10 at z 0-10 and 10-20; holes Ø6.6 through all from plane 1 (z = 0) at (30,30)
+# and (70,30), counterbore Ø11 x 6. The hole keeps 2*pi*6.6*4 = 165.876 on the first plate and 2*pi*6.6*10 = 414.690 on the second;
+# the counterbore reaches only the first (the second is left out of its scope): walls 2*pi*11*6 = 414.690 and floors
+# 2*pi/4*(11²-6.6²) = 121.642, 536.332 in 4 faces. With the plates at z 10-30 the counterbore from z = 0 reaches neither: it fails,
+# the hole is removed with it and plane 1 still takes a hole (2*pi*6.6*10 = 414.690 on each plate).
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ps.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+se_extrude {"sketch":"{{ps.sketch}}","distance":10}
+se_documents {"action":"save_as","path":"{{work}}\\a64_plates.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@a1 = se_assembly {"action":"insert","path":"{{work}}\\a64_plates.par","document":"{{a.handle}}"}
+@a2 = se_assembly {"action":"insert","path":"{{work}}\\a64_plates.par","origin":[0,0,10],"document":"{{a.handle}}"}
+! [invalid_argument] se_assembly_feature {"action":"hole","plane":"1","centers":[30,30,0],"diameter":6.6,"type":"counterbore","counterboreDepth":6,"occurrences":["{{a1.handle}}","{{a2.handle}}"]}
+! [invalid_argument] se_assembly_feature {"action":"hole","plane":"1","centers":[30,30,0],"diameter":6.6,"type":"counterbore","counterboreDiameter":6,"counterboreDepth":6,"occurrences":["{{a1.handle}}","{{a2.handle}}"]}
+! [invalid_argument] se_assembly_feature {"action":"hole","plane":"1","centers":[30,30,0],"diameter":6.6,"type":"tapped","occurrences":["{{a1.handle}}"]}
+@h = se_assembly_feature {"action":"hole","plane":"1","centers":[30,30,0,70,30,0],"diameter":6.6,"type":"counterbore","counterboreDiameter":11,"counterboreDepth":6,"occurrences":["{{a1.handle}}","{{a2.handle}}"],"name":"Bolt"}
+?~ h.hole.type hole
+?= h.hole.parts[0].occurrence {{a1.handle}}
+?= h.hole.parts[0].area 165.876092 0.001
+?= h.hole.parts[1].area 414.690230 0.001
+?~ h.counterbore.type extruded_cutout
+?~ h.counterbore.name Bolt counterbore
+?= h.counterbore.depth 6
+?= h.counterbore.parts[0].faces 4
+?= h.counterbore.parts[0].area 536.331813 0.001
+?~ h.counterbore.status ok
+@l = se_assembly_feature {"action":"list"}
+?= l.count 2
+se_assembly_feature {"action":"delete","name":"Bolt counterbore"}
+@d = se_assembly_feature {"action":"delete","name":"Bolt"}
+?= d.count 0
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+@b = se_documents {"action":"new","kind":"assembly"}
+@b1 = se_assembly {"action":"insert","path":"{{work}}\\a64_plates.par","origin":[0,0,10],"document":"{{b.handle}}"}
+@b2 = se_assembly {"action":"insert","path":"{{work}}\\a64_plates.par","origin":[0,0,20],"document":"{{b.handle}}"}
+! [feature_failed] se_assembly_feature {"action":"hole","plane":"1","centers":[30,30,0],"diameter":6.6,"type":"counterbore","counterboreDiameter":11,"counterboreDepth":6,"occurrences":["{{b1.handle}}","{{b2.handle}}"]}
+@bl = se_assembly_feature {"action":"list"}
+?= bl.count 0
+@bh = se_assembly_feature {"action":"hole","plane":"1","centers":[30,30,0,70,30,0],"diameter":6.6,"occurrences":["{{b1.handle}}","{{b2.handle}}"]}
+?= bh.parts[0].area 414.690230 0.001
+?= bh.parts[1].area 414.690230 0.001
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}

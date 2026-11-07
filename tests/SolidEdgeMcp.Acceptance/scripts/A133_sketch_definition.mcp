@@ -1,0 +1,239 @@
+# A133: se_sketch close leaves every sketch fully defined where it lies (relations, sizes, angles and the position from the base planes or from the contour it sits in), and an operation takes it so that it follows its dimensions; the geometry does not move. Each part is closed without saving.
+# A: 40x20 rectangle off the origin, corner (10,5): sizes 40 and 20 + positions 10 and 5 = 4 dimensions; V = 40*20*10 = 8000. Driving the 40 to 60 -> 60*20*10 = 12000 (change +4000)
+@dA = se_documents {"action":"new","kind":"part"}
+@kA = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kA.sketch}}","points":[10,5,50,25]}
+@cA = se_sketch {"action":"close","sketch":"{{kA.sketch}}"}
+?= cA.fullyDefined true
+?= cA.elements.dimensions 4
+?= cA.defined.dimensions[0].value 40
+?= cA.defined.dimensions[1].value 20
+@iA = se_sketch {"action":"info","sketch":"{{kA.sketch}}"}
+?= iA.fullyDefined true
+@xA = se_extrude {"sketch":"{{kA.sketch}}","distance":10}
+?= xA.volume 8000
+@bA = se_geometry {"action":"summary"}
+?= bA.boundingBox.min[0] 10
+?= bA.boundingBox.min[1] 5
+@sA = se_variables {"action":"set","name":"{{cA.defined.dimensions[0].variable}}","value":60}
+?= sA.volumeChange 4000
+se_documents {"action":"close","document":"{{dA.handle}}","saveChanges":false}
+# B: the same rectangle at the origin: the corner lies on both base planes (point-on relations, no zero dimensions) -> sizes only, 2 dimensions
+@dB = se_documents {"action":"new","kind":"part"}
+@kB = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kB.sketch}}","points":[0,0,40,20]}
+@cB = se_sketch {"action":"close","sketch":"{{kB.sketch}}"}
+?= cB.fullyDefined true
+?= cB.elements.dimensions 2
+@xB = se_extrude {"sketch":"{{kB.sketch}}","distance":10}
+?= xB.volume 8000
+se_documents {"action":"close","document":"{{dB.handle}}","saveChanges":false}
+# C: nested profile, 60x40 rectangle at (5,5) with a r10 circle at its center (35,25): 4 rectangle + 3 circle dimensions, the circle placed from the rectangle's nearest edges (20 from the bottom, 30 from the right), not from the base planes; V = (2400 - pi*100)*10 = 20858.407
+@dC = se_documents {"action":"new","kind":"part"}
+@kC = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kC.sketch}}","points":[5,5,65,45]}
+se_sketch {"action":"circle","sketch":"{{kC.sketch}}","center":[35,25],"radius":10}
+@cC = se_sketch {"action":"close","sketch":"{{kC.sketch}}"}
+?= cC.fullyDefined true
+?= cC.elements.dimensions 7
+?= cC.defined.dimensions[5].value 20
+?= cC.defined.dimensions[6].value 30
+@xC = se_extrude {"sketch":"{{kC.sketch}}","distance":10}
+?= xC.volume 20858.407 0.01
+se_documents {"action":"close","document":"{{dC.handle}}","saveChanges":false}
+# D: triangle (5,5)(45,5)(15,35): bottom line horizontal; 3 lengths + 2 positions (no angle: the lengths set them); V = 40*30/2*10 = 6000. E: ellipse a=20 b=10 at 30°, nothing fixed: two construction axes from its centre carry the semi-axes 20 and 10 and the angle 30, and the centre is placed (x 100, on the x axis); V = pi*a*b*h = 6283.185 (Body.Volume ~0.4 % high). Driving the minor semi-axis to 5 halves it: -3141.593
+@dD = se_documents {"action":"new","kind":"part"}
+@kD = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"polyline","sketch":"{{kD.sketch}}","points":[5,5,45,5,15,35]}
+@cD = se_sketch {"action":"close","sketch":"{{kD.sketch}}"}
+?= cD.fullyDefined true
+?= cD.elements.dimensions 5
+@xD = se_extrude {"sketch":"{{kD.sketch}}","distance":10}
+?= xD.volume 6000
+@kE = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"ellipse","sketch":"{{kE.sketch}}","center":[100,0],"radius":20,"minorRadius":10,"angle":30}
+@cE = se_sketch {"action":"close","sketch":"{{kE.sketch}}"}
+?= cE.fullyDefined true
+?= cE.defined.constructionLines 2
+?= cE.defined.dimensions[0].value 20
+?= cE.defined.dimensions[1].value 10
+?= cE.defined.dimensions[2].value 30
+@xE = se_extrude {"sketch":"{{kE.sketch}}","distance":10}
+?= xE.volume 12283.185 31.4
+@sE = se_variables {"action":"set","name":"{{cE.defined.dimensions[1].variable}}","value":5}
+?= sE.volumeChange -3141.593 31.4
+se_documents {"action":"close","document":"{{dD.handle}}","saveChanges":false}
+# F: open chains (open = true), without an operation: a 3-point polyline (lengths 30 and 28.284, the first horizontal, the corner angle 45 and the start point 10, 10) and a 4-point spline are defined too
+@dF = se_documents {"action":"new","kind":"part"}
+@kF = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"polyline","sketch":"{{kF.sketch}}","points":[10,10,40,10,60,30],"closed":false}
+@cF = se_sketch {"action":"close","sketch":"{{kF.sketch}}","open":true}
+?= cF.fullyDefined true
+?= cF.elements.dimensions 5
+?= cF.defined.dimensions[2].value 45
+@kG = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"spline","sketch":"{{kG.sketch}}","points":[0,0,20,15,40,5,60,20]}
+@cG = se_sketch {"action":"close","sketch":"{{kG.sketch}}","open":true}
+?= cG.fullyDefined true
+se_documents {"action":"close","document":"{{dF.handle}}","saveChanges":false}
+# H: a sketch already defined by the user (circle at the origin, fixed): close adds nothing (no "defined"; only the fix relation). I: half section 20x30 at x=10 revolved about the y axis line: V = pi*(30²-10²)*30 = 75398.224
+@dH = se_documents {"action":"new","kind":"part"}
+@kH = se_sketch {"action":"create","plane":"1"}
+@eH = se_sketch {"action":"circle","sketch":"{{kH.sketch}}","center":[0,0],"radius":10}
+se_sketch_constraint {"action":"relation","sketch":"{{kH.sketch}}","relation":"fix","elements":["{{eH.element}}"]}
+@cH = se_sketch {"action":"close","sketch":"{{kH.sketch}}"}
+?= cH.fullyDefined true
+?= cH.elements.relations 1
+@xH = se_extrude {"sketch":"{{kH.sketch}}","distance":10}
+?= xH.volume 3141.593 0.01
+@kI = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{kI.sketch}}","points":[10,20,30,50]}
+@aI = se_sketch {"action":"line","sketch":"{{kI.sketch}}","points":[0,0,0,60]}
+@xaI = se_sketch {"action":"axis","sketch":"{{kI.sketch}}","element":"{{aI.element}}"}
+@cI = se_sketch {"action":"close","sketch":"{{kI.sketch}}"}
+?= cI.fullyDefined true
+@xI = se_revolve {"sketch":"{{kI.sketch}}","axis":"{{xaI.axis}}"}
+?= xI.volumeChange 75398.224 0.05
+se_documents {"action":"close","document":"{{dH.handle}}","saveChanges":false}
+# J: 40x20 rectangle turned 30° about its corner (20,10), drawn as a polyline: perpendicular and parallel relations, the lengths 40 and 20, one angle and the corner's position = 5 dimensions; V = 8000, the box keeps x from 10 and y from 10
+@dJ = se_documents {"action":"new","kind":"part"}
+@kJ = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"polyline","sketch":"{{kJ.sketch}}","points":[20,10,54.641016151,30,44.641016151,47.320508076,10,27.320508076]}
+@cJ = se_sketch {"action":"close","sketch":"{{kJ.sketch}}"}
+?= cJ.fullyDefined true
+?= cJ.elements.dimensions 5
+?= cJ.defined.dimensions[0].value 40
+?= cJ.defined.dimensions[1].value 20
+@xJ = se_extrude {"sketch":"{{kJ.sketch}}","distance":10}
+?= xJ.volume 8000
+@bJ = se_geometry {"action":"summary"}
+?= bJ.boundingBox.min[0] 10
+?= bJ.boundingBox.min[1] 10
+se_documents {"action":"close","document":"{{dJ.handle}}","saveChanges":false}
+# K: slot of two lines and two arcs drawn apart: connect, horizontal and tangent relations, then the length 40, the radius 10 and the position; A = 40*20 + pi*10² -> V = 11141.593
+@dK = se_documents {"action":"new","kind":"part"}
+@kK = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[10,0,50,0]}
+se_sketch {"action":"arc","sketch":"{{kK.sketch}}","center":[50,10],"start":[50,0],"end":[50,20]}
+se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[50,20,10,20]}
+se_sketch {"action":"arc","sketch":"{{kK.sketch}}","center":[10,10],"start":[10,20],"end":[10,0]}
+@cK = se_sketch {"action":"close","sketch":"{{kK.sketch}}"}
+?= cK.fullyDefined true
+@xK = se_extrude {"sketch":"{{kK.sketch}}","distance":10}
+?= xK.volume 11141.593 0.01
+@bK = se_geometry {"action":"summary"}
+?= bK.boundingBox.min[0] 0
+?= bK.boundingBox.min[1] 0
+se_documents {"action":"close","document":"{{dK.handle}}","saveChanges":false}
+# L: 40x20 rectangle centred on the origin: the base planes cross its sides in the middle (point-on relations), so it is symmetric and needs only its sizes; V = 8000, the box from (-20,-10). M: the rectangle of A (corner 10, 5) with a construction diagonal (copied by its regions): driving the 40 to 60 after the extrude gives +4000
+@dL = se_documents {"action":"new","kind":"part"}
+@kL = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kL.sketch}}","points":[-20,-10,20,10]}
+@cL = se_sketch {"action":"close","sketch":"{{kL.sketch}}"}
+?= cL.fullyDefined true
+?= cL.elements.dimensions 2
+@xL = se_extrude {"sketch":"{{kL.sketch}}","distance":10}
+?= xL.volume 8000
+@bL = se_geometry {"action":"summary"}
+?= bL.boundingBox.min[0] -20
+?= bL.boundingBox.min[1] -10
+se_documents {"action":"close","document":"{{dL.handle}}","saveChanges":false}
+@dM = se_documents {"action":"new","kind":"part"}
+@kM = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kM.sketch}}","points":[10,5,50,25]}
+@lM = se_sketch {"action":"line","sketch":"{{kM.sketch}}","points":[10,5,50,25]}
+se_sketch_edit {"action":"construction","sketch":"{{kM.sketch}}","elements":["{{lM.element}}"]}
+@cM = se_sketch {"action":"close","sketch":"{{kM.sketch}}"}
+?= cM.fullyDefined true
+@xM = se_extrude {"sketch":"{{kM.sketch}}","distance":10}
+?= xM.volume 8000
+@sM = se_variables {"action":"set","name":"{{cM.defined.dimensions[0].variable}}","value":60}
+?= sM.volumeChange 4000
+se_documents {"action":"close","document":"{{dM.handle}}","saveChanges":false}
+# N: plane turned 30° about the y axis, where Solid Edge projects no base plane: their traces are drawn as fixed construction lines (references), so a r5 circle at (20, 0) lies on the xy trace and is 20 from the yz one (1 relation, diameter 10 and distance 20). An open line on it is extruded as a surface from the sketch's own profile (it has construction elements and is open), which follows its length 50 -> 80: one face of 1600
+@dN = se_documents {"action":"new","kind":"part"}
+@rN = se_ref_plane {"action":"angle","plane":"1","pivot":"2","angle":30}
+@kN = se_sketch {"action":"create","plane":"{{rN.handle}}"}
+se_sketch {"action":"circle","sketch":"{{kN.sketch}}","center":[20,0],"radius":5}
+@cN = se_sketch {"action":"close","sketch":"{{kN.sketch}}"}
+?= cN.fullyDefined true
+?= cN.defined.relations 1
+?= cN.defined.dimensions[1].value 20
+@kN2 = se_sketch {"action":"create","plane":"{{rN.handle}}"}
+se_sketch {"action":"line","sketch":"{{kN2.sketch}}","points":[10,10,60,10]}
+@cN2 = se_sketch {"action":"close","sketch":"{{kN2.sketch}}","open":true}
+?= cN2.fullyDefined true
+@xN = se_surface {"action":"extrude","sketch":"{{kN2.sketch}}","depth":20}
+?= xN.surface.area 1000
+se_variables {"action":"set","name":"{{cN2.defined.dimensions[0].variable}}","value":80}
+@gN = se_geometry {"action":"faces","source":"{{xN.surface.handle}}"}
+?= gN.count 1
+?= gN.items[0].area 1600
+se_documents {"action":"close","document":"{{dN.handle}}","saveChanges":false}
+# O: rib from an open line with a construction line beside it (the sketch's own profile): 3600; deleted, the sketch makes another one (depth 10: 2375)
+@dO = se_documents {"action":"new","kind":"part"}
+@kO = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"polyline","sketch":"{{kO.sketch}}","points":[0,0,80,0,80,10,10,10,10,60,0,60],"closed":true}
+se_sketch {"action":"close","sketch":"{{kO.sketch}}"}
+se_extrude {"sketch":"{{kO.sketch}}","distance":60,"direction":"symmetric"}
+@kO2 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"line","sketch":"{{kO2.sketch}}","points":[10,40,50,10]}
+@lO = se_sketch {"action":"line","sketch":"{{kO2.sketch}}","points":[20,50,60,20]}
+se_sketch_edit {"action":"construction","sketch":"{{kO2.sketch}}","elements":["{{lO.element}}"]}
+se_sketch {"action":"close","sketch":"{{kO2.sketch}}","open":true}
+@rO = se_part_feature {"action":"rib","sketch":"{{kO2.sketch}}","thickness":6}
+?= rO.volumeChange 3600 0.01
+se_feature_edit {"action":"delete","feature":"{{rO.feature.handle}}"}
+@rO2 = se_part_feature {"action":"rib","sketch":"{{kO2.sketch}}","thickness":6,"depth":10}
+?= rO2.volumeChange 2375 0.01
+se_documents {"action":"close","document":"{{dO.handle}}","saveChanges":false}
+# P: crossing loops (a plus of 60 x 10 and 10 x 60) with a construction line: copied by its regions, joined as Solid Edge joins them (11000); the 60 driven to 80: +2000. Q: a 100 x 60 plate with two crossing r10 holes and a construction line: both cut, joined: (6000 - 505.4815) x 10
+@dP = se_documents {"action":"new","kind":"part"}
+@kP = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kP.sketch}}","points":[-30,-5,30,5]}
+se_sketch {"action":"rectangle","sketch":"{{kP.sketch}}","points":[-5,-30,5,30]}
+@lP = se_sketch {"action":"line","sketch":"{{kP.sketch}}","points":[-40,40,40,40]}
+se_sketch_edit {"action":"construction","sketch":"{{kP.sketch}}","elements":["{{lP.element}}"]}
+@cP = se_sketch {"action":"close","sketch":"{{kP.sketch}}"}
+@xP = se_extrude {"sketch":"{{kP.sketch}}","distance":10}
+?= xP.volume 11000
+@sP = se_variables {"action":"set","name":"{{cP.defined.dimensions[0].variable}}","value":80}
+?= sP.volumeChange 2000
+se_documents {"action":"close","document":"{{dP.handle}}","saveChanges":false}
+@dQ = se_documents {"action":"new","kind":"part"}
+@kQ = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kQ.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"circle","sketch":"{{kQ.sketch}}","center":[40,30],"radius":10}
+se_sketch {"action":"circle","sketch":"{{kQ.sketch}}","center":[50,30],"radius":10}
+@lQ = se_sketch {"action":"line","sketch":"{{kQ.sketch}}","points":[0,0,100,60]}
+se_sketch_edit {"action":"construction","sketch":"{{kQ.sketch}}","elements":["{{lQ.element}}"]}
+se_sketch {"action":"close","sketch":"{{kQ.sketch}}"}
+@xQ = se_extrude {"sketch":"{{kQ.sketch}}","distance":10}
+?= xQ.volume 54945.185 0.01
+se_documents {"action":"close","document":"{{dQ.handle}}","saveChanges":false}
+# R: ellipse a=20 b=10 at 30° with a construction line connected to its centre: the two axes are still added; closed again after a r5 circle at (100, 40), no axes are added again and the circle is placed from the base planes (100, 40), not from the axes. S: a 100 x 60 plate at (10, 10) with a D cut-out (a 20 chord closed by an R200 arc): the plate is the largest contour and is placed from the base planes (10, 10), the cut-out from the plate (30, 40)
+@dR = se_documents {"action":"new","kind":"part"}
+@kR = se_sketch {"action":"create","plane":"1"}
+@eR = se_sketch {"action":"ellipse","sketch":"{{kR.sketch}}","center":[100,0],"radius":20,"minorRadius":10,"angle":30}
+@lR = se_sketch {"action":"line","sketch":"{{kR.sketch}}","points":[60,0,100,0]}
+se_sketch_edit {"action":"construction","sketch":"{{kR.sketch}}","elements":["{{lR.element}}"]}
+se_sketch_constraint {"action":"relation","sketch":"{{kR.sketch}}","relation":"connect","elements":["{{lR.element}}","{{eR.element}}"],"keypoints":[1,0]}
+@cR = se_sketch {"action":"close","sketch":"{{kR.sketch}}"}
+?= cR.fullyDefined true
+?= cR.defined.constructionLines 2
+se_sketch {"action":"circle","sketch":"{{kR.sketch}}","center":[100,40],"radius":5}
+@cR2 = se_sketch {"action":"close","sketch":"{{kR.sketch}}"}
+?= cR2.fullyDefined true
+?= cR2.defined.dimensions[1].value 100
+?= cR2.defined.dimensions[2].value 40
+@kS = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kS.sketch}}","points":[10,10,110,70]}
+se_sketch {"action":"line","sketch":"{{kS.sketch}}","points":[50,40,70,40]}
+se_sketch {"action":"arc","sketch":"{{kS.sketch}}","center":[60,-159.75],"start":[70,40],"end":[50,40]}
+@cS = se_sketch {"action":"close","sketch":"{{kS.sketch}}"}
+?= cS.fullyDefined true
+?= cS.defined.dimensions[4].value 10
+?= cS.defined.dimensions[5].value 10
+?= cS.defined.dimensions[6].value 30
+?= cS.defined.dimensions[7].value 40
+se_documents {"action":"close","document":"{{dR.handle}}","saveChanges":false}

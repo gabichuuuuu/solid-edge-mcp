@@ -1,0 +1,112 @@
+# A105: Occurrence Properties and Show/Hide Component (se_assembly properties, set_property), the table of the Physical
+#   Properties Manager (se_physical 'parts' on an assembly) and interference with an occurrence left out of it.
+# A steel block 100 x 60 x 20 (120000 mm3, 7833 kg/m3: 0.93996 kg) and an aluminium pin d10 x 40 (3141.593 mm3); a
+# subassembly with two pins; the top assembly holds the block, the subassembly and one pin standing in the block at
+# (50, 30): their common volume is pi x 5^2 x 20 = 1570.796 mm3.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_material {"action":"apply","name":"Steel","folder":"installation"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a105_{{run}}\\blk.par"}
+se_documents {"action":"close","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@pk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{pk.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
+se_extrude {"sketch":"{{pk.sketch}}","distance":40}
+@al = se_material {"action":"apply","name":"Aluminum, 6061-T6","folder":"installation"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a105_{{run}}\\pin.par"}
+se_documents {"action":"close","saveChanges":false}
+@s = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a105_{{run}}\\pin.par"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a105_{{run}}\\pin.par","origin":[30,0,0]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a105_{{run}}\\sub.asm"}
+se_documents {"action":"close","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@ob = se_assembly {"action":"insert","path":"{{work}}\\runs\\a105_{{run}}\\blk.par"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a105_{{run}}\\sub.asm","origin":[0,100,0]}
+@op = se_assembly {"action":"insert","path":"{{work}}\\runs\\a105_{{run}}\\pin.par","origin":[50,30,0]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a105_{{run}}\\top.asm"}
+# 1) The parts table: the block once, the pin three times (two in the subassembly); mass = volume x density.
+@ph = se_physical {}
+?= ph.parts[?name="blk"].material Steel
+?= ph.parts[?name="blk"].occurrences 1
+?= ph.parts[?name="blk"].volume 120000 0.001
+?= ph.parts[?name="blk"].mass 0.93996 0.000001
+?= ph.parts[?name="pin"].occurrences 3
+?= ph.parts[?name="pin"].volume 3141.593 0.001
+?= ph.parts[?name="pin"].density {{al.documentDensityKgM3}}
+?= ph.parts[?name="pin"].mass {{al.massKg}} 0.000001
+?= ph.volume 129424.778 0.001
+# The masses of the table add up to the assembly mass: 0.93996 + 3 x 0.00852 (2712 kg/m3).
+?= ph.mass 0.96552 0.000001
+?= ph.parts[?name="pin"].totalMass 0.02556 0.000001
+# 2) The properties of the pin, as the Occurrence Properties dialog shows them.
+@pr = se_assembly {"action":"properties","occurrence":"{{op.handle}}"}
+?= pr.properties.quantity 1
+?= pr.properties.include_in_bom true
+?= pr.properties.include_in_physical_properties true
+?= pr.properties.include_in_interference true
+?= pr.properties.reference false
+?= pr.properties.display_in_drawings true
+?= pr.properties.show_reference_planes false
+# 3) Left out of the physical properties: the assembly loses one pin, the table counts two.
+@x1 = se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"include_in_physical_properties","value":false}
+?= x1.previous true
+?= x1.value false
+@ph2 = se_physical {}
+?= ph2.volume 126283.185 0.001
+?= ph2.parts[?name="pin"].occurrences 2
+se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"include_in_physical_properties","value":true}
+# 4) Quantity 4: the bill of materials counts 2 + 4 pins; the physical properties do not change.
+se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"quantity","value":4}
+@bq = se_bom {"structure":"flat"}
+?= bq.lines[?item="pin"].quantity 6
+@ph3 = se_physical {}
+?= ph3.volume 129424.778 0.001
+# 5) A reference occurrence leaves the bill of materials (include_in_bom follows) and stays in the physical properties.
+@rf = se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"reference","value":true}
+?= rf.alsoChanged.include_in_bom false
+@br = se_bom {"structure":"flat"}
+?= br.lines[?item="pin"].quantity 2
+@ph4 = se_physical {}
+?= ph4.volume 129424.778 0.001
+@rb = se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"reference","value":false}
+?= rb.alsoChanged.include_in_bom true
+se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"quantity","value":1}
+# 6) Interference: the pin in the block; left out of interference analysis, the check runs without it and refuses it by name.
+@i0 = se_interference {}
+?= i0.status confirmed
+?= i0.pairs[0].volume 1570.796 0.01
+se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"include_in_interference","value":false}
+@i1 = se_interference {}
+?= i1.status none
+?= i1.checkedOccurrences 2
+! [invalid_argument] se_interference {"occurrences":["{{op.handle}}"],"against":["{{ob.handle}}"]}
+se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"include_in_interference","value":true}
+@i2 = se_interference {}
+?= i2.status confirmed
+# 7) Show/Hide Component, display and selection settings, rename.
+@sp = se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"show_reference_planes","value":true}
+?= sp.value true
+se_view {"action":"orient","orientation":"iso"}
+se_view {"action":"capture","width":800,"height":600,"path":"{{work}}\\a105_show_planes.png"}
+@dd = se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"display_in_drawings","value":false}
+?= dd.value false
+@lc = se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"locatable","value":false}
+?= lc.value false
+@rn = se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"name","value":"Pin A"}
+?~ rn.value Pin A
+@l = se_assembly {"action":"list"}
+?~ l.occurrences[2].name Pin A
+@pr2 = se_assembly {"action":"properties","occurrence":"{{op.handle}}"}
+?= pr2.properties.show_reference_planes true
+?= pr2.properties.display_in_drawings false
+?= pr2.properties.locatable false
+# Refused: an unknown property, a quantity of 0, no value.
+! [not_found] se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"include_in_bill","value":true}
+! [invalid_argument] se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"quantity","value":0}
+! [invalid_argument] se_assembly {"action":"set_property","occurrence":"{{op.handle}}","name":"locatable"}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}

@@ -1,0 +1,26 @@
+# A67: tubes in a part (se_loft_sweep tube): a circle, or an annulus with a wall, on a plane normal to the start of the path,
+# swept along it. Path on plane 1: a line 100, a quarter arc r30 and a line 70 = 170 + 15pi = 217.124 mm; Ø20 x 2:
+# 36pi x (170 + 15pi) = 24556.133 mm3. A solid rod Ø8 along a smooth curve through three points away from it: section area
+# times the curve length (expectedVolume; 7419.55 against 7418.63, 0.012 %). A wall of half the diameter and a missing path are refused.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[0,0,100,0]}
+se_sketch {"action":"arc","sketch":"{{k.sketch}}","center":[100,30],"start":[100,0],"end":[130,30]}
+se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[130,30,130,100]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}","open":true}
+! [invalid_argument] se_loft_sweep {"action":"tube","outerDiameter":20}
+! [invalid_argument] se_loft_sweep {"action":"tube","path":"{{k.sketch}}","outerDiameter":20,"wall":10}
+@t = se_loft_sweep {"action":"tube","path":"{{k.sketch}}","outerDiameter":20,"wall":2}
+?= t.pathLength 217.123890 0.001
+?= t.expectedVolume 24556.133 0.01
+?= t.tube.volumeChange 24556.133 1
+?= t.wall 2
+@ph = se_physical {}
+?= ph.volume 24556.133 0.5
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+@d2 = se_documents {"action":"new","kind":"part"}
+@c = se_curve {"action":"points","points":[0,200,0,60,200,40,120,200,0]}
+@r = se_loft_sweep {"action":"tube","path":"{{c.curve.handle}}","outerDiameter":8}
+@ph2 = se_physical {}
+?= ph2.volume {{r.expectedVolume}} 2
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}

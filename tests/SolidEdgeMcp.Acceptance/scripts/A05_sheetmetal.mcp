@@ -1,0 +1,233 @@
+# A05: sheet metal (se_sheetmetal, se_sheetmetal_form, flat pattern and its DXF). Recipes of t98/t100 (tab, flanges, hem), t107 (contour flange) and t104 (bend, forms, flat pattern).
+# 1) Default settings (t98.out): thickness t=1, radius r=1. Tab 100x60 -> 100*60*t = 6000.
+@d1 = se_documents {"action":"new","kind":"sheet_metal"}
+@st = se_sheetmetal {"action":"settings"}
+?= st.thickness 1
+?= st.bendRadius 1
+@k1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+@t1 = se_sheetmetal {"action":"tab","sketch":"{{k1.sketch}}"}
+?= t1.volume 6000
+# Flanges of 20 on the two x edges of the top face (box z = 20 + t = 21). Per flange: leg 100*t*(21-(r+t)) = 1900 + bend (pi/4)*((r+t)²-r²)*100 = 75pi
+#   - trimmed tab 100*t*(r+t) = 200 -> V = 6000 + 2*(1700 + 75pi) = 9871.239; Solid Edge creates Flange_1 and Flange_2 (t98.out)
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@te = se_geometry {"action":"edges","source":"{{top.items[0].handle}}","direction":[1,0,0]}
+@fl = se_sheetmetal {"action":"flange","edges":["{{te.items[0].handle}}","{{te.items[1].handle}}"],"length":20}
+?= fl.volume 9871.239 0.01
+?= fl.features[1].name Flange_2
+# Hem (default type) of 8 on the edge of the flange at y=0 (edge starting at (0,0,21)) -> 10828.747 (t100.out)
+@ed = se_geometry {"action":"edges","direction":[1,0,0]}
+@hm = se_sheetmetal {"action":"hem","edges":["{{ed.items[?start=[0,0,21]].handle}}"],"length":8}
+?= hm.volume 10828.747 0.01
+# Changing the thickness to 2 stays in the settings (t100.out; the volume is not checked: there volumeChange was 0)
+@ss = se_sheetmetal {"action":"set_settings","thickness":2}
+?= ss.settings.thickness 2
+se_documents {"action":"close","document":"{{d1.handle}}","saveChanges":false}
+# 1b) Gauges of the installed material library (folder installation, Materials.mtl: "10 gage" thickness = bend radius = 3.581, "16 gage" = 1.575); tab 100x60 -> 6000*1.575 = 9450.
+#    Without 'library' the first library that has the gauge is used; an unknown gauge changes nothing.
+@d0 = se_documents {"action":"new","kind":"sheet_metal"}
+@g1 = se_sheetmetal {"action":"gauge","gauge":"10 gage","library":"Materials","folder":"installation","document":"{{d0.handle}}"}
+?= g1.settings.thickness 3.581 0.001
+?= g1.settings.bendRadius 3.581 0.001
+?~ g1.settings.gauge 10 gage
+@g2 = se_sheetmetal {"action":"gauge","gauge":"16 gage","folder":"installation","document":"{{d0.handle}}"}
+?= g2.library Materials
+?= g2.settings.thickness 1.575 0.001
+! [not_found] se_sheetmetal {"action":"gauge","gauge":"99 gage","library":"Materials","folder":"installation","document":"{{d0.handle}}"}
+! [invalid_argument] se_sheetmetal {"action":"gauge","document":"{{d0.handle}}"}
+@g3 = se_sheetmetal {"action":"settings","document":"{{d0.handle}}"}
+?= g3.thickness 1.575 0.001
+@k0 = se_sketch {"action":"create","plane":"1","document":"{{d0.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k0.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k0.sketch}}"}
+@t0 = se_sheetmetal {"action":"tab","sketch":"{{k0.sketch}}","document":"{{d0.handle}}"}
+?= t0.volume 9450 0.01
+se_documents {"action":"close","document":"{{d0.handle}}","saveChanges":false}
+# 2) Contour flange: open polyline (0,0)-(0,30)-(50,30)-(50,0) on plane 2, width 100, material on the right (default):
+#    straight segments (110 - 4*(r+t))*100*t = 10200 + 2 bends (pi/4)*((r+t)²-r²)*100 = 150pi -> 10671.239 (= t107.out); tab + 2 flanges.
+#    Error: 'reverse' (Solid Edge always grows along the sketch normal, t107.out)
+@d2 = se_documents {"action":"new","kind":"sheet_metal"}
+@k2 = se_sketch {"action":"create","plane":"2"}
+se_sketch {"action":"polyline","sketch":"{{k2.sketch}}","points":[0,0,0,30,50,30,50,0],"closed":false}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}","open":true}
+! [invalid_argument] se_sheetmetal {"action":"contour_flange","sketch":"{{k2.sketch}}","width":100,"direction":"reverse"}
+@cf = se_sheetmetal {"action":"contour_flange","sketch":"{{k2.sketch}}","width":100}
+?= cf.volume 10671.239 0.01
+?= cf.features[2].name Flange_2
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}
+# 3) 60° bend along the line x=60 of a 100x60 tab -> +21.363 of material in the bend zone (t104.out)
+@d3 = se_documents {"action":"new","kind":"sheet_metal"}
+@k3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k3.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k3.sketch}}"}
+@kl = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kl.sketch}}","points":[60,0,60,60]}
+se_sketch {"action":"close","sketch":"{{kl.sketch}}","open":true}
+@bn = se_sheetmetal_form {"action":"bend","sketch":"{{kl.sketch}}","angle":60}
+?= bn.volumeChange 21.363 0.01
+se_documents {"action":"close","document":"{{d3.handle}}","saveChanges":false}
+# 4) 100x60 tab + 2nd tab [100,10]-[130,50] attached to the edge x=100 -> +30*40*t = 1200 -> 7200.
+#    Bead height 3, width 8 at y=15 -> +325.645; drawn cutout 20x15 depth 5 'reverse' -> +55.130 (t104.out); engraving -> change 0.
+#    Flat pattern of a sheet without bends = its outline 130 x 60. DXF of the flat pattern; errors: without overwrite and invalid extension.
+@d4 = se_documents {"action":"new","kind":"sheet_metal"}
+@k4 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k4.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k4.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k4.sketch}}"}
+@k5 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k5.sketch}}","points":[100,10,130,50]}
+se_sketch {"action":"close","sketch":"{{k5.sketch}}"}
+@t5 = se_sheetmetal {"action":"tab","sketch":"{{k5.sketch}}"}
+?= t5.volume 7200
+@kb = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{kb.sketch}}","points":[20,15,80,15]}
+se_sketch {"action":"close","sketch":"{{kb.sketch}}","open":true}
+@bd = se_sheetmetal_form {"action":"bead","sketch":"{{kb.sketch}}","height":3,"width":8}
+?= bd.volumeChange 325.645 0.01
+@kd = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kd.sketch}}","points":[20,35,40,50]}
+se_sketch {"action":"close","sketch":"{{kd.sketch}}"}
+@dc = se_sheetmetal_form {"action":"drawn_cutout","sketch":"{{kd.sketch}}","depth":5,"direction":"reverse"}
+?= dc.volumeChange 55.130 0.01
+@ke = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{ke.sketch}}","points":[50,45,90,45]}
+se_sketch {"action":"close","sketch":"{{ke.sketch}}","open":true}
+@et = se_sheetmetal_form {"action":"etch","sketch":"{{ke.sketch}}"}
+?= et.volumeChange 0
+@fp = se_sheetmetal {"action":"flatten"}
+?= fp.cutSize.x 130
+?= fp.cutSize.y 60
+# Saved first: where Solid Edge refuses to write the flat pattern (2026 Foundation), it is written from a drawing of the file.
+se_documents {"action":"save_as","path":"{{work}}\\a05_flat.psm","overwrite":true}
+@ex = se_export {"path":"{{work}}\\a05_flat.dxf","flatPattern":true,"overwrite":true}
+?= ex.format DXF
+! [file_exists] se_export {"path":"{{work}}\\a05_flat.dxf","flatPattern":true}
+! [invalid_argument] se_export {"path":"{{work}}\\a05_flat.stp","flatPattern":true}
+se_documents {"action":"close","document":"{{d4.handle}}","saveChanges":false}
+# 5) Bend edits. Tab 100x60 (t=1) and a flange of 20 on the edge y=0 (radius 1: bend faces r1 and r2) -> 7935.619.
+#    bend_radius 3 on the outer bend face: the bend faces become r3 and r4 (7849.779, Solid Edge value). bend_angle 60 with the tab
+#    as fixed face: the outer face of the flange (flat leg 21 - (3 + 1) = 17 -> 1700) gets the normal (0, -cos30, sin30). Errors: two bend faces, angle 200, no radius
+@d5 = se_documents {"action":"new","kind":"sheet_metal"}
+@k5 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k5.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k5.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k5.sketch}}"}
+@tp5 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te5 = se_geometry {"action":"edges","source":"{{tp5.items[0].handle}}","direction":[1,0,0]}
+@fl5 = se_sheetmetal {"action":"flange","edges":["{{te5.items[0].handle}}"],"length":20}
+?= fl5.volume 7935.619 0.01
+@cy5 = se_geometry {"action":"faces","type":"cylinder"}
+@br5 = se_sheetmetal {"action":"bend_radius","faces":["{{cy5.items[?radius=2].handle}}"],"radius":3}
+?= br5.volume 7849.779 0.01
+@cz5 = se_geometry {"action":"faces","type":"cylinder"}
+?= cz5.items[?radius=3].radius 3
+?= cz5.items[?radius=4].radius 4
+@tq5 = se_geometry {"action":"faces","direction":[0,0,1]}
+@ba5 = se_sheetmetal {"action":"bend_angle","faces":["{{cz5.items[?radius=4].handle}}"],"fixedFace":"{{tq5.items[?area=5600].handle}}","angle":60}
+?= ba5.feature.status ok
+@fn5 = se_geometry {"action":"faces","direction":[0,-0.866025404,0.5]}
+?= fn5.count 1
+?= fn5.items[0].area 1700 0.01
+! [invalid_argument] se_sheetmetal {"action":"bend_angle","faces":["{{cz5.items[0].handle}}","{{cz5.items[1].handle}}"],"fixedFace":"{{tq5.items[0].handle}}","angle":60}
+! [invalid_argument] se_sheetmetal {"action":"bend_angle","faces":["{{cz5.items[0].handle}}"],"fixedFace":"{{tq5.items[0].handle}}","angle":200}
+! [invalid_argument] se_sheetmetal {"action":"bend_radius","faces":["{{cz5.items[0].handle}}"]}
+se_documents {"action":"close","document":"{{d5.handle}}","saveChanges":false}
+# 6) Bend table. Tab 100x60 (t=1) with flanges of 20 on y=0 and 15 on y=60 (the top face edge at y=60 after the first flange),
+#    flat pattern saved; on a drawing, the flat view gets a table with 2 rows (sequence, feature, radius 1, angle 90...), by default
+#    above the title block (lower right corner) and at a position (upper left corner). The designed (bent) view lists the same 2 bends;
+#    a missing view fails (a part without bends and an assembly view: A07).
+@d6 = se_documents {"action":"new","kind":"sheet_metal"}
+@k6 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k6.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k6.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k6.sketch}}"}
+@tp6 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te6 = se_geometry {"action":"edges","source":"{{tp6.items[0].handle}}","direction":[1,0,0]}
+se_sheetmetal {"action":"flange","edges":["{{te6.items[0].handle}}"],"length":20}
+@tq6 = se_geometry {"action":"faces","direction":[0,0,1]}
+@tf6 = se_geometry {"action":"edges","source":"{{tq6.items[?area=5800].handle}}","direction":[1,0,0]}
+se_sheetmetal {"action":"flange","edges":["{{tf6.items[?start=[100,60,1]].handle}}"],"length":15}
+se_sheetmetal {"action":"flatten"}
+se_documents {"action":"save_as","path":"{{work}}\\a05_bends.psm","overwrite":true}
+se_documents {"action":"close","document":"{{d6.handle}}","saveChanges":false}
+@g6 = se_documents {"action":"new","kind":"draft"}
+@fv6 = se_drawing {"action":"base_view","path":"{{work}}\\a05_bends.psm","flat":true,"position":[150,250],"scale":1}
+@bt6 = se_drawing {"action":"bend_table","view":"{{fv6.view.handle}}"}
+?= bt6.count 2
+?~ bt6.columns[3] Angle
+?~ bt6.rows 1.000
+?~ bt6.rows Flange 2
+?~ bt6.anchor lower_right
+@bp6 = se_drawing {"action":"bend_table","view":"{{fv6.view.handle}}","position":[40,120]}
+?= bp6.origin[0] 40
+?~ bp6.anchor upper_left
+@dv6 = se_drawing {"action":"base_view","path":"{{work}}\\a05_bends.psm","position":[350,250],"scale":1}
+@bd6 = se_drawing {"action":"bend_table","view":"{{dv6.view.handle}}","position":[300,120]}
+?= bd6.count 2
+! [invalid_argument] se_drawing {"action":"bend_table"}
+se_documents {"action":"close","document":"{{g6.handle}}","saveChanges":false}
+# 7) Part to sheet metal. Thin box 100 x 60 x 40 with 2 mm walls and an open top (35712), copied into a sheet metal document with
+#    sheet thickness 2 and bend radius 1. Without rips the conversion changes nothing (error, deleted). With the outer bottom face as
+#    base and the four outer vertical corner edges ripped: 4 bends (8 cylindrical faces, radii 1 and 3) -> 34495.983 and a flat
+#    pattern of 173.215 x 133.215 (Solid Edge values; typed call, IDispatch rejects the edge array).
+@p7 = se_documents {"action":"new","kind":"part"}
+@k7 = se_sketch {"action":"create","plane":"xy","document":"{{p7.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k7.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k7.sketch}}"}
+se_extrude {"sketch":"{{k7.sketch}}","distance":40,"document":"{{p7.handle}}"}
+@t7 = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{p7.handle}}"}
+@s7 = se_shell {"thickness":2,"openFaces":["{{t7.items[0].handle}}"],"document":"{{p7.handle}}"}
+?= s7.volume 35712 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a05_thin.par","overwrite":true,"document":"{{p7.handle}}"}
+se_documents {"action":"close","document":"{{p7.handle}}","saveChanges":false}
+@d7 = se_documents {"action":"new","kind":"sheet_metal"}
+se_part_feature {"action":"copy_part","path":"{{work}}\\a05_thin.par","document":"{{d7.handle}}"}
+se_sheetmetal {"action":"set_settings","thickness":2,"bendRadius":1}
+@b7 = se_geometry {"action":"faces","direction":[0,0,-1]}
+! [feature_failed] se_sheetmetal {"action":"convert","faces":["{{b7.items[0].handle}}"]}
+! [invalid_argument] se_sheetmetal {"action":"convert"}
+#    Generic layer: ConvToSMs.Add with only the face is rejected by IDispatch (DISP_E_TYPEMISMATCH) and retried through the
+#    interop with an empty edge array: a conversion without bends, with a warning; it is deleted again.
+@b7 = se_geometry {"action":"faces","direction":[0,0,-1]}
+@ms7 = se_com_get {"target":"active_document","member":"Models"}
+@m7 = se_com_invoke {"target":"{{ms7.value.handle}}","method":"Item","arguments":[1]}
+@cs7 = se_com_get {"target":"{{m7.result.handle}}","member":"ConvToSMs"}
+@ca7 = se_com_invoke {"target":"{{cs7.value.handle}}","method":"Add","arguments":[{"handle":"{{b7.items[0].handle}}"}]}
+@cw7 = se_com_get {"target":"{{ca7.result.handle}}","member":"Status"}
+?= cw7.value igFeatureWarned
+se_com_invoke {"target":"{{ca7.result.handle}}","method":"Delete"}
+@b7 = se_geometry {"action":"faces","direction":[0,0,-1]}
+@e7 = se_geometry {"action":"edges","direction":[0,0,1]}
+?= e7.count 8
+@cv7 = se_sheetmetal {"action":"convert","faces":["{{b7.items[0].handle}}"],"edges":["{{e7.items[?end=[0,0,0]].handle}}","{{e7.items[?end=[100,0,0]].handle}}","{{e7.items[?end=[0,60,0]].handle}}","{{e7.items[?end=[100,60,0]].handle}}"]}
+?= cv7.bendFaces 8
+?= cv7.conversion.volume 34495.983 0.01
+?= cv7.conversion.feature.status ok
+@cy7 = se_geometry {"action":"faces","type":"cylinder"}
+?= cy7.count 8
+@fl7 = se_sheetmetal {"action":"flatten"}
+?= fl7.cutSize.x 173.215 0.01
+?= fl7.cutSize.y 133.215 0.01
+se_documents {"action":"close","document":"{{d7.handle}}","saveChanges":false}
+# 8) Thin Part to Synchronous Sheet Metal: a 100 x 60 x 2 plate in a part document, given its top face, becomes a sheet metal
+#    document with the thickness of the part and the same volume; flat pattern 100 x 60. A sheet metal document is refused.
+@p8 = se_documents {"action":"new","kind":"part"}
+@k8 = se_sketch {"action":"create","plane":"xy","document":"{{p8.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{k8.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k8.sketch}}"}
+se_extrude {"sketch":"{{k8.sketch}}","distance":2,"document":"{{p8.handle}}"}
+@f8 = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{p8.handle}}"}
+! [invalid_argument] se_sheetmetal {"action":"transform","document":"{{p8.handle}}"}
+@tr8 = se_sheetmetal {"action":"transform","faces":["{{f8.items[0].handle}}"],"document":"{{p8.handle}}"}
+?= tr8.document.kind sheet_metal
+?= tr8.settings.thickness 2
+?= tr8.volume 12000 0.01
+@fl8 = se_sheetmetal {"action":"flatten","document":"{{tr8.document.handle}}"}
+?= fl8.cutSize.x 100 0.01
+?= fl8.cutSize.y 60 0.01
+@g8 = se_geometry {"action":"faces","direction":[0,0,1],"document":"{{tr8.document.handle}}"}
+! [wrong_document_type] se_sheetmetal {"action":"transform","faces":["{{g8.items[0].handle}}"],"document":"{{tr8.document.handle}}"}
+se_documents {"action":"close","document":"{{tr8.document.handle}}","saveChanges":false}
+se_documents {"action":"list"}

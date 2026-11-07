@@ -1,0 +1,52 @@
+# A80: label welds in a part document (se_part_feature label_weld): edges marked as welded, without a bead, with an optional
+#   weld symbol. A block 100 x 60 x 20 (120000 mm3) keeps its volume; the edges of its top face are read again after each change.
+#   An edge that another label weld has is refused by Solid Edge (the failed weld is deleted); once that weld is deleted, the
+#   edge takes a new one.
+@p = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@t1 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e1 = se_geometry {"action":"edges","source":"{{t1.items[0].handle}}"}
+?= e1.count 4
+@l1 = se_part_feature {"action":"label_weld","edges":["{{e1.items[0].handle}}"]}
+?= l1.feature.type PartLabelWeld
+?= l1.feature.status ok
+?= l1.edges 1
+?= l1.allAround false
+@t2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e2 = se_geometry {"action":"edges","source":"{{t2.items[0].handle}}"}
+@l2 = se_part_feature {"action":"label_weld","edges":["{{e2.items[1].handle}}","{{e2.items[2].handle}}"],"weld":"v_groove","weldSide":"both","note":"a5","allAround":true,"field":true}
+?= l2.edges 2
+?= l2.weld v_groove
+?= l2.weldSide both
+?= l2.note a5
+?= l2.allAround true
+?= l2.field true
+@t3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e3 = se_geometry {"action":"edges","source":"{{t3.items[0].handle}}"}
+@l3 = se_part_feature {"action":"label_weld","edges":["{{e3.items[3].handle}}"],"weld":"fillet","note":"4"}
+?= l3.weld fillet
+?= l3.weldSide arrow
+?= l3.note 4
+@tree = se_feature_tree {}
+?~ tree {{l1.feature.name}}
+?~ tree {{l3.feature.name}}
+@ph = se_physical {}
+?= ph.volume 120000 0.001
+# an edge that already has a label weld
+@t4 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e4 = se_geometry {"action":"edges","source":"{{t4.items[0].handle}}"}
+! [feature_failed] se_part_feature {"action":"label_weld","edges":["{{e4.items[0].handle}}"]}
+se_feature_edit {"action":"delete","feature":"{{l1.feature.handle}}"}
+@t5 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e5 = se_geometry {"action":"edges","source":"{{t5.items[0].handle}}"}
+# refusals, before anything is made (a face would make Solid Edge throw a server fault)
+! [invalid_argument] se_part_feature {"action":"label_weld"}
+! [invalid_argument] se_part_feature {"action":"label_weld","edges":["{{e5.items[1].handle}}"],"note":"a5"}
+! [handle_wrong_type] se_part_feature {"action":"label_weld","edges":["{{t5.items[0].handle}}"]}
+@l4 = se_part_feature {"action":"label_weld","edges":["{{e5.items[0].handle}}"],"weld":"square","weldSide":"other"}
+?= l4.weld square
+?= l4.weldSide other
+?= l4.edges 1
+@ph2 = se_physical {}
+?= ph2.volume 120000 0.001
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

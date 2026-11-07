@@ -1,0 +1,58 @@
+# Build output
+bin/
+obj/
+publish/
+artifacts/
+*.user
+*.suo
+.vs/
+.vscode/
+TestResults/
+
+# Interop and API reference generated from the local Solid Edge installation
+lib/interop/
+reference/
+
+# Local configuration and secrets (policy.json and *.local.json in any folder)
+policy.json
+!config/policy.example.json
+*.local.json
+.env
+.env.*
+!.env.example
+secrets.json
+*.pfx
+*.snk
+*.p12
+*.pem
+*.key
+
+# Solid Edge documents and exports that a test may leave at the root (none is tracked)
+/*.par
+/*.psm
+/*.asm
+/*.dft
+/*.cfg
+
+# AI assistant settings, memory and development notes: local only
+/AGENTS.md
+/STATUS.md
+/PLAN.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+.claude/
+.codex/
+.cursor/
+.cursorrules
+.windsurf/
+.windsurfrules
+.continue/
+.aider*
+.gemini/
+.mcp.json
+.github/copilot-instructions.md
+
+# Logs
+*.log
+logs/

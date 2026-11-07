@@ -1,0 +1,60 @@
+# A98: assembly reports (se_bom indented, exploded, statistics), the reports of the Reports and Assembly Statistics
+#   dialogs, next to the parts list (top) and the summary of atomic parts (flat).
+# A block and a pin; a subassembly with two pins; the top assembly holds the block, the subassembly twice and one pin:
+# 6 part occurrences of 2 files, 2 subassembly occurrences of 1 file, 2 levels.
+@b = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a98_{{run}}\\blk.par"}
+se_documents {"action":"close","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@pk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{pk.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
+se_extrude {"sketch":"{{pk.sketch}}","distance":40}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a98_{{run}}\\pin.par"}
+se_documents {"action":"close","saveChanges":false}
+@s = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a98_{{run}}\\pin.par"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a98_{{run}}\\pin.par","origin":[30,0,0]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a98_{{run}}\\sub.asm"}
+se_documents {"action":"close","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a98_{{run}}\\blk.par"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a98_{{run}}\\sub.asm","origin":[0,100,0]}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a98_{{run}}\\sub.asm","origin":[0,200,0]}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a98_{{run}}\\pin.par","origin":[200,0,0]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a98_{{run}}\\top.asm"}
+# Parts list and atomic parts, as before
+@top = se_bom {"structure":"top"}
+?= top.totalQuantity 4
+@flat = se_bom {"structure":"flat"}
+?= flat.totalQuantity 6
+# Bill of materials: blk 1, pin 1, sub 2 and under it pin 2 (once per subassembly)
+@ind = se_bom {"structure":"indented"}
+?= ind.count 4
+?= ind.lines[2].name sub
+?= ind.lines[2].quantity 2
+?= ind.lines[3].item 3.1
+?= ind.lines[3].level 2
+?= ind.lines[3].name pin
+?= ind.lines[3].quantity 2
+# Exploded bill of materials: every occurrence, the two pins of each subassembly too
+@exp = se_bom {"structure":"exploded"}
+?= exp.count 8
+?= exp.lines[3].item 3.1
+?= exp.lines[7].item 4.2
+?~ exp.lines[2].occurrence sub.asm
+# Assembly statistics
+@st = se_bom {"structure":"statistics"}
+?= st.parts.total 6
+?= st.parts.unique 2
+?= st.subassemblies.total 2
+?= st.subassemblies.unique 1
+?= st.levels 2
+?= st.components[1].name pin
+?= st.components[1].occurrences 5
+! se_bom {"structure":"tree"}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}

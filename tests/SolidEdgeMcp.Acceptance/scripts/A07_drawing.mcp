@@ -1,0 +1,273 @@
+# A07: drawing (se_drawing) of a saved block and PDF/DXF/DWG export. Recipes of t51, t61, t63, t64 and t65.
+# Block 100x60x20 with a through hole Ø10 at (50,30): 120000 - pi*5²*20 = 118429.204; assembly with only the block (BOM 1)
+@b = se_documents {"action":"new","kind":"part"}
+@bs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{bs.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{bs.sketch}}"}
+se_extrude {"sketch":"{{bs.sketch}}","distance":20}
+@bt = se_geometry {"action":"faces","direction":[0,0,1]}
+@bh = se_hole {"plane":"{{bt.items[0].handle}}","centers":[50,30,20],"diameter":10}
+?= bh.volume 118429.204 0.01
+se_documents {"action":"save_as","path":"{{work}}\\d_blk.par","overwrite":true}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\d_blk.par"}
+@bm = se_bom {}
+?= bm.totalQuantity 1
+@svasm = se_documents {"action":"save_as","path":"{{work}}\\d_asm.asm","overwrite":true}
+?= svasm.dirty false
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# New drawing (A2 sheet). Top view 1:1 at (160,290): size = model + margin 12.7 (t51.out) -> 100 + 12.7 = 112.7. Projected views: below (same x = 160), right and diagonal (isometric)
+@d = se_documents {"action":"new","kind":"draft"}
+se_drawing {"action":"sheets"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\d_blk.par","orientation":"top","position":[160,290],"scale":1}
+?= bv.view.size[0] 112.7
+@pd = se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"down"}
+?= pd.view.center[0] 160
+?= pd.projection first_angle
+se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"right"}
+@pi = se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"up_right"}
+# Dimensions on the top view (z=20): edge y=60 -> 100; edge x=100 -> 60; horizontal (0,30)-(50,30) -> 50; vertical (50,0)-(50,30) -> 30; diameter -> 10 (placed outside the circle);
+#   height on the bottom view -> 20; angle edge x=0 / edge y=60 -> 90; on the isometric view two perpendicular horizontal edges appear at 120° (t65.out). Errors: no edge passes through (50,45,20) (t51.out); angle between parallel edges (t65.out)
+@q1 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[50,60,20]}
+?= q1.dimension.value 100
+@q2 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[100,30,20]}
+?= q2.dimension.value 60
+@q3 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"distance","points":[0,30,20,50,30,20],"measure":"horizontal"}
+?= q3.dimension.value 50
+@q4 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"distance","points":[50,0,20,50,30,20],"measure":"vertical"}
+?= q4.dimension.value 30
+@q5 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"diameter","points":[50,30,20]}
+?= q5.dimension.value 10
+#   The diameter goes outside the circle, away from the view centre (the hole is at the centre: up and right, 45°): its
+#   extent runs from the far side of the circle (-3.5, -3.5) to the text beyond the radius, centred at (+7.6, +7.6) (r242 calibration).
+?= q5.dimension.at[0] 167.627 0.05
+?= q5.dimension.at[1] 297.627 0.05
+@q6 = se_drawing {"action":"dimension","view":"{{pd.view.handle}}","kind":"length","points":[0,0,10]}
+?= q6.dimension.value 20
+@q7 = se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"angle","points":[0,30,20,50,60,20]}
+?= q7.dimension.value 90
+@q8 = se_drawing {"action":"dimension","view":"{{pi.view.handle}}","kind":"angle","points":[50,0,20,0,30,20]}
+?= q8.dimension.value 120
+! [not_found] se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"length","points":[50,45,20]}
+! [invalid_argument] se_drawing {"action":"dimension","view":"{{bv.view.handle}}","kind":"angle","points":[0,30,20,100,30,20]}
+# Section, detail (double scale of the parent view, t51.out) and auxiliary. 8 dimensions created on the sheet (failed ones are not created); retrieve brings the 3 dimensions of the block's sketches seen in the top view (100, 60 and 30: the sketches an operation uses are fully defined)
+@sv = se_drawing {"action":"section_view","view":"{{bv.view.handle}}","line":[0,30,10,100,30,10]}
+?= sv.view.type section
+@dv = se_drawing {"action":"detail_view","view":"{{bv.view.handle}}","center":[100,60,20],"radius":12}
+?= dv.view.scale 2
+@av = se_drawing {"action":"auxiliary_view","view":"{{bv.view.handle}}","line":[0,0,20,100,60,20]}
+?= av.view.type auxiliary
+@dm = se_drawing {"action":"dimensions"}
+?= dm.count 8
+@rd = se_drawing {"action":"retrieve_dimensions","view":"{{bv.view.handle}}"}
+?= rd.retrieved 3
+?~ rd.dimensions 100
+se_drawing {"action":"views"}
+# Annotations (se_annotation). Top view at scale 1: model (x,y) -> sheet (x + 110, y + 260), so the hole centre (50,30) -> (160,290).
+#   Centre mark of the hole; text; balloon on the right edge (100,30) -> terminator (210,290), balloon moved to (240,320);
+#   callout on the hole; centre line of the hole on the bottom view (x = 160); leader from the left edge (0,30) -> (110,290).
+#   6 annotations; a point on no circle fails; deleting the text leaves 2 balloons (balloon + callout)
+@cm = se_annotation {"action":"center_mark","view":"{{bv.view.handle}}","points":[50,30,20]}
+?= cm.annotation.at[0] 160 0.5
+?= cm.annotation.at[1] 290 0.5
+@tx = se_annotation {"action":"text","text":"ALL EDGES 0.5 x 45","position":[40,40]}
+?~ tx.annotation.text ALL EDGES
+@bl = se_annotation {"action":"balloon","view":"{{bv.view.handle}}","points":[100,30,20],"text":"7","position":[240,320]}
+?= bl.annotation.attached true
+?= bl.annotation.terminator[0] 210 0.01
+?= bl.annotation.terminator[1] 290 0.01
+@co = se_annotation {"action":"callout","view":"{{bv.view.handle}}","points":[55,30,20],"text":"HOLE D10 THRU"}
+?= co.annotation.callout true
+@cl = se_annotation {"action":"centerline","view":"{{pd.view.handle}}","points":[45,30,10,55,30,10]}
+?= cl.annotation.at[0] 160 0.5
+@ld = se_annotation {"action":"leader","view":"{{bv.view.handle}}","points":[0,30,20],"position":[80,330]}
+?= ld.annotation.terminator[0] 110 0.01
+@la = se_annotation {"action":"list"}
+?= la.count 6
+! [not_found] se_annotation {"action":"center_mark","view":"{{bv.view.handle}}","points":[20,20,20]}
+! [invalid_argument] se_annotation {"action":"text","position":[40,40]}
+se_annotation {"action":"delete","annotation":"{{tx.annotation.handle}}"}
+@lb = se_annotation {"action":"list","kind":"balloon"}
+?= lb.count 2
+# Drawing symbols on the top view: surface finish on the right edge at (100,15) -> terminator (210,275), on a leader to (235,262);
+#   datum A on the bottom edge (50,0) -> (160,260), the frame on the edge; perpendicularity 0.02 to A on a leader from the right
+#   edge (100,45) -> (210,305), the frame 15 mm up-right by default; a free position frame ⌀0.1 Ⓜ | A | B centred at (250,150).
+#   A free frame without position and a datum without letter fail; 2 feature control frames
+@sf = se_annotation {"action":"surface_finish","view":"{{bv.view.handle}}","points":[100,15,20],"text":"Ra 3.2","position":[235,262]}
+?= sf.annotation.attached true
+?= sf.annotation.terminator[0] 210 0.01
+?= sf.annotation.terminator[1] 275 0.01
+?~ sf.annotation.finish machined
+?~ sf.annotation.text Ra 3.2
+@dt = se_annotation {"action":"datum","view":"{{bv.view.handle}}","points":[50,0,20],"text":"A"}
+?= dt.annotation.terminator[0] 160 0.01
+?= dt.annotation.terminator[1] 260 0.01
+?~ dt.annotation.text A
+@fc = se_annotation {"action":"feature_control_frame","view":"{{bv.view.handle}}","points":[100,45,20],"characteristic":"perpendicularity","tolerance":"0.02","datums":["A"]}
+?~ fc.annotation.text %PP%VB0.02%VBA
+?~ fc.annotation.characteristic perpendicularity
+?= fc.annotation.terminator[1] 305 0.01
+@fp = se_annotation {"action":"feature_control_frame","characteristic":"position","tolerance":"⌀0.1%MC","datums":["A","B"],"position":[250,150]}
+?~ fp.annotation.text %PO%VB%DI0.1%MC%VBA%VBB
+?= fp.annotation.attached false
+?= fp.annotation.at[0] 250 0.5
+?= fp.annotation.at[1] 150 0.5
+! [invalid_argument] se_annotation {"action":"feature_control_frame","characteristic":"flatness","tolerance":"0.05"}
+! [invalid_argument] se_annotation {"action":"datum","view":"{{bv.view.handle}}","points":[50,0,20]}
+# Frames of several rows: composite position ⌀0.2 | A over ⌀0.05 | A (one characteristic cell for both) free at (300,150),
+#   two rows of 7 mm; flatness 0.05 over perpendicularity 0.02 | A and parallelism 0.03 | A on a leader from the right edge
+#   (100,20) -> (210,280). A composite row with a characteristic, a plain row without one and 4 more rows fail; 4 frames
+@fk = se_annotation {"action":"feature_control_frame","characteristic":"position","tolerance":"⌀0.2","datums":["A"],"rows":["⌀0.05|A"],"composite":true,"position":[300,150]}
+?= fk.annotation.composite true
+?~ fk.annotation.rows[0] %DI0.05%VBA
+?= fk.annotation.size[1] 14 0.1
+@fm = se_annotation {"action":"feature_control_frame","view":"{{bv.view.handle}}","points":[100,20,20],"characteristic":"flatness","tolerance":"0.05","rows":["perpendicularity|0.02|A","parallelism|0.03|A"],"position":[260,230]}
+?= fm.annotation.composite false
+?~ fm.annotation.rows[0] %PP%VB0.02%VBA
+?~ fm.annotation.rows[1] %PR%VB0.03%VBA
+?= fm.annotation.terminator[1] 280 0.01
+! [invalid_argument] se_annotation {"action":"feature_control_frame","characteristic":"position","tolerance":"⌀0.2","rows":["position|⌀0.05|A"],"composite":true,"position":[300,100]}
+! [invalid_argument] se_annotation {"action":"feature_control_frame","characteristic":"flatness","tolerance":"0.05","rows":["0.02|A"],"position":[300,100]}
+! [invalid_argument] se_annotation {"action":"feature_control_frame","characteristic":"position","tolerance":"0.2","rows":["0.1","0.1","0.1","0.1"],"composite":true,"position":[300,100]}
+@lf = se_annotation {"action":"list","kind":"feature_control_frame"}
+?= lf.count 4
+# Weld symbols on the top view: fillet a5 on the arrow side of the top edge (50,60) -> terminator (160,320), the reference
+#   line from (200,350) to the right (the symbol box stays between its leader and the line, not at the sheet origin);
+#   V groove on both sides of the left edge (0,50) -> (110,310), all around and field weld, 15 mm up-right by default;
+#   bevel 6 on the other side of the bottom edge (50,0) -> (160,260). A point on no edge and a missing view fail; 3 weld symbols
+@w1 = se_annotation {"action":"weld","view":"{{bv.view.handle}}","points":[50,60,20],"weld":"fillet","text":"a5","position":[200,350]}
+?= w1.annotation.attached true
+?= w1.annotation.terminator[0] 160 0.01
+?= w1.annotation.terminator[1] 320 0.01
+?~ w1.annotation.weld fillet
+?~ w1.annotation.side arrow
+?~ w1.annotation.text a5
+?= w1.annotation.at[1] 335 5
+@w2 = se_annotation {"action":"weld","view":"{{bv.view.handle}}","points":[0,50,20],"weld":"v_groove","weldSide":"both","allAround":true,"field":true}
+?~ w2.annotation.weld v_groove
+?~ w2.annotation.side both
+?= w2.annotation.allAround true
+?= w2.annotation.field true
+?= w2.annotation.terminator[1] 310 0.01
+?= w2.annotation.at[0] 130 10
+@w3 = se_annotation {"action":"weld","view":"{{bv.view.handle}}","points":[50,0,20],"weld":"bevel","weldSide":"other","text":"6"}
+?~ w3.annotation.weld bevel
+?~ w3.annotation.side other
+?~ w3.annotation.text 6
+?= w3.annotation.at[1] 270 10
+! [not_found] se_annotation {"action":"weld","view":"{{bv.view.handle}}","points":[20,20,20]}
+! [invalid_argument] se_annotation {"action":"weld","points":[50,60,20]}
+@lw = se_annotation {"action":"list","kind":"weld"}
+?= lw.count 3
+# A3 sheet (420 x 297): top view 1:2 at (100,100) -> 100/2 + 12.7 = 62.7; hole radius 5; move (+20,+10) -> x=120; scale 1; delete.
+#   Assembly parts list: 1 row (d_blk). Rename the sheet and change it to A2 -> 594
+@s2 = se_drawing {"action":"add_sheet","name":"Details","paper":"a3"}
+?= s2.size[0] 420
+@v3 = se_drawing {"action":"base_view","path":"{{work}}\\d_blk.par","orientation":"top","position":[100,100],"scale":0.5}
+?= v3.view.size[0] 62.7
+@rr = se_drawing {"action":"dimension","view":"{{v3.view.handle}}","kind":"radius","points":[50,30,20]}
+?= rr.dimension.value 5
+@mv = se_drawing {"action":"move_view","view":"{{v3.view.handle}}","delta":[20,10]}
+?= mv.view.center[0] 120
+se_drawing {"action":"scale_view","view":"{{v3.view.handle}}","scale":1}
+se_drawing {"action":"delete_view","view":"{{v3.view.handle}}"}
+@va = se_drawing {"action":"base_view","path":"{{work}}\\d_asm.asm","orientation":"front","scale":1}
+# The columns of a parts list come from its saved setting, which each installation has its own: 'columns' chooses them. A saved
+# setting that does not exist is refused (Solid Edge would take the default one).
+! [not_found] se_drawing {"action":"parts_list","view":"{{va.view.handle}}","style":"No such setting","balloons":false}
+@pl = se_drawing {"action":"parts_list","view":"{{va.view.handle}}","columns":["Quantity","File Name (no extension)"]}
+?= pl.count 1
+?~ pl.columns[1] File Name (no extension)
+# Bend tables need bends: the view of the block (no sheet metal bends) and the assembly view fail
+! [bend_table_failed] se_drawing {"action":"bend_table","view":"{{bv.view.handle}}"}
+! [wrong_view] se_drawing {"action":"bend_table","view":"{{va.view.handle}}"}
+?~ pl.rows d_blk
+@su = se_drawing {"action":"setup_sheet","sheet":"{{s2.handle}}","name":"Detail sheet","paper":"a2"}
+?= su.size[0] 594
+se_drawing {"action":"activate_sheet","sheet":"Sheet1"}
+# Drawing export (format from the extension; .dwg without a prior recipe); a drawing is not exported to .stp. The PDF is read
+# back: with the default PDF options it holds the active sheet only (A2 landscape) and the result says so
+@e1 = se_export {"path":"{{work}}\\a07.pdf","overwrite":true}
+?= e1.format PDF
+?= e1.pages 1
+?~ e1.pageSizes [594.1,420.2]
+?~ e1.note 1 page(s) for 2 working sheets
+# Unsaved drawing: the result warns that the title block (file date) will come out with "Error: No reference";
+# once saved, it no longer does. The 'fit' capture frames the whole sheet (with the title block), not just the views.
+?~ e1.note never been saved
+@svdft = se_documents {"action":"save_as","path":"{{work}}\\a07.dft","overwrite":true}
+?= svdft.dirty false
+@e1b = se_export {"path":"{{work}}\\a07.pdf","overwrite":true}
+?= e1b.document a07.dft
+?~ e1b.note marks the document as modified
+se_view {"action":"capture","width":400,"height":283}
+se_export {"path":"{{work}}\\a07.dxf","overwrite":true}
+se_export {"path":"{{work}}\\a07.dwg","overwrite":true}
+! [invalid_argument] se_export {"path":"{{work}}\\a07.stp","overwrite":true}
+se_drawing {"action":"delete_sheet","sheet":"Detail sheet"}
+! [last_sheet] se_drawing {"action":"delete_sheet","sheet":"Sheet1"}
+@up = se_drawing {"action":"update"}
+?= up.outOfDate 0
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# Blocks: a 40x20 rectangle at (50,50) and a circle r5 in it become block "Frame" with its origin at (50,50); one occurrence
+# takes their place (range 50..90 x 50..70). Placed at (200,100) with scale 2 it spans 200..280 x 100..140; turned 30° at
+# (300,100) its box is x 300-10 = 290 to 300+40cos30 = 334.641, y 100 to 100+40sin30+20cos30 = 137.321.
+# Saved and imported into a new drawing: the file becomes block "a07_blocks" and brings "Frame" along (the template has its
+# own blocks, so counts are not checked); after deleting "Frame" it can no longer be placed.
+@bd = se_documents {"action":"new","kind":"draft"}
+@bsh = se_drawing {"action":"sheets","document":"{{bd.handle}}"}
+@br = se_sketch {"action":"rectangle","sketch":"{{bsh.sheets[0].handle}}","points":[50,50,90,70]}
+@bc = se_sketch {"action":"circle","sketch":"{{bsh.sheets[0].handle}}","center":[70,60],"radius":5}
+! [invalid_argument] se_drawing {"action":"create_block","name":"Frame","elements":["{{bc.element}}"]}
+@cb = se_drawing {"action":"create_block","name":"Frame","elements":["{{br.elements[0]}}","{{br.elements[1]}}","{{br.elements[2]}}","{{br.elements[3]}}","{{bc.element}}"],"position":[50,50]}
+?= cb.block.name Frame
+?= cb.block.occurrences 1
+?= cb.occurrence.range.min[0] 50 0.01
+?= cb.occurrence.range.max[0] 90 0.01
+?= cb.occurrence.range.max[1] 70 0.01
+@bi = se_sketch {"action":"info","sketch":"{{bsh.sheets[0].handle}}"}
+?= bi.elements.lines 0
+! [invalid_argument] se_drawing {"action":"create_block","name":"Frame","elements":["{{bc.element}}"],"position":[0,0]}
+@pb = se_drawing {"action":"place_block","name":"Frame","position":[200,100],"scale":2}
+?= pb.scale 2
+?= pb.range.min[0] 200 0.01
+?= pb.range.max[0] 280 0.01
+?= pb.range.max[1] 140 0.01
+@pr = se_drawing {"action":"place_block","name":"Frame","position":[300,100],"angle":30}
+?= pr.angle 30
+?= pr.range.min[0] 290 0.01
+?= pr.range.max[0] 334.641 0.01
+?= pr.range.max[1] 137.321 0.01
+! [not_found] se_drawing {"action":"place_block","name":"Nope","position":[0,0]}
+! [invalid_argument] se_drawing {"action":"place_block","name":"Frame","position":[0,0],"scale":0}
+@lb = se_drawing {"action":"blocks"}
+?= lb.blocks[?name="Frame"].occurrences 3
+# Block views and labels through the generic layer: a second view "Alt" of "Frame" (Views 1 -> 2) and a label "Tag" with value "A1".
+@bks = se_com_get {"target":"{{bd.handle}}","member":"Blocks"}
+@bk = se_com_invoke {"target":"{{bks.value.handle}}","method":"Item","arguments":["Frame"]}
+@bvs = se_com_get {"target":"{{bk.result.handle}}","member":"Views"}
+@bvc0 = se_com_get {"target":"{{bvs.value.handle}}","member":"Count"}
+?= bvc0.value 1
+@bv = se_com_invoke {"target":"{{bvs.value.handle}}","method":"Add","arguments":["Alt",0,0]}
+@bvc1 = se_com_get {"target":"{{bvs.value.handle}}","member":"Count"}
+?= bvc1.value 2
+@bls = se_com_get {"target":"{{bv.result.handle}}","member":"BlockLabels"}
+@bl = se_com_invoke {"target":"{{bls.value.handle}}","method":"Add","arguments":["Tag","A1","Label",0.01,0.01,4,true,false,false,false,0]}
+@blc = se_com_get {"target":"{{bls.value.handle}}","member":"Count"}
+?= blc.value 1
+@blv = se_com_get {"target":"{{bl.result.handle}}","member":"Value"}
+?= blv.value A1
+se_documents {"action":"save_as","path":"{{work}}\\a07_blocks.dft","overwrite":true}
+@bd2 = se_documents {"action":"new","kind":"draft"}
+@ib = se_drawing {"action":"import_block","path":"{{work}}\\a07_blocks.dft","document":"{{bd2.handle}}"}
+?= ib.block.name a07_blocks
+?= ib.added true
+@pb2 = se_drawing {"action":"place_block","name":"Frame","position":[100,100],"document":"{{bd2.handle}}"}
+?= pb2.range.max[0] 140 0.01
+@db = se_drawing {"action":"delete_block","name":"Frame","document":"{{bd2.handle}}"}
+?~ db.deleted Frame
+! [not_found] se_drawing {"action":"place_block","name":"Frame","position":[100,100],"document":"{{bd2.handle}}"}
+se_documents {"action":"close","document":"{{bd2.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{bd.handle}}","saveChanges":false}
+se_documents {"action":"list"}

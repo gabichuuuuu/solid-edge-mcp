@@ -1,0 +1,48 @@
+# A125: the base planes of an occurrence's part in se_relations ('yz'/'xz' with the occurrence), se_ref_plane list of an occurrence (its part's planes in assembly coordinates, handles usable in relations), a component query that leaves the active document as it was, and close with saveChanges on a document with nothing to save.
+se_session {"action":"connect"}
+@docs0 = se_documents {"action":"list"}
+?= docs0.count 0 0
+# A bar 60 x 20 x 10 centred on its part's origin
+@p1 = se_documents {"action":"new","kind":"part"}
+@b1 = se_primitive {"shape":"box","center":[0,0,0],"size":[60,20],"depth":10}
+?= b1.volume 12000
+# Its planes: the 3 base planes and the local planes of the primitive
+@pl = se_ref_plane {"action":"list"}
+se_documents {"action":"save_as","path":"{{work}}\\a125_bar.par","overwrite":true}
+@c1 = se_documents {"action":"close","saveChanges":true}
+?= c1.saved false
+?~ c1.note already up to date
+@as = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a125_bar.par","origin":[25,30,40],"ground":false}
+# The same planes from the occurrence, in assembly coordinates: the base planes through its origin (25, 30, 40)
+@rp = se_ref_plane {"action":"list","document":"{{o1.handle}}"}
+?= rp.count {{pl.count}}
+?= rp.planes[1].normal[0] 1
+?= rp.occurrence {{o1.name}}
+?= rp.planes[0].rootPoint[0] 25
+?= rp.planes[0].rootPoint[1] 30
+?= rp.planes[0].rootPoint[2] 40
+# The part's xz plane flush with the assembly's xz plane: the bar moves to y = 0
+@r1 = se_relations {"action":"add","type":"planar","occurrence1":"{{o1.handle}}","element1":"xz","element2":"xz","align":true}
+?= r1.relations[0].status solved
+?= r1.occurrence.origin[1] 0
+# The part's yz plane 15 mm along x from the assembly's yz plane: the bar moves to x = 15
+@r2 = se_relations {"action":"add","type":"planar","occurrence1":"{{o1.handle}}","element1":"yz","element2":"yz","align":true,"offset":15}
+?= r2.relations[0].status solved
+?= r2.occurrence.origin[0] 15
+# A plane handle from the list: its xy plane flush with the assembly's xy plane, the bar moves to z = 0
+@rq = se_ref_plane {"action":"list","document":"{{o1.handle}}"}
+@r3 = se_relations {"action":"add","type":"planar","element1":"{{rq.planes[0].handle}}","element2":"xy","align":true}
+?= r3.relations[0].status solved
+?= r3.occurrence.origin[2] 0
+?= r3.occurrence.status fully_constrained
+! [not_found] se_relations {"action":"add","type":"planar","occurrence1":"{{o1.handle}}","element1":"9","element2":"xy"}
+se_documents {"action":"save_as","path":"{{work}}\\a125_asm.asm","overwrite":true}
+# A query with another document in front: the assembly is used for it, then the part is the active document again
+@pt = se_documents {"action":"new","kind":"part"}
+@fq = se_component_query {"action":"find","document":"{{as.handle}}","criteria":[{"property":"name","condition":"contains","value":"a125_bar"}]}
+?= fq.count 1
+@ad = se_documents {"action":"info"}
+?= ad.handle {{pt.handle}}
+se_documents {"action":"close","document":"{{pt.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{as.handle}}","saveChanges":false}

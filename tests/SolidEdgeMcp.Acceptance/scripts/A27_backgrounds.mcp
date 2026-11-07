@@ -1,0 +1,80 @@
+# A27: background sheets (se_drawing): their handles and users, show and hide, drawing and writing on one, replacing one
+# with the background of another drawing (marked circle copied; same content, missing name and another paper size
+# reported), a new background, rename, the background view, and deleting one in use refused.
+# Every document is new and is closed without saving, except the source drawing a27_src.dft.
+@s = se_documents {"action":"new","kind":"draft"}
+@ss = se_drawing {"action":"sheets"}
+?= ss.section working
+?= ss.sheets[0].background A2-Sheet
+?= ss.sheets[0].backgroundShown true
+?= ss.backgrounds[2].name A2-Sheet
+?= ss.backgrounds[2].kind background
+?= ss.backgrounds[2].usedBy[0] Sheet1
+# Hide and show the background of the sheet; a background sheet has no background of its own
+@hide = se_drawing {"action":"setup_sheet","showBackground":false}
+?= hide.backgroundShown false
+@show = se_drawing {"action":"setup_sheet","showBackground":true}
+?= show.backgroundShown true
+! [invalid_argument] se_drawing {"action":"setup_sheet","sheet":"A3-Sheet","showBackground":false}
+# Mark the A2 background: a circle through its handle and a text through its name; save it as the source drawing
+@mark = se_sketch {"action":"circle","sketch":"{{ss.backgrounds[2].handle}}","center":[300,200],"radius":50}
+@rev = se_annotation {"action":"text","sheet":"A2-Sheet","text":"REV A","position":[500,30]}
+@ann = se_annotation {"action":"list","sheet":"A2-Sheet","kind":"text"}
+?~ ann rev a
+se_documents {"action":"save_as","path":"{{work}}\\a27_src.dft","overwrite":true}
+se_documents {"action":"close","document":"{{s.handle}}","saveChanges":false}
+# A new drawing: replace the background of its sheet (A2-Sheet) with the marked one
+@d = se_documents {"action":"new","kind":"draft"}
+@r1 = se_drawing {"action":"replace_background","path":"{{work}}\\a27_src.dft"}
+?= r1.changed true
+?= r1.background.name A2-Sheet
+?= r1.sourceBackground A2-Sheet
+?= r1.after.elements.circles 1
+?= r1.background.usedBy[0] Sheet1
+# The same content again, and a background name that the source does not have: nothing changes, and it is said
+@r2 = se_drawing {"action":"replace_background","sheet":"Sheet1","path":"{{work}}\\a27_src.dft"}
+?= r2.changed false
+@r3 = se_drawing {"action":"replace_background","sheet":"A4-Sheet","path":"{{work}}\\a27_src.dft","background":"Z9-Sheet"}
+?= r3.changed false
+?~ r3.note no background named 'Z9-Sheet'
+# The A2 background copied onto the A3 background sheet: it keeps its name and size, and the content goes beyond it
+@r4 = se_drawing {"action":"replace_background","sheet":"A3-Sheet","path":"{{work}}\\a27_src.dft","background":"A2-Sheet","replaceBlocks":true}
+?= r4.changed true
+?= r4.background.name A3-Sheet
+?= r4.background.size[0] 420
+?= r4.after.elements.circles 1
+?~ r4.warning another paper size
+! [not_found] se_drawing {"action":"replace_background","path":"{{work}}\\a27_no_such.dft"}
+! [invalid_argument] se_drawing {"action":"replace_background","path":"{{work}}\\a27_src.pdf"}
+# A new background of 500 x 300 with a frame (4 lines and their 8 relations), given to the sheet; deleting it while in use is
+# refused
+@nb = se_drawing {"action":"add_background","name":"B-Custom","width":500,"height":300}
+?= nb.background.kind background
+?= nb.background.size[0] 500
+?= nb.background.size[1] 300
+?= nb.background.objects 0
+@frame = se_sketch {"action":"rectangle","sketch":"{{nb.background.handle}}","points":[10,10,490,290]}
+@use = se_drawing {"action":"setup_sheet","width":500,"height":300,"background":"B-Custom"}
+?= use.background B-Custom
+?= use.size[0] 500
+@sb = se_drawing {"action":"sheets"}
+?= sb.backgrounds[4].name B-Custom
+?= sb.backgrounds[4].objects 12
+?= sb.backgrounds[4].usedBy[0] Sheet1
+! [background_in_use] se_drawing {"action":"delete_sheet","sheet":"B-Custom"}
+se_drawing {"action":"setup_sheet","paper":"a2","background":"A2-Sheet"}
+@del = se_drawing {"action":"delete_sheet","sheet":"B-Custom"}
+?= del.deleted B-Custom
+# Rename a background (names are unique among sheets and backgrounds); open the background view and go back
+@ren = se_drawing {"action":"setup_sheet","sheet":"A1-Sheet","name":"A1-Frame"}
+?= ren.name A1-Frame
+! [name_in_use] se_drawing {"action":"setup_sheet","sheet":"A1-Frame","name":"Sheet1"}
+@bv = se_drawing {"action":"activate_sheet","sheet":"A1-Frame"}
+?= bv.active true
+@sv = se_drawing {"action":"sheets"}
+?= sv.section background
+@wv = se_drawing {"action":"activate_sheet","sheet":"Sheet1"}
+?= wv.active true
+@sw = se_drawing {"action":"sheets"}
+?= sw.section working
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

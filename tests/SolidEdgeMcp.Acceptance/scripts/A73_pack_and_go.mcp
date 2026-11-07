@@ -1,0 +1,48 @@
+# A73: Pack and Go (se_links pack). An assembly in a73src with a subassembly and a part from a73lib (another folder), and a
+# drawing of the assembly: packed into a73pack, the five files are copied there and every copy refers only to files of that
+# folder (the drawing's model, the assembly's components, the subassembly's part). The originals keep their links. Packing into
+# the document's own folder, a missing document and an open one are refused.
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ps.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+se_extrude {"sketch":"{{ps.sketch}}","distance":10}
+se_documents {"action":"save_as","path":"{{work}}\\a73lib\\a73_plate.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@q = se_documents {"action":"new","kind":"part"}
+@qs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{qs.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{qs.sketch}}"}
+se_extrude {"sketch":"{{qs.sketch}}","distance":30}
+se_documents {"action":"save_as","path":"{{work}}\\a73src\\a73_pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+@s = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a73lib\\a73_plate.par","document":"{{s.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\a73src\\a73_sub.asm","overwrite":true}
+se_documents {"action":"close","document":"{{s.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a73src\\a73_sub.asm","document":"{{a.handle}}"}
+se_assembly {"action":"insert","path":"{{work}}\\a73src\\a73_pin.par","origin":[20,30,10],"document":"{{a.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\a73src\\a73_top.asm","overwrite":true}
+@dr = se_documents {"action":"new","kind":"draft"}
+se_drawing {"action":"base_view","path":"{{work}}\\a73src\\a73_top.asm","orientation":"front","position":[150,150]}
+se_documents {"action":"save_as","path":"{{work}}\\a73src\\a73_top.dft","overwrite":true}
+! [document_open] se_links {"action":"pack","path":"{{work}}\\a73src\\a73_top.dft","folder":"{{work}}\\a73pack","overwrite":true}
+se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+! [invalid_argument] se_links {"action":"pack","path":"{{work}}\\a73src\\a73_top.dft","folder":"{{work}}\\a73src"}
+! [not_found] se_links {"action":"pack","path":"{{work}}\\a73src\\a73_none.asm","folder":"{{work}}\\a73pack"}
+@k = se_links {"action":"pack","path":"{{work}}\\a73src\\a73_top.dft","folder":"{{work}}\\a73pack","overwrite":true}
+?= k.count 5
+?~ k.files a73_plate.par
+?~ k.document a73pack
+@o = se_documents {"action":"open","path":"{{work}}\\a73pack\\a73_top.asm"}
+@l = se_links {"action":"list","recursive":true}
+?~ l.links a73pack\\a73_sub.asm
+?~ l.links a73pack\\a73_plate.par
+?= l.missing 0
+se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
+@o2 = se_documents {"action":"open","path":"{{work}}\\a73src\\a73_sub.asm"}
+@l2 = se_links {"action":"list"}
+?~ l2.links a73lib\\a73_plate.par
+se_documents {"action":"close","document":"{{o2.handle}}","saveChanges":false}

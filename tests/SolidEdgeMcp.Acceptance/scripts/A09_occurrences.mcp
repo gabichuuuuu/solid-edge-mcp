@@ -1,0 +1,68 @@
+# A09: faces of each occurrence, relations without naming the occurrence, measurements in the assembly and handle release.
+# Plate 100x60x10 with a Ø6.6 hole at (10,10) and a Ø6 x 20 pin: radial clearance 3.3 - 3 = 0.3 mm.
+@pd = se_documents {"action":"new","kind":"part"}
+@pk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{pk.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{pk.sketch}}"}
+se_extrude {"sketch":"{{pk.sketch}}","distance":10}
+@pt = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{pt.items[0].handle}}","centers":[10,10,10],"diameter":6.6}
+se_documents {"action":"save_as","path":"{{work}}\\a09_plate.par","overwrite":true}
+se_documents {"action":"close","document":"{{pd.handle}}","saveChanges":false}
+@nd = se_documents {"action":"new","kind":"part"}
+@nk = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{nk.sketch}}","center":[0,0],"radius":3}
+se_sketch {"action":"close","sketch":"{{nk.sketch}}"}
+se_extrude {"sketch":"{{nk.sketch}}","distance":20}
+se_documents {"action":"save_as","path":"{{work}}\\a09_pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{nd.handle}}","saveChanges":false}
+@s0 = se_session {"action":"status"}
+@a = se_documents {"action":"new","kind":"assembly"}
+@pl = se_assembly {"action":"insert","path":"{{work}}\\a09_plate.par","origin":[0,0,0],"ground":true}
+@p1 = se_assembly {"action":"insert","path":"{{work}}\\a09_pin.par","origin":[200,0,0]}
+@p2 = se_assembly {"action":"insert","path":"{{work}}\\a09_pin.par","origin":[300,0,0]}
+# each occurrence of the same .par has its own handles, stable between queries
+@c1 = se_geometry {"action":"faces","source":"{{p1.handle}}","type":"cylinder"}
+@c2 = se_geometry {"action":"faces","source":"{{p2.handle}}","type":"cylinder"}
+@c1b = se_geometry {"action":"faces","source":"{{p1.handle}}","type":"cylinder"}
+?= c1b.items[0].handle {{c1.items[0].handle}}
+?= c2.items[0].axisPoint[0] 300
+@hole = se_geometry {"action":"faces","source":"{{pl.handle}}","type":"cylinder"}
+# coaxial and flush with the bottom face without occurrence1/occurrence2: they are inferred from the handles
+@ax = se_relations {"action":"add","type":"axial","element1":"{{c1.items[0].handle}}","element2":"{{hole.items[0].handle}}"}
+@b1 = se_geometry {"action":"faces","source":"{{p1.handle}}","direction":[0,0,-1]}
+@bp = se_geometry {"action":"faces","source":"{{pl.handle}}","direction":[0,0,-1]}
+@fl = se_relations {"action":"add","type":"planar","element1":"{{b1.items[0].handle}}","element2":"{{bp.items[0].handle}}","align":true}
+# the handles stay valid after the occurrence moves; measurements in assembly coordinates
+@md = se_measure {"action":"distance","first":"{{c1.items[0].handle}}","second":"{{hole.items[0].handle}}"}
+?= md.distance 0.3
+@ma = se_measure {"action":"angle","first":"{{b1.items[0].handle}}","second":"{{bp.items[0].handle}}"}
+?= ma.angle 0
+@c1c = se_geometry {"action":"faces","source":"{{p1.handle}}","type":"cylinder"}
+?= c1c.items[0].axisPoint[0] 10
+?= c1c.items[0].axisPoint[1] 10
+# summary per occurrence in assembly coordinates: pin pi*3²*20 = 565.487 in x 7..13, z 0..20; the 2nd one, rotated 90°
+# about Y, takes 20 in X and 6 in Z. Without 'source', an assembly has no summary; a face is not valid as 'source'.
+@gs1 = se_geometry {"action":"summary","source":"{{p1.handle}}"}
+?= gs1.volume 565.487 0.01
+?= gs1.boundingBox.min[0] 7
+?= gs1.boundingBox.max[2] 20
+se_assembly {"action":"rotate","occurrence":"{{p2.handle}}","axis":[300,0,0,300,1,0],"angle":90}
+@gs2 = se_geometry {"action":"summary","source":"{{p2.handle}}"}
+?= gs2.boundingBox.size[0] 20
+?= gs2.boundingBox.size[2] 6
+! [wrong_document_type] se_geometry {"action":"summary"}
+! [invalid_argument] se_geometry {"action":"summary","source":"{{c1.items[0].handle}}"}
+# mixing the face of one occurrence with another occurrence is a clear error
+! [invalid_argument] se_relations {"action":"add","type":"axial","occurrence1":"{{p2.handle}}","element1":"{{c1.items[0].handle}}","element2":"{{hole.items[0].handle}}"}
+se_selection {"action":"set","handles":["{{c2.items[0].handle}}"]}
+@sel = se_selection {"action":"get"}
+?= sel.count 1
+se_selection {"action":"clear"}
+@if = se_interference {}
+?= if.status none
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# when the assembly is closed its handles and those of the parts it loaded are released
+@s1 = se_session {"action":"status"}
+?= s1.liveHandles {{s0.liveHandles}}
+se_documents {"action":"list"}

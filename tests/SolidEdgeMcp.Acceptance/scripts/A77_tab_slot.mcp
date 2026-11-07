@@ -1,0 +1,68 @@
+# A77: tab and slot (se_sheetmetal tab_slot) between two sheet bodies, the second made with tab newBody=true. Thickness 1.
+#   Plate 100x60 on XY (z 0..1): 6000. Rib on the plane y=30 (normal -y), x 20..80, z 1..40, y 29..30: 60*39*1 = 2340 in its own body.
+#   The tab edge is the rib's bottom edge (20,30,1)-(80,30,1), on the plate's top face.
+#   fit, count 2 (default), length 10, offsets 5, gap 0.2, depth = thickness 1:
+#     tabs 2*10*1*1 = +20 on the rib; slots 2*(10+0.4)*(1+0.4)*1 = -29.12 on the plate -> 8330.88
+#   fill, spacing 10, length 10, offsets 5, gap 0, depth 3: tabs at x 25-35, 45-55, 65-75 (as many as fit in 50 mm)
+#     tabs 3*10*1*3 = +90 (2 mm below the plate); slots 3*10*1*1 = -30 -> 8400
+@d = se_documents {"action":"new","kind":"sheet_metal"}
+@k1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+@t1 = se_sheetmetal {"action":"tab","sketch":"{{k1.sketch}}"}
+?= t1.volume 6000 0.001
+@rn = se_ref_plane {"action":"offset","plane":"3","distance":-30}
+@k2 = se_sketch {"action":"create","plane":"{{rn.handle}}"}
+?= k2.frame.normal[1] -1 0.001
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[20,1,80,40]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@t2 = se_sheetmetal {"action":"tab","sketch":"{{k2.sketch}}","newBody":true}
+?= t2.volumeChange 2340 0.001
+@ph = se_physical {}
+?= ph.bodies[0].volume 6000 0.001
+?= ph.bodies[1].volume 2340 0.001
+# fit
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@ex = se_geometry {"action":"edges","direction":[1,0,0]}
+@ts = se_sheetmetal {"action":"tab_slot","edges":["{{ex.items[?start=[20,30,1]].handle}}"],"faces":["{{top.items[?area=6000].handle}}"],"length":10,"distance":5,"gap":0.2}
+?~ ts.feature.status ok
+?~ ts.pattern fit
+?= ts.tabs 2 0
+?= ts.tabBody 2 0
+?= ts.slotBody 1 0
+?= ts.tabVolumeChange 20 0.001
+?= ts.slotVolumeChange -29.12 0.001
+?= ts.volume 8330.88 0.001
+se_feature_edit {"action":"delete","feature":"{{ts.feature.handle}}"}
+# fill with depth 3
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@ex2 = se_geometry {"action":"edges","direction":[1,0,0]}
+@tf = se_sheetmetal {"action":"tab_slot","edges":["{{ex2.items[?start=[20,30,1]].handle}}"],"faces":["{{top2.items[?area=6000].handle}}"],"length":10,"spacing":10,"distance":5,"depth":3}
+?~ tf.pattern fill
+?= tf.tabs 3 0
+?= tf.tabVolumeChange 90 0.001
+?= tf.slotVolumeChange -30 0.001
+?= tf.volume 8400 0.001
+@low = se_geometry {"action":"faces","direction":[0,0,-1]}
+?= low.items[?area=5970].boundingBox.min[2] 0 0.001
+se_feature_edit {"action":"delete","feature":"{{tf.feature.handle}}"}
+# refusals (checked before anything changes, so the handles stay valid)
+@top3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@ex3 = se_geometry {"action":"edges","direction":[1,0,0]}
+! [invalid_argument] se_sheetmetal {"action":"tab_slot","edges":["{{ex3.items[?start=[0,0,1]].handle}}"],"faces":["{{top3.items[?area=6000].handle}}"],"length":10}
+! [invalid_argument] se_sheetmetal {"action":"tab_slot","edges":["{{ex3.items[?start=[20,30,1]].handle}}","{{ex3.items[?start=[0,0,1]].handle}}"],"faces":["{{top3.items[?area=6000].handle}}"],"length":10}
+! [invalid_argument] se_sheetmetal {"action":"tab_slot","edges":["{{ex3.items[?start=[20,30,1]].handle}}"],"length":10}
+! [invalid_argument] se_sheetmetal {"action":"tab_slot","edges":["{{ex3.items[?start=[20,30,1]].handle}}"],"faces":["{{top3.items[?area=6000].handle}}"]}
+! [invalid_argument] se_sheetmetal {"action":"tab_slot","edges":["{{ex3.items[?start=[20,30,1]].handle}}"],"faces":["{{top3.items[?area=6000].handle}}"],"length":10,"count":0}
+# the rib's top edge does not lie on the plate: Solid Edge fails the feature, which is deleted
+! [feature_failed] se_sheetmetal {"action":"tab_slot","edges":["{{ex3.items[?start=[80,30,40]].handle}}"],"faces":["{{top3.items[?area=6000].handle}}"],"length":10}
+@v = se_physical {}
+?= v.volume 8340 0.001
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# a part document has no sheet bodies
+@p = se_documents {"action":"new","kind":"part"}
+se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@pf = se_geometry {"action":"faces","direction":[0,0,1]}
+@pe = se_geometry {"action":"edges","source":"{{pf.items[0].handle}}"}
+! [wrong_document_type] se_sheetmetal {"action":"tab_slot","edges":["{{pe.items[0].handle}}"],"faces":["{{pf.items[0].handle}}"],"length":10}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

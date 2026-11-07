@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\..\build\SolidEdgeInterop.props" />
+
+  <PropertyGroup>
+    <RootNamespace>SolidEdgeMcp.SolidEdge</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SolidEdgeMcp.Core\SolidEdgeMcp.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SolidEdgeMcp.Integration.Tests" />
+    <!-- InteropBootstrap finds Edge.exe with SolidEdgeLauncher before the interop can be loaded. -->
+    <InternalsVisibleTo Include="SolidEdgeMcp.Server" />
+  </ItemGroup>
+
+</Project>

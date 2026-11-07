@@ -1,0 +1,82 @@
+# A93: Copy to PMI, automatic centre lines, view activation, watermark, line up text, drawing order and groups.
+# Part (ordered): a 100 x 60 rectangle dimensioned 100 and 60, extruded 20, then a Ø10 hole through at (50, 30).
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+@r = se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch_constraint {"action":"dimension","sketch":"{{k.sketch}}","dimension":"length","elements":["{{r.elements[0]}}"],"value":100}
+se_sketch_constraint {"action":"dimension","sketch":"{{k.sketch}}","dimension":"length","elements":["{{r.elements[1]}}"],"value":60}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":20}
+# Copy to PMI: the two sketch dimensions become PMI dimensions; annotations: the sketch has none
+@c = se_pmi {"action":"copy","feature":"{{e.feature.handle}}","kind":"dimensions"}
+?= c.copied 2
+@l = se_pmi {"action":"list"}
+?= l.count 2
+! [nothing_copied] se_pmi {"action":"copy","feature":"{{e.feature.handle}}","kind":"annotations"}
+! [invalid_argument] se_pmi {"action":"copy"}
+@t = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{t.items[0].handle}}","centers":[50,30,20],"diameter":10}
+se_documents {"action":"save_as","path":"{{work}}\\a93_blk.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# Drawing: top view 1:1 centred at (160, 290) (the hole at its centre) and the front view below it
+@d = se_documents {"action":"new","kind":"draft"}
+@bv = se_drawing {"action":"base_view","path":"{{work}}\\a93_blk.par","orientation":"top","position":[160,290],"scale":1}
+@fv = se_drawing {"action":"projected_view","view":"{{bv.view.handle}}","direction":"down"}
+# Automatic centre lines: a centre mark on the hole of the top view, at the view centre
+@cl = se_drawing_view {"action":"centerlines","view":"{{bv.view.handle}}"}
+?= cl.added 1
+?= cl.annotations[0].kind center_mark
+?= cl.annotations[0].at[0] 160 0.5
+?= cl.annotations[0].at[1] 290 0.5
+@cf = se_drawing_view {"action":"centerlines","view":"{{fv.view.handle}}"}
+@rc = se_drawing_view {"action":"remove_centerlines","view":"{{fv.view.handle}}"}
+?= rc.removed {{cf.added}}
+# View activation, read back and restored
+@ac = se_drawing_view {"action":"activation","view":"{{bv.view.handle}}"}
+?= ac.active true
+@ai = se_drawing_view {"action":"activation","view":"{{bv.view.handle}}","active":false}
+?= ai.active false
+?= ai.previous true
+@aa = se_drawing_view {"action":"activation","document":"{{d.handle}}","active":true}
+?= aa.active true
+# Watermark
+@w = se_sheet_content {"action":"watermark","text":"DRAFT","position":[200,150]}
+?= w.annotation.watermark true
+?= w.annotation.text DRAFT
+! [invalid_argument] se_sheet_content {"action":"watermark","text":"DRAFT"}
+# Line up text: the centres of two texts take the x of the first one's centre
+@t1 = se_annotation {"action":"text","text":"A","position":[50,250]}
+@t2 = se_annotation {"action":"text","text":"BBBB","position":[80,200]}
+@t3 = se_annotation {"action":"text","text":"CC","position":[120,180]}
+@lu = se_sheet_content {"action":"line_up","item":"{{t1.annotation.handle}}","targets":["{{t2.annotation.handle}}","{{t3.annotation.handle}}"],"align":"center"}
+?= lu.moved[0].at[0] {{lu.source.at[0]}} 0.05
+?= lu.moved[1].at[0] {{lu.source.at[0]}} 0.05
+?= lu.moved[1].at[1] {{t3.annotation.at[1]}} 0.05
+@lb2 = se_sheet_content {"action":"line_up","item":"{{t1.annotation.handle}}","targets":["{{t3.annotation.handle}}"],"align":"bottom"}
+?= lb2.moved[0].at[1] {{lu.source.at[1]}} 0.5
+! [invalid_argument] se_sheet_content {"action":"line_up","item":"{{t1.annotation.handle}}","targets":["{{t1.annotation.handle}}"]}
+! [invalid_argument] se_sheet_content {"action":"line_up","item":"{{bv.view.handle}}","targets":["{{t2.annotation.handle}}"]}
+# Drawing order: three lines; the last drawn is on top, the first brought to front takes its place
+@la = se_sketch {"action":"line","sketch":"{{d.handle}}","points":[10,10,50,10]}
+@lb = se_sketch {"action":"line","sketch":"{{d.handle}}","points":[10,20,50,20]}
+@lc = se_sketch {"action":"line","sketch":"{{d.handle}}","points":[10,30,50,30]}
+@o0 = se_sketch_edit {"action":"order","sketch":"{{d.handle}}","elements":["{{lc.element}}"],"to":"front"}
+?= o0.elements[0].zOrder {{o0.elements[0].previous}}
+@o1 = se_sketch_edit {"action":"order","sketch":"{{d.handle}}","elements":["{{la.element}}"],"to":"front"}
+?= o1.elements[0].zOrder {{o0.elements[0].zOrder}}
+@o2 = se_sketch_edit {"action":"order","sketch":"{{d.handle}}","elements":["{{la.element}}"],"to":"back"}
+?= o2.elements[0].previous {{o0.elements[0].zOrder}}
+! [invalid_argument] se_sketch_edit {"action":"order","sketch":"{{d.handle}}","elements":["{{la.element}}"]}
+# Groups: two lines grouped and ungrouped; then Ungroup All
+@g = se_sketch_edit {"action":"group","sketch":"{{d.handle}}","elements":["{{la.element}}","{{lb.element}}"]}
+?= g.members 2
+?= g.groups 1
+@u = se_sketch_edit {"action":"ungroup","sketch":"{{d.handle}}","element":"{{g.group}}"}
+?= u.members 2
+?= u.groups 0
+se_sketch_edit {"action":"group","sketch":"{{d.handle}}","elements":["{{la.element}}","{{lc.element}}"]}
+@ua = se_sketch_edit {"action":"ungroup","sketch":"{{d.handle}}"}
+?= ua.ungrouped 1
+?= ua.groups 0
+! [invalid_argument] se_sketch_edit {"action":"group","sketch":"{{d.handle}}","elements":["{{la.element}}"]}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

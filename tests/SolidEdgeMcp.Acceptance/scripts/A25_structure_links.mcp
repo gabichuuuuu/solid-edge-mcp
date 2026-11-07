@@ -1,0 +1,170 @@
+# A25: assembly structure (se_assembly activate, inactivate, bundle, transfer, disperse), file links (se_links list, replace,
+# break, where_used, top_level, search), physical properties of assemblies (se_physical) and attribute sets through the
+# generic layer (se_com_*).
+# Block 20x20x10 = 4000 mm3 (title A25LINKTEST), cylinder 20 mm diameter x 10 = 3141.593 mm3. The files go to the a25 folder of
+# the work folder and the subassemblies made by bundle to its runs folder (a new name each run); the rest is closed without saving.
+@b = se_documents {"action":"new","kind":"part"}
+@bs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{bs.sketch}}","points":[0,0,20,20]}
+se_sketch {"action":"close","sketch":"{{bs.sketch}}"}
+se_extrude {"sketch":"{{bs.sketch}}","distance":10}
+se_properties {"action":"set","set":"SummaryInformation","name":"Title","value":"A25LINKTEST"}
+# Attribute sets on the extrusion: typed values (8 text, 3 long), listed even with an attribute called Count, kept in the file
+@ft = se_feature_tree {}
+@fas = se_com_get {"target":"{{ft.features[4].handle}}","member":"AttributeSets"}
+@set = se_com_invoke {"target":"{{fas.value.handle}}","method":"Add","arguments":["MCP"]}
+@at1 = se_com_invoke {"target":"{{set.result.handle}}","method":"Add","arguments":["Code",8]}
+se_com_set {"target":"{{at1.result.handle}}","member":"Value","value":"A-25"}
+@at2 = se_com_invoke {"target":"{{set.result.handle}}","method":"Add","arguments":["Count",3]}
+se_com_set {"target":"{{at2.result.handle}}","member":"Value","value":7}
+! se_com_set {"target":"{{at2.result.handle}}","member":"Value","value":"seven"}
+@items = se_com_items {"target":"{{set.result.handle}}"}
+?= items.count 2
+?= items.items[1].name Count
+! [index_out_of_range] se_com_invoke {"target":"{{set.result.handle}}","method":"Item","arguments":[3]}
+@pres = se_com_get {"target":"{{ft.features[4].handle}}","member":"IsAttributeSetPresent","index":["MCP"]}
+?= pres.value true
+se_documents {"action":"save_as","path":"{{work}}\\a25\\a25_blk.par","overwrite":true}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@r = se_documents {"action":"open","path":"{{work}}\\a25\\a25_blk.par"}
+@rft = se_feature_tree {}
+@rfas = se_com_get {"target":"{{rft.features[4].handle}}","member":"AttributeSets"}
+@rset = se_com_invoke {"target":"{{rfas.value.handle}}","method":"Item","arguments":["MCP"]}
+@rcode = se_com_invoke {"target":"{{rset.result.handle}}","method":"Item","arguments":["Code"]}
+@rcv = se_com_get {"target":"{{rcode.result.handle}}","member":"Value"}
+?= rcv.value A-25
+@rcount = se_com_invoke {"target":"{{rset.result.handle}}","method":"Item","arguments":[2]}
+@rcn = se_com_get {"target":"{{rcount.result.handle}}","member":"Value"}
+?= rcn.value 7
+se_documents {"action":"close","document":"{{r.handle}}","saveChanges":false}
+@c = se_documents {"action":"new","kind":"part"}
+@cs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{cs.sketch}}","center":[10,10],"radius":10}
+se_sketch {"action":"close","sketch":"{{cs.sketch}}"}
+se_extrude {"sketch":"{{cs.sketch}}","distance":10}
+@cm = se_material {"action":"apply","name":"steel","folder":"installation"}
+se_documents {"action":"save_as","path":"{{work}}\\a25\\a25_cyl.par","overwrite":true}
+se_documents {"action":"close","document":"{{c.handle}}","saveChanges":false}
+# a25_asm: two blocks; a25_top: a25_asm and the cylinder; a25_dft: a view of the block
+@a = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_blk.par","origin":[0,0,0]}
+se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_blk.par","origin":[30,0,0]}
+se_documents {"action":"save_as","path":"{{work}}\\a25\\a25_asm.asm","overwrite":true}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+@t = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_asm.asm","origin":[0,0,0]}
+se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_cyl.par","origin":[0,40,0]}
+se_documents {"action":"save_as","path":"{{work}}\\a25\\a25_top.asm","overwrite":true}
+@tl = se_links {"action":"list","recursive":true}
+?= tl.count 3
+?= tl.missing 0
+# Physical properties of the assembly: the volume of all its parts; no mass while the blocks have no material
+@tph = se_physical {}
+?= tph.volume 11141.593 0.01
+?~ tph.partsWithoutDensity[0] a25_blk.par
+! [invalid_argument] se_physical {"density":7850}
+se_documents {"action":"close","document":"{{t.handle}}","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+se_drawing {"action":"base_view","path":"{{work}}\\a25\\a25_blk.par","orientation":"front","scale":1,"position":[100,150]}
+se_documents {"action":"save_as","path":"{{work}}\\a25\\a25_dft.dft","overwrite":true}
+@dl = se_links {"action":"list"}
+?= dl.links[0].views 1
+?= dl.links[0].upToDate true
+# Replacing the drawing model: the view then shows the cylinder and is up to date; the block is no longer referenced
+@dr = se_links {"action":"replace","from":"a25_blk.par","to":"{{work}}\\a25\\a25_cyl.par"}
+?= dr.replaced 1
+?= dr.links[0].upToDate true
+?~ dr.links[0].file a25_cyl.par
+! [not_found] se_links {"action":"replace","from":"a25_blk.par","to":"{{work}}\\a25\\a25_cyl.par"}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# Where used: the assembly and the drawing use the block directly; the top assembly through a25_asm
+@wu = se_links {"action":"where_used","path":"{{work}}\\a25\\a25_blk.par"}
+?= wu.count 2
+@wi = se_links {"action":"where_used","path":"{{work}}\\a25\\a25_blk.par","indirect":true}
+?= wi.count 3
+?= wi.users[2].level 2
+@tp = se_links {"action":"top_level","folder":"{{work}}\\a25"}
+?= tp.count 1
+?~ tp.topLevel[0] a25_top.asm
+@se = se_links {"action":"search","folder":"{{work}}\\a25"}
+?= se.count 5
+@st = se_links {"action":"search","folder":"{{work}}\\a25","text":"A25LINKTEST"}
+?= st.count 1
+?~ st.documents[0].file a25_blk.par
+@sa = se_links {"action":"search","folder":"{{work}}\\a25","filter":"*.asm"}
+?= sa.count 2
+! se_links {"action":"search","folder":"{{work}}\\a25_missing"}
+# Replacing a component in an assembly: both block occurrences become cylinders
+@o = se_documents {"action":"open","path":"{{work}}\\a25\\a25_asm.asm"}
+@orp = se_links {"action":"replace","from":"{{work}}\\a25\\a25_blk.par","to":"{{work}}\\a25\\a25_cyl.par"}
+?= orp.replaced 2
+@ol = se_links {"action":"list"}
+?= ol.count 1
+?~ ol.links[0].file a25_cyl.par
+se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
+# Copied part: its source is replaced (volume of the cylinder), then the link is broken and the geometry stays
+@p = se_documents {"action":"new","kind":"part"}
+@pc = se_part_feature {"action":"copy_part","path":"{{work}}\\a25\\a25_blk.par"}
+?= pc.volume 4000 0.01
+@pl = se_links {"action":"list"}
+?= pl.links[0].broken false
+@pr = se_links {"action":"replace","from":"a25_blk.par","to":"{{work}}\\a25\\a25_cyl.par"}
+?= pr.volume.after 3141.593 0.01
+@pb = se_links {"action":"break","from":"a25_cyl.par"}
+?= pb.broken 1
+?= pb.volume 3141.593 0.01
+@pl2 = se_links {"action":"list"}
+?= pl2.links[0].broken true
+! [not_found] se_links {"action":"break","from":"a25_cyl.par"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# Structure: an inactive part can still be measured; blocks are bundled into a new subassembly, another moved in, then dispersed
+@s = se_documents {"action":"new","kind":"assembly"}
+@s1 = se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_blk.par","origin":[0,0,0]}
+@s2 = se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_blk.par","origin":[30,0,0]}
+@s3 = se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_blk.par","origin":[60,0,0]}
+@s4 = se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_cyl.par","origin":[0,40,0]}
+! [activate_failed] se_assembly {"action":"inactivate","occurrence":"{{s1.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a25_structure.asm","overwrite":true}
+@i1 = se_assembly {"action":"inactivate","occurrence":"{{s1.handle}}"}
+?= i1.active false
+@g1 = se_geometry {"action":"summary","source":"{{s1.handle}}"}
+?= g1.boundingBox.size[0] 20 0.01
+@aa = se_assembly {"action":"activate","all":true}
+?= aa.activated 4
+@bu = se_assembly {"action":"bundle","occurrences":["{{s1.handle}}","{{s2.handle}}"],"path":"{{work}}\\runs\\a25_bundle_{{run}}.asm"}
+?= bu.result.count 3
+?= bu.result.subassembly.kind assembly
+?= bu.result.subassembly.origin[0] 0
+?~ bu.result.components[1].name a25_blk.par
+! [handle_expired] se_assembly {"action":"move","occurrence":"{{s1.handle}}","delta":[1,0,0]}
+! [file_exists] se_assembly {"action":"bundle","occurrences":["{{s3.handle}}"],"path":"{{esc:bu.created}}"}
+! [not_supported] se_assembly {"action":"inactivate","occurrence":"{{bu.result.subassembly.handle}}"}
+@tr = se_assembly {"action":"transfer","occurrences":["{{s3.handle}}"],"subassembly":"{{bu.result.subassembly.handle}}"}
+?= tr.count 2
+@lr = se_assembly {"action":"list","recursive":true}
+?= lr.count 5
+?~ lr.occurrences[4].name a25_blk.par:3
+@dp = se_assembly {"action":"disperse","occurrence":"{{bu.result.subassembly.handle}}"}
+?= dp.count 4
+?= dp.occurrences[0].origin[0] 0
+?= dp.occurrences[1].origin[0] 30
+?= dp.occurrences[2].origin[0] 60
+! [wrong_occurrence] se_assembly {"action":"disperse","occurrence":"{{s4.handle}}"}
+se_documents {"action":"close","document":"{{s.handle}}","saveChanges":false}
+# An assembly whose parts all have a material: the mass of the steel cylinder, centred at (10, 60, 5)
+@q = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_cyl.par","origin":[0,50,0]}
+@qp = se_physical {}
+?= qp.mass {{cm.massKg}} 0.000001
+?= qp.centerOfGravity[0] 10 0.01
+?= qp.centerOfGravity[1] 60 0.01
+?= qp.centerOfGravity[2] 5 0.01
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+# Dispersing every occurrence of a subassembly at once
+@m = se_documents {"action":"new","kind":"assembly"}
+@m1 = se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_asm.asm","origin":[0,0,0]}
+@m2 = se_assembly {"action":"insert","path":"{{work}}\\a25\\a25_asm.asm","origin":[0,0,50]}
+@md = se_assembly {"action":"disperse","occurrence":"{{m1.handle}}","all":true}
+?= md.subassemblies 2
+?= md.count 4
+se_documents {"action":"close","document":"{{m.handle}}","saveChanges":false}

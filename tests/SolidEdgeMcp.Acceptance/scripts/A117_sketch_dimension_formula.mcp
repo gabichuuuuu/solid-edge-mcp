@@ -1,0 +1,26 @@
+# A117: sketch dimensions driven by user variables. Two concentric circles get diameter dimensions with no value (they
+#   lock the drawn size); their variables are bound by formula to Dext = 60 and Dint = 40, and the ring is extruded 20 mm:
+#   pi/4 * (60^2 - 40^2) * 20 = 31415.927 mm3. Dext = 80 rebuilds it: pi/4 * (80^2 - 40^2) * 20 = 75398.224 mm3.
+@p = se_documents {"action":"new","kind":"part"}
+se_variables {"action":"add","name":"Dext","value":60}
+se_variables {"action":"add","name":"Dint","value":40}
+@k = se_sketch {"action":"create","plane":"xy"}
+@c1 = se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[0,0],"radius":25}
+@c2 = se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[0,0],"radius":15}
+se_sketch_constraint {"action":"relation","sketch":"{{k.sketch}}","relation":"concentric","elements":["{{c1.element}}","{{c2.element}}"]}
+@d1 = se_sketch_constraint {"action":"dimension","sketch":"{{k.sketch}}","dimension":"diameter","elements":["{{c1.element}}"]}
+?= d1.value 50 0.001
+@d2 = se_sketch_constraint {"action":"dimension","sketch":"{{k.sketch}}","dimension":"diameter","elements":["{{c2.element}}"]}
+se_variables {"action":"set","name":"{{d1.variable}}","formula":"Dext"}
+se_variables {"action":"set","name":"{{d2.variable}}","formula":"Dint"}
+@g1 = se_variables {"action":"get","name":"{{d1.variable}}"}
+?= g1.value 60 0.001
+?~ g1.formula Dext
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@e = se_extrude {"sketch":"{{k.sketch}}","distance":20}
+?= e.volume 31415.927 0.001
+@s = se_variables {"action":"set","name":"Dext","value":80}
+?= s.volume 75398.224 0.001
+@g2 = se_variables {"action":"get","name":"{{d1.variable}}"}
+?= g2.value 80 0.001
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}

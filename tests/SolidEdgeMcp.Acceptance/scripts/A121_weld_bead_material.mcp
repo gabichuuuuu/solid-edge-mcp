@@ -1,0 +1,42 @@
+# A121: the material of a weldment's weld beads. Two steel slabs 100 x 60 x 10 (60000 mm3, 7833 kg/m3: 0.46998 kg each), one
+#   standing on the other at (0,30,10), and a 5 x 5 fillet weld along 100 mm (1250 mm3). A new weldment has no bead material,
+#   so the bead has no density and se_physical gives no mass (weldBeadsWithoutDensity) although both parts have one. se_material
+#   apply on the weldment gives the beads the material and its library density: 0.93996 + 1250e-9 * 7833 = 0.94975125 kg.
+#   A plain assembly has no material of its own: apply is refused and current says so.
+@sl = se_documents {"action":"new","kind":"part"}
+@sls = se_sketch {"action":"create","plane":"1","document":"{{sl.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{sls.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{sls.sketch}}"}
+se_extrude {"sketch":"{{sls.sketch}}","distance":10,"document":"{{sl.handle}}"}
+se_material {"action":"apply","name":"Steel","document":"{{sl.handle}}","folder":"installation"}
+se_documents {"action":"save_as","path":"{{work}}\\a121_slab.par","overwrite":true,"document":"{{sl.handle}}"}
+se_documents {"action":"close","document":"{{sl.handle}}","saveChanges":false}
+@w = se_documents {"action":"new","kind":"weldment"}
+@c0 = se_material {"action":"current","document":"{{w.handle}}"}
+?= c0.appliesTo weld_beads
+?~ c0.note no material
+@w1 = se_assembly {"action":"insert","path":"{{work}}\\a121_slab.par","document":"{{w.handle}}"}
+@w2 = se_assembly {"action":"insert","path":"{{work}}\\a121_slab.par","origin":[0,30,10],"document":"{{w.handle}}"}
+@wt = se_geometry {"action":"faces","source":"{{w1.handle}}","direction":[0,0,1],"document":"{{w.handle}}"}
+@ws = se_geometry {"action":"faces","source":"{{w2.handle}}","direction":[0,-1,0],"document":"{{w.handle}}"}
+@f = se_assembly_feature {"action":"fillet_weld","faces":["{{wt.items[0].handle}}"],"targetFaces":["{{ws.items[0].handle}}"],"leg":5,"document":"{{w.handle}}"}
+?= f.volume 1250 0.001
+@p0 = se_physical {"document":"{{w.handle}}"}
+?= p0.volume 121250 0.01
+?= p0.weldBeadsWithoutDensity true
+?= p0.partsWithoutDensity []
+?~ p0.note weld beads have no material
+@a = se_material {"action":"apply","name":"Steel","document":"{{w.handle}}","folder":"installation"}
+?= a.material Steel
+?= a.appliesTo weld_beads
+?= a.beadDensityKgM3 7833 0.001
+@p1 = se_physical {"document":"{{w.handle}}"}
+?= p1.mass 0.94975125 0.000001
+@c1 = se_material {"action":"current","document":"{{w.handle}}"}
+?= c1.material Steel
+se_documents {"action":"close","document":"{{w.handle}}","saveChanges":false}
+@k = se_documents {"action":"new","kind":"assembly"}
+! [wrong_document_type] se_material {"action":"apply","name":"Steel","document":"{{k.handle}}","folder":"installation"}
+@ck = se_material {"action":"current","document":"{{k.handle}}"}
+?~ ck.note no material of its own
+se_documents {"action":"close","document":"{{k.handle}}","saveChanges":false}

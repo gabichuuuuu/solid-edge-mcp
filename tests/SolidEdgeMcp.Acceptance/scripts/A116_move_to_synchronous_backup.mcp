@@ -1,0 +1,38 @@
+# A116: Move to Synchronous. An ordered round (4 mm on the vertical edges of a synchronous 80 x 50 x 30 block,
+#   119587.964 mm3) moves with no volume change, also when the part is synchronous at the time (the volume before is read
+#   in ordered mode). After the synchronous body was edited (its right face moved 15 mm by a face relation: 142500 mm3),
+#   Solid Edge broke the body on this move unless the part had been saved: the copy saved first makes it work
+#   (142500 - 412.036 = 142087.964).
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[0,0,0],"size":[80,50],"depth":30}
+@ve = se_geometry {"action":"edges","direction":[0,0,1],"type":"line"}
+@r = se_round {"edges":["{{ve.items[0].handle}}","{{ve.items[1].handle}}","{{ve.items[2].handle}}","{{ve.items[3].handle}}"],"radius":4}
+?= r.volume 119587.964 0.001
+@ms = se_documents {"action":"modeling_mode","mode":"synchronous"}
+?= ms.volume 120000 0.001
+@mv = se_feature_edit {"action":"move_to_synchronous","feature":"{{r.feature.handle}}"}
+?= mv.volume 119587.964 0.001
+?= mv.volumeChange 0 0.001
+?~ mv.modelingMode synchronous
+?~ mv.note copy of the part was saved
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# The body edited in synchronous mode first
+@p2 = se_documents {"action":"new","kind":"part"}
+@b2 = se_primitive {"shape":"box","center":[0,0,0],"size":[80,50],"depth":30}
+@ms2 = se_documents {"action":"modeling_mode","mode":"synchronous"}
+@rf = se_geometry {"action":"faces","direction":[1,0,0]}
+@lf = se_geometry {"action":"faces","direction":[-1,0,0]}
+@fr = se_face_relation {"action":"offset","faces":["{{rf.items[0].handle}}"],"target":"{{lf.items[0].handle}}","distance":95}
+?= fr.volume 142500 0.001
+@mo = se_documents {"action":"modeling_mode","mode":"ordered"}
+@ve2 = se_geometry {"action":"edges","direction":[0,0,1],"type":"line"}
+@r2 = se_round {"edges":["{{ve2.items[0].handle}}","{{ve2.items[1].handle}}","{{ve2.items[2].handle}}","{{ve2.items[3].handle}}"],"radius":4}
+?= r2.volume 142087.964 0.001
+@mv2 = se_feature_edit {"action":"move_to_synchronous","feature":"{{r2.feature.handle}}"}
+?= mv2.volumeChange 0 0.001
+?~ mv2.modelingMode synchronous
+@g2 = se_geometry {"action":"summary"}
+?= g2.volume 142087.964 0.001
+@t2 = se_feature_tree {}
+?~ t2.features[4].name Round
+se_documents {"action":"close","document":"{{p2.handle}}","saveChanges":false}

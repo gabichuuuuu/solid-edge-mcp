@@ -1,0 +1,52 @@
+# A36: drawing views: a broken-out section (se_drawing_view broken_out) of a block with a blind hole from below, cut 15 mm deep from the top inside a square outline, with the refused cases; and a base view of an assembly display configuration (se_drawing base_view configuration).
+# Block 100 x 60 x 20 (x 0..100, y 0..60, z 0..20) with a blind hole 10 x 10 deep from the bottom at (50,30): 120000 - pi x 5^2 x 10 = 119214.602
+@p = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}
+@bot = se_geometry {"action":"faces","direction":[0,0,-1]}
+@h = se_hole {"plane":"{{bot.items[0].handle}}","centers":[50,30,0],"diameter":10,"extent":"finite","depth":10}
+?= h.volume 119214.602 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a36_block.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@d = se_documents {"action":"new","kind":"draft"}
+@v = se_drawing {"action":"base_view","path":"{{work}}\\a36_block.par","orientation":"top","position":[150,200],"scale":1}
+# A square outline 30 x 30 around the hole, 15 mm deep from the top face: the view gains the outline and the cut
+@bo = se_drawing_view {"action":"broken_out","view":"{{v.view.handle}}","points":[35,15,20, 65,15,20, 65,45,20, 35,45,20],"depth":15}
+?= bo.brokenOut.sections 1
+?= bo.brokenOut.depth 15
+?= bo.brokenOut.corners 4
+?= bo.graphics.after.lines 8
+?= bo.graphics.before.lines 4
+@tg = se_com_get {"target":"{{v.view.handle}}","member":"IsBrokenOutSectionTarget"}
+?= tg.value true
+# Refused before anything is made: an outline away from the part, two points, no depth
+! [invalid_argument] se_drawing_view {"action":"broken_out","view":"{{v.view.handle}}","points":[300,300,20, 320,300,20, 320,320,20],"depth":15}
+! [invalid_argument] se_drawing_view {"action":"broken_out","view":"{{v.view.handle}}","points":[35,15,20, 65,15,20],"depth":15}
+! [invalid_argument] se_drawing_view {"action":"broken_out","view":"{{v.view.handle}}","points":[35,15,20, 65,15,20, 65,45,20]}
+@bos = se_com_get {"target":"{{v.view.handle}}","member":"BrokenOutSectionProfiles"}
+@bc = se_com_get {"target":"{{bos.value.handle}}","member":"Count"}
+?= bc.value 1
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}
+# An assembly of two bars (60 and 30 long, 100 apart) with a display configuration that hides the second one
+@as = se_documents {"action":"new","kind":"assembly"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a33_g1.par"}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\a33_g2.par","origin":[100,0,0]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a36_pair_{{run}}.asm","overwrite":true}
+se_assembly {"action":"hide","occurrence":"{{o2.handle}}"}
+se_assembly_config {"action":"save","name":"OnlyFirst"}
+se_assembly {"action":"show","occurrence":"{{o2.handle}}"}
+se_documents {"action":"save","document":"{{as.handle}}"}
+se_documents {"action":"close","document":"{{as.handle}}","saveChanges":false}
+# Top views: the whole assembly is 145 mm long (-30..115) and the configured one shows only the first bar (60 mm)
+@d2 = se_documents {"action":"new","kind":"draft"}
+@va = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a36_pair_{{run}}.asm","orientation":"top","position":[150,300],"scale":1}
+@vb = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a36_pair_{{run}}.asm","orientation":"top","position":[150,120],"scale":1,"configuration":"OnlyFirst"}
+@cfg = se_com_get {"target":"{{vb.view.handle}}","member":"Configuration"}
+?= cfg.value OnlyFirst
+@vw = se_drawing {"action":"views"}
+?= vw.views[0].size[0] 157.7 0.1
+?= vw.views[1].size[0] 72.7 0.1
+! [not_found] se_drawing {"action":"base_view","path":"{{work}}\\runs\\a36_pair_{{run}}.asm","orientation":"top","position":[400,120],"scale":1,"configuration":"Nope"}
+! [invalid_argument] se_drawing {"action":"base_view","path":"{{work}}\\a33_g1.par","orientation":"top","position":[400,300],"scale":1,"configuration":"OnlyFirst"}
+@vw2 = se_drawing {"action":"views"}
+?= vw2.views[1].size[0] 72.7 0.1
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}

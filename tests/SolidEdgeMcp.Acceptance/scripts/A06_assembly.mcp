@@ -1,0 +1,204 @@
+# A06: assembly (se_assembly, se_relations, se_interference, se_bom, se_geometry with source = occurrence). Recipes of t34, t35, t38 and t40. Block 100x60x20 with a through hole Ø10 at (50,30): 120000 - pi*5²*20 = 118429.204. Pin Ø10x40 centered at the origin: pi*5²*40 = 3141.593
+@b = se_documents {"action":"new","kind":"part"}
+@bs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{bs.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{bs.sketch}}"}
+se_extrude {"sketch":"{{bs.sketch}}","distance":20}
+@bt = se_geometry {"action":"faces","direction":[0,0,1]}
+@bh = se_hole {"plane":"{{bt.items[0].handle}}","centers":[50,30,20],"diameter":10}
+?= bh.volume 118429.204 0.01
+se_documents {"action":"save_as","path":"{{work}}\\blk.par","overwrite":true}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{ps.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+@pe = se_extrude {"sketch":"{{ps.sketch}}","distance":40}
+?= pe.volume 3141.593 0.01
+se_documents {"action":"save_as","path":"{{work}}\\pin.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# Assembly: block (grounded by default) at the origin and pin at (200,0,0). Faces per occurrence in assembly coordinates: hole = cylinder r=5
+@a = se_documents {"action":"new","kind":"assembly"}
+@blk = se_assembly {"action":"insert","path":"{{work}}\\blk.par"}
+?= blk.grounded true
+@pin = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[200,0,0]}
+@ls = se_assembly {"action":"list"}
+?= ls.count 2
+@c1 = se_geometry {"action":"faces","source":"{{blk.handle}}","type":"cylinder"}
+?= c1.items[0].radius 5
+@bot1 = se_geometry {"action":"faces","source":"{{blk.handle}}","direction":[0,0,-1]}
+@bot2 = se_geometry {"action":"faces","source":"{{pin.handle}}","direction":[0,0,-1]}
+# Planar (bases aligned at z=0) and axial (pin in the hole, axis at (50,30)); each relation expires the faces: they are requested again. Then: grounding of the block + planar + axial = 3 relations (t34.out); pin Ø10 in hole Ø10 -> no interference (t34.out, t35.out)
+@r1 = se_relations {"action":"add","type":"planar","occurrence1":"{{pin.handle}}","element1":"{{bot2.items[0].handle}}","occurrence2":"{{blk.handle}}","element2":"{{bot1.items[0].handle}}","align":true}
+?= r1.relations[0].status solved
+@c1b = se_geometry {"action":"faces","source":"{{blk.handle}}","type":"cylinder"}
+@c2b = se_geometry {"action":"faces","source":"{{pin.handle}}","type":"cylinder"}
+@r2 = se_relations {"action":"add","type":"axial","occurrence1":"{{pin.handle}}","element1":"{{c2b.items[0].handle}}","occurrence2":"{{blk.handle}}","element2":"{{c1b.items[0].handle}}"}
+?= r2.occurrence.origin[0] 50
+@rl = se_relations {"action":"list"}
+?= rl.count 3
+@i0 = se_interference {}
+?= i0.status none
+# 2nd pin with 'insert' relation (base on the top face z=20, coaxial) -> origin z=20; overlap with the 1st in z 20..40: pi*5²*20 = 1570.796
+@pin2 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[300,0,0]}
+@top1 = se_geometry {"action":"faces","source":"{{blk.handle}}","direction":[0,0,1]}
+@c1c = se_geometry {"action":"faces","source":"{{blk.handle}}","type":"cylinder"}
+@c3 = se_geometry {"action":"faces","source":"{{pin2.handle}}","type":"cylinder"}
+@bot3 = se_geometry {"action":"faces","source":"{{pin2.handle}}","direction":[0,0,-1]}
+@r3 = se_relations {"action":"add","type":"insert","occurrence1":"{{pin2.handle}}","element1":"{{bot3.items[0].handle}}","occurrence2":"{{blk.handle}}","element2":"{{top1.items[0].handle}}","axis1":"{{c3.items[0].handle}}","axis2":"{{c1c.items[0].handle}}"}
+?= r3.occurrence.origin[2] 20
+@i1 = se_interference {"occurrences":["{{pin2.handle}}"],"against":["{{pin.handle}}"]}
+?= i1.status confirmed
+?= i1.pairs[0].volume 1570.796 0.01
+! [occurrence_held] se_assembly {"action":"move","occurrence":"{{pin2.handle}}","delta":[0,0,10]}
+# Top-level BOM: blk 1 + pin 2 = 3. Deleting the axial relation returns its type.
+@bm = se_bom {}
+?= bm.lines[?item="pin"].quantity 2
+?= bm.totalQuantity 3
+@dr = se_relations {"action":"delete","relation":"{{r2.relations[0].handle}}"}
+?= dr.type axial
+# Free pin at (0,0,100): +10 in x -> x=10; to the origin with angles (90,0,0) and a 90° turn about Z -> angles (90,0,90) (t34.out). Ground and release (defined effect of the action; 'unground' without a prior recipe), hide, show and replace with the block
+@p3 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[0,0,100],"ground":false}
+@m1 = se_assembly {"action":"move","occurrence":"{{p3.handle}}","delta":[10,0,0]}
+?= m1.origin[0] 10
+se_assembly {"action":"move","occurrence":"{{p3.handle}}","origin":[0,0,0],"angles":[90,0,0]}
+@m3 = se_assembly {"action":"rotate","occurrence":"{{p3.handle}}","axis":[0,0,0,0,0,1],"angle":90}
+?= m3.angles[2] 90
+@g = se_assembly {"action":"ground","occurrence":"{{p3.handle}}"}
+?= g.occurrence.grounded true
+@ug = se_assembly {"action":"unground","occurrence":"{{p3.handle}}"}
+?= ug.occurrence.grounded false
+@h = se_assembly {"action":"hide","occurrence":"{{p3.handle}}"}
+?= h.visible false
+se_assembly {"action":"show","occurrence":"{{p3.handle}}"}
+@rp = se_assembly {"action":"replace","occurrence":"{{p3.handle}}","path":"{{work}}\\blk.par"}
+?~ rp.name blk.par
+# Flat BOM: blk 2 (block + replaced one) and pin 2 -> 4. Suppress the 1st pin: top-level BOM 3 and its handle expires.
+@bf = se_bom {"structure":"flat"}
+?= bf.lines[?item="blk"].quantity 2
+?= bf.totalQuantity 4
+@sup = se_assembly {"action":"suppress","occurrence":"{{pin.handle}}"}
+@bs2 = se_bom {}
+?= bs2.totalQuantity 3
+! [handle_expired] se_assembly {"action":"hide","occurrence":"{{pin.handle}}"}
+@back = se_assembly {"action":"unsuppress","occurrence":"{{sup.handle}}"}
+?~ back.name pin.par
+@dl = se_assembly {"action":"delete","occurrence":"{{pin2.handle}}"}
+?~ dl.deleted pin.par
+se_documents {"action":"save_as","path":"{{work}}\\a06.asm","overwrite":true}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# Three planar relations fully fix a 20x20x30 block on a 120x80x10 base (grounded): support at z=10, flush at x=0 and
+# -Y face 30 from the base's face -> origin (0,30,10). With the rotation already locked, Solid Edge leaves the third one unsatisfied if
+# it interprets NormalsAligned the other way round; the tool re-creates it with the opposite value (end-to-end task assigned to Claude).
+@pq = se_documents {"action":"new","kind":"part"}
+@kq = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kq.sketch}}","points":[0,0,120,80]}
+se_sketch {"action":"close","sketch":"{{kq.sketch}}"}
+se_extrude {"sketch":"{{kq.sketch}}","distance":10}
+se_documents {"action":"save_as","path":"{{work}}\\a06_base.par","overwrite":true}
+@pr = se_documents {"action":"new","kind":"part"}
+@kr = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kr.sketch}}","points":[0,0,20,20]}
+se_sketch {"action":"close","sketch":"{{kr.sketch}}"}
+se_extrude {"sketch":"{{kr.sketch}}","distance":30}
+se_documents {"action":"save_as","path":"{{work}}\\a06_cube.par","overwrite":true}
+se_documents {"action":"close","document":"{{pr.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{pq.handle}}","saveChanges":false}
+@a2 = se_documents {"action":"new","kind":"assembly"}
+@ob = se_assembly {"action":"insert","path":"{{work}}\\a06_base.par","origin":[0,0,0],"ground":true}
+@oc = se_assembly {"action":"insert","path":"{{work}}\\a06_cube.par","origin":[-40,20,50],"ground":false}
+@fbt = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[0,0,1]}
+@fbx = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[-1,0,0]}
+@fby = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[0,-1,0]}
+@fcb = se_geometry {"action":"faces","source":"{{oc.handle}}","direction":[0,0,-1]}
+@fcx = se_geometry {"action":"faces","source":"{{oc.handle}}","direction":[-1,0,0]}
+@fcy = se_geometry {"action":"faces","source":"{{oc.handle}}","direction":[0,-1,0]}
+se_relations {"action":"add","type":"planar","occurrence1":"{{oc.handle}}","element1":"{{fcb.items[0].handle}}","occurrence2":"{{ob.handle}}","element2":"{{fbt.items[0].handle}}","align":false}
+se_relations {"action":"add","type":"planar","occurrence1":"{{oc.handle}}","element1":"{{fcx.items[0].handle}}","occurrence2":"{{ob.handle}}","element2":"{{fbx.items[0].handle}}","align":true}
+@q3 = se_relations {"action":"add","type":"planar","occurrence1":"{{oc.handle}}","element1":"{{fcy.items[0].handle}}","occurrence2":"{{ob.handle}}","element2":"{{fby.items[0].handle}}","align":true,"offset":-30}
+?= q3.relations[0].status solved
+?= q3.occurrence.status fully_constrained
+?= q3.occurrence.origin[0] 0
+?= q3.occurrence.origin[1] 30
+?= q3.occurrence.origin[2] 10
+@i3 = se_interference {}
+?= i3.status none
+se_documents {"action":"close","document":"{{a2.handle}}","saveChanges":false}
+# Parallel, tangent, angle and rigid-set relations, each checked geometrically. Block k1 grounded at the origin; block k2 and the pins free.
+@a3 = se_documents {"action":"new","kind":"assembly"}
+@k1 = se_assembly {"action":"insert","path":"{{work}}\\blk.par"}
+@k2 = se_assembly {"action":"insert","path":"{{work}}\\blk.par","origin":[0,200,0],"ground":false}
+@q1 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[200,0,0],"ground":false}
+@q2 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[300,0,0],"ground":false}
+@q3 = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[400,0,0],"ground":false}
+# parallel: pin axis 30 mm from the hole axis -> cylinder faces 30 - 5 - 5 = 20 mm apart
+@h1 = se_geometry {"action":"faces","source":"{{k1.handle}}","type":"cylinder"}
+@pc1 = se_geometry {"action":"faces","source":"{{q1.handle}}","type":"cylinder"}
+@rpa = se_relations {"action":"add","type":"parallel","element1":"{{pc1.items[0].handle}}","element2":"{{h1.items[0].handle}}","offset":30}
+?= rpa.relations[0].parallel true
+?= rpa.relations[0].offset 30
+@pc1b = se_geometry {"action":"faces","source":"{{q1.handle}}","type":"cylinder"}
+@dpa = se_measure {"action":"distance","first":"{{pc1b.items[0].handle}}","second":"{{h1.items[0].handle}}"}
+?= dpa.distance 20
+! [invalid_argument] se_relations {"action":"add","type":"parallel","element1":"{{pc1b.items[0].handle}}","element2":"{{h1.items[0].handle}}","offset":-5}
+# tangent: pin q2 against the block face x = 100 -> pin axis at x = 105 (radius 5), on the outer side of the face
+@sx = se_geometry {"action":"faces","source":"{{k1.handle}}","direction":[1,0,0]}
+@pc2 = se_geometry {"action":"faces","source":"{{q2.handle}}","type":"cylinder"}
+@rta = se_relations {"action":"add","type":"tangent","element1":"{{pc2.items[0].handle}}","element2":"{{sx.items[0].handle}}"}
+?= rta.relations[0].type tangent
+?= rta.relations[0].status solved
+?= rta.occurrence.origin[0] 105
+! [invalid_argument] se_relations {"action":"add","type":"tangent","element1":"{{sx.items[0].handle}}","element2":"{{pc2.items[0].handle}}"}
+# angle: k2's -Y face at 60° from k1's top face; the rotation axis is X, so the YZ base plane is picked and k2 turns -30° about X
+@s2 = se_geometry {"action":"faces","source":"{{k2.handle}}","direction":[0,-1,0]}
+@t1 = se_geometry {"action":"faces","source":"{{k1.handle}}","direction":[0,0,1]}
+! [invalid_argument] se_relations {"action":"add","type":"angle","element1":"{{s2.items[0].handle}}","element2":"{{t1.items[0].handle}}"}
+! [invalid_argument] se_relations {"action":"add","type":"angle","element1":"{{s2.items[0].handle}}","element2":"{{t1.items[0].handle}}","angle":60,"plane":"1"}
+@ran = se_relations {"action":"add","type":"angle","element1":"{{s2.items[0].handle}}","element2":"{{t1.items[0].handle}}","angle":60}
+?= ran.relations[0].type angle
+?= ran.relations[0].angle 60
+?= ran.occurrence.angles[0] -30
+@s2b = se_geometry {"action":"faces","source":"{{k2.handle}}","type":"plane","limit":1}
+@man = se_measure {"action":"angle","first":"{{s2b.items[0].handle}}","second":"{{t1.items[0].handle}}"}
+?= man.angle 60
+# parallel faces leave the rotation axis undefined: the measurement plane is required
+@t3 = se_geometry {"action":"faces","source":"{{q3.handle}}","direction":[0,0,-1]}
+! [invalid_argument] se_relations {"action":"add","type":"angle","element1":"{{t3.items[0].handle}}","element2":"{{t1.items[0].handle}}","angle":30}
+# rigid set: pin q3 and block k2 move as one
+! [invalid_argument] se_relations {"action":"add","type":"rigid_set","occurrences":["{{q3.handle}}"]}
+@rri = se_relations {"action":"add","type":"rigid_set","occurrences":["{{q3.handle}}","{{k2.handle}}"]}
+?= rri.relations[0].type rigid_set
+?= rri.relations[0].status solved
+?~ rri.relations[0].occurrences blk.par:2
+@rl3 = se_relations {"action":"list"}
+?= rl3.count 5
+se_documents {"action":"close","document":"{{a3.handle}}","saveChanges":false}
+# Exploded view: pin inserted on the block's top face (origin z=20). Auto explode with spread 50 moves it along its axis to z=70,
+# a new explode with spread 100 to z=120; the block (grounded) and the assembly placements stay. Before exploding, nothing is exploded.
+@a4 = se_documents {"action":"new","kind":"assembly"}
+@eb = se_assembly {"action":"insert","path":"{{work}}\\blk.par","document":"{{a4.handle}}"}
+! [invalid_argument] se_assembly_config {"action":"explode","document":"{{a4.handle}}"}
+@ep = se_assembly {"action":"insert","path":"{{work}}\\pin.par","origin":[300,0,0],"document":"{{a4.handle}}"}
+@et = se_geometry {"action":"faces","source":"{{eb.handle}}","direction":[0,0,1]}
+@eh = se_geometry {"action":"faces","source":"{{eb.handle}}","type":"cylinder"}
+@ec = se_geometry {"action":"faces","source":"{{ep.handle}}","type":"cylinder"}
+@ef = se_geometry {"action":"faces","source":"{{ep.handle}}","direction":[0,0,-1]}
+@er = se_relations {"action":"add","type":"insert","occurrence1":"{{ep.handle}}","element1":"{{ef.items[0].handle}}","occurrence2":"{{eb.handle}}","element2":"{{et.items[0].handle}}","axis1":"{{ec.items[0].handle}}","axis2":"{{eh.items[0].handle}}"}
+?= er.occurrence.origin[2] 20
+@e0 = se_assembly_config {"action":"exploded"}
+?= e0.moved 0
+! [invalid_argument] se_assembly_config {"action":"explode","spread":-5}
+@e1 = se_assembly_config {"action":"explode","spread":50}
+?= e1.moved 1
+?= e1.components[?name="pin.par:1"].explodedOrigin[2] 70 0.0001
+?= e1.components[?name="pin.par:1"].distance 50 0.0001
+?= e1.components[?name="pin.par:1"].origin[2] 20 0.0001
+?= e1.components[?name="blk.par:1"].distance 0
+@e2 = se_assembly_config {"action":"explode","spread":100}
+?= e2.components[?name="pin.par:1"].explodedOrigin[2] 120 0.0001
+@e3 = se_assembly_config {"action":"exploded"}
+?= e3.moved 1
+@el = se_assembly {"action":"list"}
+?= el.occurrences[?name="pin.par:1"].origin[2] 20 0.0001
+se_documents {"action":"close","document":"{{a4.handle}}","saveChanges":false}
+se_documents {"action":"list"}

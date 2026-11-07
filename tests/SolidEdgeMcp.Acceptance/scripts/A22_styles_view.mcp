@@ -1,0 +1,127 @@
+# A22: document styles (se_styles), the options a drawing saves (se_options scope drawing) and the view of a 3D window
+# (se_view style, background, camera, zoom, rotation and the colours of a capture). Everything happens in temporary
+# documents closed without saving; the background is changed in a copy of the window's view style.
+# Styles of a drawing: list, read, create from the active one, change with read-back, activate, delete
+@d = se_documents {"action":"new","kind":"draft"}
+@t = se_styles {"action":"types","document":"{{d.handle}}"}
+?~ t.types drawing_view
+@dl = se_styles {"action":"list","type":"dimension","document":"{{d.handle}}"}
+@dg = se_styles {"action":"get","type":"dimension","name":"{{esc:dl.active}}","document":"{{d.handle}}"}
+?= dg.active true
+@da = se_styles {"action":"add","type":"dimension","name":"A22 dim","document":"{{d.handle}}"}
+?~ da.basedOn {{dl.active}}
+! [style_exists] se_styles {"action":"add","type":"dimension","name":"A22 dim","document":"{{d.handle}}"}
+@ds = se_styles {"action":"set","type":"dimension","name":"A22 dim","property":"Height","value":0.005,"document":"{{d.handle}}"}
+?= ds.value 0.005 1e-9
+?= ds.previous {{dg.properties.Height}} 1e-9
+@dc = se_styles {"action":"set","type":"dimension","name":"A22 dim","property":"DrivingColor","value":"#FF0000","document":"{{d.handle}}"}
+?= dc.value #FF0000
+@df = se_styles {"action":"set","type":"dimension","name":"A22 dim","property":"FontStyle","value":"bold","document":"{{d.handle}}"}
+?= df.value igDimStyleFontBold
+! [invalid_argument] se_styles {"action":"set","type":"dimension","name":"A22 dim","property":"FontStyle","value":"heavy","document":"{{d.handle}}"}
+! [not_found] se_styles {"action":"set","type":"dimension","name":"A22 dim","property":"Heigth","value":0.005,"document":"{{d.handle}}"}
+@dsl = se_styles {"action":"list","type":"dash","document":"{{d.handle}}"}
+! [read_only_property] se_styles {"action":"set","type":"dash","name":"{{esc:dsl.styles[0]}}","property":"DashGapCount","value":3,"document":"{{d.handle}}"}
+@dv = se_styles {"action":"activate","type":"dimension","name":"A22 dim","document":"{{d.handle}}"}
+?~ dv.active A22 dim
+! [style_in_use] se_styles {"action":"remove","type":"dimension","name":"A22 dim","document":"{{d.handle}}"}
+@dv2 = se_styles {"action":"activate","type":"dimension","name":"{{esc:dv.previous}}","document":"{{d.handle}}"}
+?~ dv2.active {{dl.active}}
+@dr = se_styles {"action":"remove","type":"dimension","name":"A22 dim","document":"{{d.handle}}"}
+?~ dr.removed A22 dim
+@dl2 = se_styles {"action":"list","type":"dimension","document":"{{d.handle}}"}
+?= dl2.count {{dl.count}}
+@fl = se_styles {"action":"list","type":"frame","document":"{{d.handle}}"}
+! [not_supported] se_styles {"action":"remove","type":"frame","name":"{{esc:fl.styles[0]}}","document":"{{d.handle}}"}
+! [not_supported] se_styles {"action":"activate","type":"hatch","name":"x","document":"{{d.handle}}"}
+! [not_supported] se_styles {"action":"import","type":"dash","from":"{{d.handle}}","document":"{{d.handle}}"}
+! [not_supported] se_view {"action":"background","document":"{{d.handle}}"}
+# Line styles imported from another drawing
+@d2 = se_documents {"action":"new","kind":"draft"}
+se_styles {"action":"add","type":"line","name":"A22 line","document":"{{d2.handle}}"}
+@im = se_styles {"action":"import","type":"line","from":"{{d2.handle}}","document":"{{d.handle}}"}
+?~ im.imported A22 line
+se_documents {"action":"close","document":"{{d2.handle}}","saveChanges":false}
+# Options saved in the drawing: projection angle and the line style of hidden edges
+@pa = se_options {"action":"get","scope":"drawing","name":"DVProjectionAngle","document":"{{d.handle}}"}
+@p1 = se_options {"action":"set","scope":"drawing","name":"DVProjectionAngle","value":"third","document":"{{d.handle}}"}
+?= p1.value ProjectionAngleThird
+@p2 = se_options {"action":"set","scope":"drawing","name":"DVProjectionAngle","value":"{{p1.previous}}","document":"{{d.handle}}"}
+?= p2.value {{pa.value}}
+@e0 = se_options {"action":"get","scope":"drawing","name":"DVEdgeStyleName[HiddenEdge]","document":"{{d.handle}}"}
+@e1 = se_options {"action":"set","scope":"drawing","name":"DVEdgeStyleName[HiddenEdge]","value":"A22 line","document":"{{d.handle}}"}
+?~ e1.value A22 line
+! [not_found] se_options {"action":"set","scope":"drawing","name":"DVEdgeStyleName[HiddenEdge]","value":"No such style","document":"{{d.handle}}"}
+@e2 = se_options {"action":"set","scope":"drawing","name":"DVEdgeStyleName[HiddenEdge]","value":"{{esc:e0.value}}","document":"{{d.handle}}"}
+?~ e2.value {{e0.value}}
+! [not_supported] se_options {"action":"snapshot","scope":"drawing","document":"{{d.handle}}"}
+# View style and background of a part window, checked by read-back and by the colours of a capture
+@p = se_documents {"action":"new","kind":"part"}
+! [wrong_document_type] se_options {"action":"list","scope":"drawing","document":"{{p.handle}}"}
+se_primitive {"shape":"box","center":[0,0,0],"size":[100,60],"depth":20}
+@vs = se_view {"action":"style"}
+se_styles {"action":"add","type":"view","name":"A22 view","document":"{{p.handle}}"}
+@vv = se_view {"action":"style","name":"A22 view"}
+?~ vv.style A22 view
+@b0 = se_view {"action":"background"}
+?= b0.background.kind solid
+?~ b0.background.note puts this one back
+@c0 = se_view {"action":"capture","width":320,"height":240,"samples":true}
+@bg = se_view {"action":"background","kind":"gradient","colors":["#FF0000","#0000FF"]}
+?= bg.background.kind gradient
+?= bg.background.colors[0] #FF0000
+@c1 = se_view {"action":"capture","width":320,"height":240,"samples":true}
+?# c1.samples.topLeft #FF0000
+?# c1.samples.bottomRight #0000FF
+@bv = se_view {"action":"background","kind":"gradient","colors":["#00FF00","#000000"],"gradient":"vertical"}
+?= bv.previous.colors[1] #0000FF
+@c2 = se_view {"action":"capture","width":320,"height":240,"samples":true}
+?# c2.samples.topRight #00FF00
+?# c2.samples.bottomLeft #000000
+@gv = se_styles {"action":"get","type":"view","name":"A22 view","document":"{{p.handle}}"}
+?= gv.properties.BackgroundType seBackgroundTypeGradient
+@bs = se_view {"action":"background","kind":"solid","colors":["#336699"]}
+?~ bs.note same colour at both ends
+@c3 = se_view {"action":"capture","width":320,"height":240,"samples":true}
+?# c3.samples.topLeft #336699
+?# c3.samples.bottomRight #336699
+@bi = se_view {"action":"background","kind":"image","path":"{{esc:b0.images[0]}}"}
+?= bi.background.kind image
+! [path_not_allowed] se_view {"action":"background","kind":"image","path":"C:\\Windows\\win.ini"}
+! [invalid_argument] se_view {"action":"background","kind":"solid","colors":["#FF0000","#00FF00"]}
+# Back to solid without colours: the solid colour of the style is the one it had before the gradients and the image
+@br = se_view {"action":"background","kind":"solid"}
+?= br.background.kind solid
+@c4 = se_view {"action":"capture","width":320,"height":240,"samples":true}
+?# c4.samples.topLeft {{c0.samples.topLeft}} 2
+?# c4.samples.bottomRight {{c0.samples.bottomRight}} 2
+@vb = se_view {"action":"style","name":"{{esc:vs.style}}"}
+?~ vb.style {{vs.style}}
+se_styles {"action":"remove","type":"view","name":"A22 view","document":"{{p.handle}}"}
+# Camera: direction, perspective with its field of view (kept by capture, fit and orient), zoom and rotation
+@sc = se_view {"action":"set_camera","eye":[0,0,500],"target":[0,0,0],"up":[0,1,0]}
+?= sc.camera.direction[2] -1
+?= sc.camera.perspective false
+@sp = se_view {"action":"set_camera","perspective":true,"angle":40}
+?= sp.camera.angle 40
+se_view {"action":"capture","width":320,"height":240}
+@ca = se_view {"action":"camera"}
+?= ca.camera.angle 40
+se_view {"action":"fit"}
+se_view {"action":"orient","orientation":"top"}
+@co = se_view {"action":"camera"}
+?= co.camera.angle 40
+?= co.camera.direction[2] -1
+?= co.camera.perspective true
+@so = se_view {"action":"set_camera","perspective":false}
+?= so.camera.perspective false
+@z = se_view {"action":"zoom","factor":2}
+?= z.factor 2
+@r = se_view {"action":"rotate","angle":90,"axis":[0,1,0]}
+?= r.camera.direction[0] -1
+?= r.camera.direction[2] 0
+! [invalid_argument] se_view {"action":"set_camera","eye":[0,0,0],"target":[0,0,0]}
+! [invalid_argument] se_view {"action":"set_camera","up":[-1,0,0]}
+! [invalid_argument] se_view {"action":"zoom","factor":0}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

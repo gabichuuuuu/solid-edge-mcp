@@ -1,0 +1,65 @@
+# A131: an explode kept in the orientation chosen for it, and bills of materials and drawing tables written to files. Block 100 x 60 x 20 with a 10 mm hole and a pin 10 x 40 inserted in it; explode 50 with the window turned to front: the drawing view of the explode configuration is a front view 112.7 wide (100 + 12.7). A view asked in another orientation says why it keeps the stored one. se_bom writes the report (top, exploded, statistics) to .csv and .xlsx with every line; se_export writes the cells of the parts list.
+se_session {"action":"connect"}
+@docs0 = se_documents {"action":"list"}
+?= docs0.count 0 0
+@b = se_documents {"action":"new","kind":"part"}
+@bs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{bs.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{bs.sketch}}"}
+se_extrude {"sketch":"{{bs.sketch}}","distance":20}
+@bt = se_geometry {"action":"faces","direction":[0,0,1]}
+se_hole {"plane":"{{bt.items[0].handle}}","centers":[50,30,20],"diameter":10}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a131_{{run}}\\blk.par"}
+se_documents {"action":"close","document":"{{b.handle}}","saveChanges":false}
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{ps.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+se_extrude {"sketch":"{{ps.sketch}}","distance":40}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a131_{{run}}\\pin.par"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+@eb = se_assembly {"action":"insert","path":"{{work}}\\runs\\a131_{{run}}\\blk.par"}
+@ep = se_assembly {"action":"insert","path":"{{work}}\\runs\\a131_{{run}}\\pin.par","origin":[300,0,0]}
+@et = se_geometry {"action":"faces","source":"{{eb.handle}}","direction":[0,0,1]}
+@eh = se_geometry {"action":"faces","source":"{{eb.handle}}","type":"cylinder"}
+@ec = se_geometry {"action":"faces","source":"{{ep.handle}}","type":"cylinder"}
+@ef = se_geometry {"action":"faces","source":"{{ep.handle}}","direction":[0,0,-1]}
+se_relations {"action":"add","type":"insert","occurrence1":"{{ep.handle}}","element1":"{{ef.items[0].handle}}","occurrence2":"{{eb.handle}}","element2":"{{et.items[0].handle}}","axis1":"{{ec.items[0].handle}}","axis2":"{{eh.items[0].handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a131_{{run}}\\a131.asm"}
+@ex = se_assembly_config {"action":"explode","spread":50,"orientation":"front"}
+?= ex.moved 1
+?= ex.orientation front
+se_documents {"action":"save","document":"{{a.handle}}"}
+# Bills of materials written to files: every line, with a header row
+@b1 = se_bom {"structure":"top","path":"{{work}}\\runs\\a131_{{run}}\\top.csv"}
+?~ b1.savedTo top.csv
+?= b1.totalQuantity 2
+! [file_exists] se_bom {"structure":"top","path":"{{work}}\\runs\\a131_{{run}}\\top.csv"}
+@b2 = se_bom {"structure":"exploded","path":"{{work}}\\runs\\a131_{{run}}\\exploded.xlsx"}
+?~ b2.savedTo exploded.xlsx
+?= b2.count 2
+@b3 = se_bom {"structure":"statistics","path":"{{work}}\\runs\\a131_{{run}}\\top.csv","overwrite":true}
+?= b3.parts.unique 2
+! [invalid_argument] se_bom {"structure":"top","path":"{{work}}\\runs\\a131_{{run}}\\top.txt"}
+# The explode configuration in a drawing: front as exploded; another orientation asked gives a note
+@dr = se_documents {"action":"new","kind":"draft"}
+@v1 = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a131_{{run}}\\a131.asm","orientation":"front","configuration":"explode,Solid Edge","scale":1,"position":[150,200]}
+?= v1.view.orientation front
+?= v1.view.size[0] 112.7 0.01
+@v2 = se_drawing {"action":"base_view","path":"{{work}}\\runs\\a131_{{run}}\\a131.asm","orientation":"top_front_right","configuration":"explode,Solid Edge","scale":1,"position":[400,200]}
+?= v2.view.orientation front
+?~ v2.note keeps the orientation stored
+# The parts list of the drawing written to a spreadsheet
+@pl = se_drawing {"action":"parts_list","view":"{{v1.view.handle}}","balloons":false}
+@tb = se_drawing {"action":"tables"}
+@x1 = se_export {"path":"{{work}}\\runs\\a131_{{run}}\\parts.xlsx","table":"{{tb.tables[0].handle}}"}
+?= x1.count 2
+?~ x1.savedTo parts.xlsx
+@x2 = se_export {"path":"{{work}}\\runs\\a131_{{run}}\\parts.csv","table":"{{tb.tables[0].handle}}"}
+?= x2.count 2
+! [invalid_argument] se_export {"path":"{{work}}\\runs\\a131_{{run}}\\other.csv"}
+se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+@docs1 = se_documents {"action":"list"}
+?= docs1.count 0 0

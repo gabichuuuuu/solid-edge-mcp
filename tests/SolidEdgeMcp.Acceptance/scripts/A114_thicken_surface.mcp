@@ -1,0 +1,28 @@
+# A114: thickening a surface in a part that has no solid yet makes the first solid.
+#   Arc of radius 40 over 120 degrees (from 30 to 150) on the XY plane, extruded 60 as an open surface: 40 * 2pi/3 * 60 = 5026.548.
+#   Thickened 2 mm outwards (radius 40 -> 42): pi/3 * (42^2 - 40^2) * 60 = 10304.424; the other side (38 -> 40): pi/3 * 156 * 60 = 9801.769.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"arc","sketch":"{{k.sketch}}","center":[0,0],"start":[34.641016151,20],"end":[-34.641016151,20]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}","open":true}
+@s = se_surface {"action":"extrude","sketch":"{{k.sketch}}","depth":60}
+?= s.surface.area 5026.548 0.001
+@f = se_geometry {"action":"faces","source":"{{s.surface.handle}}"}
+@t = se_part_feature {"action":"thicken","faces":["{{f.items[0].handle}}"],"thickness":2}
+?= t.volume 10304.424 0.001
+?~ t.direction normal
+@g = se_geometry {"action":"summary"}
+?= g.boundingBox.max[1] 42 0.0001
+?= g.faces 6 0
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+# Reverse side: the wall grows inwards
+@p2 = se_documents {"action":"new","kind":"part"}
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"arc","sketch":"{{k2.sketch}}","center":[0,0],"start":[34.641016151,20],"end":[-34.641016151,20]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}","open":true}
+@s2 = se_surface {"action":"extrude","sketch":"{{k2.sketch}}","depth":60}
+@f2 = se_geometry {"action":"faces","source":"{{s2.surface.handle}}"}
+@t2 = se_part_feature {"action":"thicken","faces":["{{f2.items[0].handle}}"],"thickness":2,"side":"reverse"}
+?= t2.volume 9801.769 0.001
+?~ t2.direction reverse
+se_documents {"action":"close","document":"{{p2.handle}}","saveChanges":false}

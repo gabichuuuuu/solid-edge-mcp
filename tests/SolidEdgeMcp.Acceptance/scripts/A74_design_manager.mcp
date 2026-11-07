@@ -1,0 +1,164 @@
+# A74: Design Manager on closed files (se_design_manager) and properties of a closed file (se_properties with path). A
+# set made here: lib\plate.par, src\pin.par, src\sub.asm (the plate), src\top.asm (sub + pin), src\top.dft (a view of
+# top.asm) and other\use.asm (the pin), outside the set of top.dft. Checked: the links of the drawing at every level; a
+# title and a custom property and a date (Last Print Date, read back as given) written to the closed pin and read back;
+# the drawing copied with its whole set (the copies use one another, the original keeps its files; the drawing and a
+# deep file alone refused); refusals (an existing name, a file outside the set, the top document renamed or released, a
+# new name of another type,
+# a set open in Solid Edge); the pin renamed (the assembly and use.asm, found in 'other', use the new name); the plate
+# copied as plate_v1.1.par (a dot in the name; the subassembly uses the copy) and replaced by the original again; the
+# pin moved to 'parts' without looking in 'other' (use.asm is left with a broken link, found by broken_links and fixed
+# by relink); the plate revised (its next revision, named after it: plate-1.par, or plate-a.par where the revisions are
+# letters; used by the set); the pin released and the assembly given In
+# Review (a list with a released file refused whole); a rename refused because a released document outside the set uses
+# the file; the subassembly's links under lib redefined to a packed copy of the set; duplicates by name and by document
+# ID (the packed copies keep the IDs of the originals); and Solid Edge reading every result.
+se_session {"action":"connect"}
+@docs0 = se_documents {"action":"list"}
+?= docs0.count 0 0
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{ps.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+se_extrude {"sketch":"{{ps.sketch}}","distance":10}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a74_{{run}}\\lib\\plate.par"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@q = se_documents {"action":"new","kind":"part"}
+@qs = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{qs.sketch}}","center":[0,0],"radius":5}
+se_sketch {"action":"close","sketch":"{{qs.sketch}}"}
+se_extrude {"sketch":"{{qs.sketch}}","distance":30}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par"}
+se_documents {"action":"close","document":"{{q.handle}}","saveChanges":false}
+@s = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a74_{{run}}\\lib\\plate.par","document":"{{s.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a74_{{run}}\\src\\sub.asm"}
+se_documents {"action":"close","document":"{{s.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a74_{{run}}\\src\\sub.asm","document":"{{a.handle}}"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par","origin":[20,30,10],"document":"{{a.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.asm"}
+@dr = se_documents {"action":"new","kind":"draft"}
+se_drawing {"action":"base_view","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.asm","orientation":"front","position":[150,150]}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft"}
+se_documents {"action":"close","document":"{{dr.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+@u = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par","document":"{{u.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\runs\\a74_{{run}}\\other\\use.asm"}
+se_documents {"action":"close","document":"{{u.handle}}","saveChanges":false}
+# The set of the drawing, read from the closed files
+@l = se_design_manager {"action":"links","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft"}
+?= l.count 4
+?= l.missing 0
+?= l.status available
+?~ l.links plate.par
+# The drawing copied with its whole set: the copies use one another and the original keeps its files; the drawing and the
+# plate alone are refused (the assemblies between them would be rewritten and the original would use the copy)
+! [invalid_argument] se_design_manager {"action":"copy","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["top.dft","{{work}}\\runs\\a74_{{run}}\\lib\\plate.par"],"to":["top_c","plate_c"]}
+@ct = se_design_manager {"action":"copy","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["top.dft","top.asm","sub.asm","pin.par","{{work}}\\runs\\a74_{{run}}\\lib\\plate.par"],"to":["top_c","top_c","sub_c","pin_c","plate_c"]}
+?~ ct.copy src\top_c.dft
+?~ ct.links src\\top_c.asm
+?~ ct.links src\\sub_c.asm
+?~ ct.links src\\pin_c.par
+?~ ct.links lib\\plate_c.par
+@lk = se_design_manager {"action":"links","path":"{{work}}\\runs\\a74_{{run}}\\src\\top_c.dft"}
+?= lk.count 4
+?= lk.missing 0
+@lc = se_design_manager {"action":"links","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft"}
+?= lc.count 4
+?~ lc.links src\\pin.par
+?~ lc.links lib\\plate.par
+@oc = se_documents {"action":"open","path":"{{work}}\\runs\\a74_{{run}}\\src\\top_c.asm"}
+@lcs = se_links {"action":"list","recursive":true}
+?~ lcs.links plate_c.par
+?= lcs.missing 0
+se_documents {"action":"close","document":"{{oc.handle}}","saveChanges":false}
+# Properties of a closed file
+@pt = se_properties {"action":"set","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par","name":"Title","value":"Pin-10x30"}
+?= pt.set SummaryInformation
+?= pt.value Pin-10x30
+@pc = se_properties {"action":"set","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par","name":"Supplier","value":"ACME"}
+?= pc.created true
+@pl = se_properties {"action":"list","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par","set":"Custom"}
+?= pl.sets[0].properties.Supplier ACME
+se_properties {"action":"delete","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par","name":"Supplier"}
+! [not_found] se_properties {"action":"delete","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par","name":"Supplier"}
+@pd = se_properties {"action":"set","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par","set":"SummaryInformation","name":"Last Print Date","value":"2026-11-20T10:30"}
+?= pd.value 2026-11-20T10:30:00.0000000
+! [invalid_argument] se_properties {"action":"set","path":"{{work}}\\runs\\a74_{{run}}\\src\\pin.par","set":"SummaryInformation","name":"Last Print Date","value":"soon"}
+# Refusals
+! [file_exists] se_design_manager {"action":"copy","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["{{work}}\\runs\\a74_{{run}}\\lib\\plate.par"],"to":["{{work}}\\runs\\a74_{{run}}\\src\\pin.par"]}
+! [invalid_argument] se_design_manager {"action":"rename","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["{{work}}\\runs\\a74_{{run}}\\other\\use.asm"],"to":["use_x"]}
+! [invalid_argument] se_design_manager {"action":"rename","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["top.dft"],"to":["top_x"]}
+! [invalid_argument] se_design_manager {"action":"release","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["top.dft"]}
+! [invalid_argument] se_design_manager {"action":"rename","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["pin.par"],"to":["pin.asm"]}
+@o =se_documents {"action":"open","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.asm"}
+! [document_open] se_design_manager {"action":"rename","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["pin.par"],"to":["pin_v2"]}
+se_documents {"action":"close","document":"{{o.handle}}","saveChanges":false}
+# Rename: the set and the document outside it that uses the pin
+@r = se_design_manager {"action":"rename","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["pin.par"],"to":["pin_v2"],"folders":["{{work}}\\runs\\a74_{{run}}\\other"]}
+?~ r.links pin_v2.par
+?~ r.outsideUsers use.asm
+# Copy, then replace the copy by the original
+@c = se_design_manager {"action":"copy","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["{{work}}\\runs\\a74_{{run}}\\lib\\plate.par"],"to":["plate_v1.1"]}
+?~ c.links plate_v1.1.par
+?~ c.changed[0].to lib\plate_v1.1.par
+@x = se_design_manager {"action":"replace","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["{{work}}\\runs\\a74_{{run}}\\lib\\plate_v1.1.par"],"to":["{{work}}\\runs\\a74_{{run}}\\lib\\plate.par"]}
+?~ x.changed[0].to lib\plate.par
+# Move without looking in 'other': use.asm keeps the old path, a broken link that relink fixes
+@m = se_design_manager {"action":"move","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["pin_v2.par"],"to":["{{work}}\\runs\\a74_{{run}}\\parts"]}
+?~ m.links parts\\pin_v2.par
+@b = se_design_manager {"action":"broken_links","folders":["{{work}}\\runs\\a74_{{run}}\\other"]}
+?= b.count 1
+?~ b.documents src\\pin_v2.par
+@rl = se_design_manager {"action":"relink","folders":["{{work}}\\runs\\a74_{{run}}\\other"],"files":["{{work}}\\runs\\a74_{{run}}\\src\\pin_v2.par"],"to":["{{work}}\\runs\\a74_{{run}}\\parts\\pin_v2.par"]}
+?= rl.count 1
+@b2 = se_design_manager {"action":"broken_links","folders":["{{work}}\\runs\\a74_{{run}}"],"subfolders":true}
+?= b2.count 0
+# Revise, release and status
+@v = se_design_manager {"action":"revise","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["{{work}}\\runs\\a74_{{run}}\\lib\\plate.par"],"to":["plate"]}
+?= v.changed[0].previousRevision 0
+?~ v.changed[0].to plate-{{v.changed[0].revision}}.par
+?~ v.links plate-{{v.changed[0].revision}}.par
+@rel = se_design_manager {"action":"release","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["{{work}}\\runs\\a74_{{run}}\\parts\\pin_v2.par"]}
+?= rel.changed[0].status released
+! [status_refused] se_design_manager {"action":"status","files":["{{work}}\\runs\\a74_{{run}}\\parts\\pin_v2.par"],"status":"available"}
+@st = se_design_manager {"action":"status","files":["{{work}}\\runs\\a74_{{run}}\\src\\top.asm"],"status":"in_review"}
+?= st.files[0].from available
+?= st.files[0].to in_review
+! [status_refused] se_design_manager {"action":"status","files":["{{work}}\\runs\\a74_{{run}}\\src\\top.asm","{{work}}\\runs\\a74_{{run}}\\parts\\pin_v2.par"],"status":"available"}
+@sp =se_properties {"action":"list","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.asm","set":"ExtendedSummaryInformation"}
+?= sp.sets[0].properties.Status 2
+# A released document outside the set that uses the pin keeps its links: the rename is refused before Design Manager acts
+se_design_manager {"action":"status","files":["{{work}}\\runs\\a74_{{run}}\\other\\use.asm"],"status":"released"}
+! [read_only] se_design_manager {"action":"rename","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","files":["{{work}}\\runs\\a74_{{run}}\\parts\\pin_v2.par"],"to":["pin_v3"],"folders":["{{work}}\\runs\\a74_{{run}}\\other"]}
+@l2 = se_design_manager {"action":"links","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft"}
+?~ l2.links parts\\pin_v2.par
+# Redefine links: the subassembly's links under lib pointed at a packed copy of the set
+@k = se_links {"action":"pack","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.dft","folder":"{{work}}\\runs\\a74_{{run}}\\pack"}
+@rd = se_design_manager {"action":"relink","path":"{{work}}\\runs\\a74_{{run}}\\src\\sub.asm","files":["{{work}}\\runs\\a74_{{run}}\\lib"],"to":["{{work}}\\runs\\a74_{{run}}\\pack"]}
+?= rd.count 1
+?~ rd.changed[0].to pack\plate-{{v.changed[0].revision}}.par
+@d = se_design_manager {"action":"duplicates","folders":["{{work}}\\runs\\a74_{{run}}"],"subfolders":true}
+?~ d.sameName plate-{{v.changed[0].revision}}.par
+?~ d.sameDocumentId pack\\top.dft
+# Solid Edge reads the results
+@o2 = se_documents {"action":"open","path":"{{work}}\\runs\\a74_{{run}}\\src\\top.asm"}
+@ll = se_links {"action":"list","recursive":true}
+?~ ll.links parts\\pin_v2.par
+?~ ll.links pack\\plate-{{v.changed[0].revision}}.par
+?= ll.missing 0
+se_documents {"action":"close","document":"{{o2.handle}}","saveChanges":false}
+@o3 = se_documents {"action":"open","path":"{{work}}\\runs\\a74_{{run}}\\other\\use.asm"}
+@lu = se_links {"action":"list"}
+?~ lu.links parts\\pin_v2.par
+?= lu.missing 0
+se_documents {"action":"close","document":"{{o3.handle}}","saveChanges":false}
+@o4 = se_documents {"action":"open","path":"{{work}}\\runs\\a74_{{run}}\\parts\\pin_v2.par"}
+?= o4.readOnly true
+@t4 = se_properties {"action":"list","set":"SummaryInformation"}
+?= t4.sets[0].properties.Title Pin-10x30
+se_documents {"action":"close","document":"{{o4.handle}}","saveChanges":false}
+@docs1 = se_documents {"action":"list"}
+?= docs1.count 0 0

@@ -1,0 +1,100 @@
+# A124: se_relations edit (the angle of an angle relation drives a gear pair, a planar offset, suppress and restore), the assembly base planes by name ('xy' in add and as the angle's measurement plane), connect onto an assembly plane refused upfront, se_assembly rotate of a gear driving the other one, recompute of an assembly, and se_component_query find on an assembly that is not the active document.
+se_session {"action":"connect"}
+@docs0 = se_documents {"action":"list"}
+?= docs0.count 0 0
+# A base 200 x 100 x 10 with holes 10 at (-40,0) and (40,0): 200000 - 2 x pi x 5^2 x 10 = 198429.204
+@p1 = se_documents {"action":"new","kind":"part"}
+@b1 = se_primitive {"shape":"box","center":[0,0,0],"size":[200,100],"depth":10}
+@h1 = se_hole {"plane":"1","centers":[-40,0,0, 40,0,0],"diameter":10}
+?= h1.volume 198429.204 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a124_base.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# Bars 60 x 20 x 10 and 30 x 20 x 10 with a hole 10 in the middle: 12000 - 785.398 and 6000 - 785.398
+@p2 = se_documents {"action":"new","kind":"part"}
+@b2 = se_primitive {"shape":"box","center":[0,0,0],"size":[60,20],"depth":10}
+@h2 = se_hole {"plane":"1","centers":[0,0,0],"diameter":10}
+?= h2.volume 11214.602 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a124_g1.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@p3 = se_documents {"action":"new","kind":"part"}
+@b3 = se_primitive {"shape":"box","center":[0,0,0],"size":[30,20],"depth":10}
+@h3 = se_hole {"plane":"1","centers":[0,0,0],"diameter":10}
+?= h3.volume 5214.602 0.01
+se_documents {"action":"save_as","path":"{{work}}\\a124_g2.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@as = se_documents {"action":"new","kind":"assembly"}
+@ob = se_assembly {"action":"insert","path":"{{work}}\\a124_base.par"}
+@o1 = se_assembly {"action":"insert","path":"{{work}}\\a124_g1.par","origin":[-40,0,30],"ground":false}
+@o2 = se_assembly {"action":"insert","path":"{{work}}\\a124_g2.par","origin":[40,0,30],"ground":false}
+@o3 = se_assembly {"action":"insert","path":"{{work}}\\a124_g2.par","origin":[0,80,30],"ground":false}
+@cb = se_geometry {"action":"faces","source":"{{ob.handle}}","type":"cylinder"}
+@tb = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[0,0,1]}
+@yb = se_geometry {"action":"faces","source":"{{ob.handle}}","direction":[0,1,0]}
+@c1 = se_geometry {"action":"faces","source":"{{o1.handle}}","type":"cylinder"}
+@d1 = se_geometry {"action":"faces","source":"{{o1.handle}}","direction":[0,0,-1]}
+@y1 = se_geometry {"action":"faces","source":"{{o1.handle}}","direction":[0,1,0]}
+@c2 = se_geometry {"action":"faces","source":"{{o2.handle}}","type":"cylinder"}
+@d2 = se_geometry {"action":"faces","source":"{{o2.handle}}","direction":[0,0,-1]}
+@d3 = se_geometry {"action":"faces","source":"{{o3.handle}}","direction":[0,0,-1]}
+@e3 = se_geometry {"action":"edges","source":"{{o3.handle}}","type":"circle"}
+# The two bars on the base, free to turn on their holes, and a gear 40:20 between them
+se_relations {"action":"add","type":"planar","element1":"{{d1.items[0].handle}}","element2":"{{tb.items[0].handle}}"}
+se_relations {"action":"add","type":"axial","element1":"{{c1.items[0].handle}}","element2":"{{cb.items[0].handle}}","lockRotation":false}
+se_relations {"action":"add","type":"planar","element1":"{{d2.items[0].handle}}","element2":"{{tb.items[0].handle}}"}
+se_relations {"action":"add","type":"axial","element1":"{{c2.items[0].handle}}","element2":"{{cb.items[1].handle}}","lockRotation":false}
+@gr = se_relations {"action":"add","type":"gear","element1":"{{c1.items[0].handle}}","element2":"{{c2.items[0].handle}}","ratio":[40,20]}
+?= gr.relations[0].status solved
+# An assembly base plane by name: the third bar's bottom face 5 mm above 'xy', then moved to 12 mm by editing the offset
+@pz = se_relations {"action":"add","type":"planar","element1":"{{d3.items[0].handle}}","element2":"xy","offset":5}
+?= pz.relations[0].offset 5
+@f5 = se_geometry {"action":"faces","source":"{{o3.handle}}","direction":[0,0,-1]}
+?= f5.items[0].boundingBox.min[2] 5
+@ep = se_relations {"action":"edit","relation":"{{pz.relations[0].handle}}","offset":12}
+?= ep.relation.offset 12
+?= ep.moved[0].name {{o3.name}}
+@f12 = se_geometry {"action":"faces","source":"{{o3.handle}}","direction":[0,0,-1]}
+?= f12.items[0].boundingBox.min[2] 12
+# Connect onto an assembly plane: refused before touching the assembly (Solid Edge rejects it with E_NOINTERFACE)
+! [invalid_argument] se_relations {"action":"add","type":"connect","element1":"{{e3.items[0].handle}}","point1":"center","element2":"xy"}
+# The gear driven by an angle relation measured in 'xy': its +Y face to the base's +Y face at 0, then edited to 30 degrees: g1 turns 30, g2 60 (40:20)
+@an = se_relations {"action":"add","type":"angle","element1":"{{y1.items[0].handle}}","element2":"{{yb.items[0].handle}}","angle":0,"plane":"xy"}
+?= an.relations[0].status solved
+@ea = se_relations {"action":"edit","relation":"{{an.relations[0].handle}}","angle":30}
+?= ea.relation.angle 30
+?= ea.moved[0].name {{o1.name}}
+?= ea.moved[0].angles[2] 30
+?= ea.moved[1].name {{o2.name}}
+?= ea.moved[1].angles[2] 60
+# Suppressed, nothing moves; g1 turned 15 degrees about its axis then drives g2 30 more through the gear, as dragging it does (through a temporary angle relation, deleted after); restored, the angle relation puts g1 back at 30 and g2 at 60
+@es = se_relations {"action":"edit","relation":"{{an.relations[0].handle}}","suppress":true}
+?= es.relation.suppressed true
+?= es.moved []
+@rlb = se_relations {"action":"list"}
+@rot = se_assembly {"action":"rotate","occurrence":"{{o1.handle}}","axis":[-40,0,0,-40,0,1],"angle":15}
+?= rot.angles[2] 45
+?~ rot.note as dragging it does
+?= rot.driven[0].name {{o2.name}}
+?= rot.driven[0].angles[2] 90
+@l1 = se_assembly {"action":"list"}
+?= l1.occurrences[2].angles[2] 90
+@rla = se_relations {"action":"list"}
+?= rla.count {{rlb.count}}
+@eu = se_relations {"action":"edit","relation":"{{an.relations[0].handle}}","suppress":false}
+?= eu.relation.status solved
+?= eu.moved[0].name {{o1.name}}
+?= eu.moved[0].angles[2] 30
+?= eu.moved[1].angles[2] 60
+# Refused edits: an offset on an angle relation, an angle on a gear, nothing to change
+! [invalid_argument] se_relations {"action":"edit","relation":"{{an.relations[0].handle}}","offset":5}
+! [invalid_argument] se_relations {"action":"edit","relation":"{{gr.relations[0].handle}}","angle":10}
+! [invalid_argument] se_relations {"action":"edit","relation":"{{gr.relations[0].handle}}"}
+# Recompute of an assembly (its Update)
+@rc = se_documents {"action":"recompute","document":"{{as.handle}}"}
+?= rc.kind assembly
+# Find components while another document is active: the assembly is activated for the query
+@pt = se_documents {"action":"new","kind":"part"}
+@fq = se_component_query {"action":"find","document":"{{as.handle}}","criteria":[{"property":"name","condition":"contains","value":"a124_g1"}]}
+?= fq.count 1
+?= fq.components[0].name {{o1.name}}
+se_documents {"action":"close","document":"{{pt.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{as.handle}}","saveChanges":false}

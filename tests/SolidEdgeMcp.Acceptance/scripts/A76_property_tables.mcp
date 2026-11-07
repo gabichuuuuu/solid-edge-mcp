@@ -1,0 +1,80 @@
+# A76: property tables attached to faces, features and edges through the generic layer (se_com_*). Block 100x60x20.
+#   A table definition Finish (Roughness 1.6, a double; Coating Zinc, a string) attached to the top face and to an edge, and
+#   Treatment (Hardness 45) to the faces of the extrusion; the select filter must be an int[] (an object[] gives
+#   DISP_E_TYPEMISMATCH), and a face already in a table of a definition cannot go into another of the same one (E_FAIL).
+#   Values changed per attached table and kept after saving and opening; found by table and by name and value (scalars:
+#   arrays make Solid Edge throw RPC_E_SERVERFAULT, so the generic layer refuses them); one attached table deleted.
+@p = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+@b = se_extrude {"sketch":"{{k.sketch}}","distance":20}
+?= b.volume 120000 0.001
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@edges = se_geometry {"action":"edges","source":"{{top.items[0].handle}}"}
+@defs = se_com_get {"target":"active_document","member":"PropertyTableDefinitions"}
+@def = se_com_invoke {"target":"{{defs.value.handle}}","method":"Add","arguments":["Finish"]}
+@pd = se_com_get {"target":"{{def.result.handle}}","member":"PropertyDefinitions"}
+se_com_invoke {"target":"{{pd.value.handle}}","method":"Add","arguments":["Roughness",1,1.6]}
+se_com_invoke {"target":"{{pd.value.handle}}","method":"Add","arguments":["Coating",2,"Zinc"]}
+@ats = se_com_get {"target":"active_document","member":"AttachedPropertyTables"}
+! se_com_invoke {"target":"{{ats.value.handle}}","method":"Add","arguments":[{"handle":"{{def.result.handle}}"},1,{"type":"object[]","value":[1]},{"type":"object[]","value":[{"handle":"{{top.items[0].handle}}"}]},"Bad"]}
+@t1 = se_com_invoke {"target":"{{ats.value.handle}}","method":"Add","arguments":[{"handle":"{{def.result.handle}}"},1,{"type":"int[]","value":[1]},{"type":"object[]","value":[{"handle":"{{top.items[0].handle}}"}]},"TopFinish"]}
+@n1 = se_com_get {"target":"{{t1.result.handle}}","member":"NumAttachedObjects"}
+?= n1.value 1 0
+! [solid_edge_error] se_com_invoke {"target":"{{ats.value.handle}}","method":"Add","arguments":[{"handle":"{{def.result.handle}}"},1,{"type":"int[]","value":[4]},{"type":"object[]","value":[{"handle":"{{b.feature.handle}}"}]},"BoxFinish"]}
+@def2 = se_com_invoke {"target":"{{defs.value.handle}}","method":"Add","arguments":["Treatment"]}
+@pd2 = se_com_get {"target":"{{def2.result.handle}}","member":"PropertyDefinitions"}
+se_com_invoke {"target":"{{pd2.value.handle}}","method":"Add","arguments":["Hardness",1,45]}
+@t2 = se_com_invoke {"target":"{{ats.value.handle}}","method":"Add","arguments":[{"handle":"{{def2.result.handle}}"},1,{"type":"int[]","value":[4]},{"type":"object[]","value":[{"handle":"{{b.feature.handle}}"}]},"BlockTreatment"]}
+@n2 = se_com_get {"target":"{{t2.result.handle}}","member":"NumAttachedObjects"}
+?= n2.value 1 0
+@t3 = se_com_invoke {"target":"{{ats.value.handle}}","method":"Add","arguments":[{"handle":"{{def.result.handle}}"},1,{"type":"int[]","value":[5]},{"type":"object[]","value":[{"handle":"{{edges.items[0].handle}}"}]},"EdgeFinish"]}
+@all = se_com_items {"target":"{{ats.value.handle}}"}
+?= all.count 3 0
+@aps = se_com_get {"target":"{{t1.result.handle}}","member":"AttachedProperties"}
+@props = se_com_items {"target":"{{aps.value.handle}}"}
+?= props.count 2 0
+?~ props.items[0].name Roughness
+?~ props.items[1].name Coating
+se_com_set {"target":"{{props.items[0].value.handle}}","member":"Value","value":3.2}
+se_com_set {"target":"{{props.items[1].value.handle}}","member":"Value","value":"Paint"}
+@aps2 = se_com_get {"target":"{{t2.result.handle}}","member":"AttachedProperties"}
+@props2 = se_com_items {"target":"{{aps2.value.handle}}"}
+@v2 = se_com_get {"target":"{{props2.items[0].value.handle}}","member":"Value"}
+?= v2.value 45 0.000001
+se_documents {"action":"save_as","path":"{{work}}\\a76_property_tables.par","overwrite":true}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@r = se_documents {"action":"open","path":"{{work}}\\a76_property_tables.par"}
+@rats = se_com_get {"target":"active_document","member":"AttachedPropertyTables"}
+@rall = se_com_items {"target":"{{rats.value.handle}}"}
+?= rall.count 3 0
+?~ rall.items[0].name TopFinish
+@raps = se_com_get {"target":"{{rall.items[0].value.handle}}","member":"AttachedProperties"}
+@rprops = se_com_items {"target":"{{raps.value.handle}}"}
+@rv1 = se_com_get {"target":"{{rprops.items[0].value.handle}}","member":"Value"}
+?= rv1.value 3.2 0.000001
+@rv2 = se_com_get {"target":"{{rprops.items[1].value.handle}}","member":"Value"}
+?~ rv2.value Paint
+@qt = se_com_invoke {"target":"active_document","method":"QueryByProperty","arguments":[2,"Finish"]}
+@qti = se_com_items {"target":"{{qt.result.handle}}"}
+?= qti.count 2 0
+@qh = se_com_invoke {"target":"active_document","method":"QueryByProperty","arguments":[2,"Treatment"]}
+@qhi = se_com_items {"target":"{{qh.result.handle}}"}
+?= qhi.count 1 0
+?~ qhi.items[0].name BlockTreatment
+@qz = se_com_invoke {"target":"active_document","method":"QueryByProperty","arguments":[3,"Finish",1,"Coating",2,"Zinc"]}
+@qzi = se_com_items {"target":"{{qz.result.handle}}"}
+?= qzi.count 1 0
+?~ qzi.items[0].name EdgeFinish
+@qp = se_com_invoke {"target":"active_document","method":"QueryByProperty","arguments":[3,"Finish",1,"Coating",2,"Paint"]}
+@qpi = se_com_items {"target":"{{qp.result.handle}}"}
+?= qpi.count 1 0
+?~ qpi.items[0].name TopFinish
+! [unsafe_member] se_com_invoke {"target":"active_document","method":"QueryByProperty","arguments":[3,"Finish",1,{"type":"object[]","value":["Coating"]},{"type":"int[]","value":[2]},{"type":"object[]","value":["Zinc"]}]}
+se_com_invoke {"target":"{{rall.items[2].value.handle}}","method":"Delete"}
+@rest = se_com_items {"target":"{{rats.value.handle}}"}
+?= rest.count 2 0
+@v = se_physical {}
+?= v.volume 120000 0.001
+se_documents {"action":"close","document":"{{r.handle}}","saveChanges":false}

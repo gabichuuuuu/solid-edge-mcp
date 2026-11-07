@@ -1,0 +1,394 @@
+# A10: enumeration values that A01–A09 do not use (orientations, directions, types and remaining actions).
+# 1) Session, documents (weldment, activate, save), material, view and variables
+se_session {"action":"disconnect"}
+@s0 = se_session {"action":"status"}
+?~ s0.connected false
+se_session {"action":"connect"}
+# Solid Edge 2026 has no .pwd template: the weldment is created as an assembly with the template "<units> weldment.asm"
+@w = se_documents {"action":"new","kind":"weldment"}
+?= w.kind assembly
+se_documents {"action":"close","document":"{{w.handle}}","saveChanges":false}
+@p1 = se_documents {"action":"new","kind":"part"}
+@k1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[0,0,40,30]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+@e1 = se_extrude {"sketch":"{{k1.sketch}}","distance":10}
+?= e1.volume 12000
+se_documents {"action":"save_as","path":"{{work}}\\a10_doc.par","overwrite":true}
+@p2 = se_documents {"action":"new","kind":"part"}
+@ac = se_documents {"action":"activate","document":"{{p1.handle}}"}
+?~ ac.active true
+# Extrusion 'reverse' 10x10 x5 below the XY plane -> +500 and box z -5..10; 'save' leaves the document unchanged
+@k2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[0,0,10,10]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@e2 = se_extrude {"sketch":"{{k2.sketch}}","distance":5,"direction":"reverse"}
+?= e2.volumeChange 500
+@g2 = se_geometry {"action":"summary"}
+?= g2.boundingBox.min[2] -5
+@sv = se_documents {"action":"save"}
+?~ sv.dirty false
+@mi = se_material {"action":"info","name":"Steel","folder":"installation"}
+?~ mi 7833
+se_view {"action":"orient","orientation":"front"}
+se_view {"action":"orient","orientation":"back"}
+se_view {"action":"orient","orientation":"top"}
+se_view {"action":"orient","orientation":"bottom"}
+se_view {"action":"orient","orientation":"left"}
+se_view {"action":"orient","orientation":"right"}
+se_view {"action":"orient","orientation":"dimetric"}
+se_view {"action":"orient","orientation":"trimetric"}
+se_variables {"action":"add","name":"A10ang","value":30,"units":"angle"}
+se_variables {"action":"add","name":"A10area","value":100,"units":"area"}
+se_variables {"action":"add","name":"A10vol","value":1000,"units":"volume"}
+se_variables {"action":"add","name":"A10mass","value":2,"units":"mass"}
+se_variables {"action":"add","name":"A10sc","value":3,"units":"scalar"}
+@gv = se_variables {"action":"get","name":"A10ang"}
+?= gv.value 30
+@gm = se_variables {"action":"get","name":"A10mass"}
+?= gm.value 2
+@ga = se_variables {"action":"get","name":"A10area"}
+?= ga.value 100
+@lu = se_variables {"action":"list","kind":"user"}
+?~ lu A10sc
+@ld = se_variables {"action":"list","kind":"dimension"}
+se_documents {"action":"close","document":"{{p2.handle}}","saveChanges":false}
+se_documents {"action":"close","document":"{{p1.handle}}","saveChanges":false}
+# 2) Operations: through_next, hole direction, revolve reverse/symmetric, outside shell, reverse draft,
+#    cut loft and left-hand helix. Box 40x30x20 = 24000.
+@dA = se_documents {"action":"new","kind":"part"}
+@kA = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kA.sketch}}","points":[0,0,40,30]}
+se_sketch {"action":"close","sketch":"{{kA.sketch}}"}
+se_extrude {"sketch":"{{kA.sketch}}","distance":20}
+# r5 cut at (20,15) from z=0 to the next face (z=20): -pi*25*20 = -1570.796
+@kB = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{kB.sketch}}","center":[20,15],"radius":5}
+se_sketch {"action":"close","sketch":"{{kB.sketch}}"}
+@tn = se_extrude {"sketch":"{{kB.sketch}}","operation":"cut","extent":"through_next"}
+?= tn.volumeChange -1570.796 0.01
+# Ø6 hole at (32,15) from the XY plane toward +Z to the next face: -pi*9*20 = -565.487
+@h1 = se_hole {"plane":"1","centers":[32,15,0],"diameter":6,"extent":"through_next","direction":"normal"}
+?= h1.volumeChange -565.487 0.01
+# Ø4 hole at (8,15) from a plane at z=20 toward -Z ('reverse'): -pi*4*20 = -251.327
+@rp = se_ref_plane {"action":"offset","plane":"1","distance":20}
+@h2 = se_hole {"plane":"{{rp.handle}}","centers":[8,15,20],"diameter":4,"direction":"reverse"}
+?= h2.volumeChange -251.327 0.01
+se_documents {"action":"close","document":"{{dA.handle}}","saveChanges":false}
+# 90° revolve of the rectangle x 5..15, z 0..10 around the Z axis: pi*(15²-5²)/4*10 = 1570.796 in each direction;
+# 'reverse' fills the other quadrant (+1570.796) and 'symmetric' is centered on the XZ plane (y = ±15*sin45 = ±10.607)
+@dR = se_documents {"action":"new","kind":"part"}
+@kR = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{kR.sketch}}","points":[5,0,15,10]}
+@lR = se_sketch {"action":"line","sketch":"{{kR.sketch}}","points":[0,0,0,40]}
+@aR = se_sketch {"action":"axis","sketch":"{{kR.sketch}}","element":"{{lR.element}}"}
+se_sketch {"action":"close","sketch":"{{kR.sketch}}"}
+@r1 = se_revolve {"sketch":"{{kR.sketch}}","axis":"{{aR.axis}}","angle":90}
+?= r1.volume 1570.796 0.01
+@kR2 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{kR2.sketch}}","points":[5,0,15,10]}
+@lR2 = se_sketch {"action":"line","sketch":"{{kR2.sketch}}","points":[0,0,0,40]}
+@aR2 = se_sketch {"action":"axis","sketch":"{{kR2.sketch}}","element":"{{lR2.element}}"}
+se_sketch {"action":"close","sketch":"{{kR2.sketch}}"}
+@r2 = se_revolve {"sketch":"{{kR2.sketch}}","axis":"{{aR2.axis}}","angle":90,"direction":"reverse"}
+?= r2.volumeChange 1570.796 0.01
+se_documents {"action":"close","document":"{{dR.handle}}","saveChanges":false}
+@dY = se_documents {"action":"new","kind":"part"}
+@kY = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{kY.sketch}}","points":[5,0,15,10]}
+@lY = se_sketch {"action":"line","sketch":"{{kY.sketch}}","points":[0,0,0,40]}
+@aY = se_sketch {"action":"axis","sketch":"{{kY.sketch}}","element":"{{lY.element}}"}
+se_sketch {"action":"close","sketch":"{{kY.sketch}}"}
+@r3 = se_revolve {"sketch":"{{kY.sketch}}","axis":"{{aY.axis}}","angle":90,"direction":"symmetric"}
+?= r3.volume 1570.796 0.01
+@gY = se_geometry {"action":"summary"}
+?= gY.boundingBox.max[1] 10.607 0.01
+?= gY.boundingBox.min[1] -10.607 0.01
+se_documents {"action":"close","document":"{{dY.handle}}","saveChanges":false}
+# Outside shell of 2 open at the top on a 50x50x30 box: 54*54*32 - 50*50*30 = 18312
+@dS = se_documents {"action":"new","kind":"part"}
+@kS = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kS.sketch}}","points":[0,0,50,50]}
+se_sketch {"action":"close","sketch":"{{kS.sketch}}"}
+se_extrude {"sketch":"{{kS.sketch}}","distance":30}
+@tS = se_geometry {"action":"faces","direction":[0,0,1]}
+@sh = se_shell {"thickness":2,"openFaces":["{{tS.items[0].handle}}"],"side":"outside"}
+?= sh.volume 18312 0.5
+se_documents {"action":"close","document":"{{dS.handle}}","saveChanges":false}
+# 5° 'reverse' draft of the four faces of a 40x40x20 box: it widens toward +Z, b = 40 + 2*20*tan5 -> 34881.28
+@dD = se_documents {"action":"new","kind":"part"}
+@kD = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kD.sketch}}","points":[0,0,40,40]}
+se_sketch {"action":"close","sketch":"{{kD.sketch}}"}
+se_extrude {"sketch":"{{kD.sketch}}","distance":20}
+@f1 = se_geometry {"action":"faces","direction":[1,0,0]}
+@f2 = se_geometry {"action":"faces","direction":[-1,0,0]}
+@f3 = se_geometry {"action":"faces","direction":[0,1,0]}
+@f4 = se_geometry {"action":"faces","direction":[0,-1,0]}
+@dr = se_draft {"plane":"1","faces":["{{f1.items[0].handle}}","{{f2.items[0].handle}}","{{f3.items[0].handle}}","{{f4.items[0].handle}}"],"angle":5,"direction":"reverse"}
+?= dr.volume 34881.28 0.5
+se_documents {"action":"close","document":"{{dD.handle}}","saveChanges":false}
+# Cut loft from a square 20 -> circle r7.5 at 50 mm (half the plan area of the A03 one: 56453.84/4 = 14113.46) in a 60x60x60 block;
+#   Solid Edge gives 14113.405 (4e-6 relative)
+@dL = se_documents {"action":"new","kind":"part"}
+@kL = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{kL.sketch}}","points":[0,0,60,60]}
+se_sketch {"action":"close","sketch":"{{kL.sketch}}"}
+se_extrude {"sketch":"{{kL.sketch}}","distance":60}
+@la = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{la.sketch}}","points":[20,20,40,40]}
+se_sketch {"action":"close","sketch":"{{la.sketch}}"}
+@lp = se_ref_plane {"action":"offset","plane":"1","distance":50}
+@lb = se_sketch {"action":"create","plane":"{{lp.handle}}"}
+se_sketch {"action":"circle","sketch":"{{lb.sketch}}","center":[30,30],"radius":7.5}
+se_sketch {"action":"close","sketch":"{{lb.sketch}}"}
+@lc = se_loft_sweep {"action":"loft","sketches":["{{la.sketch}}","{{lb.sketch}}"],"operation":"cut"}
+?= lc.volumeChange -14113.46 0.1
+se_documents {"action":"close","document":"{{dL.handle}}","saveChanges":false}
+# Left-hand helix: same volume as the A03 one (3948.50); Body.Volume of the helical sweeps varies ~6e-5 (3948.73)
+@dX = se_documents {"action":"new","kind":"part"}
+@h = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"circle","sketch":"{{h.sketch}}","center":[10,3],"radius":2}
+@hl = se_sketch {"action":"line","sketch":"{{h.sketch}}","points":[0,0,0,40]}
+@ha = se_sketch {"action":"axis","sketch":"{{h.sketch}}","element":"{{hl.element}}"}
+se_sketch {"action":"close","sketch":"{{h.sketch}}"}
+@hx = se_loft_sweep {"action":"helix","sketches":["{{h.sketch}}"],"axis":"{{ha.axis}}","pitch":8,"turns":5,"hand":"left"}
+?= hx.volume 3948.50 0.5
+se_documents {"action":"close","document":"{{dX.handle}}","saveChanges":false}
+# 3) Sketches: arc, delete, collinear and connect relations, radius dimension
+#    Profile of 4 loose lines with a gap at (0,0)-(1,0); 'connect' closes it, and a circle with radius dimensioned to 4 -> 8000 - pi*16*10
+@dK = se_documents {"action":"new","kind":"part"}
+@kK = se_sketch {"action":"create","plane":"1"}
+@L1 = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[1,0,40,0]}
+se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[40,0,40,20]}
+se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[40,20,0,20]}
+@L4 = se_sketch {"action":"line","sketch":"{{kK.sketch}}","points":[0,20,0,0]}
+se_sketch_constraint {"action":"relation","sketch":"{{kK.sketch}}","relation":"connect","elements":["{{L4.element}}","{{L1.element}}"],"keypoints":[1,0]}
+@cK = se_sketch {"action":"circle","sketch":"{{kK.sketch}}","center":[20,10],"radius":5}
+@rK = se_sketch_constraint {"action":"dimension","sketch":"{{kK.sketch}}","dimension":"radius","elements":["{{cK.element}}"],"value":4}
+?= rK.value 4
+se_sketch {"action":"close","sketch":"{{kK.sketch}}"}
+@eK = se_extrude {"sketch":"{{kK.sketch}}","distance":10}
+?= eK.volume 7497.345 0.01
+#    Half disc: arc from (10,0) to (-10,0) counter-clockwise and its diameter -> pi*100/2*10 = 1570.796 (joined to the plate, no overlap: y < 0)
+@kC = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"arc","sketch":"{{kC.sketch}}","center":[20,0],"start":[10,0],"end":[30,0]}
+se_sketch {"action":"line","sketch":"{{kC.sketch}}","points":[10,0,30,0]}
+se_sketch {"action":"close","sketch":"{{kC.sketch}}"}
+@eC = se_extrude {"sketch":"{{kC.sketch}}","distance":10}
+?= eC.volumeChange 1570.796 0.01
+#    Collinear between two lines of an auxiliary sketch, which is deleted afterwards
+@kZ = se_sketch {"action":"create","plane":"1"}
+@z1 = se_sketch {"action":"line","sketch":"{{kZ.sketch}}","points":[0,40,20,40]}
+@z2 = se_sketch {"action":"line","sketch":"{{kZ.sketch}}","points":[30,43,50,43]}
+se_sketch_constraint {"action":"relation","sketch":"{{kZ.sketch}}","relation":"colinear","elements":["{{z1.element}}","{{z2.element}}"]}
+@zi = se_sketch {"action":"info","sketch":"{{kZ.sketch}}"}
+se_sketch {"action":"delete","sketch":"{{kZ.sketch}}"}
+@ft = se_feature_tree {}
+se_documents {"action":"close","document":"{{dK.handle}}","saveChanges":false}
+# 4) Drawings: sheet sizes, the 12 base view orientations and the missing projection directions
+#    Part a10_doc.par: 40x30x10 plus 10x10x5 below z=0 -> box 40 x 30 x 15. View size at 1:1 = model + 12.7 (A07).
+@dd = se_documents {"action":"new","kind":"draft"}
+@sa4 = se_drawing {"action":"add_sheet","name":"A4","paper":"a4"}
+@sa1 = se_drawing {"action":"add_sheet","name":"A1","paper":"a1"}
+@saa = se_drawing {"action":"add_sheet","name":"AA","paper":"ansi_a"}
+@sab = se_drawing {"action":"add_sheet","name":"AB","paper":"ansi_b"}
+@sac = se_drawing {"action":"add_sheet","name":"AC","paper":"ansi_c"}
+@sad = se_drawing {"action":"add_sheet","name":"AD","paper":"ansi_d"}
+@sae = se_drawing {"action":"add_sheet","name":"AE","paper":"ansi_e"}
+@sa0 = se_drawing {"action":"add_sheet","name":"A0","paper":"a0"}
+@ls = se_drawing {"action":"sheets"}
+@vb = se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"back","position":[100,700],"scale":1}
+?= vb.view.size[0] 52.7 0.1
+@vbo = se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"bottom","position":[200,700],"scale":1}
+?= vbo.view.size[1] 42.7 0.1
+@vl = se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"left","position":[300,700],"scale":1}
+?= vl.view.size[0] 42.7 0.1
+@vr = se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"right","position":[400,700],"scale":1}
+?= vr.view.size[0] 42.7 0.1
+se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"top_front_right","position":[100,550],"scale":1}
+se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"top_front_left","position":[200,550],"scale":1}
+se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"top_back_right","position":[300,550],"scale":1}
+se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"top_back_left","position":[400,550],"scale":1}
+se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"bottom_front_right","position":[100,400],"scale":1}
+se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"bottom_front_left","position":[200,400],"scale":1}
+se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"bottom_back_right","position":[300,400],"scale":1}
+se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"bottom_back_left","position":[400,400],"scale":1}
+@vf = se_drawing {"action":"base_view","path":"{{work}}\\a10_doc.par","orientation":"front","position":[800,400],"scale":1}
+@pu = se_drawing {"action":"projected_view","view":"{{vf.view.handle}}","direction":"up"}
+?= pu.view.center[0] {{vf.view.center[0]}} 0.01
+@pl = se_drawing {"action":"projected_view","view":"{{vf.view.handle}}","direction":"left"}
+?= pl.view.center[1] {{vf.view.center[1]}} 0.01
+se_drawing {"action":"projected_view","view":"{{vf.view.handle}}","direction":"up_left"}
+se_drawing {"action":"projected_view","view":"{{vf.view.handle}}","direction":"down_right"}
+se_drawing {"action":"projected_view","view":"{{vf.view.handle}}","direction":"down_left"}
+@vs = se_drawing {"action":"views"}
+?~ vs.views[17].handle drawing_view
+se_documents {"action":"close","document":"{{dd.handle}}","saveChanges":false}
+# 5) Sheet metal (t = 1, r = 1)
+#    Tab 'reverse' (thickness toward -Z) and 'symmetric' not accepted on tabs; round corner break r5 (-(25 - 25pi/4)*t = -5.365) and chamfer 5 (-12.5)
+@m1 = se_documents {"action":"new","kind":"sheet_metal"}
+@q1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q1.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{q1.sketch}}"}
+! se_sheetmetal {"action":"tab","sketch":"{{q1.sketch}}","direction":"symmetric"}
+@tr = se_sheetmetal {"action":"tab","sketch":"{{q1.sketch}}","direction":"reverse"}
+?= tr.volume 6000
+@gq = se_geometry {"action":"summary"}
+?= gq.boundingBox.min[2] -1
+@ve = se_geometry {"action":"edges","direction":[0,0,1]}
+@bc1 = se_sheetmetal {"action":"break_corner","edges":["{{ve.items[0].handle}}"],"cornerType":"round","size":5}
+?= bc1.volumeChange -5.365 0.01
+@ve2 = se_geometry {"action":"edges","direction":[0,0,1],"type":"line"}
+@bc2 = se_sheetmetal {"action":"break_corner","edges":["{{ve2.items[?start=[100,0,-1]].handle}}"],"cornerType":"chamfer","size":5}
+?= bc2.volumeChange -12.5 0.01
+se_documents {"action":"close","document":"{{m1.handle}}","saveChanges":false}
+#    Flanges of 20 'outside' and 'bend_outside' on the two x edges of the top face of a 100x60 tab.
+#    With 'inside' (A05) each flange adds 1700 + 75pi = 1935.619; each step outward shifts it t = 1 mm: +100 each time
+@m2 = se_documents {"action":"new","kind":"sheet_metal"}
+@q2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q2.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{q2.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{q2.sketch}}"}
+@top2 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te2 = se_geometry {"action":"edges","source":"{{top2.items[0].handle}}","direction":[1,0,0]}
+@fo = se_sheetmetal {"action":"flange","edges":["{{te2.items[0].handle}}"],"length":20,"side":"outside"}
+?= fo.volumeChange 2035.619 0.01
+@top3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@te3 = se_geometry {"action":"edges","source":"{{top3.items[0].handle}}","direction":[1,0,0]}
+@fb = se_sheetmetal {"action":"flange","edges":["{{te3.items[1].handle}}"],"length":20,"side":"bend_outside"}
+?= fb.volumeChange 2135.619 0.01
+@gm2 = se_geometry {"action":"summary"}
+se_documents {"action":"close","document":"{{m2.handle}}","saveChanges":false}
+#    Open, S-shaped and closed-loop hems, each on its own sheet (tab + 20 flange at y=0, top edge at z=21).
+#    Open: 180° bend with r = 1 (pi*(r + t/2)*t*w = 471.239) + straight segment of 8 - t = 7 -> +1171.239.
+#    S-shaped: two 180° bends (942.478) + straight segments of 7 and 6 -> +2242.478.
+#    Closed loop: Solid Edge reference value (like the closed one in A05, +957.508), no simple formula.
+@m3 = se_documents {"action":"new","kind":"sheet_metal"}
+@q3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q3.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{q3.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{q3.sketch}}"}
+@t3 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e3 = se_geometry {"action":"edges","source":"{{t3.items[0].handle}}","direction":[1,0,0]}
+se_sheetmetal {"action":"flange","edges":["{{e3.items[0].handle}}"],"length":20}
+@ed3 = se_geometry {"action":"edges","direction":[1,0,0]}
+@hm1 = se_sheetmetal {"action":"hem","edges":["{{ed3.items[?start=[0,0,21]].handle}}"],"length":8,"hemType":"open"}
+?= hm1.volumeChange 1171.239 0.01
+se_documents {"action":"close","document":"{{m3.handle}}","saveChanges":false}
+@m4 = se_documents {"action":"new","kind":"sheet_metal"}
+@q4 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q4.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{q4.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{q4.sketch}}"}
+@t4 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e4 = se_geometry {"action":"edges","source":"{{t4.items[0].handle}}","direction":[1,0,0]}
+se_sheetmetal {"action":"flange","edges":["{{e4.items[0].handle}}"],"length":20}
+@ed4 = se_geometry {"action":"edges","direction":[1,0,0]}
+@hm2 = se_sheetmetal {"action":"hem","edges":["{{ed4.items[?start=[0,0,21]].handle}}"],"length":8,"hemType":"s_flange","length2":6}
+?= hm2.volumeChange 2242.478 0.01
+se_documents {"action":"close","document":"{{m4.handle}}","saveChanges":false}
+@m5 = se_documents {"action":"new","kind":"sheet_metal"}
+@q5 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q5.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{q5.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{q5.sketch}}"}
+@t5 = se_geometry {"action":"faces","direction":[0,0,1]}
+@e5 = se_geometry {"action":"edges","source":"{{t5.items[0].handle}}","direction":[1,0,0]}
+se_sheetmetal {"action":"flange","edges":["{{e5.items[0].handle}}"],"length":20}
+@ed5 = se_geometry {"action":"edges","direction":[1,0,0]}
+@hm3 = se_sheetmetal {"action":"hem","edges":["{{ed5.items[?start=[0,0,21]].handle}}"],"length":8,"hemType":"closed_loop"}
+?= hm3.volumeChange 1208.472 0.01
+se_documents {"action":"close","document":"{{m5.handle}}","saveChanges":false}
+#    Contour flange with the material on the left (same polyline as A05: on the right 10671.239; on the left the
+#    four straight segments end up outside, +4*t*t*100 = +400 -> 11071.239)
+@m6 = se_documents {"action":"new","kind":"sheet_metal"}
+@q6 = se_sketch {"action":"create","plane":"2"}
+se_sketch {"action":"polyline","sketch":"{{q6.sketch}}","points":[0,0,0,30,50,30,50,0],"closed":false}
+se_sketch {"action":"close","sketch":"{{q6.sketch}}","open":true}
+@cfl = se_sheetmetal {"action":"contour_flange","sketch":"{{q6.sketch}}","width":100,"materialSide":"left"}
+?= cfl.volume 11071.239 0.01
+se_documents {"action":"close","document":"{{m6.handle}}","saveChanges":false}
+#    Shapes on a 100x60 tab: normal cutout 20x10 (through thickness, mid plane and clearance: -200 each on the flat area),
+#    'normal' dimple and V bead (Solid Edge reference values: 3D shapes with the radii and the taper by
+#    default, no simple formula), jog 'outside', bends 'outside' and 'symmetric' with the moving side on the left
+@m7 = se_documents {"action":"new","kind":"sheet_metal"}
+@q7 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q7.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{q7.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{q7.sketch}}"}
+@n1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{n1.sketch}}","points":[5,45,25,55]}
+se_sketch {"action":"close","sketch":"{{n1.sketch}}"}
+@nc1 = se_sheetmetal_form {"action":"normal_cutout","sketch":"{{n1.sketch}}"}
+?= nc1.volumeChange -200 0.01
+@n2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{n2.sketch}}","points":[30,45,50,55]}
+se_sketch {"action":"close","sketch":"{{n2.sketch}}"}
+@nc2 = se_sheetmetal_form {"action":"normal_cutout","sketch":"{{n2.sketch}}","method":"mid_plane"}
+?= nc2.volumeChange -200 0.01
+@n3 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{n3.sketch}}","points":[55,45,75,55]}
+se_sketch {"action":"close","sketch":"{{n3.sketch}}"}
+@nc3 = se_sheetmetal_form {"action":"normal_cutout","sketch":"{{n3.sketch}}","method":"clearance"}
+?= nc3.volumeChange -200 0.01
+@n4 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{n4.sketch}}","center":[20,20],"radius":8}
+se_sketch {"action":"close","sketch":"{{n4.sketch}}"}
+@dm = se_sheetmetal_form {"action":"dimple","sketch":"{{n4.sketch}}","depth":4,"direction":"normal"}
+?= dm.volumeChange 168.270 0.01
+@n5 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{n5.sketch}}","points":[40,10,70,10]}
+se_sketch {"action":"close","sketch":"{{n5.sketch}}","open":true}
+@bv = se_sheetmetal_form {"action":"bead","sketch":"{{n5.sketch}}","height":3,"width":8,"beadType":"v"}
+?= bv.volumeChange 112.033 0.01
+se_documents {"action":"close","document":"{{m7.handle}}","saveChanges":false}
+@m8 = se_documents {"action":"new","kind":"sheet_metal"}
+@q8 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q8.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{q8.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{q8.sketch}}"}
+@j1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{j1.sketch}}","points":[0,30,100,30]}
+se_sketch {"action":"close","sketch":"{{j1.sketch}}","open":true}
+#    Jog of 5 at y=30: wall 100*t*(h - 2r) = 300 + two bends 2*(pi/2)*(r + t/2)*t*100 = 471.239 - what they take up in
+#    plan 2*(r + t)*t*100 = 400 -> +371.239. The side of the material places the wall at y 30..31
+#    (inside), 29..30 (outside) or 31..32 (bend_outside); movingSide chooses which half rises (face y=0 or y=60 at z 5..6)
+@jg = se_sheetmetal_form {"action":"jog","sketch":"{{j1.sketch}}","height":5,"side":"outside"}
+?= jg.volumeChange 371.239 0.01
+@jw = se_geometry {"action":"faces","direction":[0,-1,0]}
+?= jw.items[?area=200].boundingBox.min[1] 29
+se_documents {"action":"close","document":"{{m8.handle}}","saveChanges":false}
+@m9 = se_documents {"action":"new","kind":"sheet_metal"}
+@q9 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{q9.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{q9.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{q9.sketch}}"}
+@j2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{j2.sketch}}","points":[0,30,100,30]}
+se_sketch {"action":"close","sketch":"{{j2.sketch}}","open":true}
+@jb = se_sheetmetal_form {"action":"jog","sketch":"{{j2.sketch}}","height":5,"side":"bend_outside","movingSide":"left"}
+@jw2 = se_geometry {"action":"faces","direction":[0,1,0]}
+?= jw2.items[?area=200].boundingBox.min[1] 32
+?= jw2.items[?area=100].boundingBox.min[2] 5
+se_documents {"action":"close","document":"{{m9.handle}}","saveChanges":false}
+@mA = se_documents {"action":"new","kind":"sheet_metal"}
+@qA = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{qA.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{qA.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{qA.sketch}}"}
+@b1 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{b1.sketch}}","points":[70,0,70,60]}
+se_sketch {"action":"close","sketch":"{{b1.sketch}}","open":true}
+#    90° bends at x=70 ('outside') and x=30 ('symmetric', moving side on the left): each one adds
+#    (pi/2)*t*t*60*(0.5 - k) with k = 0.33 -> 16.022, whatever the position
+@bo = se_sheetmetal_form {"action":"bend","sketch":"{{b1.sketch}}","angle":90,"position":"outside"}
+?= bo.volumeChange 16.022 0.01
+@b2 = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"line","sketch":"{{b2.sketch}}","points":[30,0,30,60]}
+se_sketch {"action":"close","sketch":"{{b2.sketch}}","open":true}
+@bs = se_sheetmetal_form {"action":"bend","sketch":"{{b2.sketch}}","angle":90,"position":"symmetric","movingSide":"left"}
+?= bs.volumeChange 16.022 0.01
+@gA = se_geometry {"action":"summary"}
+se_documents {"action":"close","document":"{{mA.handle}}","saveChanges":false}
+se_documents {"action":"list"}

@@ -1,0 +1,231 @@
+# A31: component groups (se_component_group), queries and zones (se_component_query) of an assembly.
+# Parts of its own: a 40x20x10 block (x 10..50, y -10..10, z 0..10: 8000 mm3), a pin Ø10x30 (2356.194 mm3) and a 30x20x5
+# bracket titled "Bracket", with the custom property Supplier = ACME and the material Steel (3000 mm3).
+@pb = se_documents {"action":"new","kind":"part"}
+@b = se_primitive {"shape":"box","center":[30,0,0],"size":[40,20],"depth":10}
+?= b.volume 8000 0.001
+se_documents {"action":"save_as","path":"{{work}}\\a31_block.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@pp = se_documents {"action":"new","kind":"part"}
+@c = se_primitive {"shape":"cylinder","plane":"1","center":[0,0,0],"radius":5,"depth":30}
+?= c.volume 2356.194 0.001
+se_documents {"action":"save_as","path":"{{work}}\\a31_pin.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@pt = se_documents {"action":"new","kind":"part"}
+@t = se_primitive {"shape":"box","center":[15,10,0],"size":[30,20],"depth":5}
+?= t.volume 3000 0.001
+se_properties {"action":"set","set":"SummaryInformation","name":"Title","value":"Bracket"}
+se_properties {"action":"set","name":"Supplier","value":"ACME"}
+@tm = se_material {"action":"apply","name":"Steel","folder":"installation"}
+?= tm.material Steel
+se_documents {"action":"save_as","path":"{{work}}\\a31_tag.par","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# Subassembly: blocks at x 0 and 200 (x 10..50 and 210..250) and the pin at y 200
+@sa = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a31_block.par"}
+se_assembly {"action":"insert","path":"{{work}}\\a31_block.par","origin":[200,0,0]}
+se_assembly {"action":"insert","path":"{{work}}\\a31_pin.par","origin":[0,200,0]}
+se_documents {"action":"save_as","path":"{{work}}\\a31_sub.asm","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+# Top assembly: the subassembly, the bracket at y -200 and two blocks at x 400 (x 410..450) and at x 400, y 100
+@ta = se_documents {"action":"new","kind":"assembly"}
+@os = se_assembly {"action":"insert","path":"{{work}}\\a31_sub.asm"}
+@ot = se_assembly {"action":"insert","path":"{{work}}\\a31_tag.par","origin":[0,-200,0]}
+@ob = se_assembly {"action":"insert","path":"{{work}}\\a31_block.par","origin":[400,0,0]}
+@ob2 = se_assembly {"action":"insert","path":"{{work}}\\a31_block.par","origin":[400,100,0]}
+# Pack: every ungrouped occurrence of the block file in one group; unpack undoes it
+@pk = se_component_group {"action":"pack","occurrence":"{{ob.handle}}"}
+?~ pk.name a31_block.par (x2)
+?= pk.packed true
+?= pk.count 2
+@up = se_component_group {"action":"unpack","group":"{{pk.handle}}"}
+?= up.components[1] a31_block.par:2
+@g0 = se_component_group {"action":"list"}
+?= g0.count 0
+# Groups: a component belongs to one group; remove, add, rename (names are unique), hide and show, ungroup
+@g1 = se_component_group {"action":"create","occurrences":["{{ot.handle}}","{{ob.handle}}"],"name":"Loose"}
+?= g1.name Loose
+?= g1.count 2
+! [invalid_argument] se_component_group {"action":"create","occurrences":["{{ob.handle}}","{{ob2.handle}}"]}
+@g0b = se_component_group {"action":"list"}
+?= g0b.count 1
+@gr = se_component_group {"action":"remove","group":"Loose","occurrences":["{{ob.handle}}"]}
+?= gr.count 1
+! [invalid_argument] se_component_group {"action":"remove","group":"Loose","occurrences":["{{os.handle}}"]}
+@ga = se_component_group {"action":"add","group":"{{g1.handle}}","occurrences":["{{ob.handle}}"]}
+?= ga.count 2
+@g2 = se_component_group {"action":"create","occurrences":["{{os.handle}}"]}
+?~ g2.name Assembly Group
+@rn = se_component_group {"action":"rename","group":"Loose","name":"Loose parts"}
+?~ rn.name Loose parts
+! [invalid_argument] se_component_group {"action":"rename","group":"{{g2.handle}}","name":"loose PARTS"}
+! [invalid_argument] se_component_group {"action":"unpack","group":"Loose parts"}
+@gh = se_component_group {"action":"hide","group":"Loose parts"}
+?= gh.visible false
+@lh = se_assembly {"action":"list"}
+?= lh.occurrences[?name="a31_tag.par:1"].visible false
+?= lh.occurrences[?name="a31_block.par:1"].visible false
+?= lh.occurrences[?name="a31_sub.asm:1"].visible true
+@gs = se_component_group {"action":"show","group":"Loose parts"}
+?= gs.visible true
+@lsh = se_assembly {"action":"list"}
+?= lsh.occurrences[?name="a31_tag.par:1"].visible true
+@gu = se_component_group {"action":"ungroup","group":"{{g2.handle}}"}
+?~ gu.ungrouped Assembly Group
+?= gu.components[0] a31_sub.asm:1
+@lu = se_assembly {"action":"list"}
+?= lu.count 4
+# Delete needs withComponents=true: Solid Edge deletes the group and its components
+@g3 = se_component_group {"action":"create","occurrences":["{{ob2.handle}}"],"name":"Spare"}
+! [invalid_argument] se_component_group {"action":"delete","group":"Spare"}
+@gd = se_component_group {"action":"delete","group":"Spare","withComponents":true}
+?= gd.deleted Spare
+?= gd.components[0] a31_block.par:2
+?= gd.removed 1
+?= gd.occurrences 3
+@gl = se_component_group {"action":"list"}
+?= gl.count 1
+?~ gl.groups[0].name Loose parts
+?= gl.groups[0].count 2
+# Queries: 'name' is the occurrence name and 'contains' ignores case; parts inside the subassembly come with their path
+@f1 = se_component_query {"action":"find","criteria":[{"property":"name","value":"BLOCK"}]}
+?= f1.count 3
+?= f1.selected 3
+?= f1.components[?path="a31_sub.asm:1/a31_block.par:2"].nested true
+?~ f1.components[?name="a31_block.par:1"].file \a31_block.par
+@sel = se_selection {"action":"get"}
+?= sel.count 3
+@f2 = se_component_query {"action":"find","criteria":[{"property":"name","value":"block"}],"subassemblies":false}
+?= f2.count 1
+?= f2.components[0].handle {{ob.handle}}
+@f3 = se_component_query {"action":"find","criteria":[{"property":"title","condition":"is","value":"Bracket"}]}
+?= f3.count 1
+?= f3.components[0].name a31_tag.par:1
+@f4 = se_component_query {"action":"find","criteria":[{"property":"material","condition":"is","value":"Steel"}]}
+?= f4.count 1
+@f5 = se_component_query {"action":"find","criteria":[{"property":"custom","custom":"Supplier","value":"acm"}]}
+?= f5.components[0].name a31_tag.par:1
+@f6 = se_component_query {"action":"find","criteria":[{"property":"name","value":"block"},{"property":"name","condition":"is_not","value":"a31_block.par:1"}]}
+?= f6.count 1
+?= f6.components[0].path a31_sub.asm:1/a31_block.par:2
+?= f6.components[0].occurrence {{os.handle}}
+! [invalid_argument] se_component_query {"action":"find","criteria":[{"property":"custom","value":"ACME"}]}
+# Scope: hidden, shown and selected components ("a31" matches the subassembly, its 3 parts, the bracket and the block)
+se_assembly {"action":"hide","occurrence":"{{ot.handle}}"}
+@f7 = se_component_query {"action":"find","criteria":[{"property":"name","value":"a31"}],"scope":"hidden"}
+?= f7.count 1
+?= f7.components[0].name a31_tag.par:1
+@f8 = se_component_query {"action":"find","criteria":[{"property":"name","value":"a31"}],"scope":"shown"}
+?= f8.count 5
+se_assembly {"action":"show","occurrence":"{{ot.handle}}"}
+se_selection {"action":"set","handles":["{{ot.handle}}","{{ob.handle}}"]}
+@f9 = se_component_query {"action":"find","criteria":[{"property":"name","value":"par"}],"scope":"selected"}
+?= f9.count 2
+se_selection {"action":"clear"}
+@f10 = se_component_query {"action":"find","criteria":[{"property":"name","value":"par"}],"scope":"selected"}
+?= f10.count 0
+# Display: show only the pin (inside the subassembly), then show the blocks, then hide the steel parts
+@d1 = se_component_query {"action":"find","criteria":[{"property":"name","value":"pin"}],"display":"show_only"}
+?= d1.count 1
+?~ d1.display.hidden a31_tag.par:1
+@lr = se_assembly {"action":"list","recursive":true}
+?= lr.occurrences[?name="a31_sub.asm:1"].visible true
+?= lr.occurrences[?name="a31_sub.asm:1/a31_pin.par:1"].visible true
+?= lr.occurrences[?name="a31_sub.asm:1/a31_block.par:1"].visible false
+?= lr.occurrences[?name="a31_tag.par:1"].visible false
+?= lr.occurrences[?name="a31_block.par:1"].visible false
+@d2 = se_component_query {"action":"find","criteria":[{"property":"name","value":"block"}],"display":"show"}
+?= d2.count 3
+@lr2 = se_assembly {"action":"list","recursive":true}
+?= lr2.occurrences[?name="a31_sub.asm:1/a31_block.par:1"].visible true
+?= lr2.occurrences[?name="a31_block.par:1"].visible true
+?= lr2.occurrences[?name="a31_tag.par:1"].visible false
+se_assembly {"action":"show","occurrence":"{{ot.handle}}"}
+@d3 = se_component_query {"action":"find","criteria":[{"property":"material","condition":"is","value":"Steel"}],"display":"hide"}
+?~ d3.display.hidden a31_tag.par:1
+@lr3 = se_assembly {"action":"list"}
+?= lr3.occurrences[?name="a31_tag.par:1"].visible false
+se_assembly {"action":"show","occurrence":"{{ot.handle}}"}
+# show_only shows a matched subassembly whole, also a part hidden in it; only the changes are listed
+se_component_query {"action":"find","criteria":[{"property":"name","value":"pin"}],"display":"hide"}
+@d4 = se_component_query {"action":"find","criteria":[{"property":"name","value":"a31_sub"}],"display":"show_only"}
+?= d4.count 1
+?= d4.display.shown[0] a31_sub.asm:1/a31_pin.par:1
+?~ d4.display.hidden a31_tag.par:1
+?= d4.display.unchanged 3
+@lr4 = se_assembly {"action":"list","recursive":true}
+?= lr4.occurrences[?name="a31_sub.asm:1/a31_pin.par:1"].visible true
+?= lr4.occurrences[?name="a31_sub.asm:1/a31_block.par:2"].visible true
+?= lr4.occurrences[?name="a31_block.par:1"].visible false
+@d5 = se_component_query {"action":"find","criteria":[{"property":"name","value":"a31"}],"display":"show"}
+?= d5.display.hidden []
+@lr5 = se_assembly {"action":"list"}
+?= lr5.occurrences[?name="a31_tag.par:1"].visible true
+?= lr5.occurrences[?name="a31_block.par:1"].visible true
+# Zones: only the components fully inside, or also those partly inside (overlap); parts of subassemblies too
+@z1 = se_component_query {"action":"zone","box":[400,-20,-5,460,20,20]}
+?= z1.count 1
+?= z1.components[0].handle {{ob.handle}}
+@z2 = se_component_query {"action":"zone","box":[430,-20,-5,500,20,20]}
+?= z2.count 0
+@z3 = se_component_query {"action":"zone","box":[500,20,20,430,-20,-5],"overlap":true}
+?= z3.count 1
+@z4 = se_component_query {"action":"zone","box":[0,-20,-5,60,20,20]}
+?= z4.count 1
+?= z4.components[0].path a31_sub.asm:1/a31_block.par:1
+! [invalid_argument] se_component_query {"action":"zone","box":[0,0,0,10,10]}
+! [invalid_argument] se_component_query {"action":"zone","box":[0,0,0,10,10,0]}
+# Saved queries and zones: kept in the assembly, run by name, renamed and deleted; names are shared
+@s1 = se_component_query {"action":"find","criteria":[{"property":"material","condition":"is","value":"Steel"}],"name":"Steel parts"}
+?~ s1.query Steel parts
+! [invalid_argument] se_component_query {"action":"zone","box":[400,-20,-5,460,20,20],"name":"steel PARTS"}
+@s2 = se_component_query {"action":"zone","box":[400,-20,-5,460,20,20],"name":"Right end"}
+?~ s2.zone Right end
+@ql = se_component_query {"action":"list"}
+?~ ql.queries[0].name Steel parts
+?= ql.queries[0].criteria 1
+?= ql.queries[0].scope all
+?~ ql.zones[0].name Right end
+?= ql.zones[0].box[3] 460 0.001
+?= ql.zones[0].overlap false
+se_selection {"action":"clear"}
+@r1 = se_component_query {"action":"run","name":"steel parts"}
+?= r1.count 1
+?= r1.components[0].name a31_tag.par:1
+@r2 = se_component_query {"action":"run","name":"Right end"}
+?= r2.components[0].name a31_block.par:1
+@rq = se_component_query {"action":"rename","name":"Steel parts","newName":"Steel"}
+?= rq.query Steel
+@rz = se_component_query {"action":"rename","name":"Right end","newName":"Block zone"}
+?~ rz.zone Block zone
+# Groups, queries and zones are saved with the assembly
+se_documents {"action":"save_as","path":"{{work}}\\a31_top.asm","overwrite":true}
+se_documents {"action":"close","saveChanges":false}
+@ro = se_documents {"action":"open","path":"{{work}}\\a31_top.asm"}
+@rl = se_component_query {"action":"list"}
+?= rl.queries[0].name Steel
+?~ rl.zones[0].name Block zone
+@rg = se_component_group {"action":"list"}
+?~ rg.groups[0].name Loose parts
+?= rg.groups[0].count 2
+@r3 = se_component_query {"action":"run","name":"Steel"}
+?= r3.count 1
+@dq = se_component_query {"action":"delete","name":"Steel"}
+?= dq.kind query
+@dz = se_component_query {"action":"delete","name":"block zone"}
+?= dz.kind zone
+! [not_found] se_component_query {"action":"run","name":"Steel"}
+@el = se_component_query {"action":"list"}
+?= el.zones []
+?= el.queries []
+se_documents {"action":"close","document":"{{ro.handle}}","saveChanges":false}
+# A part three levels down comes with its whole path and is hidden there
+@t3 = se_documents {"action":"new","kind":"assembly"}
+se_assembly {"action":"insert","path":"{{work}}\\a31_top.asm"}
+@f11 = se_component_query {"action":"find","criteria":[{"property":"name","value":"pin"}],"display":"hide"}
+?= f11.components[0].path a31_top.asm:1/a31_sub.asm:1/a31_pin.par:1
+?= f11.display.hidden[0] a31_top.asm:1/a31_sub.asm:1/a31_pin.par:1
+@lr6 = se_assembly {"action":"list","recursive":true}
+?= lr6.occurrences[?name="a31_top.asm:1/a31_sub.asm:1/a31_pin.par:1"].visible false
+?= lr6.occurrences[?name="a31_top.asm:1/a31_sub.asm:1/a31_block.par:1"].visible true
+se_documents {"action":"close","document":"{{t3.handle}}","saveChanges":false}

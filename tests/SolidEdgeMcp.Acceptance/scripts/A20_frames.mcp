@@ -1,0 +1,138 @@
+# A20: structural frames and pipes (se_frame). Library parts of the installation (Frames, Piping Route) are copied into the
+#   work folder by the server. Frames: a DIN square tube 20x20x1.6 along 100 mm (cut length 100); a 20x20 section of our own along
+#   two legs of 100 mm at a corner: two members of 110 mm, mitred (cut length 220, 110 per section), or butt1 (110 + 90 = 200, per section in member order); along a line of an
+#   assembly sketch (100). Pipes DIN 100 (outside diameter 114.3): a straight 500 mm pipe; two legs of 500 mm with a 90° butt elbow
+#   (two segments of 398 mm and the elbow); without an elbow the corner gets no fitting and the result warns.
+@lf = se_frame {"action":"library","filter":"SquareTubing 20x20"}
+?= lf.count 1
+?~ lf.parts[0] SquareTubing
+@lp = se_frame {"action":"library","kind":"pipes","filter":"Elbow90_100"}
+?~ lp.parts[0] Elbow90_100_mm
+@p = se_documents {"action":"new","kind":"part"}
+@ps = se_sketch {"action":"create","plane":"1","document":"{{p.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{ps.sketch}}","points":[-10,-10,10,10]}
+se_sketch {"action":"close","sketch":"{{ps.sketch}}"}
+se_extrude {"sketch":"{{ps.sketch}}","distance":20,"document":"{{p.handle}}"}
+! [wrong_document_type] se_frame {"action":"frame","section":"DIN/Square Tubing/SquareTubing 20x20x1.6","points":[0,0,0,100,0,0],"document":"{{p.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\a20_section.par","overwrite":true,"document":"{{p.handle}}"}
+se_documents {"action":"close","document":"{{p.handle}}","saveChanges":false}
+@a = se_documents {"action":"new","kind":"assembly"}
+! [invalid_argument] se_frame {"action":"frame","points":[0,0,0,100,0,0],"document":"{{a.handle}}"}
+! [not_found] se_frame {"action":"frame","section":"DIN/Square Tubing/Nope","points":[0,0,0,100,0,0],"document":"{{a.handle}}"}
+! [invalid_argument] se_frame {"action":"frame","section":"DIN/Square Tubing/SquareTubing 20x20x1.6","points":[0,0,0],"document":"{{a.handle}}"}
+! [invalid_argument] se_frame {"action":"frame","section":"DIN/Square Tubing/SquareTubing 20x20x1.6","points":[0,0,0,0,0,0],"document":"{{a.handle}}"}
+@f1 = se_frame {"action":"frame","section":"DIN/Square Tubing/SquareTubing 20x20x1.6","points":[0,0,0,100,0,0],"name":"Rail","document":"{{a.handle}}"}
+?= f1.name Rail
+?= f1.cutLength 100 0.001
+?= f1.members[0].boundingBox.size[0] 100 0.001
+?= f1.members[0].boundingBox.size[1] 20 0.001
+! [invalid_argument] se_frame {"action":"frame","section":"DIN/Square Tubing/SquareTubing 20x20x1.6","points":[0,0,0,100,0,0],"name":"Rail","document":"{{a.handle}}"}
+@f2 = se_frame {"action":"frame","section":"{{work}}\\a20_section.par","points":[0,50,0,100,50,0,100,150,0],"document":"{{a.handle}}"}
+?= f2.cutLength 220 0.001
+?= f2.sectionCutLengths[0] 110 0.001
+?= f2.sectionCutLengths[1] 110 0.001
+?= f2.endCondition miterxy
+?= f2.members[0].boundingBox.size[0] 110 0.001
+?= f2.members[1].boundingBox.size[1] 110 0.001
+@f3 = se_frame {"action":"frame","section":"{{work}}\\a20_section.par","points":[200,50,0,300,50,0,300,150,0],"endCondition":"butt1","document":"{{a.handle}}"}
+?= f3.cutLength 200 0.001
+?= f3.sectionCutLengths[0] 110 0.001
+?= f3.sectionCutLengths[1] 90 0.001
+?= f3.endCondition butt1
+?= f3.members[0].boundingBox.size[0] 110 0.001
+?= f3.members[1].boundingBox.size[1] 90 0.001
+@k = se_sketch {"action":"create","plane":"1","document":"{{a.handle}}"}
+@kl = se_sketch {"action":"line","sketch":"{{k.sketch}}","points":[0,200,100,200]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}","open":true}
+! [invalid_argument] se_frame {"action":"frame","section":"{{work}}\\a20_section.par","lines":["{{kl.element}}"],"points":[0,0,0,1,0,0],"document":"{{a.handle}}"}
+@f4 = se_frame {"action":"frame","section":"{{work}}\\a20_section.par","lines":["{{kl.element}}"],"document":"{{a.handle}}"}
+?= f4.cutLength 100 0.001
+?= f4.members[0].boundingBox.min[1] 190 0.001
+@fl = se_frame {"action":"list","document":"{{a.handle}}"}
+?= fl.frames[?name="Rail"].cutLength 100 0.001
+@fd = se_frame {"action":"delete","name":"Rail","document":"{{a.handle}}"}
+?= fd.frames 3
+?= fd.occurrences 5
+! [invalid_argument] se_frame {"action":"delete","name":"Rail","document":"{{a.handle}}"}
+# Pipes
+! [invalid_argument] se_frame {"action":"pipe","pipe":"DIN/Pipe/Pipe_100_mm","points":[0,-300,0,500,-300,0],"document":"{{a.handle}}"}
+! [not_found] se_frame {"action":"pipe","diameter":114.3,"pipe":"DIN/Pipe/Nope","points":[0,-300,0,500,-300,0],"document":"{{a.handle}}"}
+@pi1 = se_frame {"action":"pipe","diameter":114.3,"pipe":"DIN/Pipe/Pipe_100_mm","points":[0,-300,0,500,-300,0],"document":"{{a.handle}}"}
+?= pi1.type pipe
+?= pi1.segments[0].length 500 0.001
+@pi2 = se_frame {"action":"pipe","diameter":114.3,"pipe":"DIN/Pipe/Pipe_100_mm","elbow":"DIN/Fitting/Butt/Butt_Elbow90_100_mm","points":[0,-600,0,500,-600,0,500,-600,500],"name":"Line_A","document":"{{a.handle}}"}
+?= pi2.name Line_A
+?= pi2.segments[0].length 398 0.01
+?= pi2.segments[1].length 398 0.01
+?~ pi2.fittings[0].name Butt_Elbow90_100_mm
+@pi3 = se_frame {"action":"pipe","diameter":114.3,"pipe":"DIN/Pipe/Pipe_100_mm","points":[0,-900,0,500,-900,0,500,-900,500],"document":"{{a.handle}}"}
+?~ pi3.warnings[0] elbow
+@pl = se_frame {"action":"list","document":"{{a.handle}}"}
+?= pl.pipes[?name="Line_A"].segments[1].length 398 0.01
+?~ pl.pipes[?name="Line_A"].fittings[0].name Butt_Elbow90_100_mm
+@pd = se_frame {"action":"delete","name":"Line_A","document":"{{a.handle}}"}
+?= pd.pipes 2
+se_documents {"action":"close","document":"{{a.handle}}","saveChanges":false}
+# A frame in a weldment (slab 100 x 60 x 10) that has no assembly feature yet, then assembly features (Solid Edge alone would stop giving them, and
+#   welds on the members would fail): the environment is back to Assembly; the member reports its own body (a 20 x 20 x 100 bar,
+#   40000 mm3, while its part is 20 mm long); a 4 mm fillet weld between the slab bottom and the member face y = 20 (they meet
+#   along y = 20, z = 0): 4 x 4 / 2 x 100 = 800 mm3; a hole through the slab after the frame. Saved, reopened: still listed.
+@sl = se_documents {"action":"new","kind":"part"}
+@sls = se_sketch {"action":"create","plane":"1","document":"{{sl.handle}}"}
+se_sketch {"action":"rectangle","sketch":"{{sls.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{sls.sketch}}"}
+se_extrude {"sketch":"{{sls.sketch}}","distance":10,"document":"{{sl.handle}}"}
+se_documents {"action":"save_as","path":"{{work}}\\a20_slab.par","overwrite":true,"document":"{{sl.handle}}"}
+se_documents {"action":"close","document":"{{sl.handle}}","saveChanges":false}
+@w = se_documents {"action":"new","kind":"weldment"}
+@ws = se_assembly {"action":"insert","path":"{{work}}\\a20_slab.par","document":"{{w.handle}}"}
+@wf = se_frame {"action":"frame","section":"{{work}}\\a20_section.par","points":[0,10,-10,100,10,-10],"document":"{{w.handle}}"}
+@wu = se_ui {"action":"status"}
+?= wu.activeEnvironment Assembly
+@wl0 = se_assembly_feature {"action":"list","document":"{{w.handle}}"}
+?= wl0.count 0
+@wg = se_geometry {"action":"summary","source":"{{wf.members[0].occurrence}}","document":"{{w.handle}}"}
+?= wg.volume 40000 0.01
+?= wg.boundingBox.size[0] 100 0.001
+@wb = se_geometry {"action":"faces","source":"{{ws.handle}}","direction":[0,0,-1],"document":"{{w.handle}}"}
+@wm = se_geometry {"action":"faces","source":"{{wf.members[0].occurrence}}","direction":[0,1,0],"document":"{{w.handle}}"}
+?= wm.items[0].boundingBox.min[1] 20 0.001
+@ww = se_assembly_feature {"action":"fillet_weld","faces":["{{wb.items[0].handle}}"],"targetFaces":["{{wm.items[0].handle}}"],"leg":4,"name":"Bar_weld","document":"{{w.handle}}"}
+?= ww.volume 800 0.01
+?= ww.boundingBox.max[1] 24 0.001
+@wh = se_assembly_feature {"action":"hole","plane":"1","centers":[50,50,0],"diameter":8,"occurrences":["{{ws.handle}}"],"document":"{{w.handle}}"}
+?= wh.parts[0].faces 1
+se_documents {"action":"save_as","path":"{{work}}\\a20_weldment.asm","overwrite":true,"document":"{{w.handle}}"}
+se_documents {"action":"close","document":"{{w.handle}}","saveChanges":false}
+@wr = se_documents {"action":"open","path":"{{work}}\\a20_weldment.asm"}
+@wrl = se_assembly_feature {"action":"list","document":"{{wr.handle}}"}
+?= wrl.count 2
+?= wrl.features[?name="Bar_weld"].volume 800 0.01
+@wrf = se_frame {"action":"list","document":"{{wr.handle}}"}
+?= wrf.frames[0].cutLength 100 0.001
+se_documents {"action":"close","document":"{{wr.handle}}","saveChanges":false}
+# A frame made through the COM layer before any assembly feature: Solid Edge refuses assembly features for good
+#   (solid_edge_limitation); se_frame repair makes the frame again (same section, path and name), and then a 4 mm fillet weld
+#   between the slab top and the rounded DIN tube of a se_frame frame works: 4 x 4 / 2 x 100 = 800 mm3 (y 6-10, z 10-14).
+@x = se_documents {"action":"new","kind":"weldment"}
+@xs = se_assembly {"action":"insert","path":"{{work}}\\a20_slab.par","document":"{{x.handle}}"}
+@xl = se_com_get {"target":"{{x.handle}}","member":"LineSegments"}
+@xg = se_com_invoke {"target":"{{xl.value.handle}}","method":"Add","arguments":[{"type":"double[]","value":[0,0.01,-0.01]},{"type":"double[]","value":[0.1,0.01,-0.01]}]}
+@xf = se_com_get {"target":"{{x.handle}}","member":"StructuralFrames"}
+se_com_invoke {"target":"{{xf.value.handle}}","method":"Add","arguments":["{{work}}\\a20_section.par",1,{"type":"object[]","value":[{"handle":"{{xg.result.handle}}"}]}]}
+! [solid_edge_limitation] se_assembly_feature {"action":"list","document":"{{x.handle}}"}
+@xr = se_frame {"action":"repair","document":"{{x.handle}}"}
+?= xr.repaired true
+?= xr.frames[0].cutLength 100 0.001
+@xr2 = se_frame {"action":"repair","document":"{{x.handle}}"}
+?= xr2.repaired false
+@xt = se_frame {"action":"frame","section":"DIN/Square Tubing/SquareTubing 20x20x1.6","points":[0,40,20,100,40,20],"document":"{{x.handle}}"}
+@xft = se_geometry {"action":"faces","source":"{{xs.handle}}","direction":[0,0,1],"document":"{{x.handle}}"}
+@xfo = se_geometry {"action":"faces","source":"{{xt.members[0].occurrence}}","direction":[0,-1,0],"document":"{{x.handle}}"}
+@xw = se_assembly_feature {"action":"fillet_weld","faces":["{{xft.items[0].handle}}"],"targetFaces":["{{xfo.items[0].handle}}"],"leg":4,"document":"{{x.handle}}"}
+?= xw.volume 800 0.01
+?= xw.boundingBox.min[1] 26 0.001
+@xa = se_assembly_feature {"action":"list","document":"{{x.handle}}"}
+?= xa.count 1
+se_documents {"action":"close","document":"{{x.handle}}","saveChanges":false}
+@l = se_documents {"action":"list"}

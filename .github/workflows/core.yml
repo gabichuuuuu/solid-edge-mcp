@@ -1,0 +1,36 @@
+# Checks what needs no Solid Edge: the license header of every C# and PowerShell file and the unit tests of
+# SolidEdgeMcp.Core. The rest of the solution builds against an interop generated from a local Solid Edge installation.
+name: Core
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: License headers
+        shell: pwsh
+        run: |
+          $missing = git ls-files '*.cs' '*.ps1' | Where-Object {
+            $head = (Get-Content $_ -TotalCount 3) -join "`n"
+            -not ($head -match 'Copyright \(c\) 2026 Gabriel Spoleto Couto' -and $head -match 'SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0')
+          }
+          if ($missing) {
+            $missing | ForEach-Object { Write-Output "::error file=$_::Missing the copyright and SPDX license header" }
+            exit 1
+          }
+
+      - name: Core unit tests
+        run: dotnet test --project tests/SolidEdgeMcp.Core.Tests/SolidEdgeMcp.Core.Tests.csproj -p:RestoreLockedMode=true

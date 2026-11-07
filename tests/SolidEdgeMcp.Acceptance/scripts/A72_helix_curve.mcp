@@ -1,0 +1,32 @@
+# A72: helical curves (se_curve helix) about a cylindrical face, starting on its bottom face. A cylinder r10 x 40: 5 turns of 8 mm
+# on its own diameter are 5 x sqrt((20pi)^2 + 8^2) = 316.696 mm and climb into it (z 0..40); reverse climbs away (z 0..-40). On a
+# 30 mm diameter about a construction line on the axis (a cylinder keeps its own diameter) it is a spring path: a Ø3 tube along it (se_loft_sweep tube) adds pi x 1.5^2 x 5 x sqrt((30pi)^2 + 64) = 3342.9 mm3
+# without touching the cylinder: se_physical reads 12566.37 + 3342.97 = 15909.34 (Body.Volume, in volumeChange, reads 3338.37,
+# 0.14 % low on a helical sweep). An axis that is a planar face, and another diameter on a cylinder, are refused.
+@d = se_documents {"action":"new","kind":"part"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"circle","sketch":"{{k.sketch}}","center":[0,0],"radius":10}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_extrude {"sketch":"{{k.sketch}}","distance":40}
+@cyl = se_geometry {"action":"faces","type":"cylinder"}
+@bot = se_geometry {"action":"faces","direction":[0,0,-1]}
+! [invalid_argument] se_curve {"action":"helix","faces":["{{bot.items[0].handle}}"],"plane":"{{bot.items[0].handle}}","pitch":8,"turns":5}
+@h = se_curve {"action":"helix","faces":["{{cyl.items[0].handle}}"],"plane":"{{bot.items[0].handle}}","pitch":8,"turns":5}
+?= h.curve.length 316.696 0.01
+?= h.curve.boundingBox.max[2] 40 0.01
+@cyl2 = se_geometry {"action":"faces","type":"cylinder"}
+@bot2 = se_geometry {"action":"faces","direction":[0,0,-1]}
+@r = se_curve {"action":"helix","faces":["{{cyl2.items[0].handle}}"],"plane":"{{bot2.items[0].handle}}","pitch":8,"turns":5,"reverse":true}
+?= r.curve.boundingBox.min[2] -40 0.01
+@cyl3 = se_geometry {"action":"faces","type":"cylinder"}
+@bot3 = se_geometry {"action":"faces","direction":[0,0,-1]}
+! [invalid_argument] se_curve {"action":"helix","faces":["{{cyl3.items[0].handle}}"],"plane":"{{bot3.items[0].handle}}","diameter":30,"pitch":8,"height":40}
+@ln = se_curve {"action":"points","points":[0,0,0,0,0,40]}
+@le = se_geometry {"action":"edges","source":"{{ln.curve.handle}}"}
+@bot4 = se_geometry {"action":"faces","direction":[0,0,-1]}
+@s = se_curve {"action":"helix","edges":["{{le.items[0].handle}}"],"plane":"{{bot4.items[0].handle}}","diameter":30,"pitch":8,"height":40,"hand":"left"}
+?= s.curve.length 472.929 0.01
+@t = se_loft_sweep {"action":"tube","path":"{{s.curve.handle}}","outerDiameter":3}
+@ph = se_physical {}
+?= ph.volume 15909.3 1
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

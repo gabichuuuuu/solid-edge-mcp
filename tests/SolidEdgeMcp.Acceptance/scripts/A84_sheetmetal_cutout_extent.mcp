@@ -1,0 +1,40 @@
+# A84: normal cutout extents (se_sheetmetal_form normal_cutout extent / depth / to). A tab 100 x 60 (t = 1) with flanges of 20
+#   on its edges y = 0 and y = 60 (9871.239, as in A82); rectangles 15 x 10 (z 5..15) on the plane y = 0 cut toward +y.
+#   finite 5, through_next and from_to a plane at y = 30 cut only the flange at y = 0 (-150 each); through_all cuts both (-300).
+@d = se_documents {"action":"new","kind":"sheet_metal"}
+@k = se_sketch {"action":"create","plane":"1"}
+se_sketch {"action":"rectangle","sketch":"{{k.sketch}}","points":[0,0,100,60]}
+se_sketch {"action":"close","sketch":"{{k.sketch}}"}
+se_sheetmetal {"action":"tab","sketch":"{{k.sketch}}"}
+@top = se_geometry {"action":"faces","direction":[0,0,1]}
+@te = se_geometry {"action":"edges","source":"{{top.items[0].handle}}","direction":[1,0,0]}
+@fl = se_sheetmetal {"action":"flange","edges":["{{te.items[0].handle}}","{{te.items[1].handle}}"],"length":20}
+?= fl.volume 9871.239 0.01
+@k1 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[10,5,25,15]}
+se_sketch {"action":"close","sketch":"{{k1.sketch}}"}
+# refusals: finite without depth, from_to without a plane
+! [invalid_argument] se_sheetmetal_form {"action":"normal_cutout","sketch":"{{k1.sketch}}","extent":"finite"}
+! [invalid_argument] se_sheetmetal_form {"action":"normal_cutout","sketch":"{{k1.sketch}}","extent":"from_to"}
+@c1 = se_sheetmetal_form {"action":"normal_cutout","sketch":"{{k1.sketch}}","extent":"finite","depth":5}
+?= c1.volumeChange -150 0.01
+@k2 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{k2.sketch}}","points":[30,5,45,15]}
+se_sketch {"action":"close","sketch":"{{k2.sketch}}"}
+@c2 = se_sheetmetal_form {"action":"normal_cutout","sketch":"{{k2.sketch}}","extent":"through_next"}
+?= c2.volumeChange -150 0.01
+@rp = se_ref_plane {"action":"offset","plane":"3","distance":-30}
+?= rp.rootPoint[1] 30 0.001
+@k3 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{k3.sketch}}","points":[55,5,70,15]}
+se_sketch {"action":"close","sketch":"{{k3.sketch}}"}
+@c3 = se_sheetmetal_form {"action":"normal_cutout","sketch":"{{k3.sketch}}","extent":"from_to","to":"{{rp.handle}}"}
+?= c3.volumeChange -150 0.01
+@k4 = se_sketch {"action":"create","plane":"3"}
+se_sketch {"action":"rectangle","sketch":"{{k4.sketch}}","points":[75,5,90,15]}
+se_sketch {"action":"close","sketch":"{{k4.sketch}}"}
+@c4 = se_sheetmetal_form {"action":"normal_cutout","sketch":"{{k4.sketch}}"}
+?= c4.volumeChange -300 0.01
+@ph = se_physical {}
+?= ph.volume 9121.239 0.01
+se_documents {"action":"close","document":"{{d.handle}}","saveChanges":false}

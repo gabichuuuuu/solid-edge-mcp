@@ -1,0 +1,4 @@
+[*.cs]
+# Every C# file starts with the copyright and license header (IDE0073, checked in the build).
+file_header_template = Copyright (c) 2026 Gabriel Spoleto Couto\nSPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+dotnet_diagnostic.IDE0073.severity = warning
