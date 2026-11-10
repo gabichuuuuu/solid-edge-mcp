@@ -6,6 +6,11 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-11-10
+
+A faster server: captures take about 40 % less time, the server starts sooner and makes fewer calls to Solid Edge. No
+tool or parameter changes.
+
 ### Changed
 
 - `se_view capture` takes about 40 % less time: the colours it checks (`samples` and the single-colour warning) are read
