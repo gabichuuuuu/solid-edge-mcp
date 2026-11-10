@@ -1,0 +1,63 @@
+# Prepares the GitHub release of a version tag (vX.Y.Z): checks that the tag matches the <Version> of the server project
+# and has a CHANGELOG section, then creates a draft release with that section as notes (hard-wrapped lines joined, since
+# release notes render every line break). The package is not built here: it needs the Solid Edge interop, generated from
+# a local installation. It is built locally with scripts/package.ps1, attached to the draft and published by hand.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version and write notes
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.Substring(1)
+          $project = ([xml](Get-Content src/SolidEdgeMcp.Server/SolidEdgeMcp.Server.csproj -Raw)).Project.PropertyGroup.Version |
+            Where-Object { $_ } | Select-Object -First 1
+          if ($project -ne $version) {
+            Write-Output "::error::The tag is v$version but the server project has <Version>$project</Version>."
+            exit 1
+          }
+
+          $lines = Get-Content CHANGELOG.md
+          $start = [Array]::FindIndex($lines, [Predicate[string]] { param($l) $l -match "^## \[$([regex]::Escape($version))\]" })
+          if ($start -lt 0) {
+            Write-Output "::error::CHANGELOG.md has no section for $version."
+            exit 1
+          }
+
+          $notes = [System.Collections.Generic.List[string]]::new()
+          foreach ($line in $lines[($start + 1)..($lines.Count - 1)]) {
+            if ($line -match '^## ') { break }
+            $previous = if ($notes.Count) { $notes[$notes.Count - 1] } else { '' }
+            if ($line.Trim() -and $previous.Trim() -and $line -notmatch '^\s*(- |\* |#)') {
+              $notes[$notes.Count - 1] = $previous + ' ' + $line.Trim()
+            }
+            else {
+              $notes.Add($line)
+            }
+          }
+
+          ($notes -join "`n").Trim() | Set-Content -Path notes.md -Encoding utf8NoBOM
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release view '${{ github.ref_name }}' *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Output "The release ${{ github.ref_name }} already exists; it is left as it is."
+            exit 0
+          }
+
+          gh release create '${{ github.ref_name }}' --draft --verify-tag --title '${{ github.ref_name }}' --notes-file notes.md
