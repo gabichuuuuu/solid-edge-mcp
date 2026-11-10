@@ -6,6 +6,24 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `se_recognize`: when Solid Edge recognises nothing, the document goes back to ordered modelling, as it already did
+  after the other refusals.
+- When Solid Edge closes while the server cleans up after a failed operation, the error now says that Solid Edge is
+  gone instead of reporting only the failed operation.
+- A colour is read in the same way by every tool: `#RRGGBB`, with or without the `#` and with spaces around it.
+  `se_styles` no longer takes `##FF8000`, and no tool takes a colour with a space inside it (`# FF800`).
+
+### Changed
+
+- Internal clean-up, no tool or parameter changes: the services take the enumerations of the tools instead of their
+  names as text, one routine each for tolerant deletes, vector algebra, colours and the volume check, and the drawing
+  service split into dimensions and tables. The empty integration test project was removed.
+- Wording only, no tool or parameter changes: one spelling in the documentation and in the texts the server returns
+  (modelling, metres, the Solid Edge licence), ranges written with "to" instead of a dash in four error messages, and
+  a shorter README (two badges and repeated lead-ins removed).
+
 ## [1.0.4] - 2026-11-10
 
 A faster server: captures take about 40 % less time, the server starts sooner and makes fewer calls to Solid Edge. No

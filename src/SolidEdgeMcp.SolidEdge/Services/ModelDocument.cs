@@ -75,7 +75,7 @@ public sealed class ModelDocument
         {
             return model.Body;
         }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        catch (COMException ex) when (ex.HResult == ComErrors.EFail)
         {
             throw new ToolException("no_brep_body", $"Solid Edge cannot read the body of '{Document.Name}' as faces and edges (it fails this way after the body is converted to a mesh, or after a failed operation broke it).",
                 "Use se_physical for its mass properties. Solid Edge does not undo, suppress or delete the conversion through the API (verified): convert a copy of the part.");
@@ -89,7 +89,7 @@ public sealed class ModelDocument
         {
             return Volume();
         }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        catch (COMException ex) when (ex.HResult == ComErrors.EFail)
         {
             return null;
         }
@@ -118,7 +118,7 @@ public sealed class ModelDocument
         {
             return Bodies();
         }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        catch (COMException ex) when (ex.HResult == ComErrors.EFail)
         {
             return null;
         }
@@ -141,7 +141,7 @@ public sealed class ModelDocument
                 {
                     _ = model.Body;
                 }
-                catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+                catch (COMException ex) when (ex.HResult == ComErrors.EFail)
                 {
                     continue;
                 }
@@ -174,6 +174,27 @@ public sealed class ModelDocument
     /// break) are only resolved this way. Returns whether it changed, to switch back later with <see cref="EnsureOrdered"/>.
     /// </summary>
     public bool EnsureSynchronous() => SetMode(ModelingModeConstants.seModelingModeSynchronous);
+
+    /// <summary>
+    /// Back to ordered after a call that switched to synchronous (<paramref name="switched"/>) and failed. If Solid Edge
+    /// refuses, the document stays synchronous and the next ordered operation switches it: the error reported is the call's.
+    /// </summary>
+    public void RestoreOrdered(bool switched)
+    {
+        if (!switched)
+        {
+            return;
+        }
+
+        try
+        {
+            EnsureOrdered();
+        }
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
+        {
+            // Stays synchronous.
+        }
+    }
 
     private bool SetMode(ModelingModeConstants mode)
     {
@@ -252,7 +273,7 @@ public sealed class ModelDocument
             int count = RefPlanes.Count;
             if (index < 1 || index > count)
             {
-                throw ToolException.InvalidArgument($"Reference plane index {index} is out of range (1–{count}).",
+                throw ToolException.InvalidArgument($"Reference plane index {index} is out of range (1 to {count}).",
                     "List the planes and their normals with se_ref_plane action 'list'.");
             }
 

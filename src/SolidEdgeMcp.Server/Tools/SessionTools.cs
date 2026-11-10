@@ -5,20 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Services;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SessionAction
-{
-    Status,
-    Connect,
-    Disconnect,
-    Quit,
-    Restart,
-    Answer,
-}
 
 [McpServerToolType]
 public sealed class SessionTools(ToolRunner runner)

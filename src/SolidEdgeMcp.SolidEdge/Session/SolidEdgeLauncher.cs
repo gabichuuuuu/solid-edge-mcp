@@ -13,7 +13,7 @@ namespace SolidEdgeMcp.SolidEdge.Session;
 /// Starts Solid Edge so that it does not depend on the server: some MCP clients close the whole tree of
 /// server processes when they finish, and a child Edge.exe of the server would be closed along with unsaved
 /// work of the person. It first tries COM activation (DCOM launches it, outside the tree). If that fails (e.g.
-/// the <c>SE_LICENSE_SERVER</c> license was set after signing in and the DCOM environment does not
+/// the <c>SE_LICENSE_SERVER</c> licence was set after signing in and the DCOM environment does not
 /// have it), Edge.exe is launched directly with the variable copied from the registry, warning that
 /// it then does stay tied to the server.
 /// </summary>
@@ -89,7 +89,7 @@ internal static class SolidEdgeLauncher
         return StartProcess(exe, remaining > TimeSpan.FromSeconds(30) ? remaining : TimeSpan.FromSeconds(30), log);
     }
 
-    /// <summary>Launches Edge.exe with the license from the registry and waits until it registers in the ROT.</summary>
+    /// <summary>Launches Edge.exe with the licence from the registry and waits until it registers in the ROT.</summary>
     private static object StartProcess(string exe, TimeSpan timeout, IServerLog log)
     {
         var environment = Environment.GetEnvironmentVariables()
@@ -123,7 +123,7 @@ internal static class SolidEdgeLauncher
                 throw new ToolException(
                     "solid_edge_start_failed",
                     $"Solid Edge exited during startup (exit code {process.ExitCode}).",
-                    "Start Solid Edge manually to see the error. A common cause is the license: check the SE_LICENSE_SERVER environment variable or sign out and back in to Windows.");
+                    "Start Solid Edge manually to see the error. A common cause is the licence: check the SE_LICENSE_SERVER environment variable or sign out and back in to Windows.");
             }
 
             Thread.Sleep(500);
@@ -132,6 +132,6 @@ internal static class SolidEdgeLauncher
         throw new ToolException(
             "solid_edge_start_timeout",
             $"Solid Edge did not become available within {timeout.TotalSeconds:F0} s.",
-            "Check Solid Edge for a dialog waiting for input (license, first start), close it and retry. Increase startupTimeoutSeconds in policy.json if the computer is slow.");
+            "Check Solid Edge for a dialog waiting for input (licence, first start), close it and retry. Increase startupTimeoutSeconds in policy.json if the computer is slow.");
     }
 }

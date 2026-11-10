@@ -4,6 +4,7 @@
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -19,20 +20,18 @@ public static partial class ViewService
     /// Standard view commands by the name of their interop constant (&lt;Environment&gt;View&lt;Name&gt;, e.g. PartViewISOView),
     /// looked up in the active environment; the ids verified in Solid Edge 2026 are only a fallback.
     /// </summary>
-    private static readonly Dictionary<string, (string Name, int Id)> Orientations = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<ViewOrientation, (string Name, int Id)> Orientations = new()
     {
-        ["iso"] = ("ISOView", 32810),
-        ["front"] = ("FrontView", 32811),
-        ["right"] = ("RightView", 32812),
-        ["top"] = ("TopView", 32813),
-        ["left"] = ("LeftView", 33109),
-        ["bottom"] = ("BottomView", 33110),
-        ["back"] = ("BackView", 45079),
-        ["dimetric"] = ("DimetricView", 45078),
-        ["trimetric"] = ("TrimetricView", 45077),
+        [ViewOrientation.Iso] = ("ISOView", 32810),
+        [ViewOrientation.Front] = ("FrontView", 32811),
+        [ViewOrientation.Right] = ("RightView", 32812),
+        [ViewOrientation.Top] = ("TopView", 32813),
+        [ViewOrientation.Left] = ("LeftView", 33109),
+        [ViewOrientation.Bottom] = ("BottomView", 33110),
+        [ViewOrientation.Back] = ("BackView", 45079),
+        [ViewOrientation.Dimetric] = ("DimetricView", 45078),
+        [ViewOrientation.Trimetric] = ("TrimetricView", 45077),
     };
-
-    public static IReadOnlyCollection<string> OrientationNames => Orientations.Keys;
 
     public static object Fit(SeContext context, string? handle)
     {
@@ -52,14 +51,10 @@ public static partial class ViewService
         return new { fitted = document.Name };
     }
 
-    public static object Orient(SeContext context, string? handle, string orientation)
+    public static object Orient(SeContext context, string? handle, ViewOrientation orientation)
     {
         SolidEdgeDocument document = Activate(context, handle);
-        if (!Orientations.TryGetValue(orientation, out (string Name, int Id) view))
-        {
-            throw ToolException.InvalidArgument($"Unknown orientation '{orientation}'.", $"Use one of: {string.Join(", ", Orientations.Keys)}.");
-        }
-
+        (string Name, int Id) view = Orientations[orientation];
         if (FirstWindow(document) is not Window window)
         {
             throw new ToolException("not_supported", "Orientations apply to 3D documents (part, sheet metal, assembly).");
@@ -74,7 +69,7 @@ public static partial class ViewService
         // Verified in Solid Edge 2026: the orientation command fits a perspective camera by narrowing its field of view
         // (40° to 5.1°), so the previous angle is put back.
         FitView(window.View, before.Perspective ? before.Scale : null);
-        return new { orientation, document = document.Name };
+        return new { orientation = ArgumentNames.Snake(orientation), document = document.Name };
     }
 
     public static object SetRenderMode(SeContext context, string? handle, string mode)
@@ -225,15 +220,9 @@ public static partial class ViewService
     /// <summary>Same viewing direction (eye to target) and up vector, within 0.001 rad; the distance and zoom may change.</summary>
     private static bool SameDirection(Camera a, Camera b)
     {
-        static double[] Unit(double[] v)
-        {
-            double length = Math.Sqrt(v.Sum(c => c * c));
-            return length < 1e-12 ? v : v.Select(c => c / length).ToArray();
-        }
-
-        static double[] Direction(Camera c) => Unit(c.Target.Zip(c.Eye, (t, e) => t - e).ToArray());
+        static double[] Direction(Camera c) => Geo.Unit(c.Target.Zip(c.Eye, (t, e) => t - e).ToArray());
         static bool Close(double[] x, double[] y) => x.Zip(y, (p, q) => Math.Abs(p - q)).Max() < 1e-3;
-        return Close(Direction(a), Direction(b)) && Close(Unit(a.Up), Unit(b.Up));
+        return Close(Direction(a), Direction(b)) && Close(Geo.Unit(a.Up), Geo.Unit(b.Up));
     }
 
     private static object DescribeView(NamedView view)
@@ -489,6 +478,7 @@ public static partial class ViewService
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // The file stays in the work folder.
         }
     }
 

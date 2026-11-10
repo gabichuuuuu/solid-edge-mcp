@@ -10,6 +10,7 @@ using SolidEdgeMcp.Core;
 using ModelContextProtocol.Protocol;
 using SolidEdgeMcp.Server.Infrastructure;
 using SolidEdgeMcp.Server.Tools;
+using SolidEdgeMcp.SolidEdge.Arguments;
 
 namespace SolidEdgeMcp.Server.Tests;
 

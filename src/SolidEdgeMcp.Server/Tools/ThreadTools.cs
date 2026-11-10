@@ -5,6 +5,7 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 
 namespace SolidEdgeMcp.Server.Tools;
@@ -33,5 +34,5 @@ public sealed class ThreadTools(ToolRunner runner)
         [Description("Document handle; default: the face's document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_thread", "add", c => FeatureService.Thread(c, document,
-            new ThreadSpec(face, thread, pitch, length, reverse, FeatureTools.Snake(hand))), cancellationToken, timeout: TimeSpan.FromMinutes(3));
+            new ThreadSpec(face, thread, pitch, length, reverse, hand)), cancellationToken, timeout: TimeSpan.FromMinutes(3));
 }

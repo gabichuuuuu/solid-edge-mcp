@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -12,8 +13,8 @@ using Face = SolidEdgeGeometry.Face;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_body does: the action and its inputs. Lengths in mm.</summary>
-public sealed record BodySpec(string Action, string[]? Targets = null, string[]? Tools = null, string[]? Bodies = null,
-    string Side = "auto", double? Thickness = null, double Clearance = 0, bool Thicken = true, string[]? Paths = null, string? Report = null,
+public sealed record BodySpec(BodyAction Action, string[]? Targets = null, string[]? Tools = null, string[]? Bodies = null,
+    BodySide Side = BodySide.Auto, double? Thickness = null, double Clearance = 0, bool Thicken = true, string[]? Paths = null, string? Report = null,
     string? Assembly = null, bool Overwrite = false, bool FullBody = false);
 
 /// <summary>
@@ -23,21 +24,19 @@ public sealed record BodySpec(string Action, string[]? Targets = null, string[]?
 /// </summary>
 public static partial class FeatureService
 {
-    public static readonly IReadOnlyList<string> BodyActions = ["list", "subtract", "intersect", "unite", "emboss", "to_construction", "to_design", "divide", "heal", "publish"];
-
     public static object BodyOperation(SeContext context, string? documentHandle, BodySpec spec) => spec.Action switch
     {
-        "list" => ListBodies(context, documentHandle),
-        "subtract" => SubtractBodies(context, documentHandle, spec),
-        "intersect" => IntersectBodies(context, documentHandle, spec),
-        "unite" => UniteBodies(context, documentHandle, spec),
-        "emboss" => Emboss(context, documentHandle, spec),
-        "to_construction" => ToConstruction(context, documentHandle, spec.Bodies),
-        "to_design" => ToDesign(context, documentHandle, spec.Bodies),
-        "divide" => Divide(context, documentHandle, spec.Tools, spec.Paths),
-        "heal" => Heal(context, documentHandle, spec.Report, spec.FullBody),
-        "publish" => PublishBodies(context, documentHandle, spec.Bodies, spec.Assembly, spec.Overwrite),
-        _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", BodyActions)}."),
+        BodyAction.List => ListBodies(context, documentHandle),
+        BodyAction.Subtract => SubtractBodies(context, documentHandle, spec),
+        BodyAction.Intersect => IntersectBodies(context, documentHandle, spec),
+        BodyAction.Unite => UniteBodies(context, documentHandle, spec),
+        BodyAction.Emboss => Emboss(context, documentHandle, spec),
+        BodyAction.ToConstruction => ToConstruction(context, documentHandle, spec.Bodies),
+        BodyAction.ToDesign => ToDesign(context, documentHandle, spec.Bodies),
+        BodyAction.Divide => Divide(context, documentHandle, spec.Tools, spec.Paths),
+        BodyAction.Heal => Heal(context, documentHandle, spec.Report, spec.FullBody),
+        BodyAction.Publish => PublishBodies(context, documentHandle, spec.Bodies, spec.Assembly, spec.Overwrite),
+        _ => throw new ArgumentOutOfRangeException(nameof(spec)),
     };
 
     /// <summary>
@@ -166,8 +165,8 @@ public static partial class FeatureService
         (ModelDocument model, Model owner, object[] targets, Body[] tools, bool switched) = Operands(context, documentHandle, spec, "subtract");
         int[] directions = tools.Select(t => t.IsSolid ? 0 : spec.Side switch
         {
-            "normal" => (int)ReferenceElementConstants.igReverseNormalSide,
-            "reverse" => (int)ReferenceElementConstants.igNormalSide,
+            BodySide.Normal => (int)ReferenceElementConstants.igReverseNormalSide,
+            BodySide.Reverse => (int)ReferenceElementConstants.igNormalSide,
             _ => throw ToolException.InvalidArgument("A tool of 'subtract' is an open surface: 'side' must say which side of it loses its material (normal or reverse).",
                 "normal = the side its normal points to (se_geometry faces of the surface give the normal); reverse = the other side."),
         }).ToArray();
@@ -197,9 +196,9 @@ public static partial class FeatureService
             SETargetDesignBodyOption.igCreateMultipleDesignBodiesOnNonManifoldOption, SETargetConstructionBodyOption.igCreateMultipleConstructionBodiesOnNonManifoldOption));
         const string Hint = "The tools must overlap the targets.";
         (double after, string? status) = Check(context, model, feature, before, -1, null, null, hint: Hint);
-        if (after <= VolumeTolerance)
+        if (after <= Geo.VolumeTolerance)
         {
-            TryDelete(feature);
+            Late.TryDelete(feature);
             throw new ToolException("feature_failed", "The intersection was deleted because it left no material: the bodies do not overlap.", Hint);
         }
 
@@ -261,9 +260,9 @@ public static partial class FeatureService
         double clearance = spec.Clearance >= 0 ? spec.Clearance : throw ToolException.InvalidArgument("'clearance' cannot be negative.");
         bool defaultSide = spec.Side switch
         {
-            "auto" or "normal" => true,
-            "reverse" => false,
-            _ => throw ToolException.InvalidArgument($"Unknown side '{spec.Side}'.", "Use auto, normal or reverse."),
+            BodySide.Auto or BodySide.Normal => true,
+            BodySide.Reverse => false,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         double before = model.Volume();
         Array toolArray = tools;

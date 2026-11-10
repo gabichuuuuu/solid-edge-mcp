@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -58,7 +59,7 @@ public static partial class FeatureService
         double area = FacesOf(surface).Sum(f => f.Area);
         if (Math.Abs(area - expected) > Math.Max(1e-9, expected * 1e-4))
         {
-            TryDeleteSurface(surface);
+            Late.TryDelete(surface);
             throw new ToolException("feature_failed",
                 $"The copied surface has {Geo.Mm2(area)} mm² instead of {Geo.Mm2(expected)} mm² (the faces given); it was deleted.",
                 "Pass faces of the body or of surfaces (se_geometry faces).");
@@ -151,7 +152,7 @@ public static partial class FeatureService
             : null;
         if (problem is not null)
         {
-            TryDeleteSurface(split);
+            Late.TryDelete(split);
             throw new ToolException("feature_failed", $"Solid Edge did not make the split ({problem}); it was deleted.",
                 "The tools must cross the surface: reference planes, other surfaces or curves. Solid Edge 2026 Community Edition leaves this feature failed.");
         }
@@ -169,16 +170,16 @@ public static partial class FeatureService
     }
 
     /// <summary>Extends a surface from free edges by a distance (mm): natural, linear or reflective.</summary>
-    public static object ExtendSurface(SeContext context, string? documentHandle, string[]? edges, double? distance, string extension)
+    public static object ExtendSurface(SeContext context, string? documentHandle, string[]? edges, double? distance, SurfaceExtension extension)
     {
         (ModelDocument model, object[] resolved) = ResolveEdges(context, documentHandle, edges);
         double d = Units.MmToM(Units.RequirePositive(distance ?? throw ToolException.InvalidArgument("extend requires 'distance' (mm)."), "distance"));
         ExtendSurfaceExtentTypeConstants type = extension switch
         {
-            "natural" => ExtendSurfaceExtentTypeConstants.igESNatural,
-            "linear" => ExtendSurfaceExtentTypeConstants.igESLinear,
-            "reflective" => ExtendSurfaceExtentTypeConstants.igESReflective,
-            _ => throw ToolException.InvalidArgument($"Unknown extension '{extension}'.", "Use natural, linear or reflective."),
+            SurfaceExtension.Natural => ExtendSurfaceExtentTypeConstants.igESNatural,
+            SurfaceExtension.Linear => ExtendSurfaceExtentTypeConstants.igESLinear,
+            SurfaceExtension.Reflective => ExtendSurfaceExtentTypeConstants.igESReflective,
+            _ => throw new ArgumentOutOfRangeException(nameof(extension)),
         };
         (ConstructionModel owner, Body body) = ConstructionOf(model, resolved[0], edges![0], "edges");
         int tag = body.Tag;
@@ -239,7 +240,7 @@ public static partial class FeatureService
         (string? Name, Body Body)[] made = [.. ConstructionBodies(model).Where(c => c.Body.IsSolid && !solidsBefore.Contains(c.Body.Tag))];
         if (status is not ("ok" or "warning") || made.Length != 1 || made[0].Body.Volume <= 0)
         {
-            TryDeleteSurface(feature);
+            Late.TryDelete(feature);
             throw new ToolException("feature_failed",
                 $"Solid Edge did not close the surfaces into a solid ({(status is "ok" or "warning" ? $"{made.Length} new closed bodies" : $"status {status}")}); the operation was deleted.",
                 "The surfaces must cross each other and together enclose a volume (open ends closed by other surfaces).");
@@ -323,7 +324,7 @@ public static partial class FeatureService
         Face[] blendFaces = FacesOf(blend);
         if (status is not ("ok" or "warning") || blendFaces.Length == 0)
         {
-            TryDeleteSurface(blend);
+            Late.TryDelete(blend);
             throw new ToolException("feature_failed", $"Solid Edge did not make the surface blend (status {status ?? "unknown"}); it was deleted.",
                 "The radius must fit between the faces, and the point must lie in the corner they make, off both faces.");
         }
@@ -511,7 +512,7 @@ public static partial class FeatureService
         bool changed = removed ? change < -Math.Max(1e-12, before * 1e-9) : change > Math.Max(1e-12, before * 1e-9);
         if (status is not ("ok" or "warning") || body is null || !changed)
         {
-            TryDeleteSurface(feature);
+            Late.TryDelete(feature);
             throw new ToolException("feature_failed",
                 $"Solid Edge did not make the {what} ({(status is "ok" or "warning" ? "the surface did not change" : $"status {status}")}); it was deleted.", hint);
         }

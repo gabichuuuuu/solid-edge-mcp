@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -27,7 +28,7 @@ public static partial class FeatureService
     /// </summary>
     private static object ConstructionPattern(SeContext context, string? documentHandle, PatternSpec spec, object[] items)
     {
-        if (spec.Type is not ("mirror" or "curve"))
+        if (spec.Type is not (PatternType.Mirror or PatternType.Curve))
         {
             throw ToolException.InvalidArgument("Construction geometry is copied with type 'mirror' or 'curve' only.",
                 "Use type 'mirror' with 'plane', or 'curve' with 'curve', 'count' and 'spacing'.");
@@ -37,7 +38,7 @@ public static partial class FeatureService
         ModelDocument model = ModelDocument.For(context, documentHandle, handles[0]);
         Body[] bodies = items.Select((item, i) => ConstructionOf(model, item, handles[i], "features").Body).DistinctBy(b => b.Tag).ToArray();
         RefPlane? plane = null;
-        if (spec.Type == "mirror")
+        if (spec.Type == PatternType.Mirror)
         {
             if (string.IsNullOrWhiteSpace(spec.Plane))
             {
@@ -75,11 +76,11 @@ public static partial class FeatureService
         List<(string? Name, Body Body)> added = [.. ConstructionBodies(model).Where(b => !before.Contains(b.Body.Tag))];
         if (status == "failed" || added.Count == 0)
         {
-            TryDelete(feature);
+            Late.TryDelete(feature);
             context.ModelChanged(model.Document, "the model changed (copy deleted)");
             throw new ToolException("feature_failed",
                 $"Solid Edge did not copy the construction geometry ({(status == "failed" ? "it reports the copy as failed" : "no new body appeared")}); the copy was deleted.",
-                spec.Type == "mirror" ? "Check the mirror plane." : "Check that the curve is an open edge and that the copies fit along it (count and spacing).");
+                spec.Type == PatternType.Mirror ? "Check the mirror plane." : "Check that the curve is an open edge and that the copies fit along it (count and spacing).");
         }
 
         List<string> warnings = Warnings(switched, status == "warning") ?? [];
@@ -102,7 +103,7 @@ public static partial class FeatureService
     /// </summary>
     private static object PartPattern(SeContext context, string? documentHandle, PatternSpec spec)
     {
-        if (spec.Type != "curve")
+        if (spec.Type != PatternType.Curve)
         {
             throw ToolException.InvalidArgument("part: true copies the whole part along a curve only (type 'curve').",
                 "For other layouts pattern the features (rectangular, circular, mirror) or use se_part_feature mirror_body.");

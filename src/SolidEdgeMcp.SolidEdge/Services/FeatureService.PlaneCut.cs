@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
 
@@ -17,7 +18,7 @@ public static partial class FeatureService
     private static object CutByPlane(SeContext context, string? documentHandle, PartFeatureSpec spec)
     {
         string plane = spec.Plane ?? throw ToolException.InvalidArgument("cut_by_plane requires 'plane': '1'-'3', a reference plane or a planar face handle.");
-        if (spec.Side is not ("normal" or "reverse"))
+        if (spec.Side is not (PartFeatureSide.Normal or PartFeatureSide.Reverse))
         {
             throw ToolException.InvalidArgument("cut_by_plane requires 'side': normal removes the material on the side the plane's sketch normal points to (se_sketch create shows it), reverse the other side.");
         }
@@ -36,12 +37,13 @@ public static partial class FeatureService
         try
         {
             double[] normal = SketchService.RectangleAround(context, sketch, [.. min.Select(Units.MmToM)], [.. max.Select(Units.MmToM)]);
-            object cut = Extrude(context, null, sketch, "cut", "through_all", spec.Side, null);
+            object cut = Extrude(context, null, sketch, FeatureOperation.Cut, ExtrudeExtent.ThroughAll,
+                spec.Side == PartFeatureSide.Normal ? FeatureDirection.Normal : FeatureDirection.Reverse, null);
             return new
             {
                 cut,
-                removedToward = spec.Side == "normal" ? normal : [.. normal.Select(n => -n + 0.0)],
-                note = switched ? "The document was switched to ordered modeling." : null,
+                removedToward = spec.Side == PartFeatureSide.Normal ? normal : [.. normal.Select(n => -n + 0.0)],
+                note = switched ? "The document was switched to ordered modelling." : null,
             };
         }
         catch (ToolException)

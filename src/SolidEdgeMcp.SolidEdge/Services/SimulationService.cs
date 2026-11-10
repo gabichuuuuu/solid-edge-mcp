@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -12,9 +13,9 @@ using SolidEdgePart;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_simulation does: the action and its inputs, in the units of the tools.</summary>
-public sealed record SimulationSpec(string Action, string? Study = null, string? Type = null, int? Modes = null, string[]? Bodies = null,
-    string[]? Elements = null, string? Kind = null, double? Value = null, double[]? Direction = null, string? Quantity = null,
-    string? Component = null, int? Mode = null, string? Path = null);
+public sealed record SimulationSpec(SimulationAction Action, string? Study = null, StudyType? Type = null, int? Modes = null, string[]? Bodies = null,
+    string[]? Elements = null, SimulationConstraint? Constraint = null, SimulationLoad? Load = null, double? Value = null, double[]? Direction = null,
+    ResultQuantity? Quantity = null, ResultComponent? Component = null, int? Mode = null, string? Path = null);
 
 /// <summary>A result of se_simulation results: its values and, when asked, the picture of the plot.</summary>
 public sealed record SimulationPlot(object Details, byte[]? Image, string? MimeType);
@@ -43,16 +44,11 @@ public sealed record SimulationPlot(object Details, byte[]? Image, string? MimeT
 /// </summary>
 public static class SimulationService
 {
-    public static readonly IReadOnlyList<string> Actions = ["list", "create", "constrain", "load", "solve", "results", "close_results", "delete"];
-    public static readonly IReadOnlyList<string> StudyTypes = ["static", "modal", "buckling"];
     public static readonly IReadOnlyList<string> ConstraintKinds = ["fixed", "pinned", "no_rotation", "sliding", "cylindrical"];
     public static readonly IReadOnlyList<string> LoadKinds = ["force", "pressure"];
 
     /// <summary>Results kept by a new study: displacement, applied force, constraint force, stress and strain (FEAResultOptions_Auto).</summary>
     private const uint ResultOptions = 1 | 2 | 4 | 4096 | 8192;
-
-    /// <summary>DISP_E_BADINDEX: how Mode, ModesOwner and PlotsOwner, which have no Count, end.</summary>
-    private const int BadIndex = unchecked((int)0x8002000B);
 
     /// <summary>Close Simulation Results, on every tab of the results environment.</summary>
     private const int CloseResultsCommand = 10231;
@@ -77,32 +73,33 @@ public static class SimulationService
         ["gravity"] = 10522,
     };
 
-    private static readonly (string Name, FEAPlotsOwnerTypeEnum_Auto Owner, double Scale, string Unit, (string Component, int Code)[] Components)[] Quantities =
+    private static readonly (ResultQuantity Name, FEAPlotsOwnerTypeEnum_Auto Owner, double Scale, string Unit, (ResultComponent Component, int Code)[] Components)[] Quantities =
     [
-        ("displacement", FEAPlotsOwnerTypeEnum_Auto.ePlotsOwnerTypeDisplacement_Auto, 1000, "mm",
-            [("magnitude", 1), ("x", 2), ("y", 3), ("z", 4)]),
-        ("stress", FEAPlotsOwnerTypeEnum_Auto.ePlotsOwnerTypeStress_Auto, 1e-6, "MPa",
-            [("von_mises", 60031), ("xx", 60010), ("yy", 60011), ("zz", 60012), ("xy", 60013), ("yz", 60014), ("zx", 60015)]),
+        (ResultQuantity.Displacement, FEAPlotsOwnerTypeEnum_Auto.ePlotsOwnerTypeDisplacement_Auto, 1000, "mm",
+            [(ResultComponent.Magnitude, 1), (ResultComponent.X, 2), (ResultComponent.Y, 3), (ResultComponent.Z, 4)]),
+        (ResultQuantity.Stress, FEAPlotsOwnerTypeEnum_Auto.ePlotsOwnerTypeStress_Auto, 1e-6, "MPa",
+            [(ResultComponent.VonMises, 60031), (ResultComponent.Xx, 60010), (ResultComponent.Yy, 60011), (ResultComponent.Zz, 60012),
+                (ResultComponent.Xy, 60013), (ResultComponent.Yz, 60014), (ResultComponent.Zx, 60015)]),
     ];
 
     public static object Run(SeContext context, string? documentHandle, SimulationSpec spec)
     {
         SolidEdgeDocument document = Document(context, documentHandle, spec);
-        if (spec.Action is "solve" or "close_results")
+        if (spec.Action is SimulationAction.Solve or SimulationAction.CloseResults)
         {
             document.Activate();
         }
 
         return spec.Action switch
         {
-            "list" => List(context, document),
-            "create" => Create(context, document, spec),
-            "constrain" => Constrain(context, document, spec),
-            "load" => Load(context, document, spec),
-            "solve" => Solve(context, document, spec),
-            "close_results" => CloseResults(context, document),
-            "delete" => Delete(context, document, spec),
-            _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", Actions)}."),
+            SimulationAction.List => List(context, document),
+            SimulationAction.Create => Create(context, document, spec),
+            SimulationAction.Constrain => Constrain(context, document, spec),
+            SimulationAction.Load => Load(context, document, spec),
+            SimulationAction.Solve => Solve(context, document, spec),
+            SimulationAction.CloseResults => CloseResults(context, document),
+            SimulationAction.Delete => Delete(context, document, spec),
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
     }
 
@@ -130,7 +127,7 @@ public static class SimulationService
     private static List<Study> Studies(StudyOwner owner)
     {
         var studies = new List<Study>();
-        for (int i = 1; i <= owner.Count; i++)
+        for (int i = 1, count = owner.Count; i <= count; i++)
         {
             studies.Add(owner.Item(i));
         }
@@ -285,7 +282,7 @@ public static class SimulationService
         study.GetConstraintOwner(out object owner);
         var constraints = (ConstraintOwner)owner;
         var list = new List<FEAConstraint>();
-        for (int i = 1; i <= constraints.Count; i++)
+        for (int i = 1, count = constraints.Count; i <= count; i++)
         {
             list.Add(constraints.Item(i));
         }
@@ -298,7 +295,7 @@ public static class SimulationService
         study.GetLoadOwner(out object owner);
         var loads = (LoadOwner)owner;
         var list = new List<SolidEdgePart.Load>();
-        for (int i = 1; i <= loads.Count; i++)
+        for (int i = 1, count = loads.Count; i <= count; i++)
         {
             list.Add(loads.Item(i));
         }
@@ -409,10 +406,10 @@ public static class SimulationService
         StudyOwner owner = Owner(document);
         FEAStudyTypeEnum_Auto type = spec.Type switch
         {
-            null or "static" => FEAStudyTypeEnum_Auto.eStudyTypeLinearStatic_Auto,
-            "modal" => FEAStudyTypeEnum_Auto.eStudyTypeNormalModal_Auto,
-            "buckling" => FEAStudyTypeEnum_Auto.eStudyTypeLinearBuckling_Auto,
-            _ => throw ToolException.InvalidArgument($"Unknown study type '{spec.Type}'.", $"Use one of: {string.Join(", ", StudyTypes)}."),
+            null or StudyType.Static => FEAStudyTypeEnum_Auto.eStudyTypeLinearStatic_Auto,
+            StudyType.Modal => FEAStudyTypeEnum_Auto.eStudyTypeNormalModal_Auto,
+            StudyType.Buckling => FEAStudyTypeEnum_Auto.eStudyTypeLinearBuckling_Auto,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         int modes = spec.Modes ?? 5;
         if (type != FEAStudyTypeEnum_Auto.eStudyTypeLinearStatic_Auto && modes is < 1 or > 100)
@@ -475,16 +472,16 @@ public static class SimulationService
     private static object Constrain(SeContext context, SolidEdgeDocument document, SimulationSpec spec)
     {
         Study study = Find(context, Owner(document), spec.Study);
-        FEAConstraintTypeEnum_Auto type = spec.Kind switch
+        FEAConstraintTypeEnum_Auto type = spec.Constraint switch
         {
-            null or "fixed" => FEAConstraintTypeEnum_Auto.eCnstrTypeFixed_Auto,
-            "pinned" => FEAConstraintTypeEnum_Auto.eCnstrTypePinned_Auto,
-            "no_rotation" => FEAConstraintTypeEnum_Auto.eCnstrTypeNoRotation_Auto,
-            "sliding" => FEAConstraintTypeEnum_Auto.eCnstrTypeSlidingAlongSurface_Auto,
-            "cylindrical" => FEAConstraintTypeEnum_Auto.eCnstrTypeCylindrical_Auto,
-            _ => throw ToolException.InvalidArgument($"Unknown constraint '{spec.Kind}'.", $"Use one of: {string.Join(", ", ConstraintKinds)}."),
+            null or SimulationConstraint.Fixed => FEAConstraintTypeEnum_Auto.eCnstrTypeFixed_Auto,
+            SimulationConstraint.Pinned => FEAConstraintTypeEnum_Auto.eCnstrTypePinned_Auto,
+            SimulationConstraint.NoRotation => FEAConstraintTypeEnum_Auto.eCnstrTypeNoRotation_Auto,
+            SimulationConstraint.Sliding => FEAConstraintTypeEnum_Auto.eCnstrTypeSlidingAlongSurface_Auto,
+            SimulationConstraint.Cylindrical => FEAConstraintTypeEnum_Auto.eCnstrTypeCylindrical_Auto,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
-        RequireLicence(context, document, spec.Kind ?? "fixed", "constraint");
+        RequireLicence(context, document, spec.Constraint is { } given ? ArgumentNames.Snake(given) : "fixed", "constraint");
         Array elements = Elements(context, spec.Elements, "constrain");
         study.GetConstraintOwner(out object owner);
         // Symbol colour, spacing and size as the generic call that was verified; all six degrees of freedom (63).
@@ -497,14 +494,10 @@ public static class SimulationService
     private static object Load(SeContext context, SolidEdgeDocument document, SimulationSpec spec)
     {
         Study study = Find(context, Owner(document), spec.Study);
-        string kind = spec.Kind ?? throw ToolException.InvalidArgument("Action 'load' requires 'load'.", $"Use one of: {string.Join(", ", LoadKinds)}.");
-        if (!LoadKinds.Contains(kind))
-        {
-            throw ToolException.InvalidArgument($"Unknown load '{kind}'.", $"Use one of: {string.Join(", ", LoadKinds)}.");
-        }
-
+        SimulationLoad load = spec.Load ?? throw ToolException.InvalidArgument("Action 'load' requires 'load'.", $"Use one of: {string.Join(", ", LoadKinds)}.");
+        string kind = ArgumentNames.Snake(load);
         RequireLicence(context, document, kind, "load");
-        bool force = kind == "force";
+        bool force = load == SimulationLoad.Force;
         double value = Required(spec.Value, kind, force ? "N" : "MPa");
         if (!(value > 0) || double.IsInfinity(value))
         {
@@ -533,12 +526,9 @@ public static class SimulationService
     private static double Required(double? value, string kind, string unit) =>
         value ?? throw ToolException.InvalidArgument($"A {kind} requires 'value' ({unit}).");
 
-    private static double[] Unit(double[] vector)
-    {
-        double length = vector.Length == 3 ? Geo.Length(vector) : 0;
-        return length > 1e-12 && vector.All(double.IsFinite) ? vector.Select(c => c / length).ToArray()
+    private static double[] Unit(double[] vector) =>
+        vector.Length == 3 && vector.All(double.IsFinite) && Geo.TryUnit(vector) is { } unit ? unit
             : throw ToolException.InvalidArgument("'direction' must be a non-zero vector [x, y, z].");
-    }
 
     /// <summary>Nastran needs an elastic modulus and a Poisson ratio, and a density for modes; a material without them fails late.</summary>
     private static void CheckMaterial(SeContext context, SolidEdgeDocument document, FEAStudyTypeEnum_Auto type)
@@ -603,8 +593,8 @@ public static class SimulationService
         }
 
         IReadOnlyList<NastranEigenvalue> eigenvalues = text is null ? [] : NastranOutput.Eigenvalues(text);
-        double? maxDisplacement = loaded ? Peak(study, "displacement", "magnitude") : null;
-        double? maxVonMises = loaded ? Peak(study, "stress", "von_mises") : null;
+        double? maxDisplacement = loaded ? Peak(study, ResultQuantity.Displacement, ResultComponent.Magnitude) : null;
+        double? maxVonMises = loaded ? Peak(study, ResultQuantity.Stress, ResultComponent.VonMises) : null;
         var notes = new List<string>();
         if (text is null)
         {
@@ -671,7 +661,7 @@ public static class SimulationService
             : null;
 
     /// <summary>The largest value of a plot, or null when the results cannot be read.</summary>
-    private static double? Peak(Study study, string quantity, string component)
+    private static double? Peak(Study study, ResultQuantity quantity, ResultComponent component)
     {
         try
         {
@@ -686,19 +676,21 @@ public static class SimulationService
     }
 
     /// <summary>Shows a plot of the results (the person sees it) and returns it with the factor to the units of the tools.</summary>
-    private static (Mode Mode, Plot Plot, double Scale, string Unit) PlotOf(Study study, string quantity, string component, int? modeNumber)
+    private static (Mode Mode, Plot Plot, double Scale, string Unit) PlotOf(Study study, ResultQuantity quantity, ResultComponent component, int? modeNumber)
     {
+        string quantityName = ArgumentNames.Snake(quantity);
+        string componentName = ArgumentNames.Snake(component);
         var entry = Quantities.FirstOrDefault(q => q.Name == quantity);
-        if (entry.Name is null)
+        if (entry.Components is null)
         {
-            throw ToolException.InvalidArgument($"Unknown quantity '{quantity}'.", $"Use one of: {string.Join(", ", Quantities.Select(q => q.Name))}.");
+            throw new ArgumentOutOfRangeException(nameof(quantity));
         }
 
         int code = entry.Components.FirstOrDefault(c => c.Component == component).Code;
         if (code == 0)
         {
-            throw ToolException.InvalidArgument($"The {quantity} has no component '{component}'.",
-                $"Use one of: {string.Join(", ", entry.Components.Select(c => c.Component))}.");
+            throw ToolException.InvalidArgument($"The {quantityName} has no component '{componentName}'.",
+                $"Use one of: {string.Join(", ", entry.Components.Select(c => ArgumentNames.Snake(c.Component)))}.");
         }
 
         study.ViewResults();
@@ -723,13 +715,13 @@ public static class SimulationService
                 p.GetPlotOwnerType(out FEAPlotsOwnerTypeEnum_Auto type);
                 return type == entry.Owner;
             })
-            ?? throw ToolException.NotFound($"The results have no {quantity}.", "The study keeps displacement and stress results when se_simulation creates it.");
+            ?? throw ToolException.NotFound($"The results have no {quantityName}.", "The study keeps displacement and stress results when se_simulation creates it.");
         Plot plot = Indexed(i => plots.Item(i)).FirstOrDefault(p =>
             {
                 p.GetPlotType(out int type);
                 return type == code;
             })
-            ?? throw ToolException.NotFound($"The {quantity} results have no {component} component.");
+            ?? throw ToolException.NotFound($"The {quantityName} results have no {componentName} component.");
         mode.SetActivePlotOwner(plots);
         plots.SetActivePlot(plot);
         return (mode, plot, entry.Scale, entry.Unit);
@@ -745,7 +737,7 @@ public static class SimulationService
             {
                 value = item(i);
             }
-            catch (COMException ex) when (ex.ErrorCode == BadIndex)
+            catch (COMException ex) when (ex.ErrorCode == ComErrors.DispEBadIndex)
             {
                 yield break;
             }
@@ -764,8 +756,8 @@ public static class SimulationService
             throw new ToolException("not_solved", $"'{NameOf(study)}' has no results.", "Solve it first with se_simulation solve.");
         }
 
-        string quantity = spec.Quantity ?? "stress";
-        string component = spec.Component ?? (quantity == "displacement" ? "magnitude" : "von_mises");
+        ResultQuantity quantity = spec.Quantity ?? ResultQuantity.Stress;
+        ResultComponent component = spec.Component ?? (quantity == ResultQuantity.Displacement ? ResultComponent.Magnitude : ResultComponent.VonMises);
         study.GetStudyType(out FEAStudyTypeEnum_Auto type);
         if (type != FEAStudyTypeEnum_Auto.eStudyTypeLinearStatic_Auto && spec.Mode is < 1)
         {
@@ -794,8 +786,8 @@ public static class SimulationService
         var details = new
         {
             study = NameOf(study),
-            quantity,
-            component,
+            quantity = ArgumentNames.Snake(quantity),
+            component = ArgumentNames.Snake(component),
             mode = type == FEAStudyTypeEnum_Auto.eStudyTypeLinearStatic_Auto ? null : (int?)(spec.Mode ?? 1),
             min = Geo.R(min * scale),
             max = Geo.R(max * scale),

@@ -4,6 +4,7 @@
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using Path = System.IO.Path;
@@ -17,20 +18,20 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class AssemblyService
 {
-    public static object Report(SeContext context, string? documentHandle, string structure, string? path = null, bool overwrite = false)
+    public static object Report(SeContext context, string? documentHandle, BomStructure structure, string? path = null, bool overwrite = false)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
         string document = context.DocumentHandle((SolidEdgeDocument)assembly);
-        if (structure == "statistics")
+        if (structure == BomStructure.Statistics)
         {
             return Statistics(context, assembly, document, path, overwrite);
         }
 
         bool exploded = structure switch
         {
-            "indented" => false,
-            "exploded" => true,
-            _ => throw ToolException.InvalidArgument($"Unknown structure '{structure}'.", "Use top, flat, indented, exploded or statistics."),
+            BomStructure.Indented => false,
+            BomStructure.Exploded => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(structure)),
         };
         // A file gets every line; the result, the first ones.
         var lines = new List<ReportLine>();
@@ -41,7 +42,7 @@ public static partial class AssemblyService
                 ? [l.Level, l.Item, l.Name, l.Occurrence, l.Kind, l.Quantity, l.File]
                 : [l.Level, l.Item, l.Name, l.Kind, l.Quantity, l.File])));
         List<ReportLine> shown = [.. lines.Take(context.MaxListItems)];
-        return new { document, structure, count = total, returned = shown.Count, more = total > shown.Count, lines = shown, savedTo };
+        return new { document, structure = ArgumentNames.Snake(structure), count = total, returned = shown.Count, more = total > shown.Count, lines = shown, savedTo };
     }
 
     /// <summary>Lines of one level and, under each subassembly, the next; returns how many lines the whole report has.</summary>

@@ -5,32 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum DimensionAction
-{
-    Get,
-    Tolerance,
-    Text,
-    Tracker,
-    AlignmentSet,
-    Arrange,
-}
-
-public enum DimensionTolerance
-{
-    Nominal,
-    PlusMinus,
-    Limits,
-    Fit,
-    FitPlusMinus,
-    FitLimits,
-    Basic,
-    Reference,
-}
 
 /// <summary>Tolerance and texts of a dimension of a drawing, a sketch or the PMI.</summary>
 [McpServerToolType]
@@ -83,7 +62,7 @@ public sealed class DimensionTools(ToolRunner runner)
             return runner.RunAsync("se_dimension", act, c => DimensionService.AlignmentSet(c, document, maintain), cancellationToken);
         }
 
-        var spec = new DimensionSpec(act, dimension, tolerance is { } t ? Snake(t) : null, upper, lower, hole, shaft, prefix, suffix, @override);
+        var spec = new DimensionSpec(action, dimension, tolerance, upper, lower, hole, shaft, prefix, suffix, @override);
         return runner.RunAsync("se_dimension", act, c => DimensionService.Run(c, spec), cancellationToken);
     }
 }

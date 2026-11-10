@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -33,8 +34,8 @@ public static partial class FeatureService
         double distance = Units.RequirePositive(spec.Distance ?? throw ToolException.InvalidArgument($"{action} requires 'distance': how far from the faces, in mm."), "distance");
         bool inside = spec.Side switch
         {
-            "auto" or "normal" => true,
-            "reverse" => false,
+            PartFeatureSide.Auto or PartFeatureSide.Normal => true,
+            PartFeatureSide.Reverse => false,
             _ => throw ToolException.InvalidArgument($"{action}: 'side' must be auto (inside the curves) or reverse (outside them, on the faces they lie on)."),
         };
         (ModelDocument model, object[] edges) = ResolveEdges(context, documentHandle, spec.Edges);

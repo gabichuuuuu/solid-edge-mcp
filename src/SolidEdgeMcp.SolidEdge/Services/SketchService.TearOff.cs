@@ -54,7 +54,7 @@ public static partial class SketchService
         {
             created = model.Sketches.AddByTearOff(ref array, target, true, true);
         }
-        catch (Exception ex) when (ex is COMException || ex.HResult == unchecked((int)0x80004003))
+        catch (Exception ex) when (ex is COMException || ex.HResult == ComErrors.EPointer)
         {
             DeleteNewSketches(model, count);
             throw new ToolException("sketch_failed", $"Solid Edge did not tear off the sketch ({ex.Message}).",

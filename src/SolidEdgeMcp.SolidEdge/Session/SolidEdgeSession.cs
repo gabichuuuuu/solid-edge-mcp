@@ -127,6 +127,7 @@ public sealed class SolidEdgeSession : IDisposable
             }
             catch (COMException)
             {
+                // Solid Edge is busy or starting: the status goes without the document name.
             }
 
             return new SessionStatus(connected, true, app.Version, app.ProcessID, app.Visible, app.Documents.Count,
@@ -149,7 +150,7 @@ public sealed class SolidEdgeSession : IDisposable
 
             var unsaved = new List<string>();
             Documents documents = app.Documents;
-            for (int i = 1; i <= documents.Count; i++)
+            for (int i = 1, count = documents.Count; i <= count; i++)
             {
                 if (documents.Item(i) is SolidEdgeDocument document && document.Dirty)
                 {

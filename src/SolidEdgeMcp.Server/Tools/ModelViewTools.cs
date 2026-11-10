@@ -5,44 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum ModelViewAction
-{
-    List,
-    Add,
-    Set,
-    Include,
-    Exclude,
-    Apply,
-    Update,
-    Delete,
-}
-
-public enum ModelViewOrientation
-{
-    Front,
-    Back,
-    Left,
-    Right,
-    Top,
-    Bottom,
-    Dimetric,
-    Isometric,
-    Trimetric,
-}
-
-public enum ModelViewRender
-{
-    None,
-    VisibleEdges,
-    VisibleAndHiddenEdges,
-    Shaded,
-    ShadedWithVisibleEdges,
-}
 
 /// <summary>PMI model views of parts, sheet metal and assemblies.</summary>
 [McpServerToolType]
@@ -71,12 +38,11 @@ public sealed class ModelViewTools(ToolRunner runner)
     {
         const string tool = "se_model_view";
         string act = Snake(action);
-        string? look = render is { } r ? Snake(r) : null;
         return action switch
         {
             ModelViewAction.List => runner.RunAsync(tool, act, c => ModelViewService.List(c, document), cancellationToken),
-            ModelViewAction.Add => runner.RunAsync(tool, act, c => ModelViewService.Add(c, document, orientation is { } o ? Snake(o) : null, name, look, replace), cancellationToken),
-            ModelViewAction.Set => runner.RunAsync(tool, act, c => ModelViewService.Set(c, document, view, name, look, pdf), cancellationToken),
+            ModelViewAction.Add => runner.RunAsync(tool, act, c => ModelViewService.Add(c, document, orientation, name, render, replace), cancellationToken),
+            ModelViewAction.Set => runner.RunAsync(tool, act, c => ModelViewService.Set(c, document, view, name, render, pdf), cancellationToken),
             ModelViewAction.Include => runner.RunAsync(tool, act, c => ModelViewService.Items(c, document, view, items, true), cancellationToken),
             ModelViewAction.Exclude => runner.RunAsync(tool, act, c => ModelViewService.Items(c, document, view, items, false), cancellationToken),
             ModelViewAction.Apply => runner.RunAsync(tool, act, c => ModelViewService.Apply(c, document, view), cancellationToken),

@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -11,10 +12,10 @@ using SolidEdgePart;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>Thin wall of a protrusion (mm): Side = inside | outside | symmetric of the profile; EndCaps closes both ends.</summary>
-public sealed record ThinWallSpec(double Thickness, string Side = "inside", bool EndCaps = false);
+public sealed record ThinWallSpec(double Thickness, WallSide Side = WallSide.Inside, bool EndCaps = false);
 
 /// <summary>Extrusion limits and draft: From/To = plane index, plane handle or planar face; Draft in degrees, DraftSide inside | outside.</summary>
-public sealed record ExtrudeLimits(string? From = null, string? To = null, double? Draft = null, string? DraftSide = null);
+public sealed record ExtrudeLimits(string? From = null, string? To = null, double? Draft = null, DraftSide? DraftSide = null);
 
 /// <summary>
 /// Part operations in ordered modelling. Each operation is verified: if Solid Edge marks it
@@ -24,16 +25,11 @@ public sealed record ExtrudeLimits(string? From = null, string? To = null, doubl
 /// </summary>
 public static partial class FeatureService
 {
-    /// <summary>Volume tolerance (m³) for deciding whether an operation changed the solid: 1e-6 mm³.</summary>
-    private const double VolumeTolerance = 1e-15;
-
     /// <summary>Area tolerance (m²) for changes that do not alter the volume: 1e-6 mm².</summary>
     private const double AreaTolerance = 1e-12;
 
-    public static readonly IReadOnlyList<string> Directions = ["normal", "reverse", "symmetric"];
-
-    public static object Extrude(SeContext context, string? documentHandle, string sketch, string operation, string extent,
-        string direction, double? distance, ThinWallSpec? thinWall = null, ExtrudeLimits? limits = null)
+    public static object Extrude(SeContext context, string? documentHandle, string sketch, FeatureOperation operation, ExtrudeExtent extent,
+        FeatureDirection direction, double? distance, ThinWallSpec? thinWall = null, ExtrudeLimits? limits = null)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
         Profile sketchProfile = SketchService.ResolveDefined(context, sketch);
@@ -41,16 +37,16 @@ public static partial class FeatureService
         ThinWallSpec? wall = CheckThinWall(thinWall, cut);
         bool finite = extent switch
         {
-            "finite" => true,
-            "through_all" or "through_next" or "to" or "from_to" => false,
-            _ => throw ToolException.InvalidArgument($"Unknown extent '{extent}'.", "Use finite, through_all, through_next, to or from_to."),
+            ExtrudeExtent.Finite => true,
+            ExtrudeExtent.ThroughAll or ExtrudeExtent.ThroughNext or ExtrudeExtent.To or ExtrudeExtent.FromTo => false,
+            _ => throw new ArgumentOutOfRangeException(nameof(extent)),
         };
         object? fromSource = null;
         object? toSource = null;
-        if (extent is "to" or "from_to")
+        if (extent is ExtrudeExtent.To or ExtrudeExtent.FromTo)
         {
-            toSource = model.ResolvePlaneSource(context, limits?.To ?? throw ToolException.InvalidArgument($"Extent '{extent}' requires 'to': the plane or planar face the extrusion ends on."), "to");
-            if (extent == "from_to")
+            toSource = model.ResolvePlaneSource(context, limits?.To ?? throw ToolException.InvalidArgument($"Extent '{ArgumentNames.Snake(extent)}' requires 'to': the plane or planar face the extrusion ends on."), "to");
+            if (extent == ExtrudeExtent.FromTo)
             {
                 fromSource = model.ResolvePlaneSource(context, limits.From ?? throw ToolException.InvalidArgument("Extent 'from_to' requires 'from': the plane or planar face the extrusion starts on."), "from");
             }
@@ -62,11 +58,11 @@ public static partial class FeatureService
             throw ToolException.InvalidArgument("'draft' must be an angle between 0 and 90 degrees.");
         }
 
-        DraftSideConstants draftSide = (limits?.DraftSide ?? "inside") switch
+        DraftSideConstants draftSide = (limits?.DraftSide ?? DraftSide.Inside) switch
         {
-            "inside" => DraftSideConstants.seDraftInside,
-            "outside" => DraftSideConstants.seDraftOutside,
-            string other => throw ToolException.InvalidArgument($"Unknown draft side '{other}'.", "Use inside or outside."),
+            DraftSide.Inside => DraftSideConstants.seDraftInside,
+            DraftSide.Outside => DraftSideConstants.seDraftOutside,
+            _ => throw new ArgumentOutOfRangeException(nameof(limits)),
         };
         double depth = finite
             ? Units.MmToM(Units.RequirePositive(distance ?? throw ToolException.InvalidArgument("Extent 'finite' requires 'distance' (mm)."), "distance"))
@@ -85,9 +81,9 @@ public static partial class FeatureService
                 ExtrudedCutouts cutouts = (existing ?? model.RequireModel()).ExtrudedCutouts;
                 return extent switch
                 {
-                    "finite" => cutouts.AddFiniteMulti(1, ref profiles, side, depth),
-                    "through_all" => cutouts.AddThroughAllMulti(1, ref profiles, side),
-                    "to" or "from_to" => cutouts.AddFromToMulti(1, ref profiles, fromSource ?? included.Profile.Plane, toSource),
+                    ExtrudeExtent.Finite => cutouts.AddFiniteMulti(1, ref profiles, side, depth),
+                    ExtrudeExtent.ThroughAll => cutouts.AddThroughAllMulti(1, ref profiles, side),
+                    ExtrudeExtent.To or ExtrudeExtent.FromTo => cutouts.AddFromToMulti(1, ref profiles, fromSource ?? included.Profile.Plane, toSource),
                     _ => cutouts.AddThroughNextMulti(1, ref profiles, side),
                 };
             }
@@ -106,9 +102,9 @@ public static partial class FeatureService
             ExtrudedProtrusions protrusions = existing.ExtrudedProtrusions;
             return extent switch
             {
-                "finite" => protrusions.AddFiniteMulti(1, ref profiles, side, depth),
-                "through_all" => protrusions.AddThroughAllMulti(1, ref profiles, side),
-                "to" or "from_to" => protrusions.AddFromToMulti(1, ref profiles, fromSource ?? included.Profile.Plane, toSource),
+                ExtrudeExtent.Finite => protrusions.AddFiniteMulti(1, ref profiles, side, depth),
+                ExtrudeExtent.ThroughAll => protrusions.AddThroughAllMulti(1, ref profiles, side),
+                ExtrudeExtent.To or ExtrudeExtent.FromTo => protrusions.AddFromToMulti(1, ref profiles, fromSource ?? included.Profile.Plane, toSource),
                 _ => protrusions.AddThroughNextMulti(1, ref profiles, side),
             };
         });
@@ -151,7 +147,7 @@ public static partial class FeatureService
                     (int)TreatmentCrownSideConstants.seTreatmentCrownSideNone, (int)TreatmentCrownCurvatureSideConstants.seTreatmentCrownCurvatureNone, 0.0, 0.0);
             }
 
-            if (StatusOf(feature) == "failed" || Math.Abs(model.Volume() - before) <= VolumeTolerance)
+            if (StatusOf(feature) == "failed" || Math.Abs(model.Volume() - before) <= Geo.VolumeTolerance)
             {
                 problem = "the draft did not change the solid";
             }
@@ -164,7 +160,7 @@ public static partial class FeatureService
         if (problem is not null)
         {
             string name = Late.TryGetString(feature, "Name") ?? "The feature";
-            TryDelete(feature);
+            Late.TryDelete(feature);
             DeleteIncluded(included);
             throw new ToolException("feature_failed", $"{name} was deleted because {problem}. The sketch is kept: call the tool again with it.",
                 "Use a smaller draft angle, or the other draftSide, so that the side faces still meet the end.");
@@ -194,12 +190,12 @@ public static partial class FeatureService
         return wall;
     }
 
-    private static FeaturePropertyConstants ThinWallSide(string side) => side switch
+    private static FeaturePropertyConstants ThinWallSide(WallSide side) => side switch
     {
-        "inside" => FeaturePropertyConstants.igInside,
-        "outside" => FeaturePropertyConstants.igOutside,
-        "symmetric" => FeaturePropertyConstants.igSymmetric,
-        _ => throw ToolException.InvalidArgument($"Unknown wall side '{side}'.", "Use inside, outside or symmetric."),
+        WallSide.Inside => FeaturePropertyConstants.igInside,
+        WallSide.Outside => FeaturePropertyConstants.igOutside,
+        WallSide.Symmetric => FeaturePropertyConstants.igSymmetric,
+        _ => throw new ArgumentOutOfRangeException(nameof(side)),
     };
 
     /// <summary>
@@ -219,7 +215,7 @@ public static partial class FeatureService
         try
         {
             Late.Call(feature, "SetThinWallOptions", true, wall.EndCaps, false, Units.MmToM(wall.Thickness), (int)ThinWallSide(wall.Side));
-            if (StatusOf(feature) == "failed" || Math.Abs(model.Volume() - solid) <= VolumeTolerance)
+            if (StatusOf(feature) == "failed" || Math.Abs(model.Volume() - solid) <= Geo.VolumeTolerance)
             {
                 problem = "the solid did not become a thin wall";
             }
@@ -232,7 +228,7 @@ public static partial class FeatureService
         if (problem is not null)
         {
             string name = Late.TryGetString(feature, "Name") ?? "The feature";
-            TryDelete(feature);
+            Late.TryDelete(feature);
             if (included is not null)
             {
                 DeleteIncluded(included);
@@ -242,8 +238,8 @@ public static partial class FeatureService
         }
     }
 
-    public static object Revolve(SeContext context, string? documentHandle, string sketch, string? axis, string operation,
-        double angle, string direction, ThinWallSpec? thinWall = null)
+    public static object Revolve(SeContext context, string? documentHandle, string sketch, string? axis, FeatureOperation operation,
+        double angle, FeatureDirection direction, ThinWallSpec? thinWall = null)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
         Profile sketchProfile = SketchService.ResolveDefined(context, sketch);
@@ -337,7 +333,7 @@ public static partial class FeatureService
                 made = Create(what, () => create(synchronous));
             }
             catch (Exception ex) when (featureless && ex is NullReferenceException or InvalidCastException
-                && ex.HResult is unchecked((int)0x80004003) or unchecked((int)0x80004002))
+                && ex.HResult is ComErrors.EPointer or ComErrors.ENoInterface)
             {
                 return Featureless(context, model, what, expectedSign, start, undoStart, direction, hint);
             }
@@ -370,6 +366,13 @@ public static partial class FeatureService
         return Verify(context, model, feature, before, expectedSign, switched, direction: direction, hint: hint);
     }
 
+    /// <summary>What is wrong with a volume change of the expected sign (1 adds, -1 removes, 0 either), or <c>null</c>.</summary>
+    private static string? VolumeProblem(int expectedSign, double delta, Func<bool>? changedOtherwise = null) =>
+        expectedSign > 0 && delta <= Geo.VolumeTolerance ? "it did not add material"
+        : expectedSign < 0 && delta >= -Geo.VolumeTolerance ? "it did not remove material"
+        : expectedSign == 0 && Math.Abs(delta) <= Geo.VolumeTolerance && changedOtherwise?.Invoke() != true ? "it did not change the solid"
+        : null;
+
     /// <summary>A synchronous edit that made no feature: checked by the volume, and undone if it did not change the body as expected.</summary>
     private static object Featureless(SeContext context, ModelDocument model, string what, int expectedSign, double start, int undoStart,
         string? direction, string? hint)
@@ -377,10 +380,7 @@ public static partial class FeatureService
         context.ModelChanged(model.Document, $"the model changed ({what})");
         double after = model.Volume();
         double delta = after - start;
-        string? problem = expectedSign > 0 && delta <= VolumeTolerance ? "it did not add material"
-            : expectedSign < 0 && delta >= -VolumeTolerance ? "it did not remove material"
-            : expectedSign == 0 && Math.Abs(delta) <= VolumeTolerance ? "it did not change the solid"
-            : null;
+        string? problem = VolumeProblem(expectedSign, delta);
         if (problem is not null)
         {
             bool undone = UndoSince(model, undoStart);
@@ -479,28 +479,24 @@ public static partial class FeatureService
                 : target.Chamfers.AddEqualSetback(edgeObjects.Length, edgeObjects, d));
     }
 
-    public static readonly IReadOnlyList<string> FeatureEditActions = ["suppress", "unsuppress", "delete", "rename", "group", "ungroup", "reorder", "roll_to", "roll_to_end", "move_to_synchronous"];
-
     /// <summary>
     /// Suppress, unsuppress, delete or rename a feature; group features and dissolve a group; move a feature next to another
     /// one; roll the model back to a feature and forward to its end.
     /// </summary>
-    public static object Edit(SeContext context, string? documentHandle, string? featureHandle, string action, string? name,
+    public static object Edit(SeContext context, string? documentHandle, string? featureHandle, FeatureEditAction action, string? name,
         string[]? features = null, string? target = null, bool insertBefore = true)
     {
         switch (action)
         {
-            case "group":
+            case FeatureEditAction.Group:
                 return Group(context, documentHandle, features, name);
-            case "roll_to_end":
+            case FeatureEditAction.RollToEnd:
                 return RollToEnd(context, documentHandle);
-            case var known when !FeatureEditActions.Contains(known):
-                throw ToolException.InvalidArgument($"Unknown action '{action}'.", $"Use one of: {string.Join(", ", FeatureEditActions)}.");
         }
 
         if (string.IsNullOrWhiteSpace(featureHandle))
         {
-            throw ToolException.InvalidArgument($"Action '{action}' requires 'feature': a handle from se_feature_tree.");
+            throw ToolException.InvalidArgument($"Action '{ArgumentNames.Snake(action)}' requires 'feature': a handle from se_feature_tree.");
         }
 
         ModelDocument model = ModelDocument.For(context, documentHandle, featureHandle);
@@ -508,13 +504,13 @@ public static partial class FeatureService
         string label = Late.TryGetString(feature, "Name") ?? featureHandle;
         switch (action)
         {
-            case "ungroup":
+            case FeatureEditAction.Ungroup:
                 return Ungroup(context, model, featureHandle, feature, label);
-            case "reorder":
+            case FeatureEditAction.Reorder:
                 return Reorder(context, model, feature, label, target, insertBefore);
-            case "roll_to":
+            case FeatureEditAction.RollTo:
                 return RollTo(context, model, feature, label);
-            case "move_to_synchronous":
+            case FeatureEditAction.MoveToSynchronous:
                 return MoveToSynchronous(context, model, feature, label);
         }
 
@@ -523,39 +519,39 @@ public static partial class FeatureService
         {
             switch (action)
             {
-                case "suppress":
-                case "unsuppress":
-                    Late.Set(feature, "Suppress", action == "suppress");
+                case FeatureEditAction.Suppress:
+                case FeatureEditAction.Unsuppress:
+                    Late.Set(feature, "Suppress", action == FeatureEditAction.Suppress);
                     break;
-                case "delete":
+                case FeatureEditAction.Delete:
                     Late.Call(feature, "Delete");
                     context.Handles.Remove(featureHandle, "the feature was deleted");
                     break;
-                case "rename":
+                case FeatureEditAction.Rename:
                     Late.Set(feature, "Name", string.IsNullOrWhiteSpace(name)
                         ? throw ToolException.InvalidArgument("Action 'rename' requires 'name'.")
                         : name);
                     break;
                 default:
-                    throw ToolException.InvalidArgument($"Unknown action '{action}'.", $"Use one of: {string.Join(", ", FeatureEditActions)}.");
+                    throw new ArgumentOutOfRangeException(nameof(action));
             }
         }
         catch (Exception ex) when (ComErrors.Unwrap(ex) is MissingMemberException
             || ComErrors.Unwrap(ex) is COMException { HResult: ComErrors.DispEMemberNotFound or ComErrors.DispEUnknownName })
         {
-            throw new ToolException("not_supported", $"'{label}' does not support '{action}'.", "Use se_com_describe on the handle to see what it supports.");
+            throw new ToolException("not_supported", $"'{label}' does not support '{ArgumentNames.Snake(action)}'.", "Use se_com_describe on the handle to see what it supports.");
         }
 
-        if (action != "rename")
+        if (action != FeatureEditAction.Rename)
         {
-            context.ModelChanged(model.Document, $"the model changed ({action} {label})");
+            context.ModelChanged(model.Document, $"the model changed ({ArgumentNames.Snake(action)} {label})");
         }
 
         double after = model.Volume();
         return new
         {
-            feature = action == "delete" ? null : Describe(context, model, feature),
-            deleted = action == "delete" ? label : null,
+            feature = action == FeatureEditAction.Delete ? null : Describe(context, model, feature),
+            deleted = action == FeatureEditAction.Delete ? label : null,
             volume = Geo.Mm3(after),
             volumeChange = Geo.Mm3(after - before),
         };
@@ -628,20 +624,20 @@ public static partial class FeatureService
         _ => code.ToString(CultureInfo.InvariantCulture),
     };
 
-    private static bool IsCut(string operation) => operation switch
+    private static bool IsCut(FeatureOperation operation) => operation switch
     {
-        "add" => false,
-        "cut" => true,
-        _ => throw ToolException.InvalidArgument($"Unknown operation '{operation}'.", "Use 'add' (protrusion) or 'cut' (cutout)."),
+        FeatureOperation.Add => false,
+        FeatureOperation.Cut => true,
+        _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
     /// <summary>Side relative to the sketch plane: normal = the direction of the sketch normal.</summary>
-    private static FeaturePropertyConstants Side(string direction, bool finite) => direction switch
+    private static FeaturePropertyConstants Side(FeatureDirection direction, bool finite) => direction switch
     {
-        "normal" => FeaturePropertyConstants.igRight,
-        "reverse" => FeaturePropertyConstants.igLeft,
-        "symmetric" => finite ? FeaturePropertyConstants.igSymmetric : FeaturePropertyConstants.igBoth,
-        _ => throw ToolException.InvalidArgument($"Unknown direction '{direction}'.", $"Use one of: {string.Join(", ", Directions)}."),
+        FeatureDirection.Normal => FeaturePropertyConstants.igRight,
+        FeatureDirection.Reverse => FeaturePropertyConstants.igLeft,
+        FeatureDirection.Symmetric => finite ? FeaturePropertyConstants.igSymmetric : FeaturePropertyConstants.igBoth,
+        _ => throw new ArgumentOutOfRangeException(nameof(direction)),
     };
 
     private static (ModelDocument Model, object[] Edges) ResolveEdges(SeContext context, string? documentHandle, string[]? edges)
@@ -960,15 +956,12 @@ public static partial class FeatureService
         double delta = after - before;
         string? problem = status == "failed"
             ? "Solid Edge reports it as failed"
-            : expectedSign > 0 && delta <= VolumeTolerance ? "it did not add material"
-            : expectedSign < 0 && delta >= -VolumeTolerance ? "it did not remove material"
-            : expectedSign == 0 && Math.Abs(delta) <= VolumeTolerance && changedOtherwise?.Invoke() != true ? "it did not change the solid"
-            : null;
+            : VolumeProblem(expectedSign, delta, changedOtherwise);
         if (problem is not null)
         {
             if (!undoneByCaller)
             {
-                TryDelete(feature);
+                Late.TryDelete(feature);
                 if (included is not null)
                 {
                     DeleteIncluded(included);
@@ -990,7 +983,7 @@ public static partial class FeatureService
         var warnings = new List<string>();
         if (switched)
         {
-            warnings.Add("The document was switched to ordered modeling.");
+            warnings.Add("The document was switched to ordered modelling.");
         }
 
         if (featureWarning)
@@ -1026,18 +1019,6 @@ public static partial class FeatureService
         foreach (Profile profile in profiles.Length == 0 ? [included.Profile] : profiles)
         {
             Hide(profile);
-        }
-    }
-
-    private static void TryDelete(object feature)
-    {
-        try
-        {
-            Late.Call(feature, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
-        {
-            // If it cannot be deleted, the error already reports the failure; the person can undo it.
         }
     }
 }

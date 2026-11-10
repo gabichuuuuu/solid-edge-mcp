@@ -6,24 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum LinkAction
-{
-    List,
-    Replace,
-    Break,
-    WhereUsed,
-    TopLevel,
-    Search,
-    Pack,
-    Missing,
-    CadDirect,
-    CadUpdate,
-}
 
 /// <summary>Links between files: references of a document, replacing them, where a file is used and the document search.</summary>
 [McpServerToolType]

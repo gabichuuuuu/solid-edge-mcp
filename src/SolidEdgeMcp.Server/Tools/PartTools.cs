@@ -5,172 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum HoleType
-{
-    Simple,
-    Counterbore,
-    Countersink,
-    Tapped,
-}
-
-public enum HoleDirection
-{
-    Auto,
-    Normal,
-    Reverse,
-}
-
-public enum PatternType
-{
-    Rectangular,
-    Circular,
-    Mirror,
-    Curve,
-    Fill,
-    Table,
-}
-
-public enum ShellSide
-{
-    Inside,
-    Outside,
-}
-
-public enum DraftDirection
-{
-    Normal,
-    Reverse,
-}
-
-public enum SweepAction
-{
-    Loft,
-    Sweep,
-    Helix,
-    Tube,
-    Solid,
-}
-
-public enum HelixHand
-{
-    Right,
-    Left,
-}
-
-public enum PartFeatureAction
-{
-    Rib,
-    Thicken,
-    MirrorBody,
-    DeleteFaces,
-    DeleteHoles,
-    DeleteRounds,
-    DeleteRegion,
-    OffsetFaces,
-    ReplaceFaces,
-    RotateFaces,
-    RedefineFaces,
-    ResizeHoles,
-    ResizeRounds,
-    Radiate,
-    NormalProtrusion,
-    NormalCutout,
-    Split,
-    CutByPlane,
-    Unite,
-    Slot,
-    WebNetwork,
-    Lip,
-    ScaleBody,
-    CopyPart,
-    FilletWeld,
-    LabelWeld,
-}
-
-public enum PartFeatureSide
-{
-    Auto,
-    Normal,
-    Reverse,
-    Symmetric,
-}
-
-public enum BodyAction
-{
-    List,
-    Subtract,
-    Intersect,
-    Unite,
-    Emboss,
-    ToConstruction,
-    ToDesign,
-    Divide,
-    Heal,
-    Publish,
-}
-
-public enum BodySide
-{
-    Auto,
-    Normal,
-    Reverse,
-}
-
-public enum PrimitiveShape
-{
-    Box,
-    Cylinder,
-    Sphere,
-}
-
-public enum CurveAction
-{
-    List,
-    Points,
-    Intersection,
-    Project,
-    Cross,
-    Derived,
-    Contour,
-    Wrap,
-    Isocline,
-    Helix,
-    Split,
-    Delete,
-}
-
-public enum SurfaceAction
-{
-    List,
-    Extrude,
-    Revolve,
-    Offset,
-    Loft,
-    Sweep,
-    Stitch,
-    Bounded,
-    Copy,
-    Trim,
-    Split,
-    Extend,
-    Intersect,
-    Bluesurf,
-    Blend,
-    Ruled,
-    Delete,
-}
-
-public enum SurfaceExtension
-{
-    Natural,
-    Linear,
-    Reflective,
-}
 
 /// <summary>Holes, patterns, shell, draft, lofts and other part features (ordered modelling), verified like the other operations.</summary>
 [McpServerToolType]
@@ -202,8 +41,8 @@ public sealed class PartTools(ToolRunner runner)
         HoleDirection direction = HoleDirection.Auto,
         [Description("Document handle; default: the plane's document or the active one.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_hole", Snake(type), c => FeatureService.Hole(c, document, new HoleSpec(plane, centers, diameter, Snake(type),
-            counterboreDiameter, counterboreDepth, countersinkDiameter, countersinkAngle, thread, Snake(extent), depth, Snake(direction))),
+        runner.RunAsync("se_hole", Snake(type), c => FeatureService.Hole(c, document, new HoleSpec(plane, centers, diameter, type,
+            counterboreDiameter, counterboreDepth, countersinkDiameter, countersinkAngle, thread, extent, depth, direction)),
             cancellationToken);
 
     [McpServerTool(Name = "se_pattern", Title = "Pattern / mirror", Destructive = false, OpenWorld = false)]
@@ -239,7 +78,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Document handle; default: the features' document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_pattern", Snake(type), c => FeatureService.Pattern(c, document,
-            new PatternSpec(features, Snake(type), plane, countX, countY, spacingX, spacingY, count, angle, center, curve, spacing, reverse, part, region, stagger, offsets)), cancellationToken);
+            new PatternSpec(features, type, plane, countX, countY, spacingX, spacingY, count, angle, center, curve, spacing, reverse, part, region, stagger, offsets)), cancellationToken);
 
     [McpServerTool(Name = "se_shell", Title = "Shell (thin wall)", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -252,7 +91,7 @@ public sealed class PartTools(ToolRunner runner)
         ShellSide side = ShellSide.Inside,
         [Description("Document handle; default: the faces' document or the active one.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_shell", Snake(side), c => FeatureService.Shell(c, document, thickness, openFaces, Snake(side)), cancellationToken);
+        runner.RunAsync("se_shell", Snake(side), c => FeatureService.Shell(c, document, thickness, openFaces, side), cancellationToken);
 
     [McpServerTool(Name = "se_draft", Title = "Draft", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -266,7 +105,7 @@ public sealed class PartTools(ToolRunner runner)
         DraftDirection direction = DraftDirection.Normal,
         [Description("Document handle; default: the faces' document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_draft", "add", c => FeatureService.Draft(c, document, plane, faces, angle, Snake(direction)), cancellationToken);
+        runner.RunAsync("se_draft", "add", c => FeatureService.Draft(c, document, plane, faces, angle, direction), cancellationToken);
 
     [McpServerTool(Name = "se_loft_sweep", Title = "Loft / sweep / helix", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -300,12 +139,12 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Document handle; default: the sketches' document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_loft_sweep", Snake(action), c => action == SweepAction.Tube
-            ? FeatureService.Tube(c, document, path, outerDiameter, wall, Snake(operation))
+            ? FeatureService.Tube(c, document, path, outerDiameter, wall, operation)
             : action == SweepAction.Solid
-            ? FeatureService.SolidSweep(c, document, tool, path, Snake(operation))
+            ? FeatureService.SolidSweep(c, document, tool, path, operation)
             : FeatureService.LoftSweep(c, document,
-                new SweepSpec(Snake(action), Snake(operation), sketches, path, origins, axis, pitch, turns, height, Snake(hand),
-                    wall is { } thickness ? new ThinWallSpec(thickness, Snake(wallSide), endCaps) : null, taper)), cancellationToken);
+                new SweepSpec(action, operation, sketches, path, origins, axis, pitch, turns, height, hand,
+                    wall is { } thickness ? new ThinWallSpec(thickness, wallSide, endCaps) : null, taper)), cancellationToken);
 
     [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part / welds", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -359,8 +198,8 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Document handle; default: the document of the faces, sketch or plane.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_part_feature", Snake(action), c => FeatureService.PartFeature(c, document,
-            new PartFeatureSpec(Snake(action), faces, sketch, thickness, Snake(side), plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies, radius,
-                targetFaces, leg, leg2, angle, weld is { } w ? Snake(w) : null, Snake(weldSide), note, allAround, field, coaxial)), cancellationToken);
+            new PartFeatureSpec(action, faces, sketch, thickness, side, plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies, radius,
+                targetFaces, leg, leg2, angle, weld, weldSide, note, allAround, field, coaxial)), cancellationToken);
 
     [McpServerTool(Name = "se_body", Title = "Bodies: list / subtract / intersect / unite / emboss / construction and design", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -396,7 +235,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Document handle; default: the document of the bodies or the active one.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_body", Snake(action), c => FeatureService.BodyOperation(c, document,
-            new BodySpec(Snake(action), targets, tools, bodies, Snake(side), thickness, clearance, thicken, paths, report, assembly, overwrite, fullBody)), cancellationToken);
+            new BodySpec(action, targets, tools, bodies, side, thickness, clearance, thicken, paths, report, assembly, overwrite, fullBody)), cancellationToken);
 
     [McpServerTool(Name = "se_primitive", Title = "Box / cylinder / sphere", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -408,7 +247,7 @@ public sealed class PartTools(ToolRunner runner)
         or, instead of center, size and angle, corners = 2 opposite corners (sides along the plane's axes) or 3 points (the ends of one edge, then a point on the opposite edge);
         cylinder: radius and depth mm; sphere: radius mm. side: auto (default: along the plane normal to add, against it to cut,
         then the other way if that changes nothing) | normal | reverse | symmetric.
-        Solid Edge builds primitives only in synchronous modeling: the document switches to it for the call and back to ordered,
+        Solid Edge builds primitives only in synchronous modelling: the document switches to it for the call and back to ordered,
         and the primitive goes into the synchronous part of the feature tree.
         {{VerifiedNote}}
         Example: {"shape":"box","center":[50,30,0],"size":[100,60],"depth":20}; {"shape":"cylinder","operation":"cut","plane":"face:12","center":[50,30,20],"radius":5,"depth":20}.
@@ -427,7 +266,7 @@ public sealed class PartTools(ToolRunner runner)
         [Description("Document handle; default: the document of the plane handle or the active document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_primitive", Snake(shape), c => FeatureService.Primitive(c, document,
-            new PrimitiveSpec(Snake(shape), Snake(operation), plane, center, size, radius, depth, Snake(side), angle, corners)), cancellationToken);
+            new PrimitiveSpec(shape, operation, plane, center, size, radius, depth, side, angle, corners)), cancellationToken);
 
     [McpServerTool(Name = "se_curve", Title = "Construction curves", Destructive = false, OpenWorld = false)]
     [Description("""
@@ -477,13 +316,13 @@ public sealed class PartTools(ToolRunner runner)
             CurveAction.List => runner.RunAsync(tool, act, c => FeatureService.Curves(c, document), cancellationToken),
             CurveAction.Points => runner.RunAsync(tool, act, c => FeatureService.CurveThroughPoints(c, document, points, closed), cancellationToken),
             CurveAction.Intersection => runner.RunAsync(tool, act, c => FeatureService.IntersectionCurve(c, document, first, second), cancellationToken),
-            CurveAction.Project => runner.RunAsync(tool, act, c => FeatureService.ProjectedCurve(c, document, sketch, onto, Snake(direction)), cancellationToken),
+            CurveAction.Project => runner.RunAsync(tool, act, c => FeatureService.ProjectedCurve(c, document, sketch, onto, direction), cancellationToken),
             CurveAction.Cross => runner.RunAsync(tool, act, c => FeatureService.CrossCurve(c, document, sketches), cancellationToken),
             CurveAction.Derived => runner.RunAsync(tool, act, c => FeatureService.DerivedCurve(c, document, edges), cancellationToken),
             CurveAction.Contour => runner.RunAsync(tool, act, c => FeatureService.ContourCurve(c, document, faces, points, closed), cancellationToken),
             CurveAction.Wrap => runner.RunAsync(tool, act, c => FeatureService.WrapCurve(c, document, sketch, faces), cancellationToken),
-            CurveAction.Isocline => runner.RunAsync(tool, act, c => FeatureService.IsoclineCurve(c, document, faces, plane, angle, Snake(direction)), cancellationToken),
-            CurveAction.Helix => runner.RunAsync(tool, act, c => FeatureService.HelixCurve(c, document, faces, edges, plane, diameter, pitch, turns, height, Snake(hand), reverse), cancellationToken),
+            CurveAction.Isocline => runner.RunAsync(tool, act, c => FeatureService.IsoclineCurve(c, document, faces, plane, angle, direction), cancellationToken),
+            CurveAction.Helix => runner.RunAsync(tool, act, c => FeatureService.HelixCurve(c, document, faces, edges, plane, diameter, pitch, turns, height, hand, reverse), cancellationToken),
             CurveAction.Split => runner.RunAsync(tool, act, c => FeatureService.SplitCurve(c, document, curve, tools), cancellationToken),
             CurveAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteCurve(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
@@ -542,8 +381,8 @@ public sealed class PartTools(ToolRunner runner)
         return action switch
         {
             SurfaceAction.List => runner.RunAsync(tool, act, c => FeatureService.Surfaces(c, document), cancellationToken),
-            SurfaceAction.Extrude => runner.RunAsync(tool, act, c => FeatureService.ExtrudeSurface(c, document, sketch, depth, Snake(direction), endCaps), cancellationToken),
-            SurfaceAction.Revolve => runner.RunAsync(tool, act, c => FeatureService.RevolveSurface(c, document, sketch, axis, angle, Snake(direction), endCaps), cancellationToken),
+            SurfaceAction.Extrude => runner.RunAsync(tool, act, c => FeatureService.ExtrudeSurface(c, document, sketch, depth, direction, endCaps), cancellationToken),
+            SurfaceAction.Revolve => runner.RunAsync(tool, act, c => FeatureService.RevolveSurface(c, document, sketch, axis, angle, direction, endCaps), cancellationToken),
             SurfaceAction.Offset => runner.RunAsync(tool, act, c => FeatureService.OffsetSurface(c, document, faces, distance), cancellationToken),
             SurfaceAction.Loft => runner.RunAsync(tool, act, c => FeatureService.LoftSurface(c, document, sketches, origins, endCaps), cancellationToken),
             SurfaceAction.Sweep => runner.RunAsync(tool, act, c => FeatureService.SweepSurface(c, document, sketches, path, origins, endCaps), cancellationToken),
@@ -552,11 +391,11 @@ public sealed class PartTools(ToolRunner runner)
             SurfaceAction.Copy => runner.RunAsync(tool, act, c => FeatureService.CopySurface(c, document, faces), cancellationToken),
             SurfaceAction.Trim => runner.RunAsync(tool, act, c => FeatureService.TrimSurface(c, document, surfaces, tools, point), cancellationToken),
             SurfaceAction.Split => runner.RunAsync(tool, act, c => FeatureService.SplitSurface(c, document, surfaces, tools), cancellationToken),
-            SurfaceAction.Extend => runner.RunAsync(tool, act, c => FeatureService.ExtendSurface(c, document, edges, distance, Snake(extension)), cancellationToken),
+            SurfaceAction.Extend => runner.RunAsync(tool, act, c => FeatureService.ExtendSurface(c, document, edges, distance, extension), cancellationToken),
             SurfaceAction.Intersect => runner.RunAsync(tool, act, c => FeatureService.IntersectSurfaces(c, document, surfaces, tolerance), cancellationToken),
             SurfaceAction.Bluesurf => runner.RunAsync(tool, act, c => FeatureService.BlueSurf(c, document, edges, guides, endCaps), cancellationToken),
             SurfaceAction.Blend => runner.RunAsync(tool, act, c => FeatureService.BlendSurfaces(c, document, faces, radius, point), cancellationToken),
-            SurfaceAction.Ruled => runner.RunAsync(tool, act, c => FeatureService.RuledSurface(c, document, edges, faces, distance, taper, Snake(direction)), cancellationToken),
+            SurfaceAction.Ruled => runner.RunAsync(tool, act, c => FeatureService.RuledSurface(c, document, edges, faces, distance, taper, direction), cancellationToken),
             SurfaceAction.Delete => runner.RunAsync(tool, act, c => FeatureService.DeleteSurface(c, document, name), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -13,7 +14,7 @@ using TopologyQuery = SolidEdgeGeometry.FeatureTopologyQueryTypeConstants;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_face_split does: the action and its inputs. Lengths in mm.</summary>
-public sealed record FaceSplitSpec(string Action, string[]? Faces = null, string[]? Tools = null, string? Plane = null, string? Edge = null,
+public sealed record FaceSplitSpec(FaceSplitAction Action, string[]? Faces = null, string[]? Tools = null, string? Plane = null, string? Edge = null,
     double? Distance = null);
 
 /// <summary>
@@ -31,14 +32,12 @@ public sealed record FaceSplitSpec(string Action, string[]? Faces = null, string
 /// </summary>
 public static partial class FeatureService
 {
-    private static readonly string[] FaceSplitActions = ["split", "parting", "offset_edge"];
-
     public static object FaceSplit(SeContext context, string? documentHandle, FaceSplitSpec spec) => spec.Action switch
     {
-        "split" => SplitFaces(context, documentHandle, spec),
-        "parting" => PartingSplit(context, documentHandle, spec),
-        "offset_edge" => OffsetEdge(context, documentHandle, spec),
-        _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", FaceSplitActions)}."),
+        FaceSplitAction.Split => SplitFaces(context, documentHandle, spec),
+        FaceSplitAction.Parting => PartingSplit(context, documentHandle, spec),
+        FaceSplitAction.OffsetEdge => OffsetEdge(context, documentHandle, spec),
+        _ => throw new ArgumentOutOfRangeException(nameof(spec)),
     };
 
     private static object SplitFaces(SeContext context, string? documentHandle, FaceSplitSpec spec)
@@ -173,7 +172,7 @@ public static partial class FeatureService
             : null;
         if (problem is not null)
         {
-            TryDeleteSurface(feature);
+            Late.TryDelete(feature);
             throw new ToolException("feature_failed", $"Solid Edge did not make the {what} ({problem}); it was deleted.", hint);
         }
 

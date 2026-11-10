@@ -4,6 +4,7 @@
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -15,7 +16,7 @@ using Face = SolidEdgeGeometry.Face;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>A physical thread cut into a cylindrical face: metric designation or pitch, length from one end (mm).</summary>
-public sealed record ThreadSpec(string? Face, string? Thread, double? Pitch, double? Length, bool Reverse = false, string Hand = "right");
+public sealed record ThreadSpec(string? Face, string? Thread, double? Pitch, double? Length, bool Reverse = false, HelixHand Hand = HelixHand.Right);
 
 public static partial class FeatureService
 {
@@ -152,9 +153,9 @@ public static partial class FeatureService
 
         FeaturePropertyConstants hand = spec.Hand switch
         {
-            "right" => FeaturePropertyConstants.igRight,
-            "left" => FeaturePropertyConstants.igLeft,
-            _ => throw ToolException.InvalidArgument($"Unknown hand '{spec.Hand}'.", "Use right or left."),
+            HelixHand.Right => FeaturePropertyConstants.igRight,
+            HelixHand.Left => FeaturePropertyConstants.igLeft,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         Array profiles = new object[] { profile };
         object feature;
@@ -166,7 +167,7 @@ public static partial class FeatureService
         }
         catch (ToolException)
         {
-            TryDelete(sketch);
+            Late.TryDelete(sketch);
             throw;
         }
 
@@ -191,7 +192,7 @@ public static partial class FeatureService
                 diameter = Geo.Mm(2 * radius),
                 length = Geo.Mm(length),
                 turns = Geo.R(length / pitch),
-                hand = spec.Hand,
+                hand = ArgumentNames.Snake(spec.Hand),
                 from = startCenter.Select(Geo.Mm).ToArray(),
                 to = axisEnd.Select(Geo.Mm).ToArray(),
                 expectedVolumeChange = -Geo.Mm3(expected),

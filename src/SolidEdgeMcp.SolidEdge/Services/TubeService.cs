@@ -56,7 +56,7 @@ public static class TubeService
         var corners = Enumerable.Range(0, points.Length / 3).Select(i => new[] { points[3 * i], points[(3 * i) + 1], points[(3 * i) + 2] }).ToList();
         for (int i = 1; i < corners.Count; i++)
         {
-            if (Distance(corners[i - 1], corners[i]) < 1e-6)
+            if (Geo.Distance(corners[i - 1], corners[i]) < 1e-6)
             {
                 throw ToolException.InvalidArgument($"Points {i} and {i + 1} of the path are the same.");
             }
@@ -170,7 +170,7 @@ public static class TubeService
                 line.GetStartPoint(out double x0, out double y0, out double z0);
                 line.GetEndPoint(out double x1, out double y1, out double z1);
                 double[] start = [Geo.Mm(x0), Geo.Mm(y0), Geo.Mm(z0)];
-                if (points.Count == 0 || Distance(points[^1], start) > 1e-6)
+                if (points.Count == 0 || Geo.Distance(points[^1], start) > 1e-6)
                 {
                     points.Add(start);
                 }
@@ -246,7 +246,4 @@ public static class TubeService
             }
         }
     }
-
-    private static double Distance(double[] a, double[] b) =>
-        Math.Sqrt(Math.Pow(a[0] - b[0], 2) + Math.Pow(a[1] - b[1], 2) + Math.Pow(a[2] - b[2], 2));
 }

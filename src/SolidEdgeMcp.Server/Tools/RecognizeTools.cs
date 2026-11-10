@@ -5,17 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum RecognizeAction
-{
-    Holes,
-    Patterns,
-    Chamfers,
-}
 
 /// <summary>Feature recognition on synchronous bodies (imported parts moved to synchronous, synchronous cuts).</summary>
 [McpServerToolType]
@@ -35,5 +29,5 @@ public sealed class RecognizeTools(ToolRunner runner)
         [Description("patterns: feature handles to look for patterns among (se_feature_tree); default: all the holes of the part.")] string[]? features = null,
         [Description("Document handle; default: the features' document or the active one.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_recognize", Snake(action), c => RecognizeService.Run(c, document, Snake(action), features), cancellationToken);
+        runner.RunAsync("se_recognize", Snake(action), c => RecognizeService.Run(c, document, action, features), cancellationToken);
 }

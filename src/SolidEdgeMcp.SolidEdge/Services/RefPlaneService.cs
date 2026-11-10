@@ -4,6 +4,7 @@
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -72,14 +73,14 @@ public static partial class RefPlaneService
     /// edge). Verified: on the top of a 100 x 60 x 20 block with a top edge, 90 gives the plane through the edge square to the
     /// top and 0 the top itself; the x axis runs along the edge away from the pivot origin (igPivotStart: the edge start).
     /// </summary>
-    public static object Angle(SeContext context, string? documentHandle, string parent, string pivot, double? angle, bool flip, string at = "start")
+    public static object Angle(SeContext context, string? documentHandle, string parent, string pivot, double? angle, bool flip, EdgeEnd at = EdgeEnd.Start)
     {
         double a = Units.DegToRad(Units.RequireFinite(angle ?? throw ToolException.InvalidArgument("Action 'angle' requires 'angle' (degrees)."), "angle"));
         ReferenceElementConstants origin = at switch
         {
-            "start" => ReferenceElementConstants.igPivotStart,
-            "end" => ReferenceElementConstants.igPivotEnd,
-            _ => throw ToolException.InvalidArgument($"Unknown 'at' value '{at}'.", "Use start or end."),
+            EdgeEnd.Start => ReferenceElementConstants.igPivotStart,
+            EdgeEnd.End => ReferenceElementConstants.igPivotEnd,
+            _ => throw new ArgumentOutOfRangeException(nameof(at)),
         };
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         if (document is SolidEdgeAssembly.AssemblyDocument assembly)
@@ -122,7 +123,7 @@ public static partial class RefPlaneService
     /// <summary>The hinge edge must lie on the parent plane or face: the new plane turns about it from there.</summary>
     private static void RequireOnParent((double[] Root, double[] Normal) parent, double[] start, double[] end, string handle)
     {
-        if (Math.Abs(Dot(parent.Normal, Minus(start, parent.Root))) > Tolerance || Math.Abs(Dot(parent.Normal, Minus(end, parent.Root))) > Tolerance)
+        if (Math.Abs(Geo.Dot(parent.Normal, Geo.Minus(start, parent.Root))) > Tolerance || Math.Abs(Geo.Dot(parent.Normal, Geo.Minus(end, parent.Root))) > Tolerance)
         {
             throw ToolException.InvalidArgument($"The edge '{handle}' in 'pivot' does not lie on 'plane': the new plane turns about it from there.",
                 "Pick an edge of that face (se_geometry edges with 'source' = the face) or a plane.");
@@ -133,8 +134,8 @@ public static partial class RefPlaneService
     private static bool OnHinge(object plane, double[] parentNormal, double radians, double[] start, double[] end)
     {
         (double[] root, double[] normal) = PlaneData(plane);
-        return Math.Abs(Dot(normal, Minus(start, root))) < Tolerance && Math.Abs(Dot(normal, Minus(end, root))) < Tolerance
-            && Math.Abs(Math.Abs(Dot(normal, parentNormal)) - Math.Abs(Math.Cos(radians))) < 1e-6;
+        return Math.Abs(Geo.Dot(normal, Geo.Minus(start, root))) < Tolerance && Math.Abs(Geo.Dot(normal, Geo.Minus(end, root))) < Tolerance
+            && Math.Abs(Math.Abs(Geo.Dot(normal, parentNormal)) - Math.Abs(Math.Cos(radians))) < 1e-6;
     }
 
     /// <summary>Plane through three points of the model: vertices, or midpoints of straight edges (mm).</summary>
@@ -147,7 +148,7 @@ public static partial class RefPlaneService
         }
 
         double[][] targets = Geo.Points3(points, "points", 3).Select(p => new[] { p.X, p.Y, p.Z }).ToArray();
-        double[] normal = Geo.Cross(Minus(targets[1], targets[0]), Minus(targets[2], targets[0]));
+        double[] normal = Geo.Cross(Geo.Minus(targets[1], targets[0]), Geo.Minus(targets[2], targets[0]));
         if (Geo.Length(normal) < 1e-9)
         {
             throw ToolException.InvalidArgument("The three points are in line: they do not define a plane.");
@@ -166,7 +167,7 @@ public static partial class RefPlaneService
         }
 
         RefPlane plane = Created(model, () => model.RefPlanes.AddBy3Points(3, ref edgeSet, ref keyPoints, Local: false));
-        return Checked(context, model, plane, Unit(normal), targets[0], "three points");
+        return Checked(context, model, plane, Geo.Unit(normal), targets[0], "three points");
     }
 
     /// <summary>Plane midway between two parallel planes or planar faces.</summary>
@@ -177,12 +178,12 @@ public static partial class RefPlaneService
         object b = ResolveParent(context, model, second, "plane2");
         (double[] rootA, double[] normalA) = PlaneData(a);
         (double[] rootB, double[] normalB) = PlaneData(b);
-        if (Math.Abs(Math.Abs(Dot(normalA, normalB)) - 1) > 1e-6)
+        if (Math.Abs(Math.Abs(Geo.Dot(normalA, normalB)) - 1) > 1e-6)
         {
             throw ToolException.InvalidArgument("'plane' and 'plane2' are not parallel.", "A mid plane needs two parallel planes or faces.");
         }
 
-        double gap = Dot(normalA, Minus(rootB, rootA));
+        double gap = Geo.Dot(normalA, Geo.Minus(rootB, rootA));
         RefPlane plane = Created(model, () => model.RefPlanes.AddMidPlane(a, b, null!, ReferenceElementConstants.igPivotEnd, false, false));
         double[] point = rootA.Select((c, k) => c + normalA[k] * gap / 2).ToArray();
         return Checked(context, model, plane, normalA, point, "mid");
@@ -192,7 +193,7 @@ public static partial class RefPlaneService
     /// Plane normal to an edge at its start or end, or at a distance (mm) or a fraction of its length along it from the start
     /// or the end. The X direction of the plane is taken from the base plane most perpendicular to the edge.
     /// </summary>
-    public static object NormalToEdge(SeContext context, string? documentHandle, string edgeHandle, string at, double? distance, double? ratio = null)
+    public static object NormalToEdge(SeContext context, string? documentHandle, string edgeHandle, EdgeEnd at, double? distance, double? ratio = null)
     {
         if (distance is not null && ratio is not null)
         {
@@ -206,9 +207,9 @@ public static partial class RefPlaneService
 
         ReferenceElementConstants from = at switch
         {
-            "start" => ReferenceElementConstants.igCurveStart,
-            "end" => ReferenceElementConstants.igCurveEnd,
-            _ => throw ToolException.InvalidArgument($"Unknown 'at' value '{at}'.", "Use start or end."),
+            EdgeEnd.Start => ReferenceElementConstants.igCurveStart,
+            EdgeEnd.End => ReferenceElementConstants.igCurveEnd,
+            _ => throw new ArgumentOutOfRangeException(nameof(at)),
         };
         SolidEdgeDocument document = string.IsNullOrWhiteSpace(documentHandle) ? context.DocumentOf(edgeHandle) : context.GetDocument(documentHandle);
         if (document is SolidEdgeAssembly.AssemblyDocument assembly)
@@ -223,14 +224,14 @@ public static partial class RefPlaneService
         edge.GetEndPoints(ref start, ref end);
         double[] s = Geo.Doubles(start).ToArray();
         double[] e = Geo.Doubles(end).ToArray();
-        double[] chord = Minus(e, s);
+        double[] chord = Geo.Minus(e, s);
         if (Geo.Length(chord) < 1e-9)
         {
             throw ToolException.InvalidArgument("The edge is closed (a full circle); pick an open edge.");
         }
 
         RefPlane orientation = OrientedPlanes.Bases(Late.Items(model.RefPlanes)).OfType<RefPlane>()
-            .MinBy(p => Math.Abs(Dot(PlaneData(p).Normal, Unit(chord))))!;
+            .MinBy(p => Math.Abs(Geo.Dot(PlaneData(p).Normal, Geo.Unit(chord))))!;
         RefPlane plane;
         double[]? expectedPoint = null;
         if (ratio is { } fraction)
@@ -239,8 +240,8 @@ public static partial class RefPlaneService
                 ReferenceElementConstants.igNormalSide, from, Local: false));
             if (edge.Geometry is SolidEdgeGeometry.Line)
             {
-                double[] origin = at == "start" ? s : e;
-                double[] other = at == "start" ? e : s;
+                double[] origin = at == EdgeEnd.Start ? s : e;
+                double[] other = at == EdgeEnd.Start ? e : s;
                 expectedPoint = origin.Select((c, k) => c + (other[k] - c) * fraction).ToArray();
             }
         }
@@ -250,19 +251,19 @@ public static partial class RefPlaneService
             plane = Created(model, () => model.RefPlanes.AddNormalToCurveAtDistance(edge, from, orientation, ReferenceElementConstants.igPivotEnd, metres, Local: false));
             if (edge.Geometry is SolidEdgeGeometry.Line)
             {
-                double[] origin = at == "start" ? s : e;
-                double[] direction = Unit(at == "start" ? chord : Minus(s, e));
+                double[] origin = at == EdgeEnd.Start ? s : e;
+                double[] direction = Geo.Unit(at == EdgeEnd.Start ? chord : Geo.Minus(s, e));
                 expectedPoint = origin.Select((c, k) => c + direction[k] * metres).ToArray();
             }
         }
         else
         {
             plane = Created(model, () => model.RefPlanes.AddNormalToCurve(edge, from, orientation, ReferenceElementConstants.igPivotEnd, Local: false));
-            expectedPoint = at == "start" ? s : e;
+            expectedPoint = at == EdgeEnd.Start ? s : e;
         }
 
         // For a straight edge the plane is normal to it; for a curve only the point is checked.
-        double[]? expectedNormal = edge.Geometry is SolidEdgeGeometry.Line ? Unit(chord) : null;
+        double[]? expectedNormal = edge.Geometry is SolidEdgeGeometry.Line ? Geo.Unit(chord) : null;
         return Checked(context, model, plane, expectedNormal, expectedPoint, "normal to edge");
     }
 
@@ -324,9 +325,9 @@ public static partial class RefPlaneService
             $"The point ({string.Join(", ", target.Select(Geo.Mm))}) is not on the face '{faceHandle}'.", "Use an end of an edge that bounds the face.");
 
         object parentPlane = parent is null
-            ? new[] { "xy", "yz", "xz" }.Select(o => ResolveParent(context, model, o)).MinBy(p => Math.Abs(Dot(PlaneData(p).Normal, outward)))!
+            ? new[] { "xy", "yz", "xz" }.Select(o => ResolveParent(context, model, o)).MinBy(p => Math.Abs(Geo.Dot(PlaneData(p).Normal, outward)))!
             : ResolveParent(context, model, parent);
-        if (Math.Abs(Math.Abs(Dot(PlaneData(parentPlane).Normal, outward)) - 1) < 1e-6)
+        if (Math.Abs(Math.Abs(Geo.Dot(PlaneData(parentPlane).Normal, outward)) - 1) < 1e-6)
         {
             throw ToolException.InvalidArgument("'plane' is parallel to the tangent plane: it must cross it (it sets the x axis of the new plane).",
                 "Omit 'plane' to use the base plane most across it.");
@@ -354,9 +355,9 @@ public static partial class RefPlaneService
         Array direction = new double[3];
         cylinder.GetCylinderData(ref basePoint, ref direction, out double radius);
         double[] axisPoint = Geo.Doubles(basePoint).ToArray();
-        double[] axis = Unit(Geo.Doubles(direction).ToArray());
+        double[] axis = Geo.Unit(Geo.Doubles(direction).ToArray());
         (double[] parentRoot, double[] parentNormal) = PlaneData(parentPlane);
-        if (Math.Abs(Dot(parentNormal, axis)) > 1e-6 || Math.Abs(Dot(parentNormal, Minus(axisPoint, parentRoot))) > Tolerance)
+        if (Math.Abs(Geo.Dot(parentNormal, axis)) > 1e-6 || Math.Abs(Geo.Dot(parentNormal, Geo.Minus(axisPoint, parentRoot))) > Tolerance)
         {
             throw ToolException.InvalidArgument("'plane' must contain the cylinder axis: the angle is measured about the axis from it.",
                 "Use a base plane or a reference plane through the axis.");
@@ -369,9 +370,9 @@ public static partial class RefPlaneService
 
         (double[] root, double[] normal) = PlaneData(plane);
         double[] outward = flip ? normal.Select(c => -c).ToArray() : normal;
-        bool tangent = Math.Abs(Dot(normal, axis)) < 1e-6
-            && Math.Abs(Dot(outward, Minus(root, axisPoint)) - radius) < Tolerance
-            && Math.Abs(Dot(outward, parentNormal) - Math.Sin(radians)) < 1e-6;
+        bool tangent = Math.Abs(Geo.Dot(normal, axis)) < 1e-6
+            && Math.Abs(Geo.Dot(outward, Geo.Minus(root, axisPoint)) - radius) < Tolerance
+            && Math.Abs(Geo.Dot(outward, parentNormal) - Math.Sin(radians)) < 1e-6;
         return tangent ? Describe(context, model, plane, model.RefPlanes.Count) : Discard(plane, "tangent");
     }
 
@@ -386,14 +387,14 @@ public static partial class RefPlaneService
         face.GetParamAtPoint(1, ref points, ref guess, ref deviations, ref param, ref flags);
         Array back = new double[3];
         face.GetPointAtParam(1, ref param, ref back);
-        if (Geo.Length(Minus(Geo.Doubles(back).ToArray(), point)) > Tolerance)
+        if (Geo.Length(Geo.Minus(Geo.Doubles(back).ToArray(), point)) > Tolerance)
         {
             return null;
         }
 
         Array normal = new double[3];
         face.GetNormal(1, ref param, ref normal);
-        return Unit(Geo.Doubles(normal).ToArray());
+        return Geo.Unit(Geo.Doubles(normal).ToArray());
     }
 
     /// <summary>
@@ -459,15 +460,15 @@ public static partial class RefPlaneService
             return (Edge: edge, Start: Geo.Doubles(start).ToArray(), End: Geo.Doubles(end).ToArray());
         }).ToArray();
 
-        double[] xDirection = Unit(Minus(axes[0].End, axes[0].Start));
-        double[] yDirection = Unit(Minus(axes[1].End, axes[1].Start));
+        double[] xDirection = Geo.Unit(Geo.Minus(axes[0].End, axes[0].Start));
+        double[] yDirection = Geo.Unit(Geo.Minus(axes[1].End, axes[1].Start));
         if (Geo.Length(Geo.Cross(xDirection, yDirection)) < 1e-6)
         {
             throw ToolException.InvalidArgument("The two edges are parallel: they cannot give the X and Y axes.");
         }
 
         var ends = axes.SelectMany(a => new[] { (a.Edge, Point: a.Start, Key: KeyPointType.igKeyPointStart), (a.Edge, Point: a.End, Key: KeyPointType.igKeyPointEnd) });
-        var at = ends.FirstOrDefault(p => Geo.Length(Minus(p.Point, o)) < 1e-6);
+        var at = ends.FirstOrDefault(p => Geo.Length(Geo.Minus(p.Point, o)) < 1e-6);
         if (at.Edge is null)
         {
             throw ToolException.InvalidArgument("'origin' must be an end of one of the edges.", "Give the corner where the edges meet, e.g. a vertex from se_geometry.");
@@ -476,8 +477,8 @@ public static partial class RefPlaneService
         // Each axis points away from the origin: along the edge if the origin is nearer its start, against it otherwise.
         FeaturePropertyConstants Away((Edge Edge, double[] Start, double[] End) a, out double[] direction)
         {
-            bool along = Geo.Length(Minus(a.Start, o)) <= Geo.Length(Minus(a.End, o));
-            direction = Unit(along ? Minus(a.End, a.Start) : Minus(a.Start, a.End));
+            bool along = Geo.Length(Geo.Minus(a.Start, o)) <= Geo.Length(Geo.Minus(a.End, o));
+            direction = Geo.Unit(along ? Geo.Minus(a.End, a.Start) : Geo.Minus(a.Start, a.End));
             return along ? FeaturePropertyConstants.igLeft : FeaturePropertyConstants.igRight;
         }
 
@@ -493,7 +494,7 @@ public static partial class RefPlaneService
         }
 
         (double[] actualOrigin, double[] x, _, _) = Axes(system);
-        if (Geo.Length(Minus(actualOrigin, o)) > 1e-6 || Dot(x, expectedX) < 1 - 1e-6)
+        if (Geo.Length(Geo.Minus(actualOrigin, o)) > 1e-6 || Geo.Dot(x, expectedX) < 1 - 1e-6)
         {
             try
             {
@@ -652,7 +653,7 @@ public static partial class RefPlaneService
         (double[] rootYz, double[] x) = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysYZPlane]);
         double[] rootZx = PlaneData(system.Plane[CoordinateSystemFeatureConstants.seCoordSysZXPlane]).Root;
         double[] y = Geo.Cross(z, x);
-        double[] origin = x.Select((_, k) => x[k] * Dot(x, rootYz) + y[k] * Dot(y, rootZx) + z[k] * Dot(z, rootXy)).ToArray();
+        double[] origin = x.Select((_, k) => x[k] * Geo.Dot(x, rootYz) + y[k] * Geo.Dot(y, rootZx) + z[k] * Geo.Dot(z, rootXy)).ToArray();
         return (origin, x, y, z);
     }
 
@@ -666,17 +667,17 @@ public static partial class RefPlaneService
             edge.GetEndPoints(ref start, ref end);
             double[] s = Geo.Doubles(start).ToArray();
             double[] e = Geo.Doubles(end).ToArray();
-            if (Geo.Length(Minus(s, point)) < Tolerance)
+            if (Geo.Length(Geo.Minus(s, point)) < Tolerance)
             {
                 return (edge, KeyPointType.igKeyPointStart);
             }
 
-            if (Geo.Length(Minus(e, point)) < Tolerance)
+            if (Geo.Length(Geo.Minus(e, point)) < Tolerance)
             {
                 return (edge, KeyPointType.igKeyPointEnd);
             }
 
-            if (edge.Geometry is SolidEdgeGeometry.Line && Geo.Length(Minus(s.Select((c, k) => (c + e[k]) / 2).ToArray(), point)) < Tolerance)
+            if (edge.Geometry is SolidEdgeGeometry.Line && Geo.Length(Geo.Minus(s.Select((c, k) => (c + e[k]) / 2).ToArray(), point)) < Tolerance)
             {
                 return (edge, KeyPointType.igKeyPointMiddle);
             }
@@ -707,8 +708,8 @@ public static partial class RefPlaneService
     private static object Checked(SeContext context, ModelDocument model, RefPlane plane, double[]? normal, double[]? point, string what, bool signed = false)
     {
         (double[] root, double[] actual) = PlaneData(plane);
-        bool parallel = normal is null || Math.Abs((signed ? Dot(actual, normal) : Math.Abs(Dot(actual, normal))) - 1) < 1e-6;
-        bool onPlane = point is null || Math.Abs(Dot(actual, Minus(point, root))) < Tolerance;
+        bool parallel = normal is null || Math.Abs((signed ? Geo.Dot(actual, normal) : Math.Abs(Geo.Dot(actual, normal))) - 1) < 1e-6;
+        bool onPlane = point is null || Math.Abs(Geo.Dot(actual, Geo.Minus(point, root))) < Tolerance;
         return parallel && onPlane ? Describe(context, model, plane, model.RefPlanes.Count) : Discard(plane, what);
     }
 
@@ -747,17 +748,7 @@ public static partial class RefPlaneService
                 throw new ToolException("handle_wrong_type", "Not a reference plane or a planar face.");
         }
 
-        return (Geo.Doubles(root).ToArray(), Unit(Geo.Doubles(normal).ToArray()));
-    }
-
-    private static double[] Minus(double[] a, double[] b) => a.Select((c, k) => c - b[k]).ToArray();
-
-    private static double Dot(double[] a, double[] b) => a.Select((c, k) => c * b[k]).Sum();
-
-    private static double[] Unit(double[] v)
-    {
-        double length = Geo.Length(v);
-        return v.Select(c => c / length).ToArray();
+        return (Geo.Doubles(root).ToArray(), Geo.Unit(Geo.Doubles(normal).ToArray()));
     }
 
     private static ReferenceElementConstants Flip(ReferenceElementConstants side) =>
@@ -798,7 +789,7 @@ public static partial class RefPlaneService
         {
             return index >= 1 && index <= planes.Length
                 ? planes[index - 1]
-                : throw ToolException.InvalidArgument($"Reference plane index {index} is out of range (1–{planes.Length}).", "List the planes with action 'list'.");
+                : throw ToolException.InvalidArgument($"Reference plane index {index} is out of range (1 to {planes.Length}).", "List the planes with action 'list'.");
         }
 
         object resolved = context.Handles.Resolve(value, "plane");

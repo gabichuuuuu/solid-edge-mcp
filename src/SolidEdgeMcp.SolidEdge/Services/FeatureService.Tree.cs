@@ -223,7 +223,7 @@ public static partial class FeatureService
     {
         EdgebarFeatures features = model.EdgebarFeatures;
         var items = new List<object>();
-        for (int i = 1; i <= features.Count; i++)
+        for (int i = 1, count = features.Count; i <= count; i++)
         {
             if (features.Item(i) is { } item)
             {

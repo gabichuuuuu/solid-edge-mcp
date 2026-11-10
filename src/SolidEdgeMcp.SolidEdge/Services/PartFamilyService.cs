@@ -476,7 +476,7 @@ public static class PartFamilyService
         {
             member.Delete();
         }
-        catch (COMException)
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Already gone.
         }

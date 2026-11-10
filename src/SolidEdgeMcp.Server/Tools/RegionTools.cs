@@ -5,19 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum RegionAction
-{
-    Fill,
-    Fills,
-    Style,
-    Delete,
-    Area,
-}
 
 /// <summary>Closed regions of a drawing sheet or a sketch: fills and area properties, as the Fill and Area commands do.</summary>
 [McpServerToolType]

@@ -56,7 +56,7 @@ public static class ThinWallService
             }
             catch (ToolException)
             {
-                profiles.ForEach(p => TryDelete(p.Parent));
+                profiles.ForEach(p => Late.TryDelete(p.Parent));
                 throw;
             }
         }
@@ -87,36 +87,19 @@ public static class ThinWallService
                     bosses = centers.Length / 2,
                     volume = Geo.Mm3(after),
                     volumeChange = Geo.Mm3(after - before),
-                    note = switched ? "The document was switched to ordered modeling." : null,
+                    note = switched ? "The document was switched to ordered modelling." : null,
                 };
             }
 
-            TryDelete(feature);
+            Late.TryDelete(feature);
         }
 
         foreach (Profile profile in profiles)
         {
-            TryDelete(profile.Parent);
+            Late.TryDelete(profile.Parent);
         }
 
         throw new ToolException("boss_failed", "Solid Edge made no mounting boss from that plane on either side.",
             "Start the bosses on a plane with a face of the part ahead of it, such as the plane of the open face of a shelled part, and keep the centres over the part.");
-    }
-
-    private static void TryDelete(object? value)
-    {
-        if (value is null)
-        {
-            return;
-        }
-
-        try
-        {
-            Late.Call(value, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
-        {
-            // Left in the feature tree, failed, for the person to see.
-        }
     }
 }

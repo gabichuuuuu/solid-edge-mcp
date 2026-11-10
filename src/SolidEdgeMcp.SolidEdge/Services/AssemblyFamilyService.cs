@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using static SolidEdgeMcp.SolidEdge.Services.AssemblyService;
@@ -22,8 +23,6 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static class AssemblyFamilyService
 {
-    private const int StorageFileNotFound = unchecked((int)0x80030002);
-
     public static object List(SeContext context, string? documentHandle)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
@@ -31,7 +30,7 @@ public static class AssemblyFamilyService
     }
 
     /// <summary>Turns a saved plain assembly into one with alternate positions or a family, with two members.</summary>
-    public static object Create(SeContext context, string? documentHandle, string kind, string[]? names)
+    public static object Create(SeContext context, string? documentHandle, AssemblyFamilyKind kind, string[]? names)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
         if (names is not { Length: 2 } || names.Any(string.IsNullOrWhiteSpace) || string.Equals(names[0], names[1], StringComparison.OrdinalIgnoreCase))
@@ -49,11 +48,11 @@ public static class AssemblyFamilyService
             throw new ToolException("not_saved", "Solid Edge makes the members from the saved assembly file.", "Save it first (se_documents save_as or save).");
         }
 
-        assembly.CreateFamilyFile(names[0].Trim(), names[1].Trim(), kind == "alternate_positions");
+        assembly.CreateFamilyFile(names[0].Trim(), names[1].Trim(), kind == AssemblyFamilyKind.AlternatePositions);
         string made = Kind(assembly);
-        if (made != kind || MembersOf(assembly).Count != 2)
+        if (made != ArgumentNames.Snake(kind) || MembersOf(assembly).Count != 2)
         {
-            throw new ToolException("family_failed", $"Solid Edge made '{made}' instead of '{kind}' with two members.");
+            throw new ToolException("family_failed", $"Solid Edge made '{made}' instead of '{ArgumentNames.Snake(kind)}' with two members.");
         }
 
         return Describe(context, assembly);
@@ -105,7 +104,7 @@ public static class AssemblyFamilyService
         {
             members.RenameMember(name, target);
         }
-        catch (COMException ex) when (ex.HResult == StorageFileNotFound)
+        catch (COMException ex) when (ex.HResult == ComErrors.StgEFileNotFound)
         {
             throw new ToolException("not_saved", $"Solid Edge renames a member once it has been saved, and '{name}' has not been yet.",
                 "Save the assembly (se_documents save), then rename.");

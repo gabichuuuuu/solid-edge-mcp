@@ -5,50 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum Sketch3dAction
-{
-    List,
-    Create,
-    Info,
-    Line,
-    Arc,
-    ArcThrough,
-    TangentArc,
-    Rectangle,
-    Circle,
-    Spline,
-    Point,
-    Fillet,
-    Relation,
-    Mirror,
-    Split,
-    Trim,
-    Equation,
-    Include,
-    Delete,
-}
-
-public enum Sketch3dRelation
-{
-    Connect,
-    Parallel,
-    Perpendicular,
-    Collinear,
-    Equal,
-    Tangent,
-    Concentric,
-    Coaxial,
-    HorizontalVertical,
-    Lock,
-    OnPlane,
-    Symmetric,
-    RigidSet,
-}
 
 /// <summary>3D sketches of a part: elements drawn in model space, e.g. as paths for sweeps or frames.</summary>
 [McpServerToolType]
@@ -88,7 +49,7 @@ public sealed class Sketch3dTools(ToolRunner runner)
         [Description("include: model edge handles (se_geometry edges).")] string[]? edges = null,
         [Description("Document handle; default: the active document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_sketch3d", Snake(action), c => Sketch3dService.Run(c, document, Snake(action),
-            new Sketch3dSpec(sketch, points, normal, radius, closed, elements, relation is { } r ? Snake(r) : null, keypoints, plane, name, width, height, direction, equations, range, edges)),
+        runner.RunAsync("se_sketch3d", Snake(action), c => Sketch3dService.Run(c, document, action,
+            new Sketch3dSpec(sketch, points, normal, radius, closed, elements, relation, keypoints, plane, name, width, height, direction, equations, range, edges)),
             cancellationToken);
 }

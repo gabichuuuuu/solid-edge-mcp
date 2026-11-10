@@ -21,12 +21,12 @@ software: they are not versioned.
 solid-edge-mcp/
 ├── src/
 │   ├── SolidEdgeMcp.Server/       MCP executable: Program.cs, Tools/, Infrastructure/
-│   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/
+│   ├── SolidEdgeMcp.SolidEdge/    COM: Com/ (StaComDispatcher, generic layer), Services/, Session/, Arguments/ (enumerations of the tools)
 │   └── SolidEdgeMcp.Core/         no COM: PathGuard, policy, units, handles, errors
 ├── tests/
 │   ├── SolidEdgeMcp.Core.Tests/   unit tests, no Solid Edge
 │   ├── SolidEdgeMcp.Server.Tests/ tool registration and arguments, no Solid Edge
-│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01–A136 against real Solid Edge
+│   └── SolidEdgeMcp.Acceptance/   MCP client, run.ps1 and scripts A01 to A136 against real Solid Edge
 ├── scripts/                       generate-interop.ps1, dump-api.ps1, package.ps1, update-docs.ps1
 ├── plugin/                        Claude Code plugin: manifest and launcher (start.cmd, install.ps1, bridge.ps1)
 ├── .claude-plugin/                marketplace.json, the marketplace of the plugin
@@ -41,7 +41,7 @@ solid-edge-mcp/
 ### Acceptance suite
 
 Tools are validated against real Solid Edge with `tests/SolidEdgeMcp.Acceptance`: scripts of MCP
-calls (`A01`–`A136`, listed in [VALIDATION.md](VALIDATION.md)) with expected volumes, measurements
+calls (`A01` to `A136`, listed in [VALIDATION.md](VALIDATION.md)) with expected volumes, measurements
 and errors written in advance. Each script creates and closes its documents without saving:
 
 ```powershell
@@ -85,7 +85,9 @@ can start the server, repeat the client's `initialize` to it and send
 
 1. Do not guess signatures or constants: look them up in `reference/api` or with `se_com_describe` /
    `se_com_constants`.
-2. Register it in `Program.ToolTypes` and add argument cases to `ToolRegistrationTests`.
+2. Register it in `Program.ToolTypes` and add argument cases to `ToolRegistrationTests`. Declare the enumerations of
+   its parameters in `src/SolidEdgeMcp.SolidEdge/Arguments`: the service takes them as they are, and
+   `ArgumentNames.Snake` gives the name the client writes, for messages and results.
 3. Validate it against real Solid Edge with temporary documents in an allowed folder, closing them
    without saving, and check the measurable result (volume, bounding box, face count, exported file).
 4. Write its rows in [COVERAGE.md](COVERAGE.md) with the status found in step 3, describe it in

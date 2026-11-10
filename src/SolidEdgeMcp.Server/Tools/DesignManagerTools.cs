@@ -5,35 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum DesignManagerAction
-{
-    Links,
-    Rename,
-    Copy,
-    Replace,
-    Move,
-    Revise,
-    Release,
-    Status,
-    Relink,
-    BrokenLinks,
-    Duplicates,
-}
-
-public enum DocumentStatus
-{
-    Available,
-    InWork,
-    InReview,
-    Released,
-    Baselined,
-    Obsolete,
-}
 
 /// <summary>Design Manager: files and their links managed on closed files, through Design Manager's own automation.</summary>
 [McpServerToolType]
@@ -69,11 +45,11 @@ public sealed class DesignManagerTools(ToolRunner runner)
         {
             DesignManagerAction.Links => runner.RunAsync(tool, act, c => DesignManagerService.Links(c, path), cancellationToken, timeout: scan),
             DesignManagerAction.Status => runner.RunAsync(tool, act,
-                c => FilePropertyService.SetStatus(c, files, Snake(ToolRunner.RequireValue(status, "status", act))), cancellationToken),
+                c => FilePropertyService.SetStatus(c, files, ToolRunner.RequireValue(status, "status", act)), cancellationToken),
             DesignManagerAction.Relink => runner.RunAsync(tool, act, c => DesignManagerService.Relink(c, path, folders, subfolders, files, to), cancellationToken, timeout: write),
             DesignManagerAction.BrokenLinks => runner.RunAsync(tool, act, c => DesignManagerService.BrokenLinks(c, folders, subfolders), cancellationToken, timeout: scan),
             DesignManagerAction.Duplicates => runner.RunAsync(tool, act, c => DesignManagerService.Duplicates(c, folders, subfolders), cancellationToken, timeout: scan),
-            _ => runner.RunAsync(tool, act, c => DesignManagerService.Act(c, act, path, files, to, folders, subfolders), cancellationToken, timeout: write),
+            _ => runner.RunAsync(tool, act, c => DesignManagerService.Act(c, action, path, files, to, folders, subfolders), cancellationToken, timeout: write),
         };
     }
 }

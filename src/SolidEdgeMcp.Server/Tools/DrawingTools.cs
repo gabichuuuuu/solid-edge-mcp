@@ -5,118 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum DrawingAction
-{
-    Sheets,
-    AddSheet,
-    SetupSheet,
-    ActivateSheet,
-    DeleteSheet,
-    AddBackground,
-    ReplaceBackground,
-    Views,
-    BaseView,
-    ProjectedView,
-    AuxiliaryView,
-    CuttingPlane,
-    SectionView,
-    DetailView,
-    Model2dView,
-    MoveView,
-    ScaleView,
-    RotateView,
-    CropView,
-    DeleteView,
-    Dimension,
-    RetrieveDimensions,
-    Dimensions,
-    PartsList,
-    BendTable,
-    ToleranceTable,
-    FamilyTable,
-    BlockTable,
-    HoleTable,
-    Tables,
-    Update,
-    Blocks,
-    CreateBlock,
-    PlaceBlock,
-    ImportBlock,
-    DeleteBlock,
-    Unblock,
-    UnblockAll,
-}
-
-public enum DimensionKind
-{
-    Length,
-    Distance,
-    Diameter,
-    Radius,
-    Angle,
-    Coordinate,
-    AngularCoordinate,
-    Chamfer,
-    SymmetricDiameter,
-}
-
-public enum MeasureDirection
-{
-    Aligned,
-    Horizontal,
-    Vertical,
-    Counterclockwise,
-    Clockwise,
-}
-
-public enum DrawingOrientation
-{
-    Front,
-    Back,
-    Top,
-    Bottom,
-    Left,
-    Right,
-    TopFrontRight,
-    TopFrontLeft,
-    TopBackRight,
-    TopBackLeft,
-    BottomFrontRight,
-    BottomFrontLeft,
-    BottomBackRight,
-    BottomBackLeft,
-}
-
-public enum FoldDirection
-{
-    Up,
-    Down,
-    Left,
-    Right,
-    UpRight,
-    UpLeft,
-    DownRight,
-    DownLeft,
-}
-
-public enum PaperSize
-{
-    A4,
-    A3,
-    A2,
-    A1,
-    A0,
-    AnsiA,
-    AnsiB,
-    AnsiC,
-    AnsiD,
-    AnsiE,
-}
 
 /// <summary>Drawings: sheets, views, dimensions, parts list and updating.</summary>
 [McpServerToolType]
@@ -180,22 +73,20 @@ public sealed class DrawingTools(ToolRunner runner)
     {
         const string tool = "se_drawing";
         string act = Snake(action);
-        string? orient = orientation is { } o ? Snake(o) : null;
-        string? size = paper is { } p ? Snake(p) : null;
         return action switch
         {
             DrawingAction.Sheets => runner.RunAsync(tool, act, c => DrawingService.Sheets(c, document), cancellationToken),
-            DrawingAction.AddSheet => runner.RunAsync(tool, act, c => DrawingService.AddSheet(c, document, name, size, portrait, width, height, background, showBackground), cancellationToken),
-            DrawingAction.SetupSheet => runner.RunAsync(tool, act, c => DrawingService.SetupSheet(c, document, sheet, name, size, portrait, width, height, background, showBackground), cancellationToken),
+            DrawingAction.AddSheet => runner.RunAsync(tool, act, c => DrawingService.AddSheet(c, document, name, paper, portrait, width, height, background, showBackground), cancellationToken),
+            DrawingAction.SetupSheet => runner.RunAsync(tool, act, c => DrawingService.SetupSheet(c, document, sheet, name, paper, portrait, width, height, background, showBackground), cancellationToken),
             DrawingAction.ActivateSheet => runner.RunAsync(tool, act, c => DrawingService.ActivateSheet(c, document, sheet), cancellationToken),
             DrawingAction.DeleteSheet => runner.RunAsync(tool, act, c => DrawingService.DeleteSheet(c, document, sheet), cancellationToken),
-            DrawingAction.AddBackground => runner.RunAsync(tool, act, c => DrawingService.AddBackground(c, document, name, size, portrait, width, height), cancellationToken),
+            DrawingAction.AddBackground => runner.RunAsync(tool, act, c => DrawingService.AddBackground(c, document, name, paper, portrait, width, height), cancellationToken),
             DrawingAction.ReplaceBackground => runner.RunAsync(tool, act, c => DrawingService.ReplaceBackground(c, document, sheet, path, background, replaceBlocks), cancellationToken),
             DrawingAction.Views => runner.RunAsync(tool, act, c => DrawingService.Views(c, document, sheet), cancellationToken),
-            DrawingAction.BaseView => runner.RunAsync(tool, act, c => DrawingService.BaseView(c, document, sheet, path, model, orient, scale, position, flat, configuration, modelView, member), cancellationToken),
+            DrawingAction.BaseView => runner.RunAsync(tool, act, c => DrawingService.BaseView(c, document, sheet, path, model, orientation, scale, position, flat, configuration, modelView, member), cancellationToken),
             DrawingAction.Model2dView => runner.RunAsync(tool, act, c => DrawingService.Model2dView(c, document, sheet, scale, position), cancellationToken),
             DrawingAction.ProjectedView => runner.RunAsync(tool, act, c => DrawingService.ProjectedView(c, view,
-                Snake(ToolRunner.RequireValue(direction, "direction", act)), position), cancellationToken),
+                ToolRunner.RequireValue(direction, "direction", act), position), cancellationToken),
             DrawingAction.AuxiliaryView => runner.RunAsync(tool, act, c => DrawingService.AuxiliaryView(c, view, line, position), cancellationToken),
             DrawingAction.CuttingPlane => runner.RunAsync(tool, act, c => DrawingService.AddCuttingPlane(c, view, line, flip, name), cancellationToken),
             DrawingAction.SectionView => runner.RunAsync(tool, act, c => DrawingService.SectionView(c, view, line, flip, position), cancellationToken),
@@ -206,7 +97,7 @@ public sealed class DrawingTools(ToolRunner runner)
             DrawingAction.CropView => runner.RunAsync(tool, act, c => DrawingService.CropView(c, view, area), cancellationToken),
             DrawingAction.DeleteView => runner.RunAsync(tool, act, c => DrawingService.DeleteView(c, view), cancellationToken),
             DrawingAction.Dimension => runner.RunAsync(tool, act, c => DrawingService.AddDimension(c, view,
-                Snake(ToolRunner.RequireValue(kind, "kind", act)), points, Snake(measure), position), cancellationToken),
+                ToolRunner.RequireValue(kind, "kind", act), points, measure, position), cancellationToken),
             DrawingAction.RetrieveDimensions => runner.RunAsync(tool, act, c => DrawingService.RetrieveDimensions(c, view), cancellationToken),
             DrawingAction.Dimensions => runner.RunAsync(tool, act, c => DrawingService.Dimensions(c, document, sheet, offset, limit), cancellationToken),
             DrawingAction.Tables => runner.RunAsync(tool, act, c => DrawingService.Tables(c, document), cancellationToken),

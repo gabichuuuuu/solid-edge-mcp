@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using IOPath = System.IO.Path;
@@ -19,14 +20,12 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class OptionService
 {
-    public static readonly IReadOnlyList<string> Scopes = ["application", "document", "drawing"];
-
     /// <summary>Enumeration of parameters of the scope, the object that serves them, and prefixes removed from the name.</summary>
     private sealed record Catalog(Type Enum, object Target, string Owner, string[] Prefixes);
 
-    public static object List(SeContext context, string scope, string? documentHandle, string? filter, string? category, int offset, int limit)
+    public static object List(SeContext context, OptionScope scope, string? documentHandle, string? filter, string? category, int offset, int limit)
     {
-        if (scope == "drawing")
+        if (scope == OptionScope.Drawing)
         {
             return DrawingList(context, documentHandle, filter, offset, limit);
         }
@@ -61,7 +60,7 @@ public static partial class OptionService
     /// <summary>Categories of the application options, as the Solid Edge Options dialog groups them, with their number of options.</summary>
     public static object Categories(SeContext context)
     {
-        Catalog catalog = CatalogOf(context, "application", null);
+        Catalog catalog = CatalogOf(context, OptionScope.Application, null);
         var counts = Entries(catalog).GroupBy(e => OptionCategories.Of(e.Value)).ToDictionary(g => g.Key, g => g.Count());
         return new
         {
@@ -74,7 +73,7 @@ public static partial class OptionService
     /// <summary>Value of an application option (null when Solid Edge cannot read it), for the other services.</summary>
     internal static object? ReadApplication(SeContext context, ApplicationGlobalConstants option)
     {
-        Catalog catalog = CatalogOf(context, "application", null);
+        Catalog catalog = CatalogOf(context, OptionScope.Application, null);
         return ReadRaw(catalog, (int)option, out _);
     }
 
@@ -82,9 +81,9 @@ public static partial class OptionService
     /// Saves every readable option of the scope to a JSON file in an allowed folder (by default the work folder), so that
     /// se_options 'restore' can put them back after changes.
     /// </summary>
-    public static object Snapshot(SeContext context, string scope, string? documentHandle, string? path)
+    public static object Snapshot(SeContext context, OptionScope scope, string? documentHandle, string? path)
     {
-        if (scope == "drawing")
+        if (scope == OptionScope.Drawing)
         {
             throw new ToolException("not_supported", "Drawing options are saved with the drawing and are not kept in snapshots.",
                 "Each set returns the previous value to put it back; or close the drawing without saving.");
@@ -162,7 +161,7 @@ public static partial class OptionService
             throw ToolException.InvalidArgument($"'{file}' is not an options snapshot made by se_options 'snapshot'.");
         }
 
-        Catalog catalog = CatalogOf(context, snapshot.Scope == "application" ? "application" : "document", documentHandle);
+        Catalog catalog = CatalogOf(context, snapshot.Scope == "application" ? OptionScope.Application : OptionScope.Document, documentHandle);
         if (catalog.Owner != snapshot.Scope)
         {
             throw new ToolException("wrong_document_type", $"The snapshot holds {snapshot.Scope} options, but the document is a {catalog.Owner}.",
@@ -258,9 +257,9 @@ public static partial class OptionService
         };
     }
 
-    public static object Get(SeContext context, string scope, string? documentHandle, string name)
+    public static object Get(SeContext context, OptionScope scope, string? documentHandle, string name)
     {
-        if (scope == "drawing")
+        if (scope == OptionScope.Drawing)
         {
             return DrawingGet(context, documentHandle, name);
         }
@@ -271,9 +270,9 @@ public static partial class OptionService
     }
 
     /// <summary>Changes an option using the type of its current value and checks that Solid Edge accepted it.</summary>
-    public static object Set(SeContext context, string scope, string? documentHandle, string name, JsonElement value)
+    public static object Set(SeContext context, OptionScope scope, string? documentHandle, string name, JsonElement value)
     {
-        if (scope == "drawing")
+        if (scope == OptionScope.Drawing)
         {
             return DrawingSet(context, documentHandle, name, value);
         }
@@ -572,16 +571,16 @@ public static partial class OptionService
         _ => (1, "SI"),
     };
 
-    private static Catalog CatalogOf(SeContext context, string scope, string? documentHandle)
+    private static Catalog CatalogOf(SeContext context, OptionScope scope, string? documentHandle)
     {
-        if (scope == "application")
+        if (scope == OptionScope.Application)
         {
             return new Catalog(typeof(ApplicationGlobalConstants), context.Application, "application", ["seApplicationGlobal"]);
         }
 
-        if (scope != "document")
+        if (scope != OptionScope.Document)
         {
-            throw ToolException.InvalidArgument($"Unknown scope '{scope}'.", $"Use one of: {string.Join(", ", Scopes)}.");
+            throw new ArgumentOutOfRangeException(nameof(scope));
         }
 
         SolidEdgeDocument document = context.GetDocument(documentHandle);
@@ -693,19 +692,14 @@ public static partial class OptionService
             double d when d >= 0 && d == Math.Floor(d) && d <= 0xFFFFFF => (long)d,
             _ => null,
         };
-        return bgr is { } c && c <= 0xFFFFFF ? $"#{c & 0xFF:X2}{(c >> 8) & 0xFF:X2}{(c >> 16) & 0xFF:X2}" : null;
+        return bgr is { } c && c <= 0xFFFFFF ? Rgb.HexOfColorRef((int)c) : null;
     }
 
     private static object ConvertValue(JsonElement value, object? current, bool color)
     {
         if (color && value.ValueKind == JsonValueKind.String && value.GetString() is { } text && text.StartsWith('#'))
         {
-            if (text.Length != 7 || !int.TryParse(text.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb))
-            {
-                throw ToolException.InvalidArgument($"'{text}' is not a #RRGGBB colour.");
-            }
-
-            int bgr = ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF);
+            int bgr = Rgb.ColorRef(text);
             return current switch
             {
                 uint => (uint)bgr,

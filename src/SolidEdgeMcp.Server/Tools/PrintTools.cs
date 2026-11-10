@@ -5,38 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum PrintAction
-{
-    Printers,
-    Print,
-    Mesh,
-}
-
-public enum PrintPaper
-{
-    Printer,
-    A2,
-    A3,
-    A4,
-    A5,
-    A6,
-    Letter,
-    Legal,
-    Tabloid,
-    Ledger,
-}
-
-public enum PrintOrientation
-{
-    Auto,
-    Portrait,
-    Landscape,
-}
 
 /// <summary>Printing of drawing sheets (Application menu > Print).</summary>
 [McpServerToolType]
@@ -48,7 +21,7 @@ public sealed class PrintTools(ToolRunner runner)
         printers: the Windows printers (default, connection local | network | remote_desktop, port, driver, asksForFile, state) and the current print settings of Solid Edge |
         print (printer = a name from 'printers', required; sheets = working sheet names, default all; folder = print to files there instead of on paper: one file per sheet, '<document>_<sheet>' with the extension of what the printer writes, .pdf, .ps or .prn;
         copies; paper = printer (its own paper, default) | a2 | a3 | a4 | a5 | a6 | letter | legal | tabloid | ledger; orientation = auto | portrait | landscape;
-        scale = scale of the sheet on the paper (1 = full size), default: fit to the paper; black = colors as black; overwrite).
+        scale = scale of the sheet on the paper (1 = full size), default: fit to the paper; black = colours as black; overwrite).
         Without 'folder' the sheets go to the printer and use paper. A printer that asks for a file name (asksForFile, e.g. Microsoft Print to PDF) prints only with 'folder'.
         The settings of Solid Edge's Print command are put back afterwards. Solid Edge records the print date in the drawing (it is then marked as modified), and Windows may make the printer used its default printer: the result says so.
         mesh (3D printing; part, sheet metal, weldment or assembly): the mesh Solid Edge's 3D Print command makes: triangles, points, mesh area (mm2) and volume (mm3) against the model volume, angle tolerance. The file itself: se_export .stl or .3mf.
@@ -63,7 +36,7 @@ public sealed class PrintTools(ToolRunner runner)
         PrintPaper paper = PrintPaper.Printer,
         PrintOrientation orientation = PrintOrientation.Auto,
         [Description("print: scale of the sheet on the paper (1 = full size, 0.5 = half size); default: fit to the paper.")] double? scale = null,
-        [Description("print: print the colors as black.")] bool black = false,
+        [Description("print: print the colours as black.")] bool black = false,
         [Description("print with folder: replace files that already exist.")] bool overwrite = false,
         [Description("Document handle (print: a drawing; mesh: a part, sheet metal, weldment or assembly); default: the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
@@ -73,8 +46,8 @@ public sealed class PrintTools(ToolRunner runner)
         return action switch
         {
             PrintAction.Printers => runner.RunAsync(tool, act, PrintService.Printers, cancellationToken),
-            PrintAction.Print => runner.RunAsync(tool, act, c => PrintService.Print(c, document, sheets, printer, folder, copies, Snake(paper),
-                Snake(orientation), scale, black, overwrite), cancellationToken, timeout: TimeSpan.FromMinutes(5)),
+            PrintAction.Print => runner.RunAsync(tool, act, c => PrintService.Print(c, document, sheets, printer, folder, copies, paper,
+                orientation, scale, black, overwrite), cancellationToken, timeout: TimeSpan.FromMinutes(5)),
             PrintAction.Mesh => runner.RunAsync(tool, act, c => Print3dService.Mesh(c, document), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

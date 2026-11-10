@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using static SolidEdgeMcp.SolidEdge.Services.AssemblyService;
@@ -34,7 +35,7 @@ public static class AssemblyExplodeService
     /// in a front window, its drawing view is front, and after exploding again in a top window, top; turning the window and
     /// saving without exploding again does not change it), so 'orientation' turns the window first.
     /// </summary>
-    public static object Explode(SeContext context, string? documentHandle, double? spread, string by, string? orientation = null)
+    public static object Explode(SeContext context, string? documentHandle, double? spread, ExplodeLevel by, ViewOrientation? orientation = null)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
         if (Items<Occurrence>(assembly.Occurrences).Count() < 2)
@@ -42,17 +43,17 @@ public static class AssemblyExplodeService
             throw ToolException.InvalidArgument("The assembly needs at least two components to explode.");
         }
 
-        if (orientation is not null)
+        if (orientation is { } turn)
         {
-            ViewService.Orient(context, context.DocumentHandle((SolidEdgeDocument)assembly), orientation);
+            ViewService.Orient(context, context.DocumentHandle((SolidEdgeDocument)assembly), turn);
         }
 
         double distance = spread is { } s ? Units.MmToM(Units.RequirePositive(s, "spread")) : 0;
         AutoExplodeTechniqueConstants technique = by switch
         {
-            "part" => AutoExplodeTechniqueConstants.seByIndividualPart,
-            "subassembly" => AutoExplodeTechniqueConstants.seBySubassemblyLevel,
-            _ => throw ToolException.InvalidArgument($"Unknown level '{by}'.", "Use part or subassembly."),
+            ExplodeLevel.Part => AutoExplodeTechniqueConstants.seByIndividualPart,
+            ExplodeLevel.Subassembly => AutoExplodeTechniqueConstants.seBySubassemblyLevel,
+            _ => throw new ArgumentOutOfRangeException(nameof(by)),
         };
 
         string result;
@@ -69,7 +70,7 @@ public static class AssemblyExplodeService
         // The status text comes in Solid Edge's language, so the explode is checked by the components it moved.
         object[] components = Components(context, assembly, out int moved);
         return moved > 0
-            ? new { document = context.DocumentHandle((SolidEdgeDocument)assembly), moved, spread = spread, by, orientation, components, note = $"{Collapse} {Keep}" }
+            ? new { document = context.DocumentHandle((SolidEdgeDocument)assembly), moved, spread = spread, by = ArgumentNames.Snake(by), orientation = orientation is { } o ? ArgumentNames.Snake(o) : null, components, note = $"{Collapse} {Keep}" }
             : throw new ToolException("explode_failed", $"Solid Edge did not move any component ({result?.Trim()}).",
                 "Auto explode follows the assembly relations: relate the components first (se_relations), or give a larger 'spread'.");
     }

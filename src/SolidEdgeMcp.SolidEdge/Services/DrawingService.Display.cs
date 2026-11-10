@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.Json;
 using SolidEdgeDraft;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -316,10 +317,10 @@ public static partial class DrawingService
         }
     }
 
-    public static object AddBreak(SeContext context, string? viewHandle, string direction, double from, double to, string? shape, double? gap)
+    public static object AddBreak(SeContext context, string? viewHandle, BreakDirection direction, double from, double to, Arguments.BreakShape? shape, double? gap)
     {
         DrawingView view = ResolveView(context, viewHandle);
-        bool vertical = direction == "vertical";
+        bool vertical = direction == BreakDirection.Vertical;
         double first = Units.MmToM(Units.RequireFinite(Math.Min(from, to), "from"));
         double second = Units.MmToM(Units.RequireFinite(Math.Max(from, to), "to"));
         if (second - first < 1e-6)
@@ -336,9 +337,9 @@ public static partial class DrawingService
             ?? throw new ToolException("view_failed", $"Solid Edge did not add break lines at {Geo.Mm(first)} and {Geo.Mm(second)} mm.", hint);
         try
         {
-            if (shape is not null)
+            if (shape is { } s)
             {
-                pair.Type = BreakShape(shape);
+                pair.Type = BreakShape(s);
             }
 
             if (gap is { } g)
@@ -471,14 +472,14 @@ public static partial class DrawingService
         gap = Geo.Mm(pair.Gap),
     };
 
-    private static BreakLinePairTypeConstants BreakShape(string shape) => shape switch
+    private static BreakLinePairTypeConstants BreakShape(Arguments.BreakShape shape) => shape switch
     {
-        "straight" => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_Straight,
-        "cylindrical" => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_Cylindrical,
-        "short_break" => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_ShortBreak,
-        "long_break" => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_LongBreak,
-        "short_curved_break" => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_ShortCurvedBreak,
-        _ => throw ToolException.InvalidArgument($"Unknown break shape '{shape}'."),
+        Arguments.BreakShape.Straight => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_Straight,
+        Arguments.BreakShape.Cylindrical => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_Cylindrical,
+        Arguments.BreakShape.ShortBreak => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_ShortBreak,
+        Arguments.BreakShape.LongBreak => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_LongBreak,
+        Arguments.BreakShape.ShortCurvedBreak => BreakLinePairTypeConstants.igBreakLinePairTypeConstants_ShortCurvedBreak,
+        _ => throw new ArgumentOutOfRangeException(nameof(shape)),
     };
 
     private static void TryDeleteBreak(DrawingView view, BreakLinePair pair)

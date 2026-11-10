@@ -1,4 +1,4 @@
-# A10: enumeration values that A01–A09 do not use (orientations, directions, types and remaining actions).
+# A10: enumeration values that A01 to A09 do not use (orientations, directions, types and remaining actions).
 # 1) Session, documents (weldment, activate, save), material, view and variables
 se_session {"action":"disconnect"}
 @s0 = se_session {"action":"status"}

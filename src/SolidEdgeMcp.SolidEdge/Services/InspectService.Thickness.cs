@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeGeometry;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -18,7 +19,7 @@ public static partial class InspectService
     /// Solid Edge 2026: PartDocument.NormalDistance(plane or planar face, vertex) gives the true distance and its components;
     /// two faces give E_INVALIDARG and an edge E_FAIL or E_INVALIDARG, so the vertex is the start or end of the edge given.
     /// </summary>
-    public static object NormalDistance(SeContext context, string? documentHandle, string? first, string? second, string at)
+    public static object NormalDistance(SeContext context, string? documentHandle, string? first, string? second, EdgeEnd at)
     {
         string planeHandle = first ?? throw ToolException.InvalidArgument("normal_distance needs 'first': a reference plane or a planar face.");
         string edgeHandle = second ?? throw ToolException.InvalidArgument("normal_distance needs 'second': an edge, whose start (or end, with 'at') is measured.");
@@ -44,10 +45,10 @@ public static partial class InspectService
 
         object vertex = (at switch
         {
-            "start" => edge.StartVertex,
-            "end" => edge.EndVertex,
-            _ => throw ToolException.InvalidArgument($"Unknown end '{at}'.", "Use start or end."),
-        }) ?? throw ToolException.InvalidArgument($"'{edgeHandle}' has no {at} vertex (a closed edge such as a full circle).",
+            EdgeEnd.Start => edge.StartVertex,
+            EdgeEnd.End => edge.EndVertex,
+            _ => throw new ArgumentOutOfRangeException(nameof(at)),
+        }) ?? throw ToolException.InvalidArgument($"'{edgeHandle}' has no {ArgumentNames.Snake(at)} vertex (a closed edge such as a full circle).",
             "Pick a straight or open edge that ends at the point to measure.");
         double distance, dx, dy, dz;
         try
@@ -79,14 +80,14 @@ public static partial class InspectService
     /// walls read 2.008 at every corner of their triangles. So the thinnest uniform wall (a triangle whose three corners agree
     /// within 5 %) is given as well.
     /// </summary>
-    public static object WallThickness(SeContext context, string? documentHandle, string resolution, double? threshold)
+    public static object WallThickness(SeContext context, string? documentHandle, ThicknessResolution resolution, double? threshold)
     {
         WallThicknessDisplayResolution level = resolution switch
         {
-            "coarse" => WallThicknessDisplayResolution.DisplayResolutionCoarse,
-            "standard" => WallThicknessDisplayResolution.DisplayResolutionStandard,
-            "fine" => WallThicknessDisplayResolution.DisplayResolutionFine,
-            _ => throw ToolException.InvalidArgument($"Unknown resolution '{resolution}'.", "Use coarse, standard or fine."),
+            ThicknessResolution.Coarse => WallThicknessDisplayResolution.DisplayResolutionCoarse,
+            ThicknessResolution.Standard => WallThicknessDisplayResolution.DisplayResolutionStandard,
+            ThicknessResolution.Fine => WallThicknessDisplayResolution.DisplayResolutionFine,
+            _ => throw new ArgumentOutOfRangeException(nameof(resolution)),
         };
         double? limit = threshold is { } t ? Units.MmToM(Units.RequirePositive(t, "threshold")) : null;
         ModelDocument model = ModelDocument.Get(context, documentHandle);
@@ -156,7 +157,7 @@ public static partial class InspectService
         bool uniformFound = uniformAt.Length == 3;
         return new
         {
-            resolution,
+            resolution = ArgumentNames.Snake(resolution),
             triangles,
             turnedRun = turned is not null,
             minThickness = Geo.Mm(min),

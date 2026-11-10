@@ -50,7 +50,7 @@ public static class AppearanceService
             throw ToolException.InvalidArgument("Action 'create' requires 'name'.");
         }
 
-        (float r, float g, float b) = ParseColor(color ?? throw ToolException.InvalidArgument("Action 'create' requires 'color' as '#RRGGBB'."));
+        (float r, float g, float b) = Rgb.Channels(color ?? throw ToolException.InvalidArgument("Action 'create' requires 'color' as '#RRGGBB'."));
         float alpha = Opacity(opacity);
         if (Find(document, name) is not null)
         {
@@ -271,9 +271,9 @@ public static class AppearanceService
     /// <summary>Style named after the colour ('#RRGGBB', plus the opacity in % if below 1), created if the document lacks it.</summary>
     private static FaceStyle ColorStyle(SolidEdgeDocument document, string color, double? opacity)
     {
-        (float r, float g, float b) = ParseColor(color);
+        (float r, float g, float b) = Rgb.Channels(color);
         float alpha = Opacity(opacity);
-        string name = Hex(r, g, b) + (alpha < 1 ? $" {Math.Round(alpha * 100).ToString(CultureInfo.InvariantCulture)}%" : "");
+        string name = Rgb.Hex(r, g, b) + (alpha < 1 ? $" {Math.Round(alpha * 100).ToString(CultureInfo.InvariantCulture)}%" : "");
         return Find(document, name) ?? NewStyle(document, name, r, g, b, alpha);
     }
 
@@ -307,23 +307,7 @@ public static class AppearanceService
     private static object Describe(FaceStyle style)
     {
         style.GetDiffuse(out float r, out float g, out float b);
-        return new { name = style.StyleName, color = Hex(r, g, b), opacity = Math.Round(style.Opacity, 3) };
-    }
-
-    private static string Hex(float r, float g, float b) =>
-        $"#{Channel(r):X2}{Channel(g):X2}{Channel(b):X2}";
-
-    private static int Channel(float value) => (int)Math.Round(Math.Clamp(value, 0, 1) * 255);
-
-    private static (float R, float G, float B) ParseColor(string color)
-    {
-        if (color.Length != 7 || color[0] != '#'
-            || !int.TryParse(color.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb))
-        {
-            throw ToolException.InvalidArgument($"'{color}' is not a #RRGGBB colour.", "Example: '#FF8000' (orange).");
-        }
-
-        return (((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f);
+        return new { name = style.StyleName, color = Rgb.Hex(r, g, b), opacity = Math.Round(style.Opacity, 3) };
     }
 
     private static float Opacity(double? opacity) => opacity switch

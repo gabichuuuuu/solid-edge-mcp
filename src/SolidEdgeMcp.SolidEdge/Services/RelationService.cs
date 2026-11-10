@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -19,7 +20,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// assembly plane when omitted). Elements: faces (se_geometry with the occurrence as 'source') or planes of the part.
 /// </summary>
 public sealed record RelationSpec(
-    string Type,
+    RelationType Type,
     string? Occurrence1,
     string? Element1,
     string? Occurrence2,
@@ -34,10 +35,10 @@ public sealed record RelationSpec(
     string? Plane = null,
     string[]? Centered = null,
     string[]? Between = null,
-    string? Point1 = null,
-    string? Point2 = null,
+    EdgePoint? Point1 = null,
+    EdgePoint? Point2 = null,
     double[]? Ratio = null,
-    string? RatioBy = null,
+    GearRatio? RatioBy = null,
     bool? LockRotation = null);
 
 /// <summary>
@@ -47,9 +48,6 @@ public sealed record RelationSpec(
 /// </summary>
 public static partial class RelationService
 {
-    public static readonly IReadOnlyList<string> Types =
-        ["planar", "axial", "insert", "parallel", "tangent", "angle", "rigid_set", "center_plane", "connect", "coordinate_system", "gear"];
-
     /// <summary>Result tolerances: 0.001 mm and a cosine of about 0.08°.</summary>
     private const double DistanceTolerance = 1e-6;
     private const double ParallelCosine = 0.999999;
@@ -179,28 +177,22 @@ public static partial class RelationService
 
     public static object Add(SeContext context, string? documentHandle, RelationSpec spec)
     {
-        if (!Types.Contains(spec.Type))
-        {
-            throw ToolException.InvalidArgument($"Unknown relation type '{spec.Type}'.",
-                $"Use one of: {string.Join(", ", Types)}. Cam and path relations leave Solid Edge 2026 unstable through the API: add them with the Solid Edge commands.");
-        }
-
-        if (spec.LockRotation is not null && spec.Type is not ("axial" or "insert"))
+        if (spec.LockRotation is not null && spec.Type is not (RelationType.Axial or RelationType.Insert))
         {
             throw ToolException.InvalidArgument("'lockRotation' applies to axial and insert relations.");
         }
 
         switch (spec.Type)
         {
-            case "rigid_set":
+            case RelationType.RigidSet:
                 return RigidSet(context, spec.Occurrences);
-            case "center_plane":
+            case RelationType.CenterPlane:
                 return CenterPlane(context, spec);
-            case "connect":
+            case RelationType.Connect:
                 return Connect(context, spec);
-            case "coordinate_system":
+            case RelationType.CoordinateSystem:
                 return CoordinateSystems(context, spec);
-            case "gear":
+            case RelationType.Gear:
                 return Gear(context, spec);
         }
 
@@ -215,26 +207,26 @@ public static partial class RelationService
 
         Side first = Resolve(context, assembly, moving, spec.Element1, "element1");
         Side second = Resolve(context, assembly, target, spec.Element2, "element2");
-        Side? firstAxis = spec.Type == "insert" ? Resolve(context, assembly, moving, spec.Axis1, "axis1") : null;
-        Side? secondAxis = spec.Type == "insert" ? Resolve(context, assembly, target, spec.Axis2, "axis2") : null;
+        Side? firstAxis = spec.Type == RelationType.Insert ? Resolve(context, assembly, moving, spec.Axis1, "axis1") : null;
+        Side? secondAxis = spec.Type == RelationType.Insert ? Resolve(context, assembly, target, spec.Axis2, "axis2") : null;
         double offset = Units.MmToM(spec.Offset);
         if (!double.IsFinite(offset))
         {
             throw ToolException.InvalidArgument("'offset' must be a finite number (mm).");
         }
 
-        if (spec.Type is "axial" or "angle" && offset != 0)
+        if (spec.Type is RelationType.Axial or RelationType.Angle && offset != 0)
         {
-            throw ToolException.InvalidArgument($"'offset' does not apply to {spec.Type} relations.");
+            throw ToolException.InvalidArgument($"'offset' does not apply to {ArgumentNames.Snake(spec.Type)} relations.");
         }
 
-        if (spec.Type == "parallel" && offset < 0)
+        if (spec.Type == RelationType.Parallel && offset < 0)
         {
             throw ToolException.InvalidArgument("For parallel axes 'offset' is the distance between them (mm, >= 0; 0 = free distance).");
         }
 
         double? angle = null;
-        if (spec.Type == "angle")
+        if (spec.Type == RelationType.Angle)
         {
             double degrees = spec.Angle ?? throw ToolException.InvalidArgument("An angle relation requires 'angle' (degrees between the faces, 0-180).");
             if (!double.IsFinite(degrees) || degrees < 0 || degrees > 180)
@@ -248,11 +240,11 @@ public static partial class RelationService
         // Geometry validation first: the error is raised before touching the assembly.
         switch (spec.Type)
         {
-            case "axial" or "parallel":
+            case RelationType.Axial or RelationType.Parallel:
                 AxisOf(first, "element1");
                 AxisOf(second, "element2");
                 break;
-            case "tangent":
+            case RelationType.Tangent:
                 CylinderOf(first, "element1");
                 if (second.Element is not Face { Geometry: SolidEdgeGeometry.Cylinder })
                 {
@@ -266,7 +258,7 @@ public static partial class RelationService
                 break;
         }
 
-        object? measure = spec.Type == "angle" ? MeasurePlane(context, assembly, first, second, spec.Plane) : null;
+        object? measure = spec.Type == RelationType.Angle ? MeasurePlane(context, assembly, first, second, spec.Plane) : null;
         if (firstAxis is not null)
         {
             AxisOf(firstAxis, "axis1");
@@ -280,13 +272,13 @@ public static partial class RelationService
         {
             Relations3d relations = assembly.Relations3d;
             object? planar = null;
-            if (spec.Type is "planar" or "insert")
+            if (spec.Type is RelationType.Planar or RelationType.Insert)
             {
                 planar = AddPlanar(relations, first, second, spec.Align, created);
                 SetPlanar((PlanarRelation3d)planar, first, second, offset, spec.Align);
             }
 
-            if (spec.Type == "axial")
+            if (spec.Type == RelationType.Axial)
             {
                 AxialRelation3d axial = AddAxial(relations, first, second, spec.Flip, "element", created);
                 if (spec.LockRotation is bool locked)
@@ -294,19 +286,19 @@ public static partial class RelationService
                     LockRotation(axial, locked);
                 }
             }
-            else if (spec.Type == "parallel")
+            else if (spec.Type == RelationType.Parallel)
             {
                 AddParallel(relations, first, second, offset, created);
             }
-            else if (spec.Type == "tangent")
+            else if (spec.Type == RelationType.Tangent)
             {
                 AddTangent(relations, first, second, offset, created);
             }
-            else if (spec.Type == "angle")
+            else if (spec.Type == RelationType.Angle)
             {
                 AddAngle(relations, first, second, angle!.Value, measure!, created);
             }
-            else if (spec.Type == "insert")
+            else if (spec.Type == RelationType.Insert)
             {
                 // Like the Solid Edge Insert command: planar mate + axial with the rotation locked.
                 LockRotation(AddAxial(relations, firstAxis!, secondAxis!, spec.Flip, "axis", created), spec.LockRotation ?? true);
@@ -331,7 +323,7 @@ public static partial class RelationService
         {
             foreach (object relation in created)
             {
-                TryDelete(relation);
+                Late.TryDelete(relation);
             }
 
             PutBack(assembly, moving, [x, y, z, ax, ay, az], ungrounded);
@@ -342,7 +334,7 @@ public static partial class RelationService
                 throw;
             }
 
-            throw new ToolException("relation_failed", $"Solid Edge rejected the {spec.Type} relation: {ComErrors.Unwrap(ex).Message}",
+            throw new ToolException("relation_failed", $"Solid Edge rejected the {ArgumentNames.Snake(spec.Type)} relation: {ComErrors.Unwrap(ex).Message}",
                 "Use planar faces or reference planes for planar relations and cylindrical faces or straight edges for axial ones; the occurrence was put back where it was.", ex);
         }
 
@@ -369,7 +361,7 @@ public static partial class RelationService
         }
 
         created.Remove(relation);
-        TryDelete(relation);
+        Late.TryDelete(relation);
         relation = Create(!align);
         if (DetailedStatus(relation) == "unsatisfied")
         {
@@ -401,14 +393,14 @@ public static partial class RelationService
         {
             (double[] p1, double[] n1) = PlaneOf(first, "element1");
             (double[] p2, double[] n2) = PlaneOf(second, "element2");
-            double cosine = Dot(n1, n2);
+            double cosine = Geo.Dot(n1, n2);
             if (align ? cosine < ParallelCosine : cosine > -ParallelCosine)
             {
                 relation.NormalsAligned = !relation.NormalsAligned;
                 continue;
             }
 
-            double distance = Dot(Minus(p1, p2), n2);
+            double distance = Geo.Dot(Geo.Minus(p1, p2), n2);
             if (Math.Abs(distance - offset) <= DistanceTolerance)
             {
                 return;
@@ -437,15 +429,15 @@ public static partial class RelationService
     {
         (_, double[] d1) = AxisOf(first, argument + "1");
         (_, double[] d2) = AxisOf(second, argument + "2");
-        bool aligned = (Dot(d1, d2) >= 0) ^ flip;
+        bool aligned = (Geo.Dot(d1, d2) >= 0) ^ flip;
         AxialRelation3d relation = relations.AddAxial(first.Reference, second.Reference, aligned);
         created.Add(relation);
         for (int attempt = 0; attempt < 2; attempt++)
         {
             (double[] a1, double[] e1) = AxisOf(first, argument + "1");
             (double[] a2, double[] e2) = AxisOf(second, argument + "2");
-            double cosine = Dot(e1, e2);
-            double gap = Geo.Length(Geo.Cross(Minus(a1, a2), e2));
+            double cosine = Geo.Dot(e1, e2);
+            double gap = Geo.Length(Geo.Cross(Geo.Minus(a1, a2), e2));
             if (Math.Abs(cosine) < ParallelCosine || gap > DistanceTolerance)
             {
                 throw new ToolException("relation_failed", $"After the axial relation the axes are {Geo.Mm(gap)} mm apart"
@@ -472,11 +464,11 @@ public static partial class RelationService
         created.Add(relation);
         (double[] a1, double[] e1) = AxisOf(first, "element1");
         (double[] a2, double[] e2) = AxisOf(second, "element2");
-        double gap = Geo.Length(Geo.Cross(Minus(a1, a2), e2));
-        if (Math.Abs(Dot(e1, e2)) < ParallelCosine || (offset > 0 && Math.Abs(gap - offset) > DistanceTolerance))
+        double gap = Geo.Length(Geo.Cross(Geo.Minus(a1, a2), e2));
+        if (Math.Abs(Geo.Dot(e1, e2)) < ParallelCosine || (offset > 0 && Math.Abs(gap - offset) > DistanceTolerance))
         {
             throw new ToolException("relation_failed", $"After the parallel relation the axes are {Geo.Mm(gap)} mm apart"
-                + (Math.Abs(Dot(e1, e2)) < ParallelCosine ? " and not parallel." : $" instead of {Geo.Mm(offset)} mm."),
+                + (Math.Abs(Geo.Dot(e1, e2)) < ParallelCosine ? " and not parallel." : $" instead of {Geo.Mm(offset)} mm."),
                 "Check that the occurrence is not held by other relations (se_relations list).");
         }
     }
@@ -502,7 +494,7 @@ public static partial class RelationService
             }
 
             created.Remove(relation);
-            TryDelete(relation);
+            Late.TryDelete(relation);
         }
 
         throw new ToolException("relation_failed", $"The tangent relation did not leave the cylinder outside the other element ({found}).",
@@ -516,15 +508,15 @@ public static partial class RelationService
         if (second.Element is Face { Geometry: SolidEdgeGeometry.Cylinder })
         {
             (double[] a2, double[] d2, double r2) = CylinderOf(second, "element2");
-            double between = Geo.Length(Geo.Cross(Minus(a1, a2), d2));
+            double between = Geo.Length(Geo.Cross(Geo.Minus(a1, a2), d2));
             double expected = r1 + r2 + offset;
-            return (Math.Abs(Dot(d1, d2)) >= ParallelCosine && Math.Abs(between - expected) <= DistanceTolerance,
+            return (Math.Abs(Geo.Dot(d1, d2)) >= ParallelCosine && Math.Abs(between - expected) <= DistanceTolerance,
                 $"axes {Geo.Mm(between)} mm apart, expected {Geo.Mm(expected)} mm");
         }
 
         (double[] p2, double[] n2) = PlaneOf(second, "element2");
-        double height = Dot(Minus(a1, p2), n2);
-        return (Math.Abs(Dot(d1, n2)) <= PerpendicularCosine && Math.Abs(height - (r1 + offset)) <= DistanceTolerance,
+        double height = Geo.Dot(Geo.Minus(a1, p2), n2);
+        return (Math.Abs(Geo.Dot(d1, n2)) <= PerpendicularCosine && Math.Abs(height - (r1 + offset)) <= DistanceTolerance,
             $"axis {Geo.Mm(height)} mm from the face, expected {Geo.Mm(r1 + offset)} mm");
     }
 
@@ -549,7 +541,7 @@ public static partial class RelationService
 
             (_, double[] n1) = PlaneOf(first, "element1");
             (_, double[] n2) = PlaneOf(second, "element2");
-            measured = Math.Acos(Math.Clamp(Dot(n1, n2), -1, 1));
+            measured = Math.Acos(Math.Clamp(Geo.Dot(n1, n2), -1, 1));
             if (Math.Abs(measured - angle) <= AngleTolerance && DetailedStatus(relation) == "solved")
             {
                 return;
@@ -573,7 +565,7 @@ public static partial class RelationService
         {
             Side measure = Resolve(context, assembly, null, plane, "plane");
             (_, double[] normal) = PlaneOf(measure, "plane");
-            if (Math.Abs(Dot(normal, n1)) > PerpendicularCosine || Math.Abs(Dot(normal, n2)) > PerpendicularCosine)
+            if (Math.Abs(Geo.Dot(normal, n1)) > PerpendicularCosine || Math.Abs(Geo.Dot(normal, n2)) > PerpendicularCosine)
             {
                 throw ToolException.InvalidArgument("'plane' must be perpendicular to both faces (its normal is the rotation axis).",
                     "Use the assembly base plane whose normal is the axis the occurrence turns about, or create one with se_ref_plane.");
@@ -589,11 +581,11 @@ public static partial class RelationService
                 "'plane' = 'xy', 'yz' or 'xz' assembly base plane ('1'-'3' in the template's order), or an assembly plane handle, perpendicular to the rotation axis.");
         }
 
-        axis = Unit(axis);
+        axis = Geo.Unit(axis);
         foreach (object basePlane in OrientedPlanes.Bases(Late.Items(assembly.AsmRefPlanes)))
         {
             (_, double[] normal) = PlaneOf(new Side(basePlane, basePlane, null), "plane");
-            if (Math.Abs(Dot(normal, axis)) >= ParallelCosine)
+            if (Math.Abs(Geo.Dot(normal, axis)) >= ParallelCosine)
             {
                 return basePlane;
             }
@@ -622,7 +614,7 @@ public static partial class RelationService
         RigidSetRelation3d relation = assembly.Relations3d.AddRigidSet(members.Length, ref array);
         if (relation.OccurrenceCount != members.Length)
         {
-            TryDelete(relation);
+            Late.TryDelete(relation);
             throw new ToolException("relation_failed", $"The rigid set has {relation.OccurrenceCount} occurrences instead of {members.Length}.",
                 "Check that the occurrences belong to the same assembly and are not already in another rigid set.");
         }
@@ -653,7 +645,7 @@ public static partial class RelationService
         {
             foreach (object relation in created)
             {
-                TryDelete(relation);
+                Late.TryDelete(relation);
             }
 
             PutBack(assembly, moving, [x, y, z, ax, ay, az], ungrounded);
@@ -758,13 +750,13 @@ public static partial class RelationService
         (_, double[] normal) = PlaneOf(targets[0], "between[0]");
         foreach ((Side side, string name) in mine.Select((s, i) => (s, $"centered[{i}]")).Append((targets[1], "between[1]")))
         {
-            if (Math.Abs(Dot(PlaneOf(side, name).Normal, normal)) < ParallelCosine)
+            if (Math.Abs(Geo.Dot(PlaneOf(side, name).Normal, normal)) < ParallelCosine)
             {
                 throw ToolException.InvalidArgument($"'{name}' is not parallel to 'between[0]': a center-plane relation relates parallel planar faces or planes.");
             }
         }
 
-        double Along(Side side, string name) => Dot(PlaneOf(side, name).Point, normal);
+        double Along(Side side, string name) => Geo.Dot(PlaneOf(side, name).Point, normal);
         Occurrence?[] owners = [.. targets.Select(t => t.Occurrence)];
         return Position(context, assembly, moving, "center_plane", (relations, created) =>
         {
@@ -793,7 +785,7 @@ public static partial class RelationService
     /// </summary>
     private static object Connect(SeContext context, RelationSpec spec)
     {
-        string key1 = spec.Point1 ?? throw ToolException.InvalidArgument("A connect relation needs 'point1': start, end, mid or center of the edge 'element1'.");
+        EdgePoint key1 = spec.Point1 ?? throw ToolException.InvalidArgument("A connect relation needs 'point1': start, end, mid or center of the edge 'element1'.");
         Occurrence moving = OccurrenceOf(context, spec.Occurrence1, spec.Element1, "occurrence1", "element1")
             ?? throw ToolException.InvalidArgument("'occurrence1' is required (the occurrence that moves), unless 'element1' is an edge handle from se_geometry with 'source' = that occurrence.");
         AssemblyDocument assembly = moving.TopLevelDocument;
@@ -817,13 +809,13 @@ public static partial class RelationService
             double[] point = KeyPointOf(first, key1, "element1");
             if (spec.Point2 is { } key2)
             {
-                return Geo.Length(Minus(point, KeyPointOf(second, key2, "element2")));
+                return Geo.Length(Geo.Minus(point, KeyPointOf(second, key2, "element2")));
             }
 
             if (second.Element is SolidEdgeGeometry.Edge { Geometry: SolidEdgeGeometry.Line })
             {
                 (double[] start, double[] direction) = AxisOf(second, "element2");
-                return Geo.Length(Geo.Cross(Minus(point, start), direction));
+                return Geo.Length(Geo.Cross(Geo.Minus(point, start), direction));
             }
 
             if (second.Element is SolidEdgeGeometry.Edge)
@@ -833,7 +825,7 @@ public static partial class RelationService
             }
 
             (double[] root, double[] normal) = PlaneOf(second, "element2");
-            return Math.Abs(Dot(Minus(point, root), normal));
+            return Math.Abs(Geo.Dot(Geo.Minus(point, root), normal));
         }
 
         Gap(); // checks both elements before touching the assembly
@@ -852,21 +844,21 @@ public static partial class RelationService
         }, target);
     }
 
-    private static Relation3dGeometryConstants KeyPoint(string key) => key.ToLowerInvariant() switch
+    private static Relation3dGeometryConstants KeyPoint(EdgePoint key) => key switch
     {
-        "start" => Relation3dGeometryConstants.igRelation3dStartPoint,
-        "end" => Relation3dGeometryConstants.igRelation3dEndPoint,
-        "mid" => Relation3dGeometryConstants.igRelation3dMidPoint,
-        "center" => Relation3dGeometryConstants.igRelation3dCenterPoint,
-        _ => throw ToolException.InvalidArgument($"Unknown key point '{key}'.", "Use start, end, mid or center."),
+        EdgePoint.Start => Relation3dGeometryConstants.igRelation3dStartPoint,
+        EdgePoint.End => Relation3dGeometryConstants.igRelation3dEndPoint,
+        EdgePoint.Mid => Relation3dGeometryConstants.igRelation3dMidPoint,
+        EdgePoint.Center => Relation3dGeometryConstants.igRelation3dCenterPoint,
+        _ => throw new ArgumentOutOfRangeException(nameof(key)),
     };
 
     /// <summary>Start, end, middle or centre of an edge (m, assembly coordinates).</summary>
-    private static double[] KeyPointOf(Side side, string key, string argumentName)
+    private static double[] KeyPointOf(Side side, EdgePoint key, string argumentName)
     {
         if (side.Element is not SolidEdgeGeometry.Edge edge)
         {
-            throw ToolException.InvalidArgument($"'{argumentName}' must be an edge to take its {key} point.",
+            throw ToolException.InvalidArgument($"'{argumentName}' must be an edge to take its {ArgumentNames.Snake(key)} point.",
                 "Edges: se_geometry action 'edges' with 'source' = the occurrence.");
         }
 
@@ -933,8 +925,8 @@ public static partial class RelationService
             RequireSolved(created);
             (double[] o1, double[] x1, double[] z1) = FrameOf(mine, moving);
             (double[] o2, double[] x2, double[] z2) = FrameOf(theirs, target);
-            double gap = Geo.Length(Minus(o1, o2));
-            bool turned = Dot(x1, x2) < ParallelCosine || Dot(z1, z2) < ParallelCosine;
+            double gap = Geo.Length(Geo.Minus(o1, o2));
+            bool turned = Geo.Dot(x1, x2) < ParallelCosine || Geo.Dot(z1, z2) < ParallelCosine;
             if (gap > DistanceTolerance || turned)
             {
                 throw new ToolException("relation_failed",
@@ -950,11 +942,11 @@ public static partial class RelationService
         (double[] origin, double[] x, _, double[] z) = RefPlaneService.Axes(system);
         if (owner is null)
         {
-            return (origin, Unit(x), Unit(z));
+            return (origin, Geo.Unit(x), Geo.Unit(z));
         }
 
         Placement placement = Placement.Of(owner);
-        return (placement.Point(origin), Unit(placement.Vector(x)), Unit(placement.Vector(z)));
+        return (placement.Point(origin), Geo.Unit(placement.Vector(x)), Geo.Unit(placement.Vector(z)));
     }
 
     /// <summary>A coordinate system of a document by name (any case) or handle; the error lists the names there are.</summary>
@@ -990,11 +982,7 @@ public static partial class RelationService
             throw ToolException.InvalidArgument("A gear relation needs 'ratio': two numbers > 0, the teeth of element1 and element2, or with ratioBy 'turns' the turns of element1 and the turns of element2 (or the mm a rack moves).");
         }
 
-        string by = (spec.RatioBy ?? "teeth").ToLowerInvariant();
-        if (by is not ("teeth" or "turns"))
-        {
-            throw ToolException.InvalidArgument($"Unknown 'ratioBy' '{spec.RatioBy}'.", "Use teeth or turns.");
-        }
+        GearRatio by = spec.RatioBy ?? GearRatio.Teeth;
 
         Occurrence first = OccurrenceOf(context, spec.Occurrence1, spec.Element1, "occurrence1", "element1")
             ?? throw ToolException.InvalidArgument("'occurrence1' is required (the gear that drives), unless 'element1' is a face or edge handle from se_geometry with 'source' = that occurrence.");
@@ -1020,7 +1008,7 @@ public static partial class RelationService
             throw ToolException.InvalidArgument("'element2' must be a cylindrical or conical face or a circular edge (a gear), or a straight edge of a rack along its travel.");
         }
 
-        if (rack && by != "turns")
+        if (rack && by != GearRatio.Turns)
         {
             throw ToolException.InvalidArgument("For a rack (a straight edge in 'element2') use ratioBy 'turns': ratio = [turns of element1, mm the rack moves].");
         }
@@ -1032,7 +1020,7 @@ public static partial class RelationService
         {
             relation = assembly.Relations3d.AddGear(driver.Reference, driven.Reference,
                 rack ? Relation3dGearTypeConstants.igRelation3dGearTypeRotaryLinear : Relation3dGearTypeConstants.igRelation3dGearTypeRotaryRotary,
-                by == "turns" ? Relation3dGearRatioTypeConstants.igRelation3dGearRatioTypeNumberOfTurns : Relation3dGearRatioTypeConstants.igRelation3dGearRatioTypeNumberOfTeeth,
+                by == GearRatio.Turns ? Relation3dGearRatioTypeConstants.igRelation3dGearRatioTypeNumberOfTurns : Relation3dGearRatioTypeConstants.igRelation3dGearRatioTypeNumberOfTeeth,
                 ratio[0], value2, spec.Flip);
             RequireSolved([relation]);
             if (Math.Abs(relation.RatioValue1 - ratio[0]) > 1e-9 || Math.Abs(relation.RatioValue2 - value2) > 1e-9)
@@ -1046,7 +1034,7 @@ public static partial class RelationService
         {
             if (relation is not null)
             {
-                TryDelete(relation);
+                Late.TryDelete(relation);
             }
 
             if (ex is ToolException)
@@ -1104,7 +1092,7 @@ public static partial class RelationService
         double[] p = Geo.Doubles(point).ToArray();
         double[] d = Geo.Doubles(direction).ToArray();
         Placement? placement = side.Occurrence is null ? null : Placement.Of(side.Occurrence);
-        return (placement?.Point(p) ?? p, Unit(placement?.Vector(d) ?? d), radius);
+        return (placement?.Point(p) ?? p, Geo.Unit(placement?.Vector(d) ?? d), radius);
     }
 
     /// <summary>Given occurrence or, if missing, the one of the element's handle (faces and edges read from an occurrence).</summary>
@@ -1210,7 +1198,7 @@ public static partial class RelationService
 
         double[] point = Geo.Doubles(root).ToArray();
         Placement? placement = side.Occurrence is null ? null : Placement.Of(side.Occurrence);
-        return (placement?.Point(point) ?? point, Unit(placement?.Vector(n) ?? n));
+        return (placement?.Point(point) ?? point, Geo.Unit(placement?.Vector(n) ?? n));
     }
 
     /// <summary>Point and direction of the axis of a cylinder, a cone, a straight or circular edge (m, assembly).</summary>
@@ -1239,7 +1227,7 @@ public static partial class RelationService
         double[] p = Geo.Doubles(point).ToArray();
         double[] d = Geo.Doubles(direction).ToArray();
         Placement? placement = side.Occurrence is null ? null : Placement.Of(side.Occurrence);
-        return (placement?.Point(p) ?? p, Unit(placement?.Vector(d) ?? d));
+        return (placement?.Point(p) ?? p, Geo.Unit(placement?.Vector(d) ?? d));
     }
 
     private static object Describe(SeContext context, AssemblyDocument assembly, object relation, Occurrence[] members)
@@ -1336,8 +1324,8 @@ public static partial class RelationService
         }
 
         AssemblyDocument assembly = occurrence.TopLevelDocument;
-        double[] axis = Unit(direction);
-        double Along(Side side) => Math.Abs(Dot(PlaneOf(side, "plane").Normal, axis));
+        double[] axis = Geo.Unit(direction);
+        double Along(Side side) => Math.Abs(Geo.Dot(PlaneOf(side, "plane").Normal, axis));
         Side[] bases = [.. OrientedPlanes.Bases(Late.Items(assembly.AsmRefPlanes)).Select(p => new Side(p, p, null))];
         Side? measure = bases.FirstOrDefault(s => Along(s) >= ParallelCosine);
         Side? fixedPlane = bases.FirstOrDefault(s => Along(s) <= PerpendicularCosine);
@@ -1357,7 +1345,7 @@ public static partial class RelationService
         bool turned = false;
         try
         {
-            double current = Math.Acos(Math.Clamp(Dot(PlaneOf(partPlane, "plane").Normal, PlaneOf(fixedPlane, "plane").Normal), -1, 1));
+            double current = Math.Acos(Math.Clamp(Geo.Dot(PlaneOf(partPlane, "plane").Normal, PlaneOf(fixedPlane, "plane").Normal), -1, 1));
             relation = assembly.Relations3d.AddAngular(partPlane.Reference, fixedPlane.Reference, false, false,
                 measure.Reference, measure.Reference, current, true, true, true);
             // The relation's own angle runs over the full turn: the value that keeps the part where it is comes first.
@@ -1390,7 +1378,7 @@ public static partial class RelationService
         {
             if (relation is not null)
             {
-                TryDelete(relation);
+                Late.TryDelete(relation);
             }
         }
 
@@ -1463,28 +1451,6 @@ public static partial class RelationService
         Relation3dDetailedStatusConstants.igRelation3dDetailedStatusMissingGeometry => "missing_geometry",
         _ => "unknown",
     };
-
-    private static void TryDelete(object relation)
-    {
-        try
-        {
-            Late.Call(relation, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
-        {
-            // No longer exists.
-        }
-    }
-
-    private static double Dot(double[] a, double[] b) => (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
-
-    private static double[] Minus(double[] a, double[] b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-
-    private static double[] Unit(double[] v)
-    {
-        double length = Geo.Length(v);
-        return length < 1e-15 ? v : [v[0] / length, v[1] / length, v[2] / length];
-    }
 
     /// <summary>Resolved element: the part (or assembly) object, what is passed to the relation, and its occurrence.</summary>
     private sealed record Side(object Element, object Reference, Occurrence? Occurrence);

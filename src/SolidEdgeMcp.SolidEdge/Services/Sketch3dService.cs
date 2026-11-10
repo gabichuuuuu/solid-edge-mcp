@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -14,7 +15,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What a se_sketch3d call draws or relates (model coordinates in mm).</summary>
 public sealed record Sketch3dSpec(string? Sketch, double[]? Points, double[]? Normal, double? Radius, bool Closed,
-    string[]? Elements, string? Relation, string[]? Keypoints, string? Plane, string? Name, double? Width = null, double? Height = null,
+    string[]? Elements, Sketch3dRelation? Relation, string[]? Keypoints, string? Plane, string? Name, double? Width = null, double? Height = null,
     double[]? Direction = null, string[]? Equations = null, double[]? Range = null, string[]? Edges = null);
 
 /// <summary>
@@ -30,28 +31,28 @@ public static partial class Sketch3dService
         ["connect", "parallel", "perpendicular", "point_on", "include", "on_plane", "concentric", "tangent", "collinear", "equal",
          "coaxial", "horizontal_vertical", "fillet", "lock", "rigid_set", "symmetric"];
 
-    public static object Run(SeContext context, string? documentHandle, string action, Sketch3dSpec spec) => action switch
+    public static object Run(SeContext context, string? documentHandle, Sketch3dAction action, Sketch3dSpec spec) => action switch
     {
-        "list" => List(context, documentHandle),
-        "create" => Create(context, documentHandle, spec.Name),
-        "info" => Info(context, spec.Sketch),
-        "line" => Lines(context, spec),
-        "arc" => Arc(context, spec),
-        "arc_through" => ArcThrough(context, spec),
-        "tangent_arc" => TangentArc(context, spec),
-        "rectangle" => Rectangle(context, spec),
-        "mirror" => Mirror(context, spec),
-        "split" => Split(context, spec),
-        "trim" => Trim(context, spec),
-        "equation" => Equation(context, spec),
-        "include" => Include(context, spec),
-        "circle" => Circle(context, spec),
-        "spline" => Spline(context, spec),
-        "point" => Points(context, spec),
-        "fillet" => Fillet(context, spec),
-        "relation" => Relation(context, spec),
-        "delete" => Delete(context, spec),
-        _ => throw ToolException.InvalidArgument($"Unknown action '{action}' for a 3D sketch."),
+        Sketch3dAction.List => List(context, documentHandle),
+        Sketch3dAction.Create => Create(context, documentHandle, spec.Name),
+        Sketch3dAction.Info => Info(context, spec.Sketch),
+        Sketch3dAction.Line => Lines(context, spec),
+        Sketch3dAction.Arc => Arc(context, spec),
+        Sketch3dAction.ArcThrough => ArcThrough(context, spec),
+        Sketch3dAction.TangentArc => TangentArc(context, spec),
+        Sketch3dAction.Rectangle => Rectangle(context, spec),
+        Sketch3dAction.Mirror => Mirror(context, spec),
+        Sketch3dAction.Split => Split(context, spec),
+        Sketch3dAction.Trim => Trim(context, spec),
+        Sketch3dAction.Equation => Equation(context, spec),
+        Sketch3dAction.Include => Include(context, spec),
+        Sketch3dAction.Circle => Circle(context, spec),
+        Sketch3dAction.Spline => Spline(context, spec),
+        Sketch3dAction.Point => Points(context, spec),
+        Sketch3dAction.Fillet => Fillet(context, spec),
+        Sketch3dAction.Relation => Relation(context, spec),
+        Sketch3dAction.Delete => Delete(context, spec),
+        _ => throw new ArgumentOutOfRangeException(nameof(action)),
     };
 
     public static object List(SeContext context, string? documentHandle)
@@ -129,7 +130,7 @@ public static partial class Sketch3dService
         }
         catch
         {
-            made.ForEach(TryDelete);
+            made.ForEach(Late.TryDelete);
             throw;
         }
 
@@ -150,7 +151,7 @@ public static partial class Sketch3dService
         }
 
         double[] normal = spec.Normal is { } given ? Direction(given, "normal")
-            : Unit(Geo.Cross(Sub(start, center), Sub(end, center)))
+            : Geo.TryUnit(Geo.Cross(Geo.Minus(start, center), Geo.Minus(end, center)))
               ?? throw ToolException.InvalidArgument("Start, end and center are in line: give 'normal' to say which way the arc turns.");
         Arc3D arc = Make("arc", () => sketch.Arcs3D.AddByStartEndCenterNormal(start[0], start[1], start[2], end[0], end[1], end[2],
             center[0], center[1], center[2], normal[0], normal[1], normal[2], radius));
@@ -222,29 +223,30 @@ public static partial class Sketch3dService
     private static object Relation(SeContext context, Sketch3dSpec spec)
     {
         (Sketch3D sketch, SolidEdgeDocument document) = Resolve(context, spec.Sketch);
-        string type = spec.Relation?.Trim().ToLowerInvariant() ?? throw ToolException.InvalidArgument("relation requires 'relation'.",
+        Sketch3dRelation kind = spec.Relation ?? throw ToolException.InvalidArgument("relation requires 'relation'.",
             "Use connect, parallel, perpendicular, collinear, equal, tangent, concentric, coaxial, horizontal_vertical, lock, on_plane, symmetric or rigid_set.");
+        string type = ArgumentNames.Snake(kind);
         Sketch3DRelations relations = sketch.Sketch3DRelations;
         int before = relations.Count;
         object[] e;
         Func<Sketch3DRelation> add;
-        switch (type)
+        switch (kind)
         {
-            case "connect":
+            case Sketch3dRelation.Connect:
                 e = Elements(context, spec.Elements, type, 2, 2);
                 (KeyType k1, KeyType k2) = (Key(spec.Keypoints, 0, KeyType.igSketch3DEndPoint), Key(spec.Keypoints, 1, KeyType.igSketch3DStartPoint));
                 add = () => relations.AddConnect(e[0], k1, e[1], k2);
                 break;
-            case "parallel": e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddParallel(e[0], e[1]); break;
-            case "perpendicular": e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddPerpendicular(e[0], e[1]); break;
-            case "collinear": e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddCollinear(e[0], e[1]); break;
-            case "equal": e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddEqual(e[0], e[1]); break;
-            case "tangent": e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddTangent(e[0], e[1]); break;
-            case "concentric": e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddConcentric(e[0], e[1]); break;
-            case "coaxial": e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddCoaxial(e[0], e[1]); break;
-            case "horizontal_vertical": e = Elements(context, spec.Elements, type, 1, 1); add = () => relations.AddHV(e[0]); break;
-            case "lock": e = Elements(context, spec.Elements, type, 1, 1); add = () => relations.AddLock(e[0]); break;
-            case "on_plane":
+            case Sketch3dRelation.Parallel: e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddParallel(e[0], e[1]); break;
+            case Sketch3dRelation.Perpendicular: e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddPerpendicular(e[0], e[1]); break;
+            case Sketch3dRelation.Collinear: e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddCollinear(e[0], e[1]); break;
+            case Sketch3dRelation.Equal: e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddEqual(e[0], e[1]); break;
+            case Sketch3dRelation.Tangent: e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddTangent(e[0], e[1]); break;
+            case Sketch3dRelation.Concentric: e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddConcentric(e[0], e[1]); break;
+            case Sketch3dRelation.Coaxial: e = Elements(context, spec.Elements, type, 2, 2); add = () => relations.AddCoaxial(e[0], e[1]); break;
+            case Sketch3dRelation.HorizontalVertical: e = Elements(context, spec.Elements, type, 1, 1); add = () => relations.AddHV(e[0]); break;
+            case Sketch3dRelation.Lock: e = Elements(context, spec.Elements, type, 1, 1); add = () => relations.AddLock(e[0]); break;
+            case Sketch3dRelation.OnPlane:
             {
                 e = Elements(context, spec.Elements, type, 1, 1);
                 object plane = PlaneOf(context, document, spec.Plane, type);
@@ -252,7 +254,7 @@ public static partial class Sketch3dService
                 break;
             }
 
-            case "symmetric":
+            case Sketch3dRelation.Symmetric:
             {
                 e = Elements(context, spec.Elements, type, 2, 2);
                 object plane = PlaneOf(context, document, spec.Plane, type);
@@ -260,7 +262,7 @@ public static partial class Sketch3dService
                 break;
             }
 
-            case "rigid_set":
+            case Sketch3dRelation.RigidSet:
             {
                 e = Elements(context, spec.Elements, type, 2, int.MaxValue);
                 Array set = e;
@@ -269,15 +271,14 @@ public static partial class Sketch3dService
             }
 
             default:
-                throw ToolException.InvalidArgument($"Unknown relation '{type}'.",
-                    "Use connect, parallel, perpendicular, collinear, equal, tangent, concentric, coaxial, horizontal_vertical, lock, on_plane, symmetric or rigid_set.");
+                throw new ArgumentOutOfRangeException(nameof(kind));
         }
 
         Sketch3DRelation relation = Make($"{type} relation", add);
         string? status = FeatureService.StatusOf(relation);
         if (relations.Count <= before || status is "failed")
         {
-            TryDelete(relation);
+            Late.TryDelete(relation);
             throw new ToolException("relation_failed", $"Solid Edge could not apply the {type} relation{(status is null ? "" : $" (status {status})")}; it was removed.",
                 "Check that the elements can take it (e.g. lines for parallel, arcs or circles for concentric).");
         }
@@ -467,17 +468,9 @@ public static partial class Sketch3dService
     }
 
     private static double[] Direction(double[] values, string name) =>
-        values.Length == 3 && Unit(values.Select(v => Units.RequireFinite(v, name)).ToArray()) is { } unit
+        values.Length == 3 && Geo.TryUnit(values.Select(v => Units.RequireFinite(v, name)).ToArray()) is { } unit
             ? unit
             : throw ToolException.InvalidArgument($"'{name}' must be a direction [x,y,z] that is not zero.");
-
-    private static double[]? Unit(double[] v)
-    {
-        double length = Geo.Length(v);
-        return length < 1e-12 ? null : v.Select(c => c / length).ToArray();
-    }
-
-    private static double[] Sub(double[] a, double[] b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 
     private static T Make<T>(string what, Func<T> create)
     {
@@ -496,20 +489,8 @@ public static partial class Sketch3dService
     {
         if (!ok)
         {
-            TryDelete(element);
+            Late.TryDelete(element);
             throw new ToolException("feature_failed", $"Solid Edge did not make the element as asked ({problem}); it was deleted.");
-        }
-    }
-
-    private static void TryDelete(object element)
-    {
-        try
-        {
-            Late.Call(element, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
-        {
-            // Already gone.
         }
     }
 }

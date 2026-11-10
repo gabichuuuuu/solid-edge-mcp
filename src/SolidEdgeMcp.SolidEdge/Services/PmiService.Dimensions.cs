@@ -4,6 +4,7 @@
 using System.Runtime.InteropServices;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using EdgePick = SolidEdgeMcp.SolidEdge.Services.PmiAnnotationService.EdgePick;
@@ -30,7 +31,6 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class PmiService
 {
-    public static readonly IReadOnlyList<string> DimensionTypes = ["linear", "diameter", "radius", "angle"];
 
     /// <summary>
     /// Moves a dimension (Move, PMI tab): its line stands off what it measures by the distance, along the normal of the plane
@@ -90,21 +90,20 @@ public static partial class PmiService
 
     private static object AddDimension(SeContext context, string? documentHandle, PmiSpec spec)
     {
-        string type = spec.Type is { } t && DimensionTypes.Contains(t)
-            ? t
-            : throw ToolException.InvalidArgument(spec.Type is null ? "dimension needs 'type'." : $"Unknown dimension type '{spec.Type}'.",
-                $"Use one of: {string.Join(", ", DimensionTypes)}.");
+        PmiDimensionType kind = spec.Type ?? throw ToolException.InvalidArgument("dimension needs 'type'.", "Use one of: linear, diameter, radius, angle.");
+        string type = ArgumentNames.Snake(kind);
         double? track = spec.Distance is { } d ? Units.MmToM(Units.RequireFinite(d, "distance")) : null;
         ModelDocument model = ModelDocument.Get(context, documentHandle);
         PMI pmi = PmiOf(model);
         PmiAnnotationService.Frame frame = PmiAnnotationService.FrameOf(context, model, pmi, spec.Plane);
-        (DimTypeConstants apiType, EdgePick[][] attempts, double[] expected) = type switch
+        (DimTypeConstants apiType, EdgePick[][] attempts, double[] expected) = kind switch
         {
-            "linear" => Linear(model, spec.Points, frame),
-            "angle" => One(Angular(model, spec.Points)),
-            _ => One(Circular(model, spec.Points, type)),
+            PmiDimensionType.Linear => Linear(model, spec.Points, frame),
+            PmiDimensionType.Angle => One(Angular(model, spec.Points)),
+            PmiDimensionType.Diameter or PmiDimensionType.Radius => One(Circular(model, spec.Points, kind)),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
-        bool angle = type == "angle";
+        bool angle = kind == PmiDimensionType.Angle;
         Dimensions dimensions = DimensionsOf(model);
         int before = dimensions.Count;
         Dimension? dimension = null;
@@ -279,12 +278,12 @@ public static partial class PmiService
         return (DimTypeConstants.igDimTypeLinear, attempts, expected);
     }
 
-    private static (DimTypeConstants, EdgePick[], double[]) Circular(ModelDocument model, double[]? values, string type)
+    private static (DimTypeConstants, EdgePick[], double[]) Circular(ModelDocument model, double[]? values, PmiDimensionType type)
     {
         double[] point = PmiAnnotationService.ModelPoints(values, "points", 1, "on the circular edge")[0];
         EdgePick circle = PmiAnnotationService.PickEdge(model, point, "circular edge", PmiAnnotationService.IsCircle);
         double radius = PmiAnnotationService.CircleOf(circle.Edge).Radius;
-        return type == "diameter"
+        return type == PmiDimensionType.Diameter
             ? (DimTypeConstants.igDimTypeCDiameter, [circle], [2 * radius])
             : (DimTypeConstants.igDimTypeRadial, [circle], [radius]);
     }

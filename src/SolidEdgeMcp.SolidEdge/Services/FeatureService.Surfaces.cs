@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -30,7 +31,7 @@ public static partial class FeatureService
         return new { document = context.DocumentHandle(model.Document), count = surfaces.Length, surfaces };
     }
 
-    public static object ExtrudeSurface(SeContext context, string? documentHandle, string? sketch, double? depth, string direction, bool endCaps)
+    public static object ExtrudeSurface(SeContext context, string? documentHandle, string? sketch, double? depth, FeatureDirection direction, bool endCaps)
     {
         string handle = sketch ?? throw ToolException.InvalidArgument("'sketch' is required: closed with se_sketch 'close' (open: true for an open profile).");
         double length = Units.MmToM(Units.RequirePositive(depth ?? throw ToolException.InvalidArgument("extrude requires 'depth' (mm)."), "depth"));
@@ -45,7 +46,7 @@ public static partial class FeatureService
         return CheckedSurface(context, model, surface, "extruded", switched, [included], [sketchProfile]);
     }
 
-    public static object RevolveSurface(SeContext context, string? documentHandle, string? sketch, string? axis, double angle, string direction, bool endCaps)
+    public static object RevolveSurface(SeContext context, string? documentHandle, string? sketch, string? axis, double angle, FeatureDirection direction, bool endCaps)
     {
         string handle = sketch ?? throw ToolException.InvalidArgument("'sketch' is required: closed with se_sketch 'close' (open: true for an open profile).");
         RefAxis refAxis = context.Handles.Resolve<RefAxis>(
@@ -193,7 +194,7 @@ public static partial class FeatureService
         double area = FacesOf(surface).Sum(f => f.Area);
         if (Math.Abs(area - expected) > Math.Max(1e-9, expected * 1e-4))
         {
-            TryDeleteSurface(surface);
+            Late.TryDelete(surface);
             throw new ToolException("feature_failed",
                 $"The stitched surface has {Geo.Mm2(area)} mm² instead of {Geo.Mm2(expected)} mm² (the sum of the surfaces); it was deleted.",
                 "Stitch surfaces that meet along whole edges.");
@@ -229,7 +230,7 @@ public static partial class FeatureService
     /// surface grows along the normal, otherwise over it; a taper of 30° leans 5 mm, up to z 28.66. The tangent continuous
     /// type threw RPC_E_SERVERFAULT and is not offered.
     /// </summary>
-    public static object RuledSurface(SeContext context, string? documentHandle, string[]? edges, string[]? faces, double? distance, double taper, string direction)
+    public static object RuledSurface(SeContext context, string? documentHandle, string[]? edges, string[]? faces, double? distance, double taper, FeatureDirection direction)
     {
         if (edges is not { Length: > 0 })
         {
@@ -255,7 +256,7 @@ public static partial class FeatureService
             throw ToolException.InvalidArgument($"'{faceHandle}' is not a planar face.", "Give the planar face the edges lie on (se_geometry faces type plane).");
         }
 
-        bool reverse = direction == "reverse";
+        bool reverse = direction == FeatureDirection.Reverse;
         var chosen = new List<(Edge Edge, RuledSurfaceSideConstants Lean)>();
         foreach (string handle in edges)
         {
@@ -285,7 +286,7 @@ public static partial class FeatureService
         {
             foreach (object surface in made)
             {
-                TryDeleteSurface(surface);
+                Late.TryDelete(surface);
             }
 
             throw;
@@ -368,18 +369,6 @@ public static partial class FeatureService
         }
     }
 
-    private static void TryDeleteSurface(object surface)
-    {
-        try
-        {
-            Late.Call(surface, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
-        {
-            // The error being reported is the failed surface.
-        }
-    }
-
     public static object DeleteSurface(SeContext context, string? documentHandle, string? name)
     {
         ModelDocument model = ModelDocument.Get(context, documentHandle);
@@ -401,7 +390,7 @@ public static partial class FeatureService
         Face[] faces = FacesOf(surface);
         if (status is not ("ok" or "warning") || faces.Length == 0 || faces.Sum(f => f.Area) <= 0)
         {
-            TryDeleteSurface(surface);
+            Late.TryDelete(surface);
             DeleteAll(included);
 
             throw new ToolException("feature_failed",

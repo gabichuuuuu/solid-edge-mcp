@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
 using Body = SolidEdgeGeometry.Body;
@@ -17,7 +18,7 @@ public static partial class FeatureService
     /// construction model, the path the sketch profile itself. A Line2d, the construction model or a rotation axis give
     /// E_FAIL or E_NOINTERFACE, and bToolOnPath true gives E_FAIL. The tool stays as a construction body.
     /// </summary>
-    public static object SolidSweep(SeContext context, string? documentHandle, string? toolHandle, string? pathHandle, string operation)
+    public static object SolidSweep(SeContext context, string? documentHandle, string? toolHandle, string? pathHandle, FeatureOperation operation)
     {
         string tool = toolHandle ?? throw ToolException.InvalidArgument("solid needs 'tool': a closed construction surface (se_surface with endCaps, or stitched closed) or a construction body.",
             "Make the tool with se_surface, e.g. revolve a section 360 degrees with endCaps.");

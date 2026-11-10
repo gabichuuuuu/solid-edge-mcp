@@ -3,6 +3,7 @@
 
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -13,8 +14,8 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>Parameters of a loft, sweep or helix (mm and degrees).</summary>
 public sealed record SweepSpec(
-    string Action,
-    string Operation = "add",
+    SweepAction Action,
+    FeatureOperation Operation = FeatureOperation.Add,
     string[]? Sketches = null,
     string? Path = null,
     double[]? Origins = null,
@@ -22,14 +23,12 @@ public sealed record SweepSpec(
     double? Pitch = null,
     double? Turns = null,
     double? Height = null,
-    string Hand = "right",
+    HelixHand Hand = HelixHand.Right,
     ThinWallSpec? ThinWall = null,
     double? Taper = null);
 
 public static partial class FeatureService
 {
-    public static readonly IReadOnlyList<string> SweepActions = ["loft", "sweep", "helix"];
-
     /// <summary>Section type: sketch profile (igProfileBasedCrossSection).</summary>
     private const int ProfileSection = (int)FeaturePropertyConstants.igProfileBasedCrossSection;
 
@@ -47,13 +46,13 @@ public static partial class FeatureService
             ? list
             : throw ToolException.InvalidArgument("'sketches' must list the closed sketches (sections) of the feature.",
                 "Draw each section with se_sketch and close it ('close').");
-        int minimum = spec.Action == "loft" ? 2 : 1;
-        if (sketches.Length < minimum || (spec.Action == "helix" && sketches.Length != 1))
+        int minimum = spec.Action == SweepAction.Loft ? 2 : 1;
+        if (sketches.Length < minimum || (spec.Action == SweepAction.Helix && sketches.Length != 1))
         {
             throw ToolException.InvalidArgument(spec.Action switch
             {
-                "loft" => "A loft needs at least two sections in 'sketches', in order.",
-                "helix" => "A helix takes exactly one section in 'sketches'.",
+                SweepAction.Loft => "A loft needs at least two sections in 'sketches', in order.",
+                SweepAction.Helix => "A helix takes exactly one section in 'sketches'.",
                 _ => "A sweep needs at least one section in 'sketches'.",
             });
         }
@@ -72,16 +71,16 @@ public static partial class FeatureService
         object? pathCurve = null;
         RefAxis? axis = null;
         (double Height, double Pitch, double Turns) helix = default;
-        if (spec.Taper is { } taper && (spec.Action != "helix" || !double.IsFinite(taper) || Math.Abs(taper) >= 90))
+        if (spec.Taper is { } taper && (spec.Action != SweepAction.Helix || !double.IsFinite(taper) || Math.Abs(taper) >= 90))
         {
             throw ToolException.InvalidArgument("'taper' is the angle of a conical helix in degrees, between -90 and 90 (positive widens towards the end).");
         }
         FeaturePropertyConstants hand = FeaturePropertyConstants.igRight;
         switch (spec.Action)
         {
-            case "loft":
+            case SweepAction.Loft:
                 break;
-            case "sweep":
+            case SweepAction.Sweep:
                 string pathHandle = spec.Path ?? throw ToolException.InvalidArgument("A sweep requires 'path'.",
                     "Draw the path as an open or closed chain with se_sketch and close it with 'close' (open: true for an open chain), or make a 3D curve with se_curve.");
                 object resolvedPath = context.Handles.Resolve(pathHandle, "path");
@@ -106,19 +105,19 @@ public static partial class FeatureService
                 }
 
                 break;
-            case "helix":
+            case SweepAction.Helix:
                 axis = context.Handles.Resolve<RefAxis>(spec.Axis ?? throw ToolException.InvalidArgument("A helix requires 'axis'.",
                     "Draw a line in the section's sketch and turn it into the axis with se_sketch action 'axis', before 'close'."), "axis");
                 helix = HelixSize(spec.Pitch, spec.Turns, spec.Height);
                 hand = spec.Hand switch
                 {
-                    "right" => FeaturePropertyConstants.igRight,
-                    "left" => FeaturePropertyConstants.igLeft,
-                    _ => throw ToolException.InvalidArgument($"Unknown hand '{spec.Hand}'.", "Use right or left."),
+                    HelixHand.Right => FeaturePropertyConstants.igRight,
+                    HelixHand.Left => FeaturePropertyConstants.igLeft,
+                    _ => throw new ArgumentOutOfRangeException(nameof(spec)),
                 };
                 break;
             default:
-                throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", SweepActions)}.");
+                throw new ArgumentOutOfRangeException(nameof(spec));
         }
 
         bool switched = model.EnsureOrdered();
@@ -146,12 +145,12 @@ public static partial class FeatureService
             object[] sections = included.Take(sketchProfiles.Length).Select(i => (object)i.Profile).ToArray();
             int[] types = Enumerable.Repeat(ProfileSection, sections.Length).ToArray();
             object[] starts = sections.Select((s, i) => (object)(origins is null ? StartPoint((Profile)s, sketchProfiles[i]) : [origins[i].X, origins[i].Y])).ToArray();
-            string what = $"{spec.Action} {(cut ? "cutout" : "protrusion")}";
+            string what = $"{ArgumentNames.Snake(spec.Action)} {(cut ? "cutout" : "protrusion")}";
 
             object feature = Create(what, null, () => spec.Action switch
             {
-                "loft" => Loft(model, existing, cut, sections, types, starts),
-                "sweep" => Sweep(model, existing, cut,
+                SweepAction.Loft => Loft(model, existing, cut, sections, types, starts),
+                SweepAction.Sweep => Sweep(model, existing, cut,
                     path is null ? EdgePath(pathCurve!) : [path.Profile], path is null ? EdgeSection : ProfileSection, sections, types, starts),
                 _ => Helix(model, existing, cut, axis!, sections, helix, hand, spec.Taper),
             });
@@ -174,7 +173,7 @@ public static partial class FeatureService
                 feature = Describe(context, model, feature),
                 volume = Geo.Mm3(after),
                 volumeChange = Geo.Mm3(after - before),
-                helix = axis is null ? null : new { height = Geo.Mm(helix.Height), pitch = Geo.Mm(helix.Pitch), turns = Geo.R(helix.Turns), hand = spec.Hand, taper = spec.Taper },
+                helix = axis is null ? null : new { height = Geo.Mm(helix.Height), pitch = Geo.Mm(helix.Pitch), turns = Geo.R(helix.Turns), hand = ArgumentNames.Snake(spec.Hand), taper = spec.Taper },
                 warnings = Warnings(switched, status == "warning"),
             };
         }

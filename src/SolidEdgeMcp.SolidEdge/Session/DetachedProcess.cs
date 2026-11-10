@@ -62,7 +62,7 @@ internal static class DetachedProcess
         catch (ArgumentException)
         {
             throw new ToolException("solid_edge_start_failed", $"'{exe}' exited immediately after starting.",
-                "Start Solid Edge manually to see the error (often the license: SE_LICENSE_SERVER).");
+                "Start Solid Edge manually to see the error (often the licence: SE_LICENSE_SERVER).");
         }
         finally
         {

@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -103,7 +104,7 @@ public static partial class FeatureService
     }
 
     /// <summary>Sketch projected along its plane normal (normal) or against it (reverse) onto a face, surface or the body.</summary>
-    public static object ProjectedCurve(SeContext context, string? documentHandle, string? sketch, string? onto, string direction)
+    public static object ProjectedCurve(SeContext context, string? documentHandle, string? sketch, string? onto, FeatureDirection direction)
     {
         string handle = sketch ?? throw ToolException.InvalidArgument("project requires 'sketch' (closed with se_sketch 'close', open: true for an open chain).");
         ModelDocument model = ModelDocument.For(context, documentHandle, handle);
@@ -111,9 +112,9 @@ public static partial class FeatureService
         object target = FaceSet(context, model, onto ?? throw ToolException.InvalidArgument("project requires 'onto': the face, surface or feature handle, or 'body', to project onto."), "onto");
         FeaturePropertyConstants side = direction switch
         {
-            "normal" => FeaturePropertyConstants.igRight,
-            "reverse" => FeaturePropertyConstants.igLeft,
-            _ => throw ToolException.InvalidArgument($"Unknown direction '{direction}' for a projection.", "Use normal or reverse."),
+            FeatureDirection.Normal => FeaturePropertyConstants.igRight,
+            FeatureDirection.Reverse => FeaturePropertyConstants.igLeft,
+            _ => throw ToolException.InvalidArgument($"Unknown direction '{ArgumentNames.Snake(direction)}' for a projection.", "Use normal or reverse."),
         };
         object plane = Late.Get(profile, "Plane") ?? throw new ToolException("sketch_not_usable", "The sketch has no plane.", "Use a sketch made with se_sketch create.");
         object sketchObject = Late.Get(profile, "Parent") ?? throw new ToolException("sketch_not_usable", "The sketch has no parent sketch.", "Use a sketch made with se_sketch create.");
@@ -250,7 +251,7 @@ public static partial class FeatureService
         }
         catch
         {
-            parts.ForEach(TryDeleteCurve);
+            parts.ForEach(Late.TryDelete);
             context.ModelChanged(model.Document, "the model changed (contour curve attempts)");
             throw;
         }
@@ -274,7 +275,7 @@ public static partial class FeatureService
             }
 
             errors.Add(problem);
-            TryDeleteCurve(curve);
+            Late.TryDelete(curve);
         }
 
         return null;
@@ -341,7 +342,7 @@ public static partial class FeatureService
         catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             errors.Add("points not accepted: " + ComErrors.Unwrap(ex).Message.Trim());
-            TryDeleteCurve(curve);
+            Late.TryDelete(curve);
             return null;
         }
     }
@@ -365,18 +366,6 @@ public static partial class FeatureService
         return closed ? (ends.Length == 0 ? null : $"it is not closed: it leaves the faces, ends at {string.Join(" and ", ends.Select(e => "(" + string.Join(", ", e.Select(Geo.Mm)) + ")"))} mm")
             : ends.Any(e => Geo.Distance(e, nodes[0]) < 1e-6) && ends.Any(e => Geo.Distance(e, nodes[^1]) < 1e-6) ? null
             : "it does not end at the first and last points";
-    }
-
-    private static void TryDeleteCurve(object curve)
-    {
-        try
-        {
-            Late.Call(curve, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
-        {
-            // The error being reported is the failed curve.
-        }
     }
 
     /// <summary>A sketch wrapped onto cylindrical or conical faces (tangent to them); its length is checked against the sketch's.</summary>
@@ -512,7 +501,7 @@ public static partial class FeatureService
             : check?.Invoke(curve);
         if (problem is not null)
         {
-            TryDeleteCurve(curve);
+            Late.TryDelete(curve);
             throw new ToolException("feature_failed", $"Solid Edge did not make the {type} curve ({problem}); it was deleted.",
                 "Check the input: the sets must cross, the projection must hit the target, the edges must form a chain.");
         }

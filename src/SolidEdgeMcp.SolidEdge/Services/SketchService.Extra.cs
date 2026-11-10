@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -17,11 +18,6 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class SketchService
 {
-    public static readonly IReadOnlyList<string> RelationTypes =
-        ["horizontal", "vertical", "fix", "parallel", "perpendicular", "equal", "tangent", "concentric", "colinear", "connect", "symmetric"];
-
-    public static readonly IReadOnlyList<string> DimensionTypes = ["length", "radius", "diameter", "distance", "angle"];
-
     /// <summary>Ellipse by center, major semi-axis, minor semi-axis and angle of the major axis (degrees from x).</summary>
     public static object Ellipse(SeContext context, string sketch, double[]? center, double? radius, double? minorRadius, double? angle)
     {
@@ -199,40 +195,42 @@ public static partial class SketchService
     }
 
     /// <summary>Geometric relation between sketch elements; Solid Edge repositions the geometry to satisfy it.</summary>
-    public static object Relate(SeContext context, string sketch, string type, string[]? elements, int[]? keypoints)
+    public static object Relate(SeContext context, string sketch, SketchRelation type, string[]? elements, int[]? keypoints)
     {
+        string name = ArgumentNames.Snake(type);
         Canvas2d canvas = ResolveCanvas(context, sketch);
         Relations2d relations = canvas.Relations2d;
         (int count, string usage) = type switch
         {
-            "horizontal" or "vertical" or "fix" => (1, "one line (fix: any element)"),
-            "connect" => (2, "two elements plus 'keypoints' [i1, i2]"),
-            "symmetric" => (3, "the symmetry line followed by two elements"),
-            _ when RelationTypes.Contains(type) => (2, "two elements"),
-            _ => throw ToolException.InvalidArgument($"Unknown relation '{type}'.", $"Use one of: {string.Join(", ", RelationTypes)}."),
+            SketchRelation.Horizontal or SketchRelation.Vertical or SketchRelation.Fix => (1, "one line (fix: any element)"),
+            SketchRelation.Connect => (2, "two elements plus 'keypoints' [i1, i2]"),
+            SketchRelation.Symmetric => (3, "the symmetry line followed by two elements"),
+            SketchRelation.Parallel or SketchRelation.Perpendicular or SketchRelation.Equal or SketchRelation.Tangent
+                or SketchRelation.Concentric or SketchRelation.Colinear => (2, "two elements"),
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
         };
-        object[] e = Elements(context, elements, count, count, $"relation '{type}' ({usage})");
-        int[] k = type == "connect" ? Keypoints(keypoints, 2) : [];
+        object[] e = Elements(context, elements, count, count, $"relation '{name}' ({usage})");
+        int[] k = type == SketchRelation.Connect ? Keypoints(keypoints, 2) : [];
         try
         {
             Relation2d relation = type switch
             {
-                "horizontal" => relations.AddHorizontal(e[0]),
-                "vertical" => relations.AddVertical(e[0]),
-                "fix" => relations.AddFix(e[0]),
-                "parallel" => relations.AddParallel(e[0], e[1]),
-                "perpendicular" => relations.AddPerpendicular(e[0], e[1]),
-                "equal" => relations.AddEqual(e[0], e[1]),
-                "tangent" => relations.AddTangent(e[0], e[1]),
-                "concentric" => relations.AddConcentric(e[0], e[1]),
-                "colinear" => relations.AddColinear(e[0], e[1]),
-                "connect" => relations.AddKeypoint(e[0], k[0], e[1], k[1]),
+                SketchRelation.Horizontal => relations.AddHorizontal(e[0]),
+                SketchRelation.Vertical => relations.AddVertical(e[0]),
+                SketchRelation.Fix => relations.AddFix(e[0]),
+                SketchRelation.Parallel => relations.AddParallel(e[0], e[1]),
+                SketchRelation.Perpendicular => relations.AddPerpendicular(e[0], e[1]),
+                SketchRelation.Equal => relations.AddEqual(e[0], e[1]),
+                SketchRelation.Tangent => relations.AddTangent(e[0], e[1]),
+                SketchRelation.Concentric => relations.AddConcentric(e[0], e[1]),
+                SketchRelation.Colinear => relations.AddColinear(e[0], e[1]),
+                SketchRelation.Connect => relations.AddKeypoint(e[0], k[0], e[1], k[1]),
                 _ => relations.AddSymmetric(e[0], e[1], e[2]),
             };
             return new
             {
                 relation = context.RegisterBeside(relation, "relation2d", sketch),
-                type,
+                type = name,
                 elements = e.Select(Describe2d).ToArray(),
             };
         }
@@ -242,7 +240,7 @@ public static partial class SketchService
             string reason = ex.HResult == unchecked((int)0x80040210)
                 ? "it repeats or contradicts a relation the elements already have (HRESULT 0x80040210)"
                 : ex.Message;
-            throw new ToolException("relation_failed", $"Solid Edge rejected the {type} relation: {reason}",
+            throw new ToolException("relation_failed", $"Solid Edge rejected the {name} relation: {reason}",
                 "Check the element types (e.g. parallel needs lines, concentric circles or arcs) and the existing relations (se_sketch_constraint 'list'): rectangle lines are already horizontal/vertical and connected.", ex);
         }
     }
@@ -251,34 +249,35 @@ public static partial class SketchService
     /// Sketch dimension that drives the geometry (like the ones in the UI). With <paramref name="value"/> it sets that measure
     /// (mm or degrees); without it, it locks the current one. Its variable can be changed later with se_variables.
     /// </summary>
-    public static object Dimension(SeContext context, string sketch, string type, string[]? elements, int[]? keypoints, double? value)
+    public static object Dimension(SeContext context, string sketch, SketchDimension type, string[]? elements, int[]? keypoints, double? value)
     {
+        string name = ArgumentNames.Snake(type);
         Canvas2d canvas = ResolveCanvas(context, sketch);
         Dimensions dimensions = canvas.Dimensions;
-        int count = type is "distance" or "angle" ? 2 : 1;
-        object[] e = Elements(context, elements, count, count, $"dimension '{type}'");
+        int count = type is SketchDimension.Distance or SketchDimension.Angle ? 2 : 1;
+        object[] e = Elements(context, elements, count, count, $"dimension '{name}'");
         int[]? k = keypoints is null ? null : Keypoints(keypoints, count);
         double? target = value is null ? null
-            : type == "angle" ? Units.DegToRad(Units.RequirePositive(value.Value, "value"))
+            : type == SketchDimension.Angle ? Units.DegToRad(Units.RequirePositive(value.Value, "value"))
             : Units.MmToM(Units.RequirePositive(value.Value, "value"));
-        if (type == "angle" && target >= Math.PI - 1e-12)
+        if (type == SketchDimension.Angle && target >= Math.PI - 1e-12)
         {
             throw ToolException.InvalidArgument("'value' of an angle must be between 0 and 180 degrees (the angle inside the corner of the two lines).");
         }
 
         // The interior angle is converted to the one Solid Edge stores (see AngleFrame).
-        AngleFrame? frame = type == "angle" ? AngleFrame.Of(e) : null;
+        AngleFrame? frame = type == SketchDimension.Angle ? AngleFrame.Of(e) : null;
         Dimension dimension;
         try
         {
             dimension = type switch
             {
-                "length" => dimensions.AddLength(e[0] as Line2d ?? throw ToolException.InvalidArgument("A 'length' dimension takes one line.", "For arcs and circles use 'radius' or 'diameter'.")),
-                "radius" => dimensions.AddRadius(e[0]),
-                "diameter" => dimensions.AddCircularDiameter(e[0]),
-                "distance" => Distance(dimensions, e, k),
-                "angle" => Angle(dimensions, e),
-                _ => throw ToolException.InvalidArgument($"Unknown dimension '{type}'.", $"Use one of: {string.Join(", ", DimensionTypes)}."),
+                SketchDimension.Length => dimensions.AddLength(e[0] as Line2d ?? throw ToolException.InvalidArgument("A 'length' dimension takes one line.", "For arcs and circles use 'radius' or 'diameter'.")),
+                SketchDimension.Radius => dimensions.AddRadius(e[0]),
+                SketchDimension.Diameter => dimensions.AddCircularDiameter(e[0]),
+                SketchDimension.Distance => Distance(dimensions, e, k),
+                SketchDimension.Angle => Angle(dimensions, e),
+                _ => throw new ArgumentOutOfRangeException(nameof(type)),
             };
         }
         catch (COMException ex) when (!ComErrors.IsGone(ex))
@@ -298,7 +297,7 @@ public static partial class SketchService
                 double got = frame is { } g ? g.ToInterior(dimension.Value) : dimension.Value;
                 Late.Call(dimension, "Delete");
                 throw new ToolException("dimension_failed",
-                    $"Solid Edge kept the {type} at {Format(type, got)} instead of {Format(type, wanted)}; the dimension was deleted.",
+                    $"Solid Edge kept the {name} at {Format(name, got)} instead of {Format(name, wanted)}; the dimension was deleted.",
                     "The sketch is probably over-constrained: remove a conflicting relation or dimension (se_sketch_constraint 'delete').");
             }
         }
@@ -308,11 +307,11 @@ public static partial class SketchService
         {
             dimension = context.RegisterBeside(dimension, "dimension", sketch),
             variable = dimension.DisplayName,
-            type,
-            measured = Num(type, frame is { } m ? m.ToInterior(measured) : measured),
-            value = Num(type, frame is { } v ? v.ToInterior(current) : current),
-            variableValue = frame is null ? (double?)null : Num(type, current),
-            unit = type == "angle" ? "deg" : "mm",
+            type = name,
+            measured = Num(name, frame is { } m ? m.ToInterior(measured) : measured),
+            value = Num(name, frame is { } v ? v.ToInterior(current) : current),
+            variableValue = frame is null ? (double?)null : Num(name, current),
+            unit = type == SketchDimension.Angle ? "deg" : "mm",
             elements = e.Select(Describe2d).ToArray(),
         };
     }
@@ -323,7 +322,7 @@ public static partial class SketchService
         Canvas2d canvas = ResolveCanvas(context, sketch);
         Dimensions dimensions = canvas.Dimensions;
         var items = new List<object>();
-        for (int i = 1; i <= dimensions.Count; i++)
+        for (int i = 1, count = dimensions.Count; i <= count; i++)
         {
             Dimension d = dimensions.Item(i);
             string kind = d.DimensionType switch
@@ -668,7 +667,7 @@ public static partial class SketchService
     /// <summary>
     /// Angle between two lines. Solid Edge stores the counter-clockwise turn of the direction (start→end) from the first to the
     /// second, between 0 and 360°, ignoring the selection points (verified); the tool works with the
-    /// interior angle of the corner they form (0–180°), measured between the segments seen from their intersection.
+    /// interior angle of the corner they form (0 to 180°), measured between the segments seen from their intersection.
     /// </summary>
     private readonly record struct AngleFrame(int Sense, double Offset)
     {

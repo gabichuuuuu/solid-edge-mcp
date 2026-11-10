@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
+using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
 using Edge = SolidEdgeGeometry.Edge;
@@ -68,16 +70,10 @@ public static partial class FeatureService
             throw ToolException.InvalidArgument("label_weld requires 'edges': the welded edges of the part.", "Get them with se_geometry action 'edges'.");
         }
 
-        bool onArrow = spec.WeldSide is "arrow" or "both";
-        bool onOther = spec.WeldSide is "other" or "both";
-        if (!onArrow && !onOther)
-        {
-            throw ToolException.InvalidArgument($"Unknown weldSide '{spec.WeldSide}'.", $"Use one of: {string.Join(", ", DrawingService.WeldSides)}.");
-        }
+        bool onArrow = spec.WeldSide is WeldSide.Arrow or WeldSide.Both;
+        bool onOther = spec.WeldSide is WeldSide.Other or WeldSide.Both;
 
-        WeldType? arrow = spec.Weld is null ? null
-            : DrawingService.WeldTypes.TryGetValue(spec.Weld, out WeldType type) ? type
-            : throw ToolException.InvalidArgument($"Unknown weld '{spec.Weld}'.", $"Use one of: {string.Join(", ", DrawingService.WeldTypes.Keys)}.");
+        WeldType? arrow = spec.Weld is { } weld ? DrawingService.WeldTypes[weld] : null;
         if (arrow is null && spec.Note is not null)
         {
             throw ToolException.InvalidArgument("'note' is the size of a weld symbol: give 'weld' too.", "For example weld 'fillet' and note 'a5'.");
@@ -122,7 +118,7 @@ public static partial class FeatureService
         int labelled = ((SolidEdgeGeometry.Edges)label.Edges[SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryAll]).Count;
         if (labelled != edges.Length)
         {
-            TryDelete(label);
+            Late.TryDelete(label);
             throw new ToolException("feature_failed", $"The label weld took {labelled} of the {edges.Length} edges and was deleted.", Hint);
         }
 
@@ -135,7 +131,7 @@ public static partial class FeatureService
         {
             feature = Describe(context, model, label),
             edges = labelled,
-            weld = keptArrow || keptOther ? DrawingService.WeldTypes.FirstOrDefault(w => w.Value == shown).Key : null,
+            weld = keptArrow || keptOther ? DrawingService.WeldName(shown) : null,
             weldSide = keptArrow && keptOther ? "both" : keptOther ? "other" : keptArrow ? "arrow" : null,
             note = NoteText(keptArrow ? read.BottomNote1 : keptOther ? read.TopNote1 : null),
             allAround = read.WeldAllAround,

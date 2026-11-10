@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -26,7 +27,7 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 public static partial class AssemblyFeatureService
 {
     /// <summary>Extruded protrusion of a closed sketch made in the assembly, <paramref name="depth"/> mm on one side or symmetric.</summary>
-    public static object Protrusion(SeContext context, string? documentHandle, string? sketch, double? depth, string side, string? name)
+    public static object Protrusion(SeContext context, string? documentHandle, string? sketch, double? depth, PartFeatureSide side, string? name)
     {
         (AssemblyDocument assembly, Profile profile) = AssemblySketch(context, documentHandle, sketch, "a closed sketch made in the assembly (se_sketch create with an assembly plane, then close)");
         double distance = Units.MmToM(Units.RequirePositive(depth ?? throw ToolException.InvalidArgument("'depth' is required: the protrusion length in mm."), "depth"));
@@ -48,7 +49,7 @@ public static partial class AssemblyFeatureService
     }
 
     /// <summary>Revolved protrusion: a closed sketch made in the assembly turned about its axis by <paramref name="angle"/> degrees.</summary>
-    public static object RevolvedProtrusion(SeContext context, string? documentHandle, string? sketch, string? axis, double? angle, string side, string? name)
+    public static object RevolvedProtrusion(SeContext context, string? documentHandle, string? sketch, string? axis, double? angle, PartFeatureSide side, string? name)
     {
         (AssemblyDocument assembly, Profile profile) = AssemblySketch(context, documentHandle, sketch, "a closed sketch made in the assembly, with an axis (se_sketch 'axis' on a line, before 'close')");
         object refAxis = context.Handles.Resolve(axis ?? throw ToolException.InvalidArgument(
@@ -124,7 +125,7 @@ public static partial class AssemblyFeatureService
         }
         catch (ToolException)
         {
-            TryDelete(set);
+            Late.TryDelete(set);
             throw;
         }
 
@@ -139,7 +140,7 @@ public static partial class AssemblyFeatureService
         catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or ArgumentException && !ComErrors.IsGone(ex))
         {
             RemoveAddedSince(patterns, before);
-            TryDelete(set);
+            Late.TryDelete(set);
             throw new ToolException("feature_failed", $"Solid Edge did not make the pattern: {ComErrors.Unwrap(ex).Message.Trim()}", "Check the counts, spacing and plane.");
         }
 
@@ -148,7 +149,7 @@ public static partial class AssemblyFeatureService
         if (status is not ("ok" or "warning") || faces == 0)
         {
             Discard(pattern);
-            TryDelete(set);
+            Late.TryDelete(set);
             throw new ToolException("feature_failed", $"Solid Edge did not make the pattern in the parts (its status is {status}, {faces} faces) and it was removed.",
                 "Check that the copies fall on the parts the features cut: spacing in mm along the sketch axes of the plane (se_sketch create reports them as 'frame').");
         }
@@ -256,7 +257,7 @@ public static partial class AssemblyFeatureService
         {
             features = assembly.AssemblyFeatures;
         }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        catch (COMException ex) when (ex.HResult == ComErrors.EFail)
         {
             // A frame came first (made before or outside this server): nothing can bring the property back.
             return;
@@ -288,7 +289,7 @@ public static partial class AssemblyFeatureService
         }
         finally
         {
-            TryDelete(set);
+            Late.TryDelete(set);
         }
     }
 
@@ -300,7 +301,7 @@ public static partial class AssemblyFeatureService
             _ = assembly.AssemblyFeatures;
             return true;
         }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        catch (COMException ex) when (ex.HResult == ComErrors.EFail)
         {
             return false;
         }
@@ -312,7 +313,7 @@ public static partial class AssemblyFeatureService
         {
             return assembly.AssemblyFeatures;
         }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        catch (COMException ex) when (ex.HResult == ComErrors.EFail)
         {
             return KeptFeatures.TryGetValue(assembly, out AssemblyFeatures? kept)
                 ? kept
@@ -359,12 +360,12 @@ public static partial class AssemblyFeatureService
                 "Read them with se_geometry 'faces' or 'edges' and 'source' = the occurrence handle.")).ToArray();
     }
 
-    private static FeaturePropertyConstants BodySide(string side) => side switch
+    private static FeaturePropertyConstants BodySide(PartFeatureSide side) => side switch
     {
-        "auto" or "normal" => FeaturePropertyConstants.igRight,
-        "reverse" => FeaturePropertyConstants.igLeft,
-        "symmetric" => FeaturePropertyConstants.igSymmetric,
-        _ => throw ToolException.InvalidArgument($"Unknown side '{side}'.", "Use normal, reverse or symmetric."),
+        PartFeatureSide.Auto or PartFeatureSide.Normal => FeaturePropertyConstants.igRight,
+        PartFeatureSide.Reverse => FeaturePropertyConstants.igLeft,
+        PartFeatureSide.Symmetric => FeaturePropertyConstants.igSymmetric,
+        _ => throw new ArgumentOutOfRangeException(nameof(side)),
     };
 
     private static (int Columns, int Rows, double Du, double Dv) Grid(int[]? count, double[]? spacing)

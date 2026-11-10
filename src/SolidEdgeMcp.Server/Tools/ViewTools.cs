@@ -6,58 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum ViewAction
-{
-    Capture,
-    Fit,
-    Orient,
-    RenderMode,
-    NamedViews,
-    SaveView,
-    ApplyView,
-    DeleteView,
-    Style,
-    Background,
-    Camera,
-    SetCamera,
-    Zoom,
-    Rotate,
-}
-
-public enum ViewOrientation
-{
-    Iso,
-    Front,
-    Back,
-    Top,
-    Bottom,
-    Left,
-    Right,
-    Dimetric,
-    Trimetric,
-}
-
-public enum BackgroundKind
-{
-    Solid,
-    Gradient,
-    Image,
-}
-
-public enum GradientShape
-{
-    Horizontal,
-    Vertical,
-    DiagonalUp,
-    DiagonalDown,
-    SquareSpot,
-    CircularSpot,
-}
 
 [McpServerToolType]
 public sealed class ViewTools(ToolRunner runner)
@@ -112,7 +65,7 @@ public sealed class ViewTools(ToolRunner runner)
                 ? ViewService.OrientToPlane(c, document, plane)
                 : throw ToolException.InvalidArgument("Give 'orientation' or 'plane', not both."), cancellationToken),
             ViewAction.Orient => runner.RunAsync(tool, op, c => ViewService.Orient(c, document,
-                ToolRunner.RequireValue(orientation, "orientation", "orient").ToString().ToLowerInvariant()), cancellationToken),
+                ToolRunner.RequireValue(orientation, "orientation", "orient")), cancellationToken),
             ViewAction.RenderMode => runner.RunAsync(tool, op, c => ViewService.SetRenderMode(c, document,
                 ToolRunner.Require(mode, "mode", "render_mode")), cancellationToken),
             ViewAction.NamedViews => runner.RunAsync(tool, op, c => ViewService.NamedViews(c, document), cancellationToken),
@@ -121,7 +74,7 @@ public sealed class ViewTools(ToolRunner runner)
             ViewAction.DeleteView => runner.RunAsync(tool, op, c => ViewService.DeleteView(c, document, name), cancellationToken),
             ViewAction.Style => runner.RunAsync(tool, op, c => ViewService.Style(c, document, name), cancellationToken),
             ViewAction.Background => runner.RunAsync(tool, op, c => ViewService.Background(c, document,
-                kind is null ? null : Snake(kind.Value), colors, gradient is null ? null : Snake(gradient.Value), path), cancellationToken),
+                kind, colors, gradient, path), cancellationToken),
             ViewAction.Camera => runner.RunAsync(tool, op, c => ViewService.GetCamera(c, document), cancellationToken),
             ViewAction.SetCamera => runner.RunAsync(tool, op, c => ViewService.SetCamera(c, document, eye, target, up, perspective, angle, fit), cancellationToken),
             ViewAction.Zoom => runner.RunAsync(tool, op, c => ViewService.Zoom(c, document,

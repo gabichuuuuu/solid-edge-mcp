@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -17,20 +18,20 @@ public sealed record HoleSpec(
     string Plane,
     double[]? Centers,
     double? Diameter,
-    string Type = "simple",
+    HoleType Type = HoleType.Simple,
     double? CounterboreDiameter = null,
     double? CounterboreDepth = null,
     double? CountersinkDiameter = null,
     double CountersinkAngle = 90,
     string? Thread = null,
-    string Extent = "through_all",
+    SimpleExtent Extent = SimpleExtent.ThroughAll,
     double? Depth = null,
-    string Direction = "auto");
+    HoleDirection Direction = HoleDirection.Auto);
 
 /// <summary>Pattern parameters (mm and degrees).</summary>
 public sealed record PatternSpec(
     string[]? Features,
-    string Type,
+    PatternType Type,
     string? Plane,
     int CountX = 1,
     int CountY = 1,
@@ -49,9 +50,6 @@ public sealed record PatternSpec(
 
 public static partial class FeatureService
 {
-    public static readonly IReadOnlyList<string> HoleTypes = ["simple", "counterbore", "countersink", "tapped"];
-    public static readonly IReadOnlyList<string> PatternTypes = ["rectangular", "circular", "mirror", "curve", "fill", "table"];
-
     /// <summary>
     /// Holes at the given centers. With direction "auto" it tries toward the normal of the plane and, if it
     /// removes no material, toward the opposite side (as a person would when looking at the preview).
@@ -63,19 +61,19 @@ public static partial class FeatureService
         FeaturePropertyConstants holeType = HoleTypeOf(spec);
         bool finite = spec.Extent switch
         {
-            "finite" => true,
-            "through_all" or "through_next" => false,
-            _ => throw ToolException.InvalidArgument($"Unknown extent '{spec.Extent}'.", "Use finite, through_all or through_next."),
+            SimpleExtent.Finite => true,
+            SimpleExtent.ThroughAll or SimpleExtent.ThroughNext => false,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         double depth = finite
             ? Units.MmToM(Units.RequirePositive(spec.Depth ?? throw ToolException.InvalidArgument("Extent 'finite' requires 'depth' (mm)."), "depth"))
             : 0;
         FeaturePropertyConstants[] sides = spec.Direction switch
         {
-            "auto" => [FeaturePropertyConstants.igRight, FeaturePropertyConstants.igLeft],
-            "normal" => [FeaturePropertyConstants.igRight],
-            "reverse" => [FeaturePropertyConstants.igLeft],
-            _ => throw ToolException.InvalidArgument($"Unknown direction '{spec.Direction}'.", "Use auto, normal or reverse."),
+            HoleDirection.Auto => [FeaturePropertyConstants.igRight, FeaturePropertyConstants.igLeft],
+            HoleDirection.Normal => [FeaturePropertyConstants.igRight],
+            HoleDirection.Reverse => [FeaturePropertyConstants.igLeft],
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
 
         bool switched = model.EnsureOrdered();
@@ -88,7 +86,7 @@ public static partial class FeatureService
             // because afterwards the face is no longer valid. That is also why the other side cannot be retried: with "auto"
             // the direction toward the material, opposite to the outward normal, is chosen up front.
             facePlanes = centers.Select(_ => model.PlaneFrom(face)).ToList();
-            if (spec.Direction == "auto")
+            if (spec.Direction == HoleDirection.Auto)
             {
                 sides = [IntoMaterial(face, facePlanes[0])];
             }
@@ -130,8 +128,8 @@ public static partial class FeatureService
                     {
                         object feature = Create("hole", included, () => spec.Extent switch
                         {
-                            "finite" => target.Holes.AddFinite(profile, side, depth, data),
-                            "through_all" => target.Holes.AddThroughAll(profile, side, data),
+                            SimpleExtent.Finite => target.Holes.AddFinite(profile, side, depth, data),
+                            SimpleExtent.ThroughAll => target.Holes.AddThroughAll(profile, side, data),
                             _ => target.Holes.AddThroughNext(profile, side, data),
                         }, sketch: false);
                         (current, string? status) = Check(context, model, feature, current, -1, null, included);
@@ -152,14 +150,14 @@ public static partial class FeatureService
         {
             foreach ((object feature, IncludedProfile included) in holes)
             {
-                TryDelete(feature);
+                Late.TryDelete(feature);
                 DeleteIncluded(included);
             }
 
             // Local planes that no hole got to use (those of deleted features disappear with them).
             foreach (RefPlane plane in facePlanes ?? [])
             {
-                TryDelete(plane);
+                Late.TryDelete(plane);
             }
 
             if (holes.Count == 0 || ex is not ToolException failure)
@@ -212,9 +210,9 @@ public static partial class FeatureService
             return ConstructionPattern(context, documentHandle, spec, items);
         }
 
-        if (spec.Type is not ("curve" or "fill" or "table") && string.IsNullOrWhiteSpace(spec.Plane))
+        if (spec.Type is not (PatternType.Curve or PatternType.Fill or PatternType.Table) && string.IsNullOrWhiteSpace(spec.Plane))
         {
-            throw ToolException.InvalidArgument(spec.Type == "mirror"
+            throw ToolException.InvalidArgument(spec.Type == PatternType.Mirror
                 ? "'plane' is required: the mirror plane ('1'-'3', refplane or planar face handle)."
                 : "'plane' is required: the plane where the pattern is laid out (normally the sketch plane of the features).");
         }
@@ -223,12 +221,12 @@ public static partial class FeatureService
         object[] features = spec.Features.Select(h => context.Handles.Resolve(h, "features")).ToArray();
         bool switched = model.EnsureOrdered();
         Model target = model.RequireModel();
-        RefPlane? refPlane = spec.Type is "curve" or "fill" or "table" ? null : model.ResolvePlane(context, spec.Plane!);
+        RefPlane? refPlane = spec.Type is PatternType.Curve or PatternType.Fill or PatternType.Table ? null : model.ResolvePlane(context, spec.Plane!);
         double before = model.Volume();
         object feature;
         switch (spec.Type)
         {
-            case "rectangular":
+            case PatternType.Rectangular:
             {
                 if (spec.CountX < 1 || spec.CountY < 1 || spec.CountX * spec.CountY < 2)
                 {
@@ -242,7 +240,7 @@ public static partial class FeatureService
                 break;
             }
 
-            case "circular":
+            case PatternType.Circular:
             {
                 if (spec.Count < 2)
                 {
@@ -264,19 +262,19 @@ public static partial class FeatureService
                 break;
             }
 
-            case "mirror":
+            case PatternType.Mirror:
                 feature = Create("mirror copy", () => target.MirrorCopies.Add(refPlane, features.Length, features));
                 break;
-            case "fill":
+            case PatternType.Fill:
                 return FillPattern(context, model, target, features, spec, before, switched);
-            case "curve":
+            case PatternType.Curve:
                 feature = CurvePattern(context, target, features, spec);
                 break;
-            case "table":
+            case PatternType.Table:
                 feature = TablePattern(context, model, target, features, spec);
                 break;
             default:
-                throw ToolException.InvalidArgument($"Unknown pattern type '{spec.Type}'.", $"Use one of: {string.Join(", ", PatternTypes)}.");
+                throw new ArgumentOutOfRangeException(nameof(spec));
         }
 
         return Verify(context, model, feature, before, 0, switched);
@@ -375,16 +373,16 @@ public static partial class FeatureService
     }
 
     /// <summary>Shell (thin wall) with a common thickness; the open faces are removed.</summary>
-    public static object Shell(SeContext context, string? documentHandle, double? thickness, string[]? openFaces, string side)
+    public static object Shell(SeContext context, string? documentHandle, double? thickness, string[]? openFaces, ShellSide side)
     {
         string? related = openFaces is { Length: > 0 } ? openFaces[0] : null;
         ModelDocument model = ModelDocument.For(context, documentHandle, related ?? "");
         double t = Units.MmToM(Units.RequirePositive(thickness ?? throw ToolException.InvalidArgument("se_shell requires 'thickness' (mm)."), "thickness"));
         FeaturePropertyConstants thicknessSide = side switch
         {
-            "inside" => FeaturePropertyConstants.igInside,
-            "outside" => FeaturePropertyConstants.igOutside,
-            _ => throw ToolException.InvalidArgument($"Unknown side '{side}'.", "Use inside or outside."),
+            ShellSide.Inside => FeaturePropertyConstants.igInside,
+            ShellSide.Outside => FeaturePropertyConstants.igOutside,
+            _ => throw new ArgumentOutOfRangeException(nameof(side)),
         };
         object[] faces = (openFaces ?? []).Select(h => (object)context.Handles.Resolve<SolidEdgeGeometry.Face>(h, "openFaces")).ToArray();
         bool switched = model.EnsureOrdered();
@@ -397,7 +395,7 @@ public static partial class FeatureService
     }
 
     /// <summary>Draft of faces relative to a neutral plane.</summary>
-    public static object Draft(SeContext context, string? documentHandle, string plane, string[]? faces, double? angle, string direction)
+    public static object Draft(SeContext context, string? documentHandle, string plane, string[]? faces, double? angle, DraftDirection direction)
     {
         if (faces is not { Length: > 0 })
         {
@@ -415,9 +413,9 @@ public static partial class FeatureService
         // igOutside narrows the part toward the normal of the plane (drafting in that direction) and igInside widens it.
         FeaturePropertyConstants side = direction switch
         {
-            "normal" => FeaturePropertyConstants.igOutside,
-            "reverse" => FeaturePropertyConstants.igInside,
-            _ => throw ToolException.InvalidArgument($"Unknown direction '{direction}'.", "Use normal or reverse."),
+            DraftDirection.Normal => FeaturePropertyConstants.igOutside,
+            DraftDirection.Reverse => FeaturePropertyConstants.igInside,
+            _ => throw new ArgumentOutOfRangeException(nameof(direction)),
         };
         object[] faceObjects = faces.Select(h => (object)context.Handles.Resolve<SolidEdgeGeometry.Face>(h, "faces")).ToArray();
         bool switched = model.EnsureOrdered();
@@ -443,18 +441,18 @@ public static partial class FeatureService
 
     internal static FeaturePropertyConstants HoleTypeOf(HoleSpec spec) => spec.Type switch
     {
-        "simple" => FeaturePropertyConstants.igRegularHole,
-        "counterbore" => FeaturePropertyConstants.igCounterboreHole,
-        "countersink" => FeaturePropertyConstants.igCountersinkHole,
+        HoleType.Simple => FeaturePropertyConstants.igRegularHole,
+        HoleType.Counterbore => FeaturePropertyConstants.igCounterboreHole,
+        HoleType.Countersink => FeaturePropertyConstants.igCountersinkHole,
         // igTappedHole creates in Solid Edge 2026 a hole with a stepped counterbore (counterdrill) with dimensions
         // by default: the thread is a simple drilled hole with the thread data (cosmetic thread).
-        "tapped" => FeaturePropertyConstants.igRegularHole,
-        _ => throw ToolException.InvalidArgument($"Unknown hole type '{spec.Type}'.", $"Use one of: {string.Join(", ", HoleTypes)}."),
+        HoleType.Tapped => FeaturePropertyConstants.igRegularHole,
+        _ => throw new ArgumentOutOfRangeException(nameof(spec)),
     };
 
     internal static HoleData CreateHoleData(HoleDataCollection collection, HoleSpec spec, FeaturePropertyConstants type, double depth)
     {
-        if (spec.Type == "tapped")
+        if (spec.Type == HoleType.Tapped)
         {
             (double nominal, double pitch, string description) = ParseMetricThread(spec.Thread);
             double drill = spec.Diameter is { } d ? Units.MmToM(Units.RequirePositive(d, "diameter")) : nominal - pitch;
@@ -512,7 +510,7 @@ public static partial class FeatureService
         }
     }
 
-    /// <summary>Metric thread "M10" or "M10x1.25" → nominal diameter and pitch in meters (ISO coarse pitch if missing).</summary>
+    /// <summary>Metric thread "M10" or "M10x1.25" → nominal diameter and pitch in metres (ISO coarse pitch if missing).</summary>
     private static (double Nominal, double Pitch, string Description) ParseMetricThread(string? thread)
     {
         Match match = Regex.Match(thread ?? "", @"^\s*M\s*(\d+(?:[.,]\d+)?)\s*(?:[xX×]\s*(\d+(?:[.,]\d+)?))?\s*$");

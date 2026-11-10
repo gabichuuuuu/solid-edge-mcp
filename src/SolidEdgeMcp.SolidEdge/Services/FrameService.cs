@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using static SolidEdgeMcp.SolidEdge.Services.AssemblyService;
@@ -33,10 +34,10 @@ public static class FrameService
     /// Section parts (Frames) or pipe and fitting parts (Piping Route) installed with Solid Edge, as library names; or the
     /// parts of a library folder of your own (<paramref name="folder"/>, allowed folders), as absolute paths.
     /// </summary>
-    public static object Library(SeContext context, string kind, string? filter, int offset, int limit, string? folder = null)
+    public static object Library(SeContext context, FrameLibrary kind, string? filter, int offset, int limit, string? folder = null)
     {
         bool own = !string.IsNullOrWhiteSpace(folder);
-        string root = own ? context.Paths.Check(folder, "folder") : LibraryRoot(kind == "pipes" ? PipingLibrary : FramesLibrary);
+        string root = own ? context.Paths.Check(folder, "folder") : LibraryRoot(kind == FrameLibrary.Pipes ? PipingLibrary : FramesLibrary);
         if (own && !Directory.Exists(root))
         {
             throw ToolException.NotFound($"The folder does not exist: '{root}'.");
@@ -53,7 +54,7 @@ public static class FrameService
         string[] page = [.. names.Skip(skip).Take(take)];
         return new
         {
-            kind,
+            kind = ArgumentNames.Snake(kind),
             count = names.Length,
             offset = skip,
             returned = page.Length,
@@ -79,18 +80,18 @@ public static class FrameService
     /// Structural frame of <paramref name="section"/> along a polyline (<paramref name="points"/>, mm) or along sketch lines,
     /// with an optional end condition at the corners. Checked by its cut length and its new member occurrences.
     /// </summary>
-    public static object Frame(SeContext context, string? documentHandle, string? section, double[]? points, string[]? lines, string? endCondition, string? name)
+    public static object Frame(SeContext context, string? documentHandle, string? section, double[]? points, string[]? lines, FrameEndCondition? endCondition, string? name)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
         string file = LibraryPart(context, section, FramesLibrary, "section");
         StructuralFrameEndConditionConstants? condition = endCondition switch
         {
             null => null,
-            "miter" => StructuralFrameEndConditionConstants.seMiter,
-            "butt1" => StructuralFrameEndConditionConstants.seButt1,
-            "butt2" => StructuralFrameEndConditionConstants.seButt2,
-            "none" => StructuralFrameEndConditionConstants.seNone,
-            _ => throw ToolException.InvalidArgument($"Unknown endCondition '{endCondition}'.", "Use miter, butt1, butt2 or none."),
+            FrameEndCondition.Miter => StructuralFrameEndConditionConstants.seMiter,
+            FrameEndCondition.Butt1 => StructuralFrameEndConditionConstants.seButt1,
+            FrameEndCondition.Butt2 => StructuralFrameEndConditionConstants.seButt2,
+            FrameEndCondition.None => StructuralFrameEndConditionConstants.seNone,
+            _ => throw new ArgumentOutOfRangeException(nameof(endCondition)),
         };
         CheckName(assembly, name);
         (object[] paths, object[] made) = Paths(context, assembly, points, lines);

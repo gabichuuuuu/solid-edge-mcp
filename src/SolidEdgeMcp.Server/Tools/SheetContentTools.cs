@@ -6,44 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SheetContentAction
-{
-    List,
-    Table,
-    Cell,
-    Rows,
-    Image,
-    Frame,
-    Symbol,
-    Watermark,
-    LineUp,
-    Connector,
-    Delete,
-}
-
-public enum ConnectorType
-{
-    Line,
-    Jump,
-    Corner,
-    Step,
-    Gap,
-}
-
-public enum TextAlignment
-{
-    Left,
-    Right,
-    Center,
-    Bottom,
-    Top,
-    Middle,
-}
 
 /// <summary>Tables of their own, pictures, smart frames, symbols and connectors on drawing sheets.</summary>
 [McpServerToolType]
@@ -105,8 +72,8 @@ public sealed class SheetContentTools(ToolRunner runner, PathGuard guard)
             SheetContentAction.Symbol => runner.RunAsync(tool, act, c => DrawingService.AddSymbol(c, document, sheet, path, position, link, geometry), cancellationToken,
                 precheck: path is null ? null : () => guard.Check(path)),
             SheetContentAction.Watermark => runner.RunAsync(tool, act, c => DrawingService.AddWatermark(c, document, sheet, text, position), cancellationToken),
-            SheetContentAction.LineUp => runner.RunAsync(tool, act, c => DrawingService.LineUpText(c, item, targets, Snake(align)), cancellationToken),
-            SheetContentAction.Connector => runner.RunAsync(tool, act, c => DrawingService.AddConnector(c, document, sheet, Snake(type), points, targets), cancellationToken),
+            SheetContentAction.LineUp => runner.RunAsync(tool, act, c => DrawingService.LineUpText(c, item, targets, align), cancellationToken),
+            SheetContentAction.Connector => runner.RunAsync(tool, act, c => DrawingService.AddConnector(c, document, sheet, type, points, targets), cancellationToken),
             SheetContentAction.Delete => runner.RunAsync(tool, act, c => DrawingService.DeleteContent(c, item), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -31,12 +32,12 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static class SectionViewService
 {
-    private static readonly Dictionary<string, PMISectionDisplayModeConstants> Displays = new(StringComparer.Ordinal)
+    private static readonly Dictionary<SectionDisplay, PMISectionDisplayModeConstants> Displays = new()
     {
-        ["only_cut_faces"] = PMISectionDisplayModeConstants.sePMISectionDisplayShowOnlyCutFaces,
-        ["cut_faces_and_cut_bodies"] = PMISectionDisplayModeConstants.sePMISectionDisplayShowCutFacesAndCutBodies,
-        ["cut_faces_with_original_bodies"] = PMISectionDisplayModeConstants.sePMISectionDisplayShowCutFacesWithOriginalBodies,
-        ["only_original_bodies"] = PMISectionDisplayModeConstants.sePMISectionDisplayShowOnlyOriginalBodies,
+        [SectionDisplay.OnlyCutFaces] = PMISectionDisplayModeConstants.sePMISectionDisplayShowOnlyCutFaces,
+        [SectionDisplay.CutFacesAndCutBodies] = PMISectionDisplayModeConstants.sePMISectionDisplayShowCutFacesAndCutBodies,
+        [SectionDisplay.CutFacesWithOriginalBodies] = PMISectionDisplayModeConstants.sePMISectionDisplayShowCutFacesWithOriginalBodies,
+        [SectionDisplay.OnlyOriginalBodies] = PMISectionDisplayModeConstants.sePMISectionDisplayShowOnlyOriginalBodies,
     };
 
     public static object List(SeContext context, string? documentHandle)
@@ -52,8 +53,8 @@ public static class SectionViewService
     /// <param name="direction">both (through all, or symmetric with a depth) | front (along the normal) | back.</param>
     /// <param name="display">What is drawn (see <see cref="Displays"/>); null = what Solid Edge repeats from the document.</param>
     /// <param name="plane">Instead of a sketch: the plane that cuts the model; direction front | back is the side cut away.</param>
-    public static object Add(SeContext context, string? documentHandle, string? sketch, string keep, double? depth, string direction,
-        string? caption, bool cutHardware, string? display = null, double? opacity = null, bool? showPlane = null, string? plane = null)
+    public static object Add(SeContext context, string? documentHandle, string? sketch, SectionKeep keep, double? depth, SectionDirection direction,
+        string? caption, bool cutHardware, SectionDisplay? display = null, double? opacity = null, bool? showPlane = null, string? plane = null)
     {
         if (string.IsNullOrWhiteSpace(sketch) == string.IsNullOrWhiteSpace(plane))
         {
@@ -66,15 +67,15 @@ public static class SectionViewService
         string? switchedNote = null;
         if (plane is not null)
         {
-            if (direction == "both" && depth is null)
+            if (direction == SectionDirection.Both && depth is null)
             {
                 throw ToolException.InvalidArgument("With 'plane', 'direction' front or back is the side cut away (both would cut the whole model).",
                     "Give direction front or back, or a depth to cut a slab of that width around the plane.");
             }
 
             (sketch, planeNormal, bool switched) = AroundModel(context, Model(context, documentHandle), plane);
-            switchedNote = switched ? "The document was switched to ordered modeling to draw the profile." : null;
-            keep = "outside";
+            switchedNote = switched ? "The document was switched to ordered modelling to draw the profile." : null;
+            keep = SectionKeep.Outside;
         }
 
         SolidEdgeDocument document = string.IsNullOrWhiteSpace(documentHandle) && context.Handles.GetScope(sketch!) is not null
@@ -83,11 +84,11 @@ public static class SectionViewService
         object profile = SketchService.ResolveDefined(context, sketch!);
         SectionViewProfileSide side = keep switch
         {
-            "inside" => SectionViewProfileSide.igInsideProfileSide,
-            "outside" => SectionViewProfileSide.igOutsideProfileSide,
-            "left" => SectionViewProfileSide.igRightProfileSide,
-            "right" => SectionViewProfileSide.igLeftProfileSide,
-            _ => throw ToolException.InvalidArgument($"Unknown side '{keep}'.", "Use inside, outside, left or right."),
+            SectionKeep.Inside => SectionViewProfileSide.igInsideProfileSide,
+            SectionKeep.Outside => SectionViewProfileSide.igOutsideProfileSide,
+            SectionKeep.Left => SectionViewProfileSide.igRightProfileSide,
+            SectionKeep.Right => SectionViewProfileSide.igLeftProfileSide,
+            _ => throw new ArgumentOutOfRangeException(nameof(keep)),
         };
         (SectionViewExtentSide extent, double metres) = Extent(depth, direction);
         SectionViews views = ViewsOf(document);
@@ -188,7 +189,7 @@ public static class SectionViewService
         return Describe(context, document, view);
     }
 
-    public static object Edit(SeContext context, string? documentHandle, string? section, string? caption, string? display, double? opacity,
+    public static object Edit(SeContext context, string? documentHandle, string? section, string? caption, SectionDisplay? display, double? opacity,
         bool? showPlane, bool? cutHardware)
     {
         (SolidEdgeDocument document, SectionView view) = Find(context, documentHandle, section);
@@ -247,28 +248,26 @@ public static class SectionViewService
         };
     }
 
-    // Helpers
-
-    private static (SectionViewExtentSide Side, double Metres) Extent(double? depth, string direction)
+    private static (SectionViewExtentSide Side, double Metres) Extent(double? depth, SectionDirection direction)
     {
         if (depth is null)
         {
             return direction switch
             {
-                "both" => (SectionViewExtentSide.igThroughAllExtent, 0),
-                "front" => (SectionViewExtentSide.igInfiniteRightExtent, 0),
-                "back" => (SectionViewExtentSide.igInfiniteLeftExtent, 0),
-                _ => throw ToolException.InvalidArgument($"Unknown direction '{direction}'.", "Use both, front or back."),
+                SectionDirection.Both => (SectionViewExtentSide.igThroughAllExtent, 0),
+                SectionDirection.Front => (SectionViewExtentSide.igInfiniteRightExtent, 0),
+                SectionDirection.Back => (SectionViewExtentSide.igInfiniteLeftExtent, 0),
+                _ => throw new ArgumentOutOfRangeException(nameof(direction)),
             };
         }
 
         double metres = Units.MmToM(Units.RequirePositive(depth.Value, "depth"));
         return direction switch
         {
-            "both" => (SectionViewExtentSide.igFiniteSymmetricExtent, metres),
-            "front" => (SectionViewExtentSide.igRightExtent, metres),
-            "back" => (SectionViewExtentSide.igLeftExtent, metres),
-            _ => throw ToolException.InvalidArgument($"Unknown direction '{direction}'.", "Use both, front or back."),
+            SectionDirection.Both => (SectionViewExtentSide.igFiniteSymmetricExtent, metres),
+            SectionDirection.Front => (SectionViewExtentSide.igRightExtent, metres),
+            SectionDirection.Back => (SectionViewExtentSide.igLeftExtent, metres),
+            _ => throw new ArgumentOutOfRangeException(nameof(direction)),
         };
     }
 
@@ -304,10 +303,10 @@ public static class SectionViewService
                 views.Length == 0 ? "The document has none: make one with 'add'." : $"Section views: {string.Join(", ", views.Select(v => v.Name))}.");
     }
 
-    private static PMISectionDisplayModeConstants? Mode(string? display) =>
-        display is null ? null
-        : Displays.TryGetValue(display, out PMISectionDisplayModeConstants mode) ? mode
-        : throw ToolException.InvalidArgument($"Unknown display '{display}'.", $"Use one of: {string.Join(", ", Displays.Keys)}.");
+    private static PMISectionDisplayModeConstants? Mode(SectionDisplay? display) =>
+        display is not { } shown ? null
+        : Displays.TryGetValue(shown, out PMISectionDisplayModeConstants mode) ? mode
+        : throw new ArgumentOutOfRangeException(nameof(display));
 
     private static void RequireOpacity(double? opacity)
     {
@@ -354,7 +353,7 @@ public static class SectionViewService
         name = view.Name,
         caption = view.Caption,
         shown = view.IsShown,
-        display = Displays.FirstOrDefault(d => d.Value == view.SectionDisplayMode).Key ?? view.SectionDisplayMode.ToString(),
+        display = Displays.Where(d => d.Value == view.SectionDisplayMode).Select(d => ArgumentNames.Snake(d.Key)).FirstOrDefault() ?? view.SectionDisplayMode.ToString(),
         opacity = Math.Round(view.Opacity, 4),
         showPlane = view.ShowCuttingPlane != 0,
         cutHardware = view.CutHardware != 0,

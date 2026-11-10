@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
 using Face = SolidEdgeGeometry.Face;
@@ -10,11 +11,11 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>Parameters of the other part features (mm).</summary>
 public sealed record PartFeatureSpec(
-    string Action,
+    PartFeatureAction Action,
     string[]? Faces = null,
     string? Sketch = null,
     double? Thickness = null,
-    string Side = "auto",
+    PartFeatureSide Side = PartFeatureSide.Auto,
     string? Plane = null,
     double? Depth = null,
     double? Distance = null,
@@ -33,8 +34,8 @@ public sealed record PartFeatureSpec(
     double? Leg = null,
     double? Leg2 = null,
     double? Angle = null,
-    string? Weld = null,
-    string WeldSide = "arrow",
+    WeldType? Weld = null,
+    WeldSide WeldSide = WeldSide.Arrow,
     string? Note = null,
     bool AllAround = false,
     bool Field = false,
@@ -46,37 +47,35 @@ public static partial class FeatureService
     // shaft or a hole; end faces or edges; HoleData from Add or AddEx with the ISO Metric table, regular, tapped or thread
     // type; reserved arguments missing, null or 0; arrays by value or by reference). Threads are made with se_hole 'tapped'
     // (cosmetic) or se_thread (physical, a helix cutout).
-    public static readonly IReadOnlyList<string> PartFeatureActions = ["rib", "thicken", "mirror_body", "delete_faces", "delete_holes", "delete_rounds", "delete_region", "offset_faces", "replace_faces", "rotate_faces", "redefine_faces", "resize_holes", "resize_rounds", "radiate", "normal_protrusion", "normal_cutout", "split", "cut_by_plane", "unite", "slot", "web_network", "lip", "scale_body", "copy_part", "fillet_weld", "label_weld"];
-
     public static object PartFeature(SeContext context, string? documentHandle, PartFeatureSpec spec) => spec.Action switch
     {
-        "rib" => Rib(context, documentHandle, spec),
-        "thicken" => Thicken(context, documentHandle, spec),
-        "mirror_body" => MirrorBody(context, documentHandle, spec),
-        "delete_faces" => DeleteFaces(context, documentHandle, spec),
-            "delete_region" => DeleteRegion(context, documentHandle, spec),
-        "delete_holes" => DeleteHoles(context, documentHandle, spec),
-        "delete_rounds" => DeleteRounds(context, documentHandle, spec),
-        "offset_faces" => OffsetFaces(context, documentHandle, spec),
-        "replace_faces" => ReplaceFaces(context, documentHandle, spec),
-        "cut_by_plane" => CutByPlane(context, documentHandle, spec),
-        "rotate_faces" => RotateFaces(context, documentHandle, spec),
-        "redefine_faces" => RedefineFaces(context, documentHandle, spec),
-        "resize_holes" => ResizeHoles(context, documentHandle, spec),
-        "resize_rounds" => ResizeRounds(context, documentHandle, spec),
-        "radiate" => Radiate(context, documentHandle, spec),
-        "normal_protrusion" => NormalToFace(context, documentHandle, spec, cut: false),
-        "normal_cutout" => NormalToFace(context, documentHandle, spec, cut: true),
-        "split" => SplitBody(context, documentHandle, spec),
-        "unite" => UniteBodies(context, documentHandle, spec),
-        "slot" => Slot(context, documentHandle, spec),
-        "web_network" => WebNetwork(context, documentHandle, spec),
-        "lip" => Lip(context, documentHandle, spec),
-        "scale_body" => ScaleBody(context, documentHandle, spec),
-        "copy_part" => CopyPart(context, documentHandle, spec),
-        "fillet_weld" => FilletWeld(context, documentHandle, spec),
-        "label_weld" => LabelWeld(context, documentHandle, spec),
-        _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", PartFeatureActions)}."),
+        PartFeatureAction.Rib => Rib(context, documentHandle, spec),
+        PartFeatureAction.Thicken => Thicken(context, documentHandle, spec),
+        PartFeatureAction.MirrorBody => MirrorBody(context, documentHandle, spec),
+        PartFeatureAction.DeleteFaces => DeleteFaces(context, documentHandle, spec),
+            PartFeatureAction.DeleteRegion => DeleteRegion(context, documentHandle, spec),
+        PartFeatureAction.DeleteHoles => DeleteHoles(context, documentHandle, spec),
+        PartFeatureAction.DeleteRounds => DeleteRounds(context, documentHandle, spec),
+        PartFeatureAction.OffsetFaces => OffsetFaces(context, documentHandle, spec),
+        PartFeatureAction.ReplaceFaces => ReplaceFaces(context, documentHandle, spec),
+        PartFeatureAction.CutByPlane => CutByPlane(context, documentHandle, spec),
+        PartFeatureAction.RotateFaces => RotateFaces(context, documentHandle, spec),
+        PartFeatureAction.RedefineFaces => RedefineFaces(context, documentHandle, spec),
+        PartFeatureAction.ResizeHoles => ResizeHoles(context, documentHandle, spec),
+        PartFeatureAction.ResizeRounds => ResizeRounds(context, documentHandle, spec),
+        PartFeatureAction.Radiate => Radiate(context, documentHandle, spec),
+        PartFeatureAction.NormalProtrusion => NormalToFace(context, documentHandle, spec, cut: false),
+        PartFeatureAction.NormalCutout => NormalToFace(context, documentHandle, spec, cut: true),
+        PartFeatureAction.Split => SplitBody(context, documentHandle, spec),
+        PartFeatureAction.Unite => UniteBodies(context, documentHandle, spec),
+        PartFeatureAction.Slot => Slot(context, documentHandle, spec),
+        PartFeatureAction.WebNetwork => WebNetwork(context, documentHandle, spec),
+        PartFeatureAction.Lip => Lip(context, documentHandle, spec),
+        PartFeatureAction.ScaleBody => ScaleBody(context, documentHandle, spec),
+        PartFeatureAction.CopyPart => CopyPart(context, documentHandle, spec),
+        PartFeatureAction.FilletWeld => FilletWeld(context, documentHandle, spec),
+        PartFeatureAction.LabelWeld => LabelWeld(context, documentHandle, spec),
+        _ => throw new ArgumentOutOfRangeException(nameof(spec)),
     };
 
     /// <summary>
@@ -91,10 +90,10 @@ public static partial class FeatureService
         double thickness = Units.MmToM(Units.RequirePositive(spec.Thickness ?? throw ToolException.InvalidArgument("rib requires 'thickness' (mm)."), "thickness"));
         FeaturePropertyConstants thicknessSide = spec.Side switch
         {
-            "auto" or "symmetric" => FeaturePropertyConstants.igSymmetric,
-            "normal" => FeaturePropertyConstants.igRight,
-            "reverse" => FeaturePropertyConstants.igLeft,
-            _ => throw ToolException.InvalidArgument($"Unknown side '{spec.Side}' for a rib.", "Use symmetric, normal or reverse."),
+            PartFeatureSide.Auto or PartFeatureSide.Symmetric => FeaturePropertyConstants.igSymmetric,
+            PartFeatureSide.Normal => FeaturePropertyConstants.igRight,
+            PartFeatureSide.Reverse => FeaturePropertyConstants.igLeft,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         double? depth = spec.Depth is { } d ? Units.MmToM(Units.RequirePositive(d, "depth")) : null;
         bool switched = model.EnsureOrdered();
@@ -144,10 +143,10 @@ public static partial class FeatureService
         double thickness = Units.MmToM(Units.RequirePositive(spec.Thickness ?? throw ToolException.InvalidArgument("thicken requires 'thickness' (mm)."), "thickness"));
         FeaturePropertyConstants[] sides = spec.Side switch
         {
-            "auto" => [FeaturePropertyConstants.igRight, FeaturePropertyConstants.igLeft],
-            "normal" => [FeaturePropertyConstants.igRight],
-            "reverse" => [FeaturePropertyConstants.igLeft],
-            _ => throw ToolException.InvalidArgument($"Unknown side '{spec.Side}' for thicken.", "Use auto, normal or reverse."),
+            PartFeatureSide.Auto => [FeaturePropertyConstants.igRight, FeaturePropertyConstants.igLeft],
+            PartFeatureSide.Normal => [FeaturePropertyConstants.igRight],
+            PartFeatureSide.Reverse => [FeaturePropertyConstants.igLeft],
+            _ => throw ToolException.InvalidArgument($"Unknown side '{ArgumentNames.Snake(spec.Side)}' for thicken.", "Use auto, normal or reverse."),
         };
         Array faces = spec.Faces.Select(h => (object)context.Handles.Resolve<Face>(h, "faces")).ToArray();
         bool switched = model.EnsureOrdered();

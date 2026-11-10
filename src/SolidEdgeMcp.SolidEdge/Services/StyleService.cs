@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -18,27 +19,25 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static class StyleService
 {
-    private sealed record Kind(string Key, string Collection, Type Interface, string Title, int? ImportType = null,
+    private sealed record Kind(StyleType Key, string Collection, Type Interface, string Title, int? ImportType = null,
         bool HasActive = false, bool Removable = true, bool ParentInAdd = true);
 
     // ImportType: seStyleTypeConstants of Document.ImportStyles2 (igDimensionStyle 0 … igTextStyle 6).
     private static readonly Kind[] Kinds =
     [
-        new("dimension", "DimensionStyles", typeof(SolidEdgeFrameworkSupport.DimensionStyle), "dimension style", 0, HasActive: true),
-        new("text", "TextStyles", typeof(TextStyle), "text style", 6, HasActive: true),
-        new("character", "TextCharStyles", typeof(TextCharStyle), "character style"),
-        new("line", "LinearStyles", typeof(LinearStyle), "line style", 4, HasActive: true),
-        new("fill", "FillStyles", typeof(FillStyle), "fill style", 2, HasActive: true),
-        new("hatch", "HatchPatternStyles", typeof(HatchPatternStyle), "hatch pattern style", 3),
-        new("dash", "DashStyles", typeof(DashStyle), "dash style", ParentInAdd: false),
-        new("drawing_view", "DrawingViewStyles", typeof(SolidEdgeFrameworkSupport.DrawingViewStyle), "drawing view style", 1, HasActive: true),
-        new("table", "TableStyles", typeof(SolidEdgeFrameworkSupport.TableStyle), "table style", 5),
-        new("frame", "SmartFrame2dStyles", typeof(SolidEdgeFrameworkSupport.SmartFrame2dStyle), "smart frame style", Removable: false),
-        new("view", "ViewStyles", typeof(ViewStyle), "view style", HasActive: true),
-        new("face", "FaceStyles", typeof(FaceStyle), "face style"),
+        new(StyleType.Dimension, "DimensionStyles", typeof(SolidEdgeFrameworkSupport.DimensionStyle), "dimension style", 0, HasActive: true),
+        new(StyleType.Text, "TextStyles", typeof(TextStyle), "text style", 6, HasActive: true),
+        new(StyleType.Character, "TextCharStyles", typeof(TextCharStyle), "character style"),
+        new(StyleType.Line, "LinearStyles", typeof(LinearStyle), "line style", 4, HasActive: true),
+        new(StyleType.Fill, "FillStyles", typeof(FillStyle), "fill style", 2, HasActive: true),
+        new(StyleType.Hatch, "HatchPatternStyles", typeof(HatchPatternStyle), "hatch pattern style", 3),
+        new(StyleType.Dash, "DashStyles", typeof(DashStyle), "dash style", ParentInAdd: false),
+        new(StyleType.DrawingView, "DrawingViewStyles", typeof(SolidEdgeFrameworkSupport.DrawingViewStyle), "drawing view style", 1, HasActive: true),
+        new(StyleType.Table, "TableStyles", typeof(SolidEdgeFrameworkSupport.TableStyle), "table style", 5),
+        new(StyleType.Frame, "SmartFrame2dStyles", typeof(SolidEdgeFrameworkSupport.SmartFrame2dStyle), "smart frame style", Removable: false),
+        new(StyleType.View, "ViewStyles", typeof(ViewStyle), "view style", HasActive: true),
+        new(StyleType.Face, "FaceStyles", typeof(FaceStyle), "face style"),
     ];
-
-    public static IReadOnlyList<string> TypeNames { get; } = [.. Kinds.Select(k => k.Key)];
 
     private const string UnitsNote = "Values in API units: lengths in metres, angles in radians; colours as #RRGGBB; enumerations by name.";
 
@@ -51,14 +50,14 @@ public static class StyleService
         {
             if (Late.TryGet(document, kind.Collection) is { } collection)
             {
-                types.Add(new { type = kind.Key, count = Late.Count(collection), active = ActiveName(document, kind, collection) });
+                types.Add(new { type = ArgumentNames.Snake(kind.Key), count = Late.Count(collection), active = ActiveName(document, kind, collection) });
             }
         }
 
         return new { document = context.DocumentHandle(document), types };
     }
 
-    public static object List(SeContext context, string? documentHandle, string type, string? filter, int offset, int limit)
+    public static object List(SeContext context, string? documentHandle, StyleType type, string? filter, int offset, int limit)
     {
         (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, type);
         string[] names = [.. Names(collection).Where(n => filter is null || n.Contains(filter, StringComparison.OrdinalIgnoreCase))];
@@ -67,7 +66,7 @@ public static class StyleService
         return new
         {
             document = context.DocumentHandle(document),
-            type = kind.Key,
+            type = ArgumentNames.Snake(kind.Key),
             active = ActiveName(document, kind, collection),
             count = names.Length,
             offset = start,
@@ -78,7 +77,7 @@ public static class StyleService
     }
 
     /// <summary>Every property of a style with its value.</summary>
-    public static object Get(SeContext context, string? documentHandle, string type, string name)
+    public static object Get(SeContext context, string? documentHandle, StyleType type, string name)
     {
         (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, type);
         (object style, string styleName) = Find(document, kind, collection, name);
@@ -86,7 +85,7 @@ public static class StyleService
         return new
         {
             document = context.DocumentHandle(document),
-            type = kind.Key,
+            type = ArgumentNames.Snake(kind.Key),
             name = styleName,
             active = string.Equals(ActiveName(document, kind, collection), styleName, StringComparison.OrdinalIgnoreCase),
             properties = values,
@@ -97,14 +96,14 @@ public static class StyleService
     }
 
     /// <summary>Changes one property of a style and reads it back.</summary>
-    public static object Set(SeContext context, string? documentHandle, string type, string name, string property, JsonElement value)
+    public static object Set(SeContext context, string? documentHandle, StyleType type, string name, string property, JsonElement value)
     {
         (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, type);
         (object style, string styleName) = Find(document, kind, collection, name);
         string owner = $"the {kind.Title} '{styleName}'";
         PropertyInfo target = ComProperties.Find(kind.Interface, property, owner);
         (object? previous, object? current) = ComProperties.Set(context, style, target, value, owner);
-        if (kind.Key == "view")
+        if (kind.Key == StyleType.View)
         {
             ViewService.ModelView(document)?.Update();
         }
@@ -112,7 +111,7 @@ public static class StyleService
         return new
         {
             document = context.DocumentHandle(document),
-            type = kind.Key,
+            type = ArgumentNames.Snake(kind.Key),
             name = target.Name is "Name" or "StyleName" && current is string renamed ? renamed : styleName,
             property = target.Name,
             previous,
@@ -157,7 +156,7 @@ public static class StyleService
         style.GetLight(n, out float red, out float green, out float blue, out float theta, out float phi);
         if (color is not null)
         {
-            (red, green, blue) = ParseColor(color);
+            (red, green, blue) = Rgb.Channels(color);
         }
         else if (intensity is { } level)
         {
@@ -194,7 +193,7 @@ public static class StyleService
 
     private static (SolidEdgeDocument Document, ViewStyle Style, string Name) OpenView(SeContext context, string? documentHandle, string name)
     {
-        (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, "view");
+        (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, StyleType.View);
         (object style, string styleName) = Find(document, kind, collection, name);
         return (document, (ViewStyle)style, styleName);
     }
@@ -205,24 +204,14 @@ public static class StyleService
         return new
         {
             light,
-            color = $"#{Channel(red):X2}{Channel(green):X2}{Channel(blue):X2}",
+            color = Rgb.Hex(red, green, blue),
             intensity = Math.Round(Math.Max(red, Math.Max(green, blue)), 4),
             direction = new[] { Math.Round(Units.RadToDeg(theta), 3), Math.Round(Units.RadToDeg(phi), 3) },
         };
     }
 
-    private static int Channel(float value) => (int)Math.Round(Math.Clamp(value, 0, 1) * 255);
-
-    private static (float Red, float Green, float Blue) ParseColor(string color)
-    {
-        string hex = color.Trim().TrimStart('#');
-        return hex.Length == 6 && int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int rgb)
-            ? (((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f)
-            : throw ToolException.InvalidArgument($"'{color}' is not a colour '#RRGGBB'.");
-    }
-
     /// <summary>Makes a style the active one of its type (for view styles: the style of the document's window).</summary>
-    public static object Activate(SeContext context, string? documentHandle, string type, string name)
+    public static object Activate(SeContext context, string? documentHandle, StyleType type, string name)
     {
         (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, type);
         if (!kind.HasActive)
@@ -232,7 +221,7 @@ public static class StyleService
 
         (_, string styleName) = Find(document, kind, collection, name);
         string? previous = ActiveName(document, kind, collection);
-        if (kind.Key == "view")
+        if (kind.Key == StyleType.View)
         {
             SolidEdgeFramework.View view = ViewService.ModelView(document)
                 ?? throw new ToolException("no_window", $"'{SeContext.SafeName(document)}' has no model window.", "Activate the document (se_documents activate).");
@@ -250,11 +239,11 @@ public static class StyleService
             throw new ToolException("value_rejected", $"Solid Edge kept '{active}' as the active {kind.Title}.");
         }
 
-        return new { document = context.DocumentHandle(document), type = kind.Key, active, previous };
+        return new { document = context.DocumentHandle(document), type = ArgumentNames.Snake(kind.Key), active, previous };
     }
 
     /// <summary>New style copied from another one (by default the active one, or the first).</summary>
-    public static object Add(SeContext context, string? documentHandle, string type, string name, string? basedOn)
+    public static object Add(SeContext context, string? documentHandle, StyleType type, string name, string? basedOn)
     {
         (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, type);
         string wanted = string.IsNullOrWhiteSpace(name) ? throw ToolException.InvalidArgument("Action 'add' requires 'name'.") : name.Trim();
@@ -276,10 +265,10 @@ public static class StyleService
         }
 
         _ = TryFind(collection, wanted) ?? throw new ToolException("style_failed", $"Solid Edge did not create the {kind.Title} '{wanted}'.");
-        return new { document = context.DocumentHandle(document), type = kind.Key, created = wanted, basedOn = kind.ParentInAdd ? parent : null };
+        return new { document = context.DocumentHandle(document), type = ArgumentNames.Snake(kind.Key), created = wanted, basedOn = kind.ParentInAdd ? parent : null };
     }
 
-    public static object Remove(SeContext context, string? documentHandle, string type, string name)
+    public static object Remove(SeContext context, string? documentHandle, StyleType type, string name)
     {
         (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, type);
         if (!kind.Removable)
@@ -304,12 +293,12 @@ public static class StyleService
         }
 
         return TryFind(collection, styleName) is null
-            ? new { document = context.DocumentHandle(document), type = kind.Key, removed = styleName }
+            ? new { document = context.DocumentHandle(document), type = ArgumentNames.Snake(kind.Key), removed = styleName }
             : throw new ToolException("style_in_use", $"The {kind.Title} '{styleName}' is still in the document.", "It may be in use or be one of the styles Solid Edge needs.");
     }
 
     /// <summary>Copies the styles of one type from another open document (Solid Edge's ImportStyles2).</summary>
-    public static object Import(SeContext context, string? documentHandle, string type, string from, bool replace)
+    public static object Import(SeContext context, string? documentHandle, StyleType type, string from, bool replace)
     {
         (SolidEdgeDocument document, Kind kind, object collection) = Open(context, documentHandle, type);
         if (kind.ImportType is not { } importType)
@@ -339,18 +328,17 @@ public static class StyleService
         {
             document = context.DocumentHandle(document),
             from = context.DocumentHandle(source),
-            type = kind.Key,
+            type = ArgumentNames.Snake(kind.Key),
             replace,
             imported = after.Where(n => !before.Contains(n)).ToArray(),
             count = after.Length,
         };
     }
 
-    private static (SolidEdgeDocument Document, Kind Kind, object Collection) Open(SeContext context, string? documentHandle, string type)
+    private static (SolidEdgeDocument Document, Kind Kind, object Collection) Open(SeContext context, string? documentHandle, StyleType type)
     {
-        string key = (type ?? "").Trim().ToLowerInvariant();
-        Kind kind = Kinds.FirstOrDefault(k => k.Key == key)
-            ?? throw ToolException.InvalidArgument($"Unknown style type '{type}'.", $"Use one of: {string.Join(", ", TypeNames)}.");
+        Kind kind = Kinds.FirstOrDefault(k => k.Key == type)
+            ?? throw new ArgumentOutOfRangeException(nameof(type));
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         object collection = Late.TryGet(document, kind.Collection)
             ?? throw new ToolException("not_supported", $"'{SeContext.SafeName(document)}' has no {kind.Title}s.", "List the style types of the document with action 'types'.");
@@ -395,7 +383,7 @@ public static class StyleService
             return null;
         }
 
-        if (kind.Key == "view")
+        if (kind.Key == StyleType.View)
         {
             try
             {

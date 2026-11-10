@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -16,10 +17,10 @@ using TopologyQuery = SolidEdgeGeometry.FeatureTopologyQueryTypeConstants;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>Gusset across a bend (mm): see <see cref="FeatureService.Gusset"/>.</summary>
-public sealed record GussetSpec(string[]? Faces, string[]? Edges, double? Depth, double? Width, string Shape = "round", double? Radius = null,
+public sealed record GussetSpec(string[]? Faces, string[]? Edges, double? Depth, double? Width, GussetShape Shape = GussetShape.Round, double? Radius = null,
     int? Count = null, double? Spacing = null, double? Distance = null);
 
-/// <summary>Edits of existing bends and flanges in sheet metal (ordered modeling): bend angle, bend radius, match face and unbend.</summary>
+/// <summary>Edits of existing bends and flanges in sheet metal (ordered modelling): bend angle, bend radius, match face and unbend.</summary>
 public static partial class FeatureService
 {
     /// <summary>
@@ -143,7 +144,7 @@ public static partial class FeatureService
     /// lengthens it, and its inner face to y = 10 leaves the outer one at y = 9; Solid Edge measures the offset from the plane,
     /// igNormal along its normal and igReverseNormal against it. The edge face of a flange leaves the feature failed, and so does a
     /// face of the part passed as the target itself: a local plane is made on it instead (verified: the end face of the tab with
-    /// 20 mm short of it). In synchronous modeling the face moves but the change is lost on the next recompute.
+    /// 20 mm short of it). In synchronous modelling the face moves but the change is lost on the next recompute.
     /// </summary>
     public static object MatchFace(SeContext context, string? documentHandle, string[]? faces, string? plane, double distance)
     {
@@ -165,7 +166,7 @@ public static partial class FeatureService
 
         double[] faceNormal = InspectService.FaceNormal(face);
         object source = model.ResolvePlaneSource(context, planeArgument);
-        double cosine = Dot(faceNormal, PlaneFrame(source).Normal);
+        double cosine = Geo.Dot(faceNormal, PlaneFrame(source).Normal);
         if (Math.Abs(cosine) < 1 - ParallelTolerance)
         {
             double degrees = Units.RadToDeg(Math.Acos(Math.Clamp(Math.Abs(cosine), -1, 1)));
@@ -178,14 +179,14 @@ public static partial class FeatureService
         double before = model.Volume();
         RefPlane refPlane = model.PlaneFrom(source);
         (double[] root, double[] normal) = PlaneFrame(refPlane);
-        double side = Dot(Minus(PlaneFrame(face).Point, root), normal);
-        double offset = (Math.Abs(side) > PositionTolerance ? Math.Sign(side) : Math.Sign(Dot(faceNormal, normal))) * Units.MmToM(distance);
+        double side = Geo.Dot(Geo.Minus(PlaneFrame(face).Point, root), normal);
+        double offset = (Math.Abs(side) > PositionTolerance ? Math.Sign(side) : Math.Sign(Geo.Dot(faceNormal, normal))) * Units.MmToM(distance);
         const string hint = "Pass the outer or inner face of a flange (not its edge face, across the thickness) and a plane parallel to it.";
         object feature = Create("match face", () => target.MatchFlangeFaces.Add(face, refPlane,
             offset >= 0 ? FeaturePropertyConstants.igNormal : FeaturePropertyConstants.igReverseNormal, Math.Abs(offset)));
         if (StatusOf(feature) != "failed" && !Reached(model, faceNormal, root, normal, offset))
         {
-            TryDelete(feature);
+            Late.TryDelete(feature);
             context.ModelChanged(model.Document, "the model changed (match face deleted)");
             throw new ToolException("feature_failed", "The face did not reach the plane, so the match face was deleted.", hint);
         }
@@ -265,9 +266,9 @@ public static partial class FeatureService
         double width = Units.MmToM(Units.RequirePositive(spec.Width ?? throw ToolException.InvalidArgument("gusset requires 'width' (mm): its size across the bend."), "width"));
         GussetConstants shape = spec.Shape switch
         {
-            "round" => GussetConstants.igRoundShape,
-            "square" => GussetConstants.igSquareShape,
-            _ => throw ToolException.InvalidArgument($"Unknown gusset shape '{spec.Shape}'.", "Use round or square."),
+            GussetShape.Round => GussetConstants.igRoundShape,
+            GussetShape.Square => GussetConstants.igSquareShape,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         int count = spec.Count ?? 1;
         if (count < 1)
@@ -386,7 +387,7 @@ public static partial class FeatureService
     private const double ParallelTolerance = 1e-6;
     private const double PositionTolerance = 1e-6;
 
-    /// <summary>A point and the normal of a reference plane or of a planar face (its outward normal), in meters.</summary>
+    /// <summary>A point and the normal of a reference plane or of a planar face (its outward normal), in metres.</summary>
     private static (double[] Point, double[] Normal) PlaneFrame(object source)
     {
         Array point = new double[3];
@@ -406,8 +407,8 @@ public static partial class FeatureService
     /// <summary>Whether a planar face of the body with the outward normal <paramref name="faceNormal"/> lies <paramref name="offset"/> (m) from the plane along its normal.</summary>
     private static bool Reached(ModelDocument model, double[] faceNormal, double[] root, double[] normal, double offset) =>
         model.Bodies().Any(b => Late.Items(b.Body.Faces[TopologyQuery.igQueryPlane]).OfType<Face>().Any(f =>
-            Dot(InspectService.FaceNormal(f), faceNormal) >= 1 - ParallelTolerance
-            && Math.Abs(Dot(Minus(PlaneFrame(f).Point, root), normal) - offset) <= PositionTolerance));
+            Geo.Dot(InspectService.FaceNormal(f), faceNormal) >= 1 - ParallelTolerance
+            && Math.Abs(Geo.Dot(Geo.Minus(PlaneFrame(f).Point, root), normal) - offset) <= PositionTolerance));
 
     /// <summary>Bounding box of the body (min and max, mm rounded), to detect changes that keep the volume.</summary>
     private static double[] Range(ModelDocument model)

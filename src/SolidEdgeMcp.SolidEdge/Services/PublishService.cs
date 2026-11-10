@@ -226,8 +226,6 @@ public static class PublishService
         }
     }
 
-    // Helpers
-
     private static bool IsModel(string path) => ModelExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The .dft files of the subfolders of the template folder whose name mentions PDF ("3D PDF Publish" in Solid Edge 2026).</summary>

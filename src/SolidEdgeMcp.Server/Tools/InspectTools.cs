@@ -6,39 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum GeometryAction
-{
-    Summary,
-    Faces,
-    Edges,
-    Draft,
-}
-
-public enum MeasureAction
-{
-    Distance,
-    Angle,
-    NormalDistance,
-    WallThickness,
-}
-
-public enum DistanceType
-{
-    Minimum,
-    Maximum,
-}
-
-public enum ThicknessResolution
-{
-    Coarse,
-    Standard,
-    Fine,
-}
 
 /// <summary>Read-only model queries: geometry, measurements and physical properties (mm).</summary>
 [McpServerToolType]
@@ -98,12 +70,12 @@ public sealed class InspectTools(ToolRunner runner)
         CancellationToken cancellationToken = default) =>
         action switch
         {
-            MeasureAction.Distance => runner.RunAsync("se_measure", "distance", c => InspectService.Distance(c, document, first, second, Snake(type)), cancellationToken),
+            MeasureAction.Distance => runner.RunAsync("se_measure", "distance", c => InspectService.Distance(c, document, first, second, type), cancellationToken),
             MeasureAction.Angle => runner.RunAsync("se_measure", "angle", c => InspectService.Angle(c,
                 first ?? throw ToolException.InvalidArgument("angle needs 'first' and 'second': element handles."),
                 second ?? throw ToolException.InvalidArgument("angle needs 'second': an element handle.")), cancellationToken),
-            MeasureAction.NormalDistance => runner.RunAsync("se_measure", "normal_distance", c => InspectService.NormalDistance(c, document, first, second, Snake(at)), cancellationToken),
-            MeasureAction.WallThickness => runner.RunAsync("se_measure", "wall_thickness", c => InspectService.WallThickness(c, document, Snake(resolution), threshold), cancellationToken),
+            MeasureAction.NormalDistance => runner.RunAsync("se_measure", "normal_distance", c => InspectService.NormalDistance(c, document, first, second, at), cancellationToken),
+            MeasureAction.WallThickness => runner.RunAsync("se_measure", "wall_thickness", c => InspectService.WallThickness(c, document, resolution, threshold), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
 

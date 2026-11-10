@@ -54,6 +54,27 @@ public static class Late
 
     public static string? TryGetString(object target, string property) => TryGet(target, property) as string;
 
+    /// <summary>
+    /// Deletes an object while cleaning up after a failure, so that the error reported is the original one. Only
+    /// Solid Edge being gone is raised (<see cref="ComErrors.IsGone"/>): an object that cannot be deleted stays.
+    /// </summary>
+    public static void TryDelete(object? target)
+    {
+        if (target is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Call(target, "Delete");
+        }
+        catch (Exception ex) when (IsMemberFailure(ex) && !ComErrors.IsGone(ex))
+        {
+            // Already gone, or it stays: the caller reports its own error.
+        }
+    }
+
     public static bool IsMemberFailure(Exception ex) =>
         ComErrors.Unwrap(ex) is COMException or MissingMemberException or NotSupportedException or InvalidCastException
             or ArgumentException;

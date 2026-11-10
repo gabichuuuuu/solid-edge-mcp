@@ -5,22 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum ThinWallAction
-{
-    MountingBoss,
-}
-
-public enum DecalAction
-{
-    List,
-    Add,
-    Delete,
-}
 
 /// <summary>Thin-wall features of plastic parts and decals.</summary>
 [McpServerToolType]

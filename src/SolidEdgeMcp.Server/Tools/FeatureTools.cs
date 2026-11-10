@@ -6,72 +6,10 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum FeatureOperation
-{
-    Add,
-    Cut,
-}
-
-public enum ExtrudeExtent
-{
-    Finite,
-    ThroughAll,
-    ThroughNext,
-    To,
-    FromTo,
-}
-
-/// <summary>Extents of holes and assembly features, which have no plane-to-plane limits.</summary>
-public enum SimpleExtent
-{
-    Finite,
-    ThroughAll,
-    ThroughNext,
-}
-
-public enum FeatureDirection
-{
-    Normal,
-    Reverse,
-    Symmetric,
-}
-
-public enum DraftSide
-{
-    Inside,
-    Outside,
-}
-
-public enum WallSide
-{
-    Inside,
-    Outside,
-    Symmetric,
-}
-
-public enum FeatureEditAction
-{
-    Suppress,
-    Unsuppress,
-    Delete,
-    Rename,
-    Group,
-    Ungroup,
-    Reorder,
-    RollTo,
-    RollToEnd,
-    MoveToSynchronous,
-}
-
-public enum ReorderPosition
-{
-    Before,
-    After,
-}
 
 /// <summary>
 /// Part operations (ordered modelling) and the feature tree. Each new operation is
@@ -107,12 +45,12 @@ public sealed class FeatureTools(ToolRunner runner)
         [Description("wall: close both ends with caps of the wall thickness.")] bool endCaps = false,
         [Description("Document handle; default: the sketch's document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_extrude", Snake(operation), c => FeatureService.Extrude(c, document, sketch, Snake(operation),
-            Snake(extent), Snake(direction), distance, ThinWall(wall, wallSide, endCaps),
-            new ExtrudeLimits(from, to, draft, Snake(draftSide))), cancellationToken);
+        runner.RunAsync("se_extrude", Snake(operation), c => FeatureService.Extrude(c, document, sketch, operation,
+            extent, direction, distance, ThinWall(wall, wallSide, endCaps),
+            new ExtrudeLimits(from, to, draft, draftSide)), cancellationToken);
 
     private static ThinWallSpec? ThinWall(double? wall, WallSide side, bool endCaps) =>
-        wall is { } thickness ? new ThinWallSpec(thickness, Snake(side), endCaps) : null;
+        wall is { } thickness ? new ThinWallSpec(thickness, side, endCaps) : null;
 
     [McpServerTool(Name = "se_revolve", Title = "Revolve", Destructive = false, OpenWorld = false)]
     [Description($$"""
@@ -132,8 +70,8 @@ public sealed class FeatureTools(ToolRunner runner)
         [Description("wall: close both ends with caps of the wall thickness.")] bool endCaps = false,
         [Description("Document handle; default: the sketch's document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_revolve", Snake(operation), c => FeatureService.Revolve(c, document, sketch, axis, Snake(operation),
-            angle, Snake(direction), ThinWall(wall, wallSide, endCaps)), cancellationToken);
+        runner.RunAsync("se_revolve", Snake(operation), c => FeatureService.Revolve(c, document, sketch, axis, operation,
+            angle, direction, ThinWall(wall, wallSide, endCaps)), cancellationToken);
 
     [McpServerTool(Name = "se_round", Title = "Round edges", Destructive = false, OpenWorld = false)]
     [Description($"Rounds (fillets) edges with a constant radius in mm, or a variable one (radii: at the start and end of each edge, changing linearly along it). Get edge handles, with their start and end points, from se_geometry 'edges'. To resize rounds later use se_part_feature resize_rounds. {VerifiedNote}")]
@@ -176,11 +114,11 @@ public sealed class FeatureTools(ToolRunner runner)
         [Description("reorder: before (default) or after the target.")] ReorderPosition position = ReorderPosition.Before,
         [Description("Document handle; default: the feature's document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_feature_edit", Snake(action), c => FeatureService.Edit(c, document, feature, Snake(action), name,
+        runner.RunAsync("se_feature_edit", Snake(action), c => FeatureService.Edit(c, document, feature, action, name,
             features, target, position == ReorderPosition.Before), cancellationToken);
 
     [McpServerTool(Name = "se_feature_tree", Title = "Feature tree", ReadOnly = true, OpenWorld = false)]
-    [Description("Lists the features of a part or sheet metal document in order (handle, name, type, status ok/failed/warning/suppressed), with the modeling mode and the body volume in mm3.")]
+    [Description("Lists the features of a part or sheet metal document in order (handle, name, type, status ok/failed/warning/suppressed), with the modelling mode and the body volume in mm3.")]
     public Task<CallToolResult> FeatureTree(
         [Description("Document handle; default: active document.")] string? document = null,
         int offset = 0,
@@ -188,5 +126,5 @@ public sealed class FeatureTools(ToolRunner runner)
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_feature_tree", "list", c => FeatureService.Tree(c, document, offset, limit), cancellationToken);
 
-    internal static string Snake(Enum value) => JsonNamingPolicy.SnakeCaseLower.ConvertName(value.ToString());
+    internal static string Snake(Enum value) => ArgumentNames.Snake(value);
 }

@@ -1,4 +1,4 @@
-# A57: sheet metal louvers (se_sheetmetal louver, Louvers.AddSync in synchronous modeling). A 100 x 60 tab, thickness 1 (top face z = 1).
+# A57: sheet metal louvers (se_sheetmetal louver, Louvers.AddSync in synchronous modelling). A 100 x 60 tab, thickness 1 (top face z = 1).
 # A lanced louver at (50, 30) along +x, 40 long, 5 wide, 3 high: centred on the point along x (30..70), opening to the left of
 # +x seen from the face normal (+z), so y 30..35, rising to z = 1 + 3 = 4; a lanced end removes a little volume.
 @d = se_documents {"action":"new","kind":"sheet_metal"}

@@ -5,65 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SimulationAction
-{
-    List,
-    Create,
-    Constrain,
-    Load,
-    Solve,
-    Results,
-    CloseResults,
-    Delete,
-}
-
-public enum StudyType
-{
-    Static,
-    Modal,
-    Buckling,
-}
-
-public enum SimulationConstraint
-{
-    Fixed,
-    Pinned,
-    NoRotation,
-    Sliding,
-    Cylindrical,
-}
-
-public enum SimulationLoad
-{
-    Force,
-    Pressure,
-}
-
-public enum ResultQuantity
-{
-    Displacement,
-    Stress,
-}
-
-public enum ResultComponent
-{
-    Magnitude,
-    X,
-    Y,
-    Z,
-    VonMises,
-    Xx,
-    Yy,
-    Zz,
-    Xy,
-    Yz,
-    Zx,
-}
 
 /// <summary>Simulation studies of parts and sheet metal (Simulation tab, solved by Simcenter Nastran).</summary>
 [McpServerToolType]
@@ -101,9 +47,9 @@ public sealed class SimulationTools(ToolRunner runner)
     {
         const string tool = "se_simulation";
         string act = Snake(action);
-        var spec = new SimulationSpec(act, study, type is { } t ? Snake(t) : null, modes, bodies, elements,
-            action == SimulationAction.Constrain ? constraint is { } c ? Snake(c) : null : load is { } l ? Snake(l) : null,
-            value, direction, quantity is { } q ? Snake(q) : null, component is { } p ? Snake(p) : null, mode, path);
+        var spec = new SimulationSpec(action, study, type, modes, bodies, elements,
+            action == SimulationAction.Constrain ? constraint : null, action == SimulationAction.Constrain ? null : load,
+            value, direction, quantity, component, mode, path);
         TimeSpan? timeout = action == SimulationAction.Solve ? TimeSpan.FromMinutes(30) : null;
         return action == SimulationAction.Results
             ? runner.RunAsync(tool, act, ctx =>

@@ -3,9 +3,13 @@
 Latest results:
 
 - `dotnet build SolidEdgeMcp.slnx`: 0 warnings (warnings are treated as errors).
-- Tests without Solid Edge, at the 1.0.2 release: `SolidEdgeMcp.Core.Tests` 98 and `SolidEdgeMcp.Server.Tests` 760,
+- Tests without Solid Edge, at the 1.0.5 release: `SolidEdgeMcp.Core.Tests` 116 and `SolidEdgeMcp.Server.Tests` 781,
   all passing. Continuous integration runs the license header check and the `SolidEdgeMcp.Core` tests on every push to
   `main` and every pull request.
+- 1.0.5, on Solid Edge 2026 Foundation: the full acceptance suite (2026-11-10), 136 scripts, 7591 calls and 3890
+  checks. 133 scripts passed. `A136` (simulation) failed at every solve and `A25` at one document search, where Solid
+  Edge stopped responding: both fail in the same way with the 1.0.4 server on that machine. `A88` failed with an
+  intermittent Solid Edge error and passed when run again, twice.
 - 1.0.2, the plugin launcher: with a scripted MCP client, the first start answered the client while the server was
   being installed, then announced 87 tools and 4 prompts, which worked; the quick install and the installed server
   started as before. With Claude Code and a server version not yet installed, it connected in 13 seconds and listed the
@@ -15,16 +19,14 @@ Latest results:
   that Solid Edge saved in a folder the server had created in the work folder failed (BMP, `E_FAIL`) or was not where the
   server looked (PNG); in the exchange folder both were saved and found.
 - Acceptance suite against real Solid Edge, with expected values computed from formulas (or Solid Edge reference values
-  when there is no simple formula, noted in the script). The last full run (2026-10-28/29, on Solid Edge 2026 Foundation)
-  covered 136 scripts: 3 failed (two were fixed and one was an intermittent Solid Edge error), and those scripts and some
-  related ones passed when run again. The suite was not repeated after the later fixes of this release.
-- The previous full run (2026-10-16), against the distributed package with the interop it generated, made 7208 calls and
+  when there is no simple formula, noted in the script). The full run before the last one (2026-10-28/29, on Solid Edge
+  2026 Foundation) covered 136 scripts: 3 failed (two were fixed and one was an intermittent Solid Edge error), and those
+  scripts and some related ones passed when run again.
+- An earlier full run (2026-10-16), against the distributed package with the interop it generated, made 7208 calls and
   3694 checks on the Community Edition 2026.
 - Coverage by value: every tool has correct calls, and `A10` runs every value of the action, orientation, direction,
   type and unit enumerations that the other scripts do not use.
 - Real end-to-end use by Claude Code and Codex with natural-language requests: [examples](EXAMPLES.md).
-
-The Integration test project was not run for these results.
 
 ## Acceptance scripts
 

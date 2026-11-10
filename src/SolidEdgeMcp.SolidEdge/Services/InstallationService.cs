@@ -31,14 +31,14 @@ public static class InstallationService
         try
         {
             data = Activator.CreateInstance(type)!;
-            int language = Convert.ToInt32(Call(data, "GetLanguageID"), CultureInfo.InvariantCulture);
+            int language = Convert.ToInt32(Late.Call(data, "GetLanguageID"), CultureInfo.InvariantCulture);
             return new
             {
-                version = Call(data, "GetVersion"),
-                programFolder = Call(data, "GetInstalledPath"),
-                preferencesFolder = Call(data, "GetPreferencesPath"),
+                version = Late.Call(data, "GetVersion"),
+                programFolder = Late.Call(data, "GetInstalledPath"),
+                preferencesFolder = Late.Call(data, "GetPreferencesPath"),
                 language = Culture(language),
-                parasolid = Call(data, "GetParasolidVersion"),
+                parasolid = Late.Call(data, "GetParasolidVersion"),
             };
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex) || ex is TargetInvocationException or FormatException)
@@ -70,7 +70,7 @@ public static class InstallationService
         try
         {
             data = Activator.CreateInstance(type)!;
-            string? folder = Call(data, "GetPreferencesPath") is string preferences ? Path.Combine(preferences, "Materials") : null;
+            string? folder = Late.Call(data, "GetPreferencesPath") is string preferences ? Path.Combine(preferences, "Materials") : null;
             return folder is not null && Directory.Exists(folder) ? folder : null;
         }
         catch (Exception ex) when (Late.IsMemberFailure(ex) || ex is TargetInvocationException)
@@ -85,9 +85,6 @@ public static class InstallationService
             }
         }
     }
-
-    private static object? Call(object target, string method) =>
-        target.GetType().InvokeMember(method, BindingFlags.InvokeMethod, null, target, null, CultureInfo.InvariantCulture);
 
     private static string Culture(int lcid)
     {

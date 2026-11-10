@@ -115,9 +115,9 @@ public static partial class FeatureService
             context.ModelChanged(model.Document, "the model changed (delete holes)");
             string? status = StatusOf(feature);
             double bodyAfter = Late.TryGet(target, "Body") is Body after ? after.Volume : bodyBefore;
-            if (status == "failed" || bodyAfter - bodyBefore <= VolumeTolerance)
+            if (status == "failed" || bodyAfter - bodyBefore <= Geo.VolumeTolerance)
             {
-                TryDelete(feature);
+                Late.TryDelete(feature);
                 continue;
             }
 
@@ -252,7 +252,7 @@ public static partial class FeatureService
         }
         catch (ToolException)
         {
-            TryDeleteObject(plane);
+            Late.TryDelete(plane);
             throw;
         }
     }
@@ -291,7 +291,7 @@ public static partial class FeatureService
         Face[] now = Late.TryGet(target, "Body") is Body after ? BodyFaces(after) : [];
         if (now.Length >= idsBefore.Count)
         {
-            TryDelete(feature);
+            Late.TryDelete(feature);
             context.ModelChanged(model.Document, "the model changed (redefine faces deleted)");
             throw new ToolException("feature_failed", "Solid Edge did not merge the faces; the feature was deleted.",
                 "Pass faces that touch one another along edges, on the same body.");
@@ -432,7 +432,7 @@ public static partial class FeatureService
 
         context.ModelChanged(model.Document, "the model changed (radiate)");
         double after = model.Volume();
-        if (Math.Abs(after - before) <= VolumeTolerance)
+        if (Math.Abs(after - before) <= Geo.VolumeTolerance)
         {
             throw new ToolException("feature_failed", "Solid Edge did not change the faces: the volume is the same.",
                 "Give round faces of the synchronous body and a distance that keeps them inside the part.");

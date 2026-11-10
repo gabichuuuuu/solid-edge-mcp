@@ -7,60 +7,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum OptionAction
-{
-    List,
-    Get,
-    Set,
-    Units,
-    SetUnits,
-    Format,
-    Categories,
-    Snapshot,
-    Restore,
-}
-
-public enum OptionScope
-{
-    Application,
-    Document,
-    Drawing,
-}
-
-public enum UiAction
-{
-    Status,
-    Windows,
-    Activate,
-    Arrange,
-    State,
-    Environments,
-    Ribbon,
-    Tab,
-    Find,
-    Display,
-    SetDisplay,
-}
-
-public enum ArrangeStyle
-{
-    Tiled,
-    Horizontal,
-    Vertical,
-    Cascade,
-}
-
-public enum WindowStateKind
-{
-    Normal,
-    Minimized,
-    Maximized,
-}
 
 /// <summary>Solid Edge and document options, units and interface (windows, environments and ribbon).</summary>
 [McpServerToolType]
@@ -97,17 +48,16 @@ public sealed class SettingsTools(ToolRunner runner)
     {
         const string tool = "se_options";
         string actionName = Snake(action);
-        string where = Snake(scope);
         return action switch
         {
-            OptionAction.List => runner.RunAsync(tool, actionName, c => OptionService.List(c, where, document, filter, category, offset, limit), cancellationToken),
+            OptionAction.List => runner.RunAsync(tool, actionName, c => OptionService.List(c, scope, document, filter, category, offset, limit), cancellationToken),
             OptionAction.Categories => runner.RunAsync(tool, actionName, OptionService.Categories, cancellationToken),
-            OptionAction.Snapshot => runner.RunAsync(tool, actionName, c => OptionService.Snapshot(c, where, document, path), cancellationToken),
+            OptionAction.Snapshot => runner.RunAsync(tool, actionName, c => OptionService.Snapshot(c, scope, document, path), cancellationToken),
             OptionAction.Restore => runner.RunAsync(tool, actionName, c => OptionService.Restore(c, document,
                 ToolRunner.Require(path, "path", "restore"), dryRun), cancellationToken),
-            OptionAction.Get => runner.RunAsync(tool, actionName, c => OptionService.Get(c, where, document,
+            OptionAction.Get => runner.RunAsync(tool, actionName, c => OptionService.Get(c, scope, document,
                 ToolRunner.Require(name, "name", "get")), cancellationToken),
-            OptionAction.Set => runner.RunAsync(tool, actionName, c => OptionService.Set(c, where, document,
+            OptionAction.Set => runner.RunAsync(tool, actionName, c => OptionService.Set(c, scope, document,
                 ToolRunner.Require(name, "name", "set"), ToolRunner.RequireValue(value, "value", "set")), cancellationToken),
             OptionAction.Units => runner.RunAsync(tool, actionName, c => OptionService.Units(c, document), cancellationToken),
             OptionAction.SetUnits => runner.RunAsync(tool, actionName, c => OptionService.SetUnits(c, document,
@@ -152,9 +102,9 @@ public sealed class SettingsTools(ToolRunner runner)
             UiAction.Windows => runner.RunAsync(tool, actionName, UiService.Windows, cancellationToken),
             UiAction.Activate => runner.RunAsync(tool, actionName, c => UiService.Activate(c, ToolRunner.Require(window, "window", "activate")), cancellationToken),
             UiAction.Arrange => runner.RunAsync(tool, actionName, c => UiService.Arrange(c,
-                Snake(style ?? throw ToolException.InvalidArgument("Action 'arrange' requires 'style'."))), cancellationToken),
+                style ?? throw ToolException.InvalidArgument("Action 'arrange' requires 'style'.")), cancellationToken),
             UiAction.State => runner.RunAsync(tool, actionName, c => UiService.SetState(c, window,
-                Snake(state ?? throw ToolException.InvalidArgument("Action 'state' requires 'state'."))), cancellationToken),
+                state ?? throw ToolException.InvalidArgument("Action 'state' requires 'state'.")), cancellationToken),
             UiAction.Environments => runner.RunAsync(tool, actionName, UiService.Environments, cancellationToken),
             UiAction.Ribbon => runner.RunAsync(tool, actionName, c => UiService.Ribbon(c, environment, tab), cancellationToken),
             UiAction.Tab => runner.RunAsync(tool, actionName, c => UiService.ActivateTab(c, ToolRunner.Require(tab, "tab", "tab")), cancellationToken),

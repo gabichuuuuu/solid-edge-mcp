@@ -7,169 +7,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum AssemblyAction
-{
-    List,
-    Insert,
-    Move,
-    Rotate,
-    Ground,
-    Unground,
-    Replace,
-    Show,
-    Hide,
-    Suppress,
-    Unsuppress,
-    Delete,
-    Activate,
-    Inactivate,
-    Bundle,
-    Transfer,
-    Disperse,
-    CopyAssembly,
-    Mirror,
-    Adjustable,
-    SaveModel,
-    Properties,
-    SetProperty,
-    Reorder,
-}
-
-public enum ReplaceSource
-{
-    File,
-    Copy,
-    New,
-}
-
-public enum RelationAction
-{
-    List,
-    Add,
-    Edit,
-    Delete,
-}
-
-public enum RelationType
-{
-    Planar,
-    Axial,
-    Insert,
-    Parallel,
-    Tangent,
-    Angle,
-    RigidSet,
-    CenterPlane,
-    Connect,
-    CoordinateSystem,
-    Gear,
-}
-
-public enum EdgePoint
-{
-    Start,
-    End,
-    Mid,
-    Center,
-}
-
-public enum GearRatio
-{
-    Teeth,
-    Turns,
-}
-
-public enum AssemblyPatternAction
-{
-    List,
-    Create,
-    Duplicate,
-    Curve,
-    Delete,
-    Dissolve,
-    Clone,
-}
-
-public enum CloneRelation
-{
-    Ground,
-    None,
-    Repair,
-}
-
-public enum AssemblyFeatureAction
-{
-    List,
-    Cut,
-    Revolve,
-    Hole,
-    Mirror,
-    Pattern,
-    Protrusion,
-    RevolvedProtrusion,
-    FilletWeld,
-    LabelWeld,
-    Delete,
-}
-
-public enum AssemblyFamilyAction
-{
-    List,
-    Create,
-    Add,
-    Activate,
-    Rename,
-    Delete,
-    SaveMember,
-    Exclude,
-    Alternates,
-    AddAlternate,
-    RemoveAlternate,
-}
-
-public enum AssemblyFamilyKind
-{
-    AlternatePositions,
-    Family,
-}
-
-public enum AssemblyConfigAction
-{
-    List,
-    Save,
-    Apply,
-    Delete,
-    Explode,
-    Exploded,
-    Performance,
-}
-
-public enum ExplodeLevel
-{
-    Part,
-    Subassembly,
-}
-
-public enum InterferenceCompare
-{
-    Auto,
-    Others,
-    Visible,
-}
-
-public enum BomStructure
-{
-    Top,
-    Flat,
-    Indented,
-    Exploded,
-    Statistics,
-}
 
 /// <summary>Assemblies: occurrences, relations, interferences and bill of materials.</summary>
 [McpServerToolType]
@@ -240,7 +82,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyAction.Ground => runner.RunAsync(tool, actionName, c => AssemblyService.Ground(c, occurrence, true), cancellationToken),
             AssemblyAction.Unground => runner.RunAsync(tool, actionName, c => AssemblyService.Ground(c, occurrence, false), cancellationToken),
             AssemblyAction.Replace => runner.RunAsync(tool, actionName, c => AssemblyService.ReplaceWith(c, occurrence,
-                ToolRunner.Require(path, "path", "replace"), Snake(source), all, template), cancellationToken, precheck: precheck),
+                ToolRunner.Require(path, "path", "replace"), source, all, template), cancellationToken, precheck: precheck),
             AssemblyAction.Adjustable => runner.RunAsync(tool, actionName, c => AssemblyService.MakeAdjustable(c, occurrence), cancellationToken),
             AssemblyAction.Properties => runner.RunAsync(tool, actionName, c => AssemblyService.Properties(c, occurrence), cancellationToken),
             AssemblyAction.SetProperty => runner.RunAsync(tool, actionName, c => AssemblyService.SetProperty(c, occurrence, name, value), cancellationToken),
@@ -323,9 +165,9 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         {
             RelationAction.List => runner.RunAsync(tool, name, c => RelationService.List(c, document, occurrence, skip, limit), cancellationToken),
             RelationAction.Add => runner.RunAsync(tool, name, c => RelationService.Add(c, document,
-                new RelationSpec(Snake(ToolRunner.RequireValue(type, "type", "add")), occurrence1, element1, occurrence2, element2, axis1, axis2,
-                    offset ?? 0, align, flip, angle, occurrences, plane, centered, between, point1 is { } p1 ? Snake(p1) : null, point2 is { } p2 ? Snake(p2) : null,
-                    ratio, ratioBy is { } by ? Snake(by) : null, lockRotation)), cancellationToken),
+                new RelationSpec(ToolRunner.RequireValue(type, "type", "add"), occurrence1, element1, occurrence2, element2, axis1, axis2,
+                    offset ?? 0, align, flip, angle, occurrences, plane, centered, between, point1, point2,
+                    ratio, ratioBy, lockRotation)), cancellationToken),
             RelationAction.Edit => runner.RunAsync(tool, name, c => RelationService.Edit(c, relation, offset, angle, suppress), cancellationToken),
             RelationAction.Delete => runner.RunAsync(tool, name, c => RelationService.Delete(c, relation), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
@@ -372,7 +214,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyPatternAction.Curve => runner.RunAsync(tool, act, c => AssemblyPatternService.AlongCurve(c, occurrences, curve, count, spacing, reverse, name), cancellationToken),
             AssemblyPatternAction.Delete => runner.RunAsync(tool, act, c => AssemblyPatternService.Delete(c, document, name), cancellationToken),
             AssemblyPatternAction.Dissolve => runner.RunAsync(tool, act, c => AssemblyPatternService.Dissolve(c, document, name), cancellationToken),
-            AssemblyPatternAction.Clone => runner.RunAsync(tool, act, c => AssemblyPatternService.Clone(c, occurrences, faces, targets, Snake(relations), exact, group), cancellationToken),
+            AssemblyPatternAction.Clone => runner.RunAsync(tool, act, c => AssemblyPatternService.Clone(c, occurrences, faces, targets, relations, exact, group), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }
@@ -426,15 +268,15 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         return action switch
         {
             AssemblyFeatureAction.List => runner.RunAsync(tool, act, c => AssemblyFeatureService.List(c, document), cancellationToken),
-            AssemblyFeatureAction.Cut => runner.RunAsync(tool, act, c => AssemblyFeatureService.Cut(c, sketch, occurrences, depth, Snake(side), name), cancellationToken),
-            AssemblyFeatureAction.Revolve => runner.RunAsync(tool, act, c => AssemblyFeatureService.Revolve(c, sketch, axis, occurrences, angle, Snake(side), name), cancellationToken),
+            AssemblyFeatureAction.Cut => runner.RunAsync(tool, act, c => AssemblyFeatureService.Cut(c, sketch, occurrences, depth, side, name), cancellationToken),
+            AssemblyFeatureAction.Revolve => runner.RunAsync(tool, act, c => AssemblyFeatureService.Revolve(c, sketch, axis, occurrences, angle, side, name), cancellationToken),
             AssemblyFeatureAction.Hole => runner.RunAsync(tool, act, c => AssemblyFeatureService.Hole(c, document, occurrences,
-                new HoleSpec(plane ?? "", centers, diameter, Snake(type), counterboreDiameter, counterboreDepth, countersinkDiameter, countersinkAngle,
-                    null, Snake(extent), depth, Snake(direction)), name), cancellationToken),
+                new HoleSpec(plane ?? "", centers, diameter, type, counterboreDiameter, counterboreDepth, countersinkDiameter, countersinkAngle,
+                    null, extent, depth, direction), name), cancellationToken),
             AssemblyFeatureAction.Mirror => runner.RunAsync(tool, act, c => AssemblyFeatureService.Mirror(c, document, features, plane, name), cancellationToken),
             AssemblyFeatureAction.Pattern => runner.RunAsync(tool, act, c => AssemblyFeatureService.Pattern(c, document, features, plane, count, spacing, angle, name), cancellationToken),
-            AssemblyFeatureAction.Protrusion => runner.RunAsync(tool, act, c => AssemblyFeatureService.Protrusion(c, document, sketch, depth, Snake(side), name), cancellationToken),
-            AssemblyFeatureAction.RevolvedProtrusion => runner.RunAsync(tool, act, c => AssemblyFeatureService.RevolvedProtrusion(c, document, sketch, axis, angle, Snake(side), name), cancellationToken),
+            AssemblyFeatureAction.Protrusion => runner.RunAsync(tool, act, c => AssemblyFeatureService.Protrusion(c, document, sketch, depth, side, name), cancellationToken),
+            AssemblyFeatureAction.RevolvedProtrusion => runner.RunAsync(tool, act, c => AssemblyFeatureService.RevolvedProtrusion(c, document, sketch, axis, angle, side, name), cancellationToken),
             AssemblyFeatureAction.FilletWeld => runner.RunAsync(tool, act, c => AssemblyFeatureService.FilletWeld(c, document, faces, targetFaces, leg, leg2, name), cancellationToken),
             AssemblyFeatureAction.LabelWeld => runner.RunAsync(tool, act, c => AssemblyFeatureService.LabelWeld(c, document, edges, name), cancellationToken),
             AssemblyFeatureAction.Delete => runner.RunAsync(tool, act, c => AssemblyFeatureService.Delete(c, document, name), cancellationToken),
@@ -473,7 +315,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         return action switch
         {
             AssemblyFamilyAction.List => runner.RunAsync(tool, act, c => AssemblyFamilyService.List(c, document), cancellationToken),
-            AssemblyFamilyAction.Create => runner.RunAsync(tool, act, c => AssemblyFamilyService.Create(c, document, Snake(kind), members), cancellationToken),
+            AssemblyFamilyAction.Create => runner.RunAsync(tool, act, c => AssemblyFamilyService.Create(c, document, kind, members), cancellationToken),
             AssemblyFamilyAction.Add => runner.RunAsync(tool, act, c => AssemblyFamilyService.Add(c, document, name), cancellationToken),
             AssemblyFamilyAction.Activate => runner.RunAsync(tool, act, c => AssemblyFamilyService.Activate(c, document, member), cancellationToken),
             AssemblyFamilyAction.Rename => runner.RunAsync(tool, act, c => AssemblyFamilyService.Rename(c, document, member, newName), cancellationToken),
@@ -519,7 +361,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
             AssemblyConfigAction.Save => runner.RunAsync(tool, act, c => AssemblyConfigService.Save(c, document, name), cancellationToken),
             AssemblyConfigAction.Apply => runner.RunAsync(tool, act, c => AssemblyConfigService.Apply(c, document, name), cancellationToken),
             AssemblyConfigAction.Delete => runner.RunAsync(tool, act, c => AssemblyConfigService.Delete(c, document, name), cancellationToken),
-            AssemblyConfigAction.Explode => runner.RunAsync(tool, act, c => AssemblyExplodeService.Explode(c, document, spread, Snake(by), orientation is { } o ? Snake(o) : null), cancellationToken),
+            AssemblyConfigAction.Explode => runner.RunAsync(tool, act, c => AssemblyExplodeService.Explode(c, document, spread, by, orientation), cancellationToken),
             AssemblyConfigAction.Exploded => runner.RunAsync(tool, act, c => AssemblyExplodeService.Exploded(c, document), cancellationToken),
             AssemblyConfigAction.Performance => runner.RunAsync(tool, act, c => AssemblyService.Performance(c, document, enabled), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
@@ -537,7 +379,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         [Description("auto (default: 'against', or 'occurrences' among themselves) | others ('occurrences' against every other occurrence) | visible (against the visible ones).")] InterferenceCompare compare = InterferenceCompare.Auto,
         [Description("Assembly document handle; default: the occurrences' assembly or the active document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_interference", "check", c => AssemblyService.Interference(c, document, occurrences, against, Snake(compare)), cancellationToken);
+        runner.RunAsync("se_interference", "check", c => AssemblyService.Interference(c, document, occurrences, against, compare), cancellationToken);
 
     [McpServerTool(Name = "se_bom", Title = "Bill of materials and assembly reports", ReadOnly = false, Destructive = false, OpenWorld = false)]
     [Description("""
@@ -554,6 +396,6 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         [Description("Replace the file if it exists.")] bool overwrite = false,
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_bom", Snake(structure), c => structure is BomStructure.Top or BomStructure.Flat
-            ? AssemblyService.Bom(c, document, Snake(structure), path, overwrite)
-            : AssemblyService.Report(c, document, Snake(structure), path, overwrite), cancellationToken);
+            ? AssemblyService.Bom(c, document, structure, path, overwrite)
+            : AssemblyService.Report(c, document, structure, path, overwrite), cancellationToken);
 }

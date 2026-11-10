@@ -6,25 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum InternalComponentAction
-{
-    List,
-    Create,
-    Delete,
-    Publish,
-}
-
-public enum InternalComponentKind
-{
-    Part,
-    SheetMetal,
-    Assembly,
-}
 
 /// <summary>Internal components of an assembly: kept inside the assembly file until they are published as files.</summary>
 [McpServerToolType]
@@ -55,7 +41,7 @@ public sealed class InternalComponentTools(ToolRunner runner, PathGuard guard)
         return action switch
         {
             InternalComponentAction.List => runner.RunAsync(tool, act, c => InternalComponentService.List(c, document), cancellationToken),
-            InternalComponentAction.Create => runner.RunAsync(tool, act, c => InternalComponentService.Create(c, document, name, Snake(kind), ground), cancellationToken),
+            InternalComponentAction.Create => runner.RunAsync(tool, act, c => InternalComponentService.Create(c, document, name, kind, ground), cancellationToken),
             InternalComponentAction.Delete => runner.RunAsync(tool, act, c => InternalComponentService.Delete(c, document, name), cancellationToken),
             InternalComponentAction.Publish => runner.RunAsync(tool, act, c => InternalComponentService.Publish(c, document, folder, overwrite), cancellationToken,
                 precheck: folder is null ? null : () => guard.Check(folder, "folder")),

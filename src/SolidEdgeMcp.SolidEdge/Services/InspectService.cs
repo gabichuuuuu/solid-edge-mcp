@@ -5,6 +5,7 @@ using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeGeometry;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -478,15 +479,15 @@ public static partial class InspectService
     /// Minimum or maximum distance between two elements (faces, edges, vertices, bodies, planes). Verified in Solid Edge 2026:
     /// MeasureDistance with MaximumDistance gives the farthest pair of points (the box diagonal between two opposite faces).
     /// </summary>
-    public static object Distance(SeContext context, string? documentHandle, string? first, string? second, string type = "minimum")
+    public static object Distance(SeContext context, string? documentHandle, string? first, string? second, DistanceType type = DistanceType.Minimum)
     {
         string firstHandle = first ?? throw ToolException.InvalidArgument("distance needs 'first' and 'second': element handles.");
         string secondHandle = second ?? throw ToolException.InvalidArgument("distance needs 'second': an element handle.");
         bool maximum = type switch
         {
-            "minimum" => false,
-            "maximum" => true,
-            _ => throw ToolException.InvalidArgument($"Unknown distance type '{type}'.", "Use minimum or maximum."),
+            DistanceType.Minimum => false,
+            DistanceType.Maximum => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
         };
         object a = context.Handles.Resolve(firstHandle, "first");
         object b = context.Handles.Resolve(secondHandle, "second");
@@ -522,7 +523,7 @@ public static partial class InspectService
             }
         }
 
-        return new { type, distance = Geo.Mm(distance), pointOnFirst = Geo.Mm(p1), pointOnSecond = Geo.Mm(p2) };
+        return new { type = ArgumentNames.Snake(type), distance = Geo.Mm(distance), pointOnFirst = Geo.Mm(p1), pointOnSecond = Geo.Mm(p2) };
     }
 
     private static object InAssembly(AssemblyDocument assembly, object value, string argumentName) => value switch

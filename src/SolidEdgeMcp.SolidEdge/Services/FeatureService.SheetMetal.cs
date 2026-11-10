@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -16,15 +17,15 @@ using TopologyQuery = SolidEdgeGeometry.FeatureTopologyQueryTypeConstants;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>Flange on sheet metal edges (mm and degrees).</summary>
-public sealed record FlangeSpec(string[]? Edges, double? Length, double Angle = 90, string Side = "inside", double? Radius = null, string Dimension = "inside");
+public sealed record FlangeSpec(string[]? Edges, double? Length, double Angle = 90, SheetMetalSide Side = SheetMetalSide.Inside, double? Radius = null, FlangeDimension Dimension = FlangeDimension.Inside);
 
 /// <summary>Hem on sheet metal edges (mm).</summary>
-public sealed record HemSpec(string[]? Edges, string Type, double? Length, double? Radius = null, double? Length2 = null,
-    double? Radius2 = null, string Side = "inside");
+public sealed record HemSpec(string[]? Edges, HemType Type, double? Length, double? Radius = null, double? Length2 = null,
+    double? Radius2 = null, SheetMetalSide Side = SheetMetalSide.Inside);
 
 /// <summary>Louver on a planar sheet face (mm): Point is the middle of its opening edge, Along the direction it runs.</summary>
 public sealed record LouverSpec(string[]? Faces, double[]? Point, double[]? Along, double? Length, double? Width, double? Height,
-    string End = "lanced", double? Radius = null);
+    LouverEnd End = LouverEnd.Lanced, double? Radius = null);
 
 /// <summary>Global sheet metal values (mm); <c>null</c> = no change.</summary>
 public sealed record SheetMetalValues(double? Thickness, double? BendRadius, double? ReliefWidth, double? ReliefDepth, double? NeutralFactor);
@@ -32,20 +33,20 @@ public sealed record SheetMetalValues(double? Thickness, double? BendRadius, dou
 /// <summary>Sheet metal sketch-based operation (mm and degrees).</summary>
 public sealed record SheetFormSpec(
     string Sketch,
-    string Action,
+    SheetFormAction Action,
     double? Depth = null,
     double? Height = null,
     double? Width = null,
     double? Angle = null,
-    string Direction = "auto",
-    string MovingSide = "right",
-    string Position = "inside",
-    string Side = "inside",
-    string BeadType = "u",
-    string Method = "thickness",
-    string BeadEnd = "lanced",
+    FormDirection Direction = FormDirection.Auto,
+    MovingSide MovingSide = MovingSide.Right,
+    BendPosition Position = BendPosition.Inside,
+    SheetMetalSide Side = SheetMetalSide.Inside,
+    BeadType BeadType = BeadType.U,
+    CutoutMethod Method = CutoutMethod.Thickness,
+    BeadEnd BeadEnd = BeadEnd.Lanced,
     double? PunchWidth = null,
-    string Extent = "through_all",
+    CutoutExtent Extent = CutoutExtent.ThroughAll,
     string? To = null);
 
 /// <summary>
@@ -57,8 +58,6 @@ public sealed record SheetFormSpec(
 /// </summary>
 public static partial class FeatureService
 {
-    public static readonly IReadOnlyList<string> HemTypes = ["closed", "open", "s_flange", "closed_loop"];
-
     private const string SyncNextStep =
         "Check the edges (se_geometry 'edges'): use straight edges of the sheet faces of synchronous features (tabs, flanges), not thickness edges or edges made by ordered features, and smaller sizes.";
 
@@ -98,7 +97,7 @@ public static partial class FeatureService
         {
             if (!double.IsFinite(neutralFactor) || neutralFactor < 0 || neutralFactor > 1)
             {
-                throw ToolException.InvalidArgument("'neutralFactor' must be between 0 and 1 (typically 0.3–0.5).");
+                throw ToolException.InvalidArgument("'neutralFactor' must be between 0 and 1 (typically 0.3 to 0.5).");
             }
 
             changes.Add((SheetMetalGlobalConstants.seSheetMetalGlobalNeutralFactor, neutralFactor));
@@ -124,7 +123,7 @@ public static partial class FeatureService
     }
 
     /// <summary>Applies a gauge of a material library: thickness, bend radius and relief come from it; the model is updated.</summary>
-    public static object SheetGauge(SeContext context, string? documentHandle, string? gauge, string? library, string? folder = null)
+    public static object SheetGauge(SeContext context, string? documentHandle, string? gauge, string? library, MaterialFolder? folder = null)
     {
         if (string.IsNullOrWhiteSpace(gauge))
         {
@@ -147,16 +146,16 @@ public static partial class FeatureService
     /// takes only the inner region, hence the check of the number of loops. <paramref name="newBody"/>: the tab starts another sheet
     /// body (Models.AddBody before AddBaseTab; without it a second base tab merges into the first body), e.g. for tab and slot.
     /// </summary>
-    public static object Tab(SeContext context, string? documentHandle, string sketch, string direction, bool newBody = false)
+    public static object Tab(SeContext context, string? documentHandle, string sketch, SheetDirection direction, bool newBody = false)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
         Sheet(model);
         Profile profile = SketchService.ResolveDefined(context, sketch);
         FeaturePropertyConstants side = direction switch
         {
-            "normal" => FeaturePropertyConstants.igRight,
-            "reverse" => FeaturePropertyConstants.igLeft,
-            _ => throw ToolException.InvalidArgument($"Direction '{direction}' is not valid for a tab.", "Use normal (thickness along the sketch normal) or reverse."),
+            SheetDirection.Normal => FeaturePropertyConstants.igRight,
+            SheetDirection.Reverse => FeaturePropertyConstants.igLeft,
+            _ => throw new ArgumentOutOfRangeException(nameof(direction)),
         };
         if (SketchService.LoopCount(profile) is int loops && loops > 1)
         {
@@ -193,8 +192,8 @@ public static partial class FeatureService
     }
 
     /// <summary>Base contour flange from an open sketch (creates the sheet).</summary>
-    public static object ContourFlange(SeContext context, string? documentHandle, string sketch, double? width, string direction,
-        string materialSide, double? radius)
+    public static object ContourFlange(SeContext context, string? documentHandle, string sketch, double? width, SheetDirection direction,
+        ChainSide materialSide, double? radius)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, sketch);
         SheetMetalDocument sheet = Sheet(model);
@@ -208,7 +207,7 @@ public static partial class FeatureService
         double extent = Units.MmToM(Units.RequirePositive(width ?? throw ToolException.InvalidArgument("contour_flange requires 'width' (mm): the extent along the sketch normal."), "width"));
         // Solid Edge 2026 ignores the projection side (1, 2, 3, 7 and 8 give the same solid): the width always grows toward the
         // sketch normal.
-        if (direction != "normal")
+        if (direction != SheetDirection.Normal)
         {
             throw ToolException.InvalidArgument("Solid Edge always extends a base contour flange along the sketch normal.",
                 "Use direction 'normal' and draw the sketch on a plane whose normal points the way the width should grow (se_refplane, or the opposite face).");
@@ -218,9 +217,9 @@ public static partial class FeatureService
         // the thickness on the left of the path (unlike the moving side of jogs and beads).
         FeaturePropertyConstants thicknessSide = materialSide switch
         {
-            "right" => FeaturePropertyConstants.igLeft,
-            "left" => FeaturePropertyConstants.igRight,
-            _ => throw ToolException.InvalidArgument($"Unknown materialSide '{materialSide}'.", "Use left or right."),
+            ChainSide.Right => FeaturePropertyConstants.igLeft,
+            ChainSide.Left => FeaturePropertyConstants.igRight,
+            _ => throw new ArgumentOutOfRangeException(nameof(materialSide)),
         };
         double bend = BendRadius(sheet, radius);
         (int bendMethod, double bendValue) = BendCalculation(sheet);
@@ -267,16 +266,16 @@ public static partial class FeatureService
 
         FlangeFeatureConstants side = spec.Side switch
         {
-            "inside" => FlangeFeatureConstants.seFlangeMaterialInside,
-            "outside" => FlangeFeatureConstants.seFlangeMaterialOutside,
-            "bend_outside" => FlangeFeatureConstants.seFlangeBendOutside,
-            _ => throw ToolException.InvalidArgument($"Unknown side '{spec.Side}'.", "Use inside, outside or bend_outside."),
+            SheetMetalSide.Inside => FlangeFeatureConstants.seFlangeMaterialInside,
+            SheetMetalSide.Outside => FlangeFeatureConstants.seFlangeMaterialOutside,
+            SheetMetalSide.BendOutside => FlangeFeatureConstants.seFlangeBendOutside,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         int dimSide = spec.Dimension switch
         {
-            "inside" => (int)FeaturePropertyConstants.igLeft,
-            "outside" => (int)FeaturePropertyConstants.igRight,
-            _ => throw ToolException.InvalidArgument($"Unknown dimension '{spec.Dimension}'.", "Use inside or outside."),
+            FlangeDimension.Inside => (int)FeaturePropertyConstants.igLeft,
+            FlangeDimension.Outside => (int)FeaturePropertyConstants.igRight,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         object radius = spec.Radius is { } r ? Units.MmToM(Units.RequirePositive(r, "radius")) : Type.Missing;
         double bendAngle = Units.DegToRad(angle);
@@ -297,18 +296,18 @@ public static partial class FeatureService
         SheetMetalDocument sheet = RequireSheet(model);
         HemFeatureConstants type = spec.Type switch
         {
-            "closed" => HemFeatureConstants.seHemTypeClosed,
-            "open" => HemFeatureConstants.seHemTypeOpen,
-            "s_flange" => HemFeatureConstants.seHemTypeSFlange,
-            "closed_loop" => HemFeatureConstants.seHemTypeClosedLoop,
-            _ => throw ToolException.InvalidArgument($"Unknown hem type '{spec.Type}'.", $"Use one of: {string.Join(", ", HemTypes)}."),
+            HemType.Closed => HemFeatureConstants.seHemTypeClosed,
+            HemType.Open => HemFeatureConstants.seHemTypeOpen,
+            HemType.SFlange => HemFeatureConstants.seHemTypeSFlange,
+            HemType.ClosedLoop => HemFeatureConstants.seHemTypeClosedLoop,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         HemFeatureConstants side = spec.Side switch
         {
-            "inside" => HemFeatureConstants.seHemSideMaterialInside,
-            "outside" => HemFeatureConstants.seHemSideMaterialOutside,
-            "bend_outside" => HemFeatureConstants.seHemBendOutside,
-            _ => throw ToolException.InvalidArgument($"Unknown side '{spec.Side}'.", "Use inside, outside or bend_outside."),
+            SheetMetalSide.Inside => HemFeatureConstants.seHemSideMaterialInside,
+            SheetMetalSide.Outside => HemFeatureConstants.seHemSideMaterialOutside,
+            SheetMetalSide.BendOutside => HemFeatureConstants.seHemBendOutside,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         double length = Units.MmToM(Units.RequirePositive(spec.Length ?? throw ToolException.InvalidArgument("A hem requires 'length' (mm): the length of the folded flange."), "length"));
         double radius = BendRadius(sheet, spec.Radius);
@@ -322,15 +321,15 @@ public static partial class FeatureService
     }
 
     /// <summary>Fillet or chamfer (45°) of corners on edges that cross the thickness.</summary>
-    public static object BreakCorner(SeContext context, string? documentHandle, string[]? edges, string type, double? size)
+    public static object BreakCorner(SeContext context, string? documentHandle, string[]? edges, CornerType type, double? size)
     {
         (ModelDocument model, object[] edgeObjects) = ResolveEdges(context, documentHandle, edges);
         RequireSheet(model);
         FeaturePropertyConstants kind = type switch
         {
-            "round" => FeaturePropertyConstants.igConstRadiusRound,
-            "chamfer" => FeaturePropertyConstants.igChamfer45degSetback,
-            _ => throw ToolException.InvalidArgument($"Unknown corner type '{type}'.", "Use round or chamfer."),
+            CornerType.Round => FeaturePropertyConstants.igConstRadiusRound,
+            CornerType.Chamfer => FeaturePropertyConstants.igChamfer45degSetback,
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
         };
         double setback = Units.MmToM(Units.RequirePositive(size ?? throw ToolException.InvalidArgument("break_corner requires 'size' (mm): radius or chamfer setback."), "size"));
         return Synchronous(context, model, "break corner", 0, null,
@@ -339,7 +338,7 @@ public static partial class FeatureService
     }
 
     /// <summary>
-    /// Louver on a planar face of the sheet (Louvers.AddSync, synchronous; Louvers.Add from a line profile in ordered modeling
+    /// Louver on a planar face of the sheet (Louvers.AddSync, synchronous; Louvers.Add from a line profile in ordered modelling
     /// leaves the feature failed). Verified on a 100 x 60 x 1 mm tab: origin (50, 30, 1) on the top face, direction +x, length
     /// 40, width 5, height 3 -> the louver spans x 30..70 (centred on the origin), y 30..35 (it opens to the left of the
     /// direction seen from the face normal) and rises to z 4; a lanced end removes a little volume (-1.667 mm3), a formed
@@ -362,9 +361,9 @@ public static partial class FeatureService
         double height = Units.MmToM(Units.RequirePositive(spec.Height ?? throw ToolException.InvalidArgument("louver requires 'height' (mm): how far it rises from the face."), "height"));
         LouverFeatureConstants end = spec.End switch
         {
-            "lanced" => LouverFeatureConstants.seLouverLancedEnd,
-            "formed" => LouverFeatureConstants.seLouverFormedEnd,
-            _ => throw ToolException.InvalidArgument($"Unknown louver end '{spec.End}'.", "Use lanced or formed."),
+            LouverEnd.Lanced => LouverFeatureConstants.seLouverLancedEnd,
+            LouverEnd.Formed => LouverFeatureConstants.seLouverFormedEnd,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         object dieRadius = spec.Radius is { } r ? Units.MmToM(Units.RequirePositive(r, "radius")) : Type.Missing;
         ModelDocument model = ModelDocument.For(context, documentHandle, faceHandle);
@@ -377,13 +376,13 @@ public static partial class FeatureService
 
         (double[] root, double[] normal) = PlaneFrame(face);
         double[] origin = point.Select(v => Units.MmToM(Units.RequireFinite(v, "point"))).ToArray();
-        double off = Dot(Minus(origin, root), normal);
+        double off = Geo.Dot(Geo.Minus(origin, root), normal);
         if (Math.Abs(off) > LouverPointTolerance)
         {
             throw ToolException.InvalidArgument($"'point' is {Units.MToMm(Math.Abs(off)):0.###} mm off the plane of the face.", "Pass a point on the face (se_geometry faces gives its bounding box).");
         }
 
-        double along0 = Dot(along, normal);
+        double along0 = Geo.Dot(along, normal);
         double[] direction = along.Zip(normal, (a, n) => a - (along0 * n)).ToArray();
         double size = Geo.Length(direction);
         if (size < 1e-9)
@@ -412,7 +411,7 @@ public static partial class FeatureService
     private static Face? FaceUnder(ModelDocument model, double[] point, double[] normal) =>
         model.Bodies().SelectMany(b => Late.Items(b.Body.Faces[TopologyQuery.igQueryPlane]).OfType<Face>()).FirstOrDefault(f =>
         {
-            if (Dot(InspectService.FaceNormal(f), normal) < 1 - ParallelTolerance || Math.Abs(Dot(Minus(point, PlaneFrame(f).Point), normal)) > LouverPointTolerance)
+            if (Geo.Dot(InspectService.FaceNormal(f), normal) < 1 - ParallelTolerance || Math.Abs(Geo.Dot(Geo.Minus(point, PlaneFrame(f).Point), normal)) > LouverPointTolerance)
             {
                 return false;
             }
@@ -491,7 +490,7 @@ public static partial class FeatureService
         int bends = BendFaces(model);
         if (bends <= bendsBefore)
         {
-            TryDelete(feature);
+            Late.TryDelete(feature);
             context.ModelChanged(model.Document, "the model changed (conversion deleted)");
             throw new ToolException("feature_failed", "The conversion made no bend and was deleted.", nextStep);
         }
@@ -619,7 +618,7 @@ public static partial class FeatureService
     public static object SheetForm(SeContext context, string? documentHandle, SheetFormSpec spec)
     {
         ModelDocument model = ModelDocument.For(context, documentHandle, spec.Sketch);
-        if (spec.Action != "etch")
+        if (spec.Action != SheetFormAction.Etch)
         {
             // Etches.Add also marks the lines on a part (verified: an open line on the top face of a block, Etch_1 OK).
             RequireSheet(model);
@@ -628,21 +627,21 @@ public static partial class FeatureService
         Profile sketchProfile = SketchService.ResolveDefined(context, spec.Sketch);
         bool normal = spec.Direction switch
         {
-            "auto" or "normal" => true,
-            "reverse" => false,
-            _ => throw ToolException.InvalidArgument($"Unknown direction '{spec.Direction}'.", "Use auto, normal or reverse."),
+            FormDirection.Auto or FormDirection.Normal => true,
+            FormDirection.Reverse => false,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         string direction = normal ? "normal" : "reverse";
         switch (spec.Action)
         {
-            case "dimple":
+            case SheetFormAction.Dimple:
             {
                 double depth = Required(spec.Depth, "depth", "dimple");
                 return Form(context, model, sketchProfile, spec.Sketch, "dimple", 0, direction, (target, profile) => target.Dimples.Add(profile, depth,
                     DimpleFeatureConstants.seDimpleProfileLeft, normal ? DimpleFeatureConstants.seDimpleDepthRight : DimpleFeatureConstants.seDimpleDepthLeft));
             }
 
-            case "drawn_cutout":
+            case SheetFormAction.DrawnCutout:
             {
                 double depth = Required(spec.Depth, "depth", "drawn_cutout");
                 return Form(context, model, sketchProfile, spec.Sketch, "drawn cutout", 0, direction, (target, profile) => target.DrawnCutouts.Add(profile, depth,
@@ -651,28 +650,28 @@ public static partial class FeatureService
                     DrawnCutoutFeatureConstants.seDrawnCutoutMaterialInside));
             }
 
-            case "normal_cutout":
+            case SheetFormAction.NormalCutout:
                 return NormalCutout(context, model, sketchProfile, spec);
-            case "etch":
+            case SheetFormAction.Etch:
                 // An engraving does not change the volume: it is enough that Solid Edge does not mark it as failed.
                 return Form(context, model, sketchProfile, spec.Sketch, "etch", 0, null, (target, profile) => target.Etches.Add(profile),
                     changedOtherwise: () => true);
-            case "jog":
+            case SheetFormAction.Jog:
             {
                 double height = Required(spec.Height, "height", "jog");
                 JogFeatureConstants material = spec.Side switch
                 {
-                    "inside" => JogFeatureConstants.seJogMaterialInside,
-                    "outside" => JogFeatureConstants.seJogMaterialOutside,
-                    "bend_outside" => JogFeatureConstants.seJogMaterialBendOutside,
-                    _ => throw ToolException.InvalidArgument($"Unknown side '{spec.Side}'.", "Use inside, outside or bend_outside."),
+                    SheetMetalSide.Inside => JogFeatureConstants.seJogMaterialInside,
+                    SheetMetalSide.Outside => JogFeatureConstants.seJogMaterialOutside,
+                    SheetMetalSide.BendOutside => JogFeatureConstants.seJogMaterialBendOutside,
+                    _ => throw new ArgumentOutOfRangeException(nameof(spec)),
                 };
                 JogFeatureConstants moving = MovingSide(spec.MovingSide) ? JogFeatureConstants.seJogMoveRight : JogFeatureConstants.seJogMoveLeft;
                 return Form(context, model, sketchProfile, spec.Sketch, "jog", 0, direction, (target, profile) => target.Jogs.AddFinite(profile, height,
                     material, moving, normal ? JogFeatureConstants.seJogNormal : JogFeatureConstants.seJogReverseNormal));
             }
 
-            case "bend":
+            case SheetFormAction.Bend:
             {
                 double angle = Units.RequirePositive(spec.Angle ?? throw ToolException.InvalidArgument("bend requires 'angle' (degrees)."), "angle");
                 if (angle >= 180)
@@ -682,33 +681,33 @@ public static partial class FeatureService
 
                 BendFeatureConstants position = spec.Position switch
                 {
-                    "inside" => BendFeatureConstants.seBendPZLInside,
-                    "outside" => BendFeatureConstants.seBendPZLOutside,
-                    "symmetric" => BendFeatureConstants.seBendPZLSymmetric,
-                    _ => throw ToolException.InvalidArgument($"Unknown position '{spec.Position}'.", "Use inside, outside or symmetric."),
+                    BendPosition.Inside => BendFeatureConstants.seBendPZLInside,
+                    BendPosition.Outside => BendFeatureConstants.seBendPZLOutside,
+                    BendPosition.Symmetric => BendFeatureConstants.seBendPZLSymmetric,
+                    _ => throw new ArgumentOutOfRangeException(nameof(spec)),
                 };
                 BendFeatureConstants moving = MovingSide(spec.MovingSide) ? BendFeatureConstants.seBendMoveRight : BendFeatureConstants.seBendMoveLeft;
                 return Form(context, model, sketchProfile, spec.Sketch, "bend", 0, direction, (target, profile) => target.Bends.Add(profile,
                     Units.DegToRad(angle), position, moving, normal ? BendFeatureConstants.seBendNormal : BendFeatureConstants.seBendReverseNormal));
             }
 
-            case "bead":
+            case SheetFormAction.Bead:
             {
                 double height = Required(spec.Height, "height", "bead");
                 double width = Required(spec.Width, "width", "bead");
                 FeaturePropertyConstants shape = spec.BeadType switch
                 {
-                    "u" => FeaturePropertyConstants.igUShaped,
-                    "v" => FeaturePropertyConstants.igVShaped,
-                    "circular" => FeaturePropertyConstants.igCircular,
-                    _ => throw ToolException.InvalidArgument($"Unknown bead type '{spec.BeadType}'.", "Use u, v or circular."),
+                    BeadType.U => FeaturePropertyConstants.igUShaped,
+                    BeadType.V => FeaturePropertyConstants.igVShaped,
+                    BeadType.Circular => FeaturePropertyConstants.igCircular,
+                    _ => throw new ArgumentOutOfRangeException(nameof(spec)),
                 };
                 FeaturePropertyConstants end = spec.BeadEnd switch
                 {
-                    "lanced" => FeaturePropertyConstants.igLancedEnd,
-                    "punched" => FeaturePropertyConstants.igPunchedEnd,
-                    "formed" => FeaturePropertyConstants.igFormedEnd,
-                    _ => throw ToolException.InvalidArgument($"Unknown bead end '{spec.BeadEnd}'.", "Use lanced, punched or formed."),
+                    BeadEnd.Lanced => FeaturePropertyConstants.igLancedEnd,
+                    BeadEnd.Punched => FeaturePropertyConstants.igPunchedEnd,
+                    BeadEnd.Formed => FeaturePropertyConstants.igFormedEnd,
+                    _ => throw new ArgumentOutOfRangeException(nameof(spec)),
                 };
                 // Verified (height 3, width 8, on a 1 mm sheet): U and V with shape radius = width/4, taper 0.1 rad; circular
                 // with the radius of the arc through the bead's edges and its top and no taper (with width/4 it fails); punch
@@ -729,8 +728,7 @@ public static partial class FeatureService
             }
 
             default:
-                throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.",
-                    "Use dimple, drawn_cutout, normal_cutout, etch, jog, bend or bead.");
+                throw new ArgumentOutOfRangeException(nameof(spec));
         }
     }
 
@@ -746,19 +744,19 @@ public static partial class FeatureService
     {
         FeaturePropertyConstants how = spec.Method switch
         {
-            "thickness" => FeaturePropertyConstants.igThickness,
-            "mid_plane" => FeaturePropertyConstants.igSMMidPlaneCutout,
-            "clearance" => FeaturePropertyConstants.igSMClearanceCutout,
-            _ => throw ToolException.InvalidArgument($"Unknown method '{spec.Method}'.", "Use thickness, mid_plane or clearance."),
+            CutoutMethod.Thickness => FeaturePropertyConstants.igThickness,
+            CutoutMethod.MidPlane => FeaturePropertyConstants.igSMMidPlaneCutout,
+            CutoutMethod.Clearance => FeaturePropertyConstants.igSMClearanceCutout,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         string sketch = spec.Sketch;
         double depth = spec.Extent switch
         {
-            "finite" => Required(spec.Depth, "depth", "normal_cutout with extent finite"),
-            "through_all" or "through_next" or "from_to" => 0,
-            _ => throw ToolException.InvalidArgument($"Unknown extent '{spec.Extent}'.", "Use through_all, through_next, finite or from_to."),
+            CutoutExtent.Finite => Required(spec.Depth, "depth", "normal_cutout with extent finite"),
+            CutoutExtent.ThroughAll or CutoutExtent.ThroughNext or CutoutExtent.FromTo => 0,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
-        if (spec.Extent == "from_to")
+        if (spec.Extent == CutoutExtent.FromTo)
         {
             object to = model.ResolvePlaneSource(context, spec.To ?? throw ToolException.InvalidArgument(
                 "normal_cutout with extent from_to requires 'to': the plane or planar face the cut ends at.",
@@ -773,10 +771,10 @@ public static partial class FeatureService
 
         FeaturePropertyConstants[] sides = spec.Direction switch
         {
-            "auto" => TowardsMaterial(model, sketchProfile) is { } side ? [side] : [FeaturePropertyConstants.igRight, FeaturePropertyConstants.igLeft],
-            "normal" => [FeaturePropertyConstants.igRight],
-            "reverse" => [FeaturePropertyConstants.igLeft],
-            _ => throw ToolException.InvalidArgument($"Unknown direction '{spec.Direction}'.", "Use auto, normal or reverse."),
+            FormDirection.Auto => TowardsMaterial(model, sketchProfile) is { } side ? [side] : [FeaturePropertyConstants.igRight, FeaturePropertyConstants.igLeft],
+            FormDirection.Normal => [FeaturePropertyConstants.igRight],
+            FormDirection.Reverse => [FeaturePropertyConstants.igLeft],
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         for (int i = 0; ; i++)
         {
@@ -789,8 +787,8 @@ public static partial class FeatureService
                         Array profiles = new object[] { profile };
                         return spec.Extent switch
                         {
-                            "finite" => target.NormalCutouts.AddFiniteMulti(1, ref profiles, side, depth, how),
-                            "through_next" => target.NormalCutouts.AddThroughNextMulti(1, ref profiles, side, how),
+                            CutoutExtent.Finite => target.NormalCutouts.AddFiniteMulti(1, ref profiles, side, depth, how),
+                            CutoutExtent.ThroughNext => target.NormalCutouts.AddThroughNextMulti(1, ref profiles, side, how),
                             _ => target.NormalCutouts.AddThroughAllMulti(1, ref profiles, side, how),
                         };
                     });
@@ -810,7 +808,7 @@ public static partial class FeatureService
     private static FeaturePropertyConstants? TowardsMaterial(ModelDocument model, Profile profile)
     {
         double[] origin = To3d(profile, 0, 0);
-        double[] normal = Geo.Cross(Minus(To3d(profile, 1, 0), origin), Minus(To3d(profile, 0, 1), origin));
+        double[] normal = Geo.Cross(Geo.Minus(To3d(profile, 1, 0), origin), Geo.Minus(To3d(profile, 0, 1), origin));
         double size = Geo.Length(normal);
         normal = normal.Select(c => c / size).ToArray();
         var body = (Body)model.RequireModel().Body;
@@ -824,8 +822,8 @@ public static partial class FeatureService
             Array root = new double[3];
             Array planeNormal = new double[3];
             plane.GetPlaneData(ref root, ref planeNormal);
-            double cosine = Dot(InspectService.FaceNormal(face), normal);
-            if (Math.Abs(Math.Abs(cosine) - 1) < 1e-6 && Math.Abs(Dot(Minus(Geo.Doubles(root).ToArray(), origin), normal)) < 1e-7)
+            double cosine = Geo.Dot(InspectService.FaceNormal(face), normal);
+            if (Math.Abs(Math.Abs(cosine) - 1) < 1e-6 && Math.Abs(Geo.Dot(Geo.Minus(Geo.Doubles(root).ToArray(), origin), normal)) < 1e-7)
             {
                 return cosine > 0 ? FeaturePropertyConstants.igLeft : FeaturePropertyConstants.igRight;
             }
@@ -839,10 +837,6 @@ public static partial class FeatureService
         profile.Convert2DCoordinate(x, y, out double x3, out double y3, out double z3);
         return [x3, y3, z3];
     }
-
-    private static double[] Minus(double[] a, double[] b) => a.Zip(b, (p, q) => p - q).ToArray();
-
-    private static double Dot(double[] a, double[] b) => a.Zip(b, (p, q) => p * q).Sum();
 
     /// <summary>Ordered sketch-based operation: linked copy of the profile, verification, and hiding of the sketch if it succeeds.</summary>
     private static object Form(SeContext context, ModelDocument model, Profile sketchProfile, string sketch, string what, int expectedSign,
@@ -955,7 +949,7 @@ public static partial class FeatureService
             {
                 foreach (object feature in created)
                 {
-                    TryDelete(feature);
+                    Late.TryDelete(feature);
                 }
             }
 
@@ -982,7 +976,7 @@ public static partial class FeatureService
 
         if (switched && model.ModelingMode != "ordered")
         {
-            warnings.Add("The document could not return to ordered modeling.");
+            warnings.Add("The document could not return to ordered modelling.");
         }
 
         IReadOnlyList<object> all = parts?.Invoke() is { Count: > 0 } split ? split : created;
@@ -1136,17 +1130,17 @@ public static partial class FeatureService
         }
     }
 
-    /// <summary>Bend radius in meters: the given one (mm) or the document's.</summary>
+    /// <summary>Bend radius in metres: the given one (mm) or the document's.</summary>
     private static double BendRadius(SheetMetalDocument sheet, double? radius) => radius is { } r
         ? Units.MmToM(Units.RequirePositive(r, "radius"))
         : GlobalNumber(sheet, SheetMetalGlobalConstants.seSheetMetalGlobalBendRadius);
 
     /// <summary>Moving side: <c>true</c> = to the right of the line (line direction × sketch normal).</summary>
-    private static bool MovingSide(string side) => side switch
+    private static bool MovingSide(MovingSide side) => side switch
     {
-        "right" => true,
-        "left" => false,
-        _ => throw ToolException.InvalidArgument($"Unknown movingSide '{side}'.", "Use right or left."),
+        Arguments.MovingSide.Right => true,
+        Arguments.MovingSide.Left => false,
+        _ => throw new ArgumentOutOfRangeException(nameof(side)),
     };
 
     private static double Required(double? value, string name, string action) =>

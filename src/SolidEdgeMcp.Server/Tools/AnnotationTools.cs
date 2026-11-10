@@ -5,101 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum AnnotationAction
-{
-    List,
-    Text,
-    Requirements,
-    Notes,
-    Balloon,
-    Callout,
-    CenterMark,
-    Centerline,
-    Leader,
-    SurfaceFinish,
-    Datum,
-    FeatureControlFrame,
-    Weld,
-    BoltCircle,
-    DatumTarget,
-    DatumPoint,
-    Corner,
-    GostWeld,
-    Delete,
-}
-
-public enum AnnotationKind
-{
-    Text,
-    Balloon,
-    CenterMark,
-    Centerline,
-    Leader,
-    SurfaceFinish,
-    Datum,
-    FeatureControlFrame,
-    Weld,
-    BoltCircle,
-    DatumTarget,
-    DatumPoint,
-    Corner,
-    GostWeld,
-}
-
-public enum SurfaceFinishType
-{
-    Basic,
-    Machined,
-    NoMaterialRemoval,
-}
-
-public enum GeometricCharacteristic
-{
-    Straightness,
-    Flatness,
-    Circularity,
-    Cylindricity,
-    LineProfile,
-    SurfaceProfile,
-    Angularity,
-    Perpendicularity,
-    Parallelism,
-    Position,
-    Concentricity,
-    Symmetry,
-    CircularRunout,
-    TotalRunout,
-}
-
-public enum WeldType
-{
-    Fillet,
-    Square,
-    VGroove,
-    Bevel,
-    UGroove,
-    JGroove,
-    Spot,
-    Seam,
-    Plug,
-    Backing,
-    Surfacing,
-    FlareV,
-    FlareBevel,
-    Edge,
-}
-
-public enum WeldSide
-{
-    Arrow,
-    Other,
-    Both,
-}
 
 [McpServerToolType]
 public sealed class AnnotationTools(ToolRunner runner)
@@ -151,7 +61,7 @@ public sealed class AnnotationTools(ToolRunner runner)
         string act = Snake(action);
         return action switch
         {
-            AnnotationAction.List => runner.RunAsync(tool, act, c => DrawingService.Annotations(c, document, sheet, kind is { } k ? Snake(k) : null, offset, limit), cancellationToken),
+            AnnotationAction.List => runner.RunAsync(tool, act, c => DrawingService.Annotations(c, document, sheet, kind, offset, limit), cancellationToken),
             AnnotationAction.Text => runner.RunAsync(tool, act, c => DrawingService.AddText(c, document, sheet, text, position, note), cancellationToken),
             AnnotationAction.Requirements => runner.RunAsync(tool, act, c => DrawingService.AddRequirements(c, document, sheet, title, items, position), cancellationToken),
             AnnotationAction.Notes => runner.RunAsync(tool, act, DrawingService.SavedNotes, cancellationToken),
@@ -160,13 +70,13 @@ public sealed class AnnotationTools(ToolRunner runner)
             AnnotationAction.CenterMark => runner.RunAsync(tool, act, c => DrawingService.AddCenterMark(c, view, points), cancellationToken),
             AnnotationAction.Centerline => runner.RunAsync(tool, act, c => DrawingService.AddCenterLine(c, view, points), cancellationToken),
             AnnotationAction.Leader => runner.RunAsync(tool, act, c => DrawingService.AddLeader(c, view, points, position), cancellationToken),
-            AnnotationAction.SurfaceFinish => runner.RunAsync(tool, act, c => DrawingService.AddSurfaceFinish(c, view, points, position, text, Snake(finish)), cancellationToken),
+            AnnotationAction.SurfaceFinish => runner.RunAsync(tool, act, c => DrawingService.AddSurfaceFinish(c, view, points, position, text, finish), cancellationToken),
             AnnotationAction.Corner => runner.RunAsync(tool, act, c => DrawingService.AddCorner(c, view, points, position, text), cancellationToken),
             AnnotationAction.Datum => runner.RunAsync(tool, act, c => DrawingService.AddDatum(c, view, points, position, text), cancellationToken),
             AnnotationAction.FeatureControlFrame => runner.RunAsync(tool, act, c => DrawingService.AddFeatureControlFrame(c, document, sheet, view, points, position,
-                characteristic is { } g ? Snake(g) : null, tolerance, datums, text, rows, composite), cancellationToken),
+                characteristic, tolerance, datums, text, rows, composite), cancellationToken),
             AnnotationAction.GostWeld => runner.RunAsync(tool, act, c => DrawingService.AddGostWeld(c, view, points, position, text, allAround, field), cancellationToken),
-            AnnotationAction.Weld => runner.RunAsync(tool, act, c => DrawingService.AddWeld(c, view, points, position, Snake(weld), Snake(weldSide), text, allAround, field), cancellationToken),
+            AnnotationAction.Weld => runner.RunAsync(tool, act, c => DrawingService.AddWeld(c, view, points, position, weld, weldSide, text, allAround, field), cancellationToken),
             AnnotationAction.BoltCircle => runner.RunAsync(tool, act, c => DrawingService.AddBoltCircle(c, view, points), cancellationToken),
             AnnotationAction.DatumTarget => runner.RunAsync(tool, act, c => DrawingService.AddDatumTarget(c, view, points, position, text), cancellationToken),
             AnnotationAction.DatumPoint => runner.RunAsync(tool, act, c => DrawingService.AddDatumPoint(c, view, points), cancellationToken),
