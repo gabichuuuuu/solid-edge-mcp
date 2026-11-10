@@ -9,7 +9,7 @@
 Claude Desktop, Codex or any other MCP client.**
 
 [![Core](https://github.com/gabichuuuuu/solid-edge-mcp/actions/workflows/core.yml/badge.svg)](https://github.com/gabichuuuuu/solid-edge-mcp/actions/workflows/core.yml)
-![Version 1.0.4](https://img.shields.io/badge/version-1.0.4-2F6FEB)
+![Version 1.0.5](https://img.shields.io/badge/version-1.0.5-2F6FEB)
 ![Status: stable](https://img.shields.io/badge/status-stable-2EA043)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](#license)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
@@ -33,7 +33,7 @@ changes. Nothing in it is tied to particular files or workflows.
 - 136 acceptance scripts run against real Solid Edge and compare the results with values computed in advance.
 
 > [!NOTE]
-> Stable version (1.0.4), tested with Solid Edge **2026 Foundation** and **Community Edition 2026** on Windows 11 x64
+> Stable version (1.0.5), tested with Solid Edge **2026 Foundation** and **Community Edition 2026** on Windows 11 x64
 > ([validation](docs/VALIDATION.md)). Versions follow [Semantic Versioning](https://semver.org): tool names and parameters
 > are stable, and a change that breaks them waits for a new major version and is listed in the changelog. Not every Solid
 > Edge function can be used through its API: [docs/COVERAGE.md](docs/COVERAGE.md) lists each one with its route, or the

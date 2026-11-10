@@ -6,6 +6,10 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-11-11
+
+Fixes found in a review of the code, and a clean-up of how it is written. No tool or parameter changes.
+
 ### Fixed
 
 - `se_recognize`: when Solid Edge recognises nothing, the document goes back to ordered modelling, as it already did
