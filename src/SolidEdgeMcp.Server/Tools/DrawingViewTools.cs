@@ -6,46 +6,11 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum DrawingViewAction
-{
-    Display,
-    SetDisplay,
-    Breaks,
-    AddBreak,
-    SetBroken,
-    RemoveBreak,
-    BrokenOut,
-    To2d,
-    Alternates,
-    AddAlternate,
-    RemoveAlternate,
-    Centerlines,
-    RemoveCenterlines,
-    Activation,
-    HideEdges,
-    ShowEdges,
-    ClearEdges,
-}
-
-public enum BreakDirection
-{
-    Vertical,
-    Horizontal,
-}
-
-public enum BreakShape
-{
-    Straight,
-    Cylindrical,
-    ShortBreak,
-    LongBreak,
-    ShortCurvedBreak,
-}
 
 /// <summary>Display of a drawing view (its Properties dialog), broken views and conversion to 2D.</summary>
 [McpServerToolType]
@@ -101,8 +66,8 @@ public sealed class DrawingViewTools(ToolRunner runner)
             DrawingViewAction.Breaks => runner.RunAsync(tool, act, c => DrawingService.Breaks(c, view), cancellationToken),
             DrawingViewAction.BrokenOut => runner.RunAsync(tool, act, c => DrawingService.AddBrokenOut(c, view, points, depth), cancellationToken),
             DrawingViewAction.AddBreak => runner.RunAsync(tool, act, c => DrawingService.AddBreak(c, view,
-                Snake(ToolRunner.RequireValue(direction, "direction", act)), ToolRunner.RequireValue(from, "from", act),
-                ToolRunner.RequireValue(to, "to", act), shape is { } s ? Snake(s) : null, gap), cancellationToken),
+                ToolRunner.RequireValue(direction, "direction", act), ToolRunner.RequireValue(from, "from", act),
+                ToolRunner.RequireValue(to, "to", act), shape, gap), cancellationToken),
             DrawingViewAction.SetBroken => runner.RunAsync(tool, act, c => DrawingService.SetBroken(c, view,
                 ToolRunner.RequireValue(broken, "broken", act)), cancellationToken),
             DrawingViewAction.RemoveBreak => runner.RunAsync(tool, act, c => DrawingService.RemoveBreak(c, view,

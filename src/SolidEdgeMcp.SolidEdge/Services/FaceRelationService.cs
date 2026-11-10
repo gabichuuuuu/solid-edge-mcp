@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -14,8 +15,8 @@ using Plane = SolidEdgeGeometry.Plane;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_face_relation does: the action and its inputs. Lengths in mm.</summary>
-public sealed record FaceRelationSpec(string Action, string[]? Faces = null, string? Target = null, double? Distance = null,
-    string? Relation = null, string[]? Rules = null, bool Maintain = true, IReadOnlyDictionary<string, bool>? Values = null);
+public sealed record FaceRelationSpec(FaceRelationAction Action, string[]? Faces = null, string? Target = null, double? Distance = null,
+    string? Relation = null, LiveRule[]? Rules = null, bool Maintain = true, IReadOnlyDictionary<string, bool>? Values = null);
 
 /// <summary>
 /// 3D relations between faces of a part (the Relate commands of synchronous modelling) and the live rules.
@@ -42,9 +43,6 @@ public sealed record FaceRelationSpec(string Action, string[]? Faces = null, str
 /// </summary>
 public static class FaceRelationService
 {
-    public static readonly IReadOnlyList<string> Actions =
-        ["list", "coplanar", "parallel", "perpendicular", "tangent", "concentric", "offset", "fix", "edit", "delete", "live_rules", "set_live_rules", "restore_live_rules"];
-
     /// <summary>The live rules in the order of LiveRulesConstants (1 = concentric … 18 = offset).</summary>
     public static readonly IReadOnlyList<string> LiveRules =
         ["concentric", "coplanar", "tangent_edge", "tangent_touching", "parallel", "perpendicular", "symmetric", "symmetric_xy", "symmetric_yz",
@@ -64,22 +62,22 @@ public static class FaceRelationService
 
     public static object Run(SeContext context, string? documentHandle, FaceRelationSpec spec) => spec.Action switch
     {
-        "list" => List(context, documentHandle),
-        "coplanar" => Offset(context, documentHandle, spec, spec.Distance is null or 0
+        FaceRelationAction.List => List(context, documentHandle),
+        FaceRelationAction.Coplanar => Offset(context, documentHandle, spec, spec.Distance is null or 0
             ? 0
             : throw ToolException.InvalidArgument("coplanar has no distance.", "Use offset to keep the faces at a distance.")),
-        "offset" => Offset(context, documentHandle, spec, RequireDistance(spec.Distance, "offset")),
-        "parallel" => Relate(context, documentHandle, spec, ConstraintTypeConstants.igRelationParallel),
-        "perpendicular" => Relate(context, documentHandle, spec, ConstraintTypeConstants.igRelationPerpendicular),
-        "tangent" => Relate(context, documentHandle, spec, ConstraintTypeConstants.igRelationTangent),
-        "concentric" => Relate(context, documentHandle, spec, ConstraintTypeConstants.igRelationConcentric),
-        "fix" => Fix(context, documentHandle, spec),
-        "edit" => Edit(context, documentHandle, spec),
-        "delete" => Delete(context, documentHandle, spec),
-        "live_rules" => ReadLiveRules(context, documentHandle),
-        "set_live_rules" => SetLiveRules(context, documentHandle, spec),
-        "restore_live_rules" => RestoreLiveRules(context, documentHandle),
-        _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", Actions)}."),
+        FaceRelationAction.Offset => Offset(context, documentHandle, spec, RequireDistance(spec.Distance, "offset")),
+        FaceRelationAction.Parallel => Relate(context, documentHandle, spec, ConstraintTypeConstants.igRelationParallel),
+        FaceRelationAction.Perpendicular => Relate(context, documentHandle, spec, ConstraintTypeConstants.igRelationPerpendicular),
+        FaceRelationAction.Tangent => Relate(context, documentHandle, spec, ConstraintTypeConstants.igRelationTangent),
+        FaceRelationAction.Concentric => Relate(context, documentHandle, spec, ConstraintTypeConstants.igRelationConcentric),
+        FaceRelationAction.Fix => Fix(context, documentHandle, spec),
+        FaceRelationAction.Edit => Edit(context, documentHandle, spec),
+        FaceRelationAction.Delete => Delete(context, documentHandle, spec),
+        FaceRelationAction.LiveRules => ReadLiveRules(context, documentHandle),
+        FaceRelationAction.SetLiveRules => SetLiveRules(context, documentHandle, spec),
+        FaceRelationAction.RestoreLiveRules => RestoreLiveRules(context, documentHandle),
+        _ => throw new ArgumentOutOfRangeException(nameof(spec)),
     };
 
     private static object List(SeContext context, string? documentHandle)
@@ -98,7 +96,7 @@ public static class FaceRelationService
     /// <summary>Offset (and coplanar, an offset of 0): the faces move along their normal, on the side of the target they are on.</summary>
     private static object Offset(SeContext context, string? documentHandle, FaceRelationSpec spec, double distance)
     {
-        string action = spec.Action;
+        string action = ArgumentNames.Snake(spec.Action);
         (ModelDocument model, PartDocument part, Face[] faces, Face target) = Operands(context, documentHandle, spec, action);
         Shape goal = Require(ShapeOf(target), "plane", spec.Target!, action);
         for (int i = 0; i < faces.Length; i++)
@@ -126,7 +124,7 @@ public static class FaceRelationService
     /// <summary>Parallel, perpendicular, tangent and concentric: Add with every face that can move (igSeedAll) while the target is fixed.</summary>
     private static object Relate(SeContext context, string? documentHandle, FaceRelationSpec spec, ConstraintTypeConstants type)
     {
-        string action = spec.Action;
+        string action = ArgumentNames.Snake(spec.Action);
         (ModelDocument model, PartDocument part, Face[] faces, Face target) = Operands(context, documentHandle, spec, action);
         Shape goal = ShapeOf(target);
         for (int i = 0; i < faces.Length; i++)
@@ -201,7 +199,7 @@ public static class FaceRelationService
         }
         finally
         {
-            Restore(model, switched);
+            model.RestoreOrdered(switched);
         }
 
         double after = model.Volume();
@@ -257,7 +255,7 @@ public static class FaceRelationService
         }
         finally
         {
-            Restore(model, switched);
+            model.RestoreOrdered(switched);
         }
 
         return new
@@ -315,7 +313,7 @@ public static class FaceRelationService
         }
         finally
         {
-            Restore(model, switched);
+            model.RestoreOrdered(switched);
         }
 
         double after = model.Volume();
@@ -348,7 +346,7 @@ public static class FaceRelationService
         }
         finally
         {
-            Restore(model, switched);
+            model.RestoreOrdered(switched);
         }
 
         return constraints.Count == before - 1
@@ -367,7 +365,7 @@ public static class FaceRelationService
     {
         (int Index, bool Maintain)[] wanted = (spec.Rules, spec.Values) switch
         {
-            ({ Length: > 0 }, null or { Count: 0 }) => spec.Rules.Select(r => (RuleIndex(r), spec.Maintain)).ToArray(),
+            ({ Length: > 0 }, null or { Count: 0 }) => spec.Rules.Select(r => (RuleIndex(ArgumentNames.Snake(r)), spec.Maintain)).ToArray(),
             (null or { Length: 0 }, { Count: > 0 }) => spec.Values.Select(v => (RuleIndex(v.Key), v.Value)).ToArray(),
             ({ Length: > 0 }, { Count: > 0 }) => throw ToolException.InvalidArgument("Pass either 'rules' with 'maintain' or 'values', not both."),
             _ => throw ToolException.InvalidArgument("set_live_rules needs 'rules' (with 'maintain') or 'values' (rule: true|false).",
@@ -430,7 +428,7 @@ public static class FaceRelationService
     private static Dictionary<string, bool> ReadRules(ModelDocument model)
     {
         var rules = new Dictionary<string, bool>();
-        for (int i = 1; i <= LiveRules.Count; i++)
+        for (int i = 1, count = LiveRules.Count; i <= count; i++)
         {
             bool maintain;
             switch (model.Document)
@@ -624,7 +622,7 @@ public static class FaceRelationService
         {
             relation?.Delete();
         }
-        catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException or InvalidComObjectException)
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Already gone.
         }
@@ -641,28 +639,11 @@ public static class FaceRelationService
 
     private static ToolException Failed(string action, double volumeBefore, double after, string problem, Exception? inner, string? next = null)
     {
-        string state = Math.Abs(after - volumeBefore) > 1e-12
+        string state = Math.Abs(after - volumeBefore) > Geo.VolumeDrift
             ? $" Solid Edge changed the model before failing (volume {Geo.Mm3(volumeBefore)} -> {Geo.Mm3(after)} mm³) and it cannot be undone after a relation: check it with se_geometry or se_view."
             : " The model did not change.";
         return new ToolException("feature_failed", $"The {action} relation was not made: {problem}.{state}",
             next ?? "Faces that would merge with others or swallow a feature cannot keep a relation. " + SynchronousHint, inner);
-    }
-
-    private static void Restore(ModelDocument model, bool switched)
-    {
-        if (!switched)
-        {
-            return;
-        }
-
-        try
-        {
-            model.EnsureOrdered();
-        }
-        catch (COMException ex) when (!ComErrors.IsGone(ex))
-        {
-            // The document stays in synchronous modelling; the next ordered operation switches it.
-        }
     }
 
     /// <summary>What finds a face again after a solve: its surface and the middle of its range.</summary>
@@ -690,12 +671,12 @@ public static class FaceRelationService
             foreach (Face candidate in Late.Items(body.Faces[SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryAll]).OfType<Face>())
             {
                 Shape shape = ShapeOf(candidate);
-                if (shape.Kind != mark.Shape.Kind || Dot(shape.Direction, mark.Shape.Direction) < 1 - DotTolerance || Moved(mark.Shape, shape))
+                if (shape.Kind != mark.Shape.Kind || Geo.Dot(shape.Direction, mark.Shape.Direction) < 1 - DotTolerance || Moved(mark.Shape, shape))
                 {
                     continue;
                 }
 
-                double distance = Length(Minus(Middle(candidate), mark.Middle));
+                double distance = Geo.Length(Geo.Minus(Middle(candidate), mark.Middle));
                 if (distance < nearest)
                 {
                     (best, nearest) = (candidate, distance);
@@ -717,13 +698,13 @@ public static class FaceRelationService
         {
             case Plane plane:
                 plane.GetPlaneData(ref point, ref direction);
-                return new Shape("plane", Vector(point), Unit(Vector(direction)), 0);
+                return new Shape("plane", Vector(point), Geo.Unit(Vector(direction)), 0);
             case Cylinder cylinder:
                 cylinder.GetCylinderData(ref point, ref direction, out double radius);
-                return new Shape("cylinder", Vector(point), Unit(Vector(direction)), radius);
+                return new Shape("cylinder", Vector(point), Geo.Unit(Vector(direction)), radius);
             case Cone cone:
                 cone.GetConeData(ref point, ref direction, out double coneRadius, out _, out _);
-                return new Shape("cone", Vector(point), Unit(Vector(direction)), coneRadius);
+                return new Shape("cone", Vector(point), Geo.Unit(Vector(direction)), coneRadius);
             default:
                 return new Shape("other", [0, 0, 0], [0, 0, 0], 0);
         }
@@ -753,7 +734,7 @@ public static class FaceRelationService
     /// <summary>Why a face does not meet the relation with the target, or null when it does.</summary>
     private static string? Unmet(ConstraintTypeConstants type, Shape face, Shape target)
     {
-        double dot = Math.Abs(Dot(face.Direction, target.Direction));
+        double dot = Math.Abs(Geo.Dot(face.Direction, target.Direction));
         bool crossed = face.Kind == "plane" != (target.Kind == "plane");
         switch (type)
         {
@@ -774,8 +755,8 @@ public static class FaceRelationService
                 }
 
                 (Shape round, Shape flat) = face.Kind == "cylinder" ? (face, target) : (target, face);
-                double gap = Math.Abs(Dot(flat.Direction, Minus(round.Point, flat.Point)));
-                return Math.Abs(Dot(round.Direction, flat.Direction)) <= DotTolerance && Math.Abs(gap - round.Radius) <= Tolerance
+                double gap = Math.Abs(Geo.Dot(flat.Direction, Geo.Minus(round.Point, flat.Point)));
+                return Math.Abs(Geo.Dot(round.Direction, flat.Direction)) <= DotTolerance && Math.Abs(gap - round.Radius) <= Tolerance
                     ? null
                     : $"the axis is {Geo.Mm(gap)} mm from the plane, the radius {Geo.Mm(round.Radius)}";
             default:
@@ -796,27 +777,13 @@ public static class FaceRelationService
             : LineDistance(before.Point, after) > Tolerance || Math.Abs(before.Radius - after.Radius) > Tolerance;
     }
 
-    private static double PlaneDistance(Shape plane, Shape other) => Math.Abs(Dot(plane.Direction, Minus(other.Point, plane.Point)));
+    private static double PlaneDistance(Shape plane, Shape other) => Math.Abs(Geo.Dot(plane.Direction, Geo.Minus(other.Point, plane.Point)));
 
-    private static double LineDistance(double[] point, Shape axis) => Length(Cross(Minus(point, axis.Point), axis.Direction));
+    private static double LineDistance(double[] point, Shape axis) => Geo.Length(Geo.Cross(Geo.Minus(point, axis.Point), axis.Direction));
 
-    private static double Angle(Shape a, Shape b) => Units.RadToDeg(Math.Acos(Math.Clamp(Math.Abs(Dot(a.Direction, b.Direction)), 0, 1)));
+    private static double Angle(Shape a, Shape b) => Units.RadToDeg(Math.Acos(Math.Clamp(Math.Abs(Geo.Dot(a.Direction, b.Direction)), 0, 1)));
 
-    private static bool Parallel(double[] a, double[] b) => Math.Abs(Dot(a, b)) >= 1 - DotTolerance;
+    private static bool Parallel(double[] a, double[] b) => Math.Abs(Geo.Dot(a, b)) >= 1 - DotTolerance;
 
     private static double[] Vector(Array values) => [.. Geo.Doubles(values)];
-
-    private static double[] Unit(double[] v)
-    {
-        double length = Length(v);
-        return length > 0 ? v.Select(c => c / length).ToArray() : v;
-    }
-
-    private static double Dot(double[] a, double[] b) => (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
-
-    private static double[] Minus(double[] a, double[] b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-
-    private static double[] Cross(double[] a, double[] b) => [(a[1] * b[2]) - (a[2] * b[1]), (a[2] * b[0]) - (a[0] * b[2]), (a[0] * b[1]) - (a[1] * b[0])];
-
-    private static double Length(double[] v) => Math.Sqrt(Dot(v, v));
 }

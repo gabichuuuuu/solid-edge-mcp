@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
 using Edge = SolidEdgeGeometry.Edge;
@@ -188,9 +189,9 @@ public static partial class FeatureService
         object result = Verify(context, model, feature, before, Math.Sign(product - 1), switched);
         double expected = before + ((product - 1) * bodyBefore);
         double after = model.Volume();
-        if (Math.Abs(after - expected) > Math.Max(VolumeTolerance, expected * 1e-6))
+        if (Math.Abs(after - expected) > Math.Max(Geo.VolumeTolerance, expected * 1e-6))
         {
-            TryDelete(feature);
+            Late.TryDelete(feature);
             throw new ToolException("feature_failed",
                 $"The scaled volume is {Geo.Mm3(after)} mm³ instead of {Geo.Mm3(expected)} mm³ (the factors times the volume before); the scale was deleted.");
         }

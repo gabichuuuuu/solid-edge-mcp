@@ -33,9 +33,10 @@ public sealed class ComErrorsTests
     [Fact]
     public void Translate_keeps_COM_errors()
     {
-        Exception translated = ComErrors.Translate(new COMException("Unspecified error", unchecked((int)0x80004005)), "se_com_invoke.AddTube");
+        Exception translated = ComErrors.Translate(new COMException("Unspecified error", ComErrors.EFail), "se_com_invoke.AddTube");
 
-        Assert.IsType<ToolException>(translated);
+        ToolException error = Assert.IsType<ToolException>(translated);
+        Assert.Contains("0x80004005", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

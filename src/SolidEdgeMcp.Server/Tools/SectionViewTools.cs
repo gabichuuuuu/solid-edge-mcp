@@ -5,43 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SectionViewAction
-{
-    List,
-    Add,
-    Show,
-    Hide,
-    Edit,
-    Delete,
-}
-
-public enum SectionKeep
-{
-    Inside,
-    Outside,
-    Left,
-    Right,
-}
-
-public enum SectionDirection
-{
-    Both,
-    Front,
-    Back,
-}
-
-public enum SectionDisplay
-{
-    OnlyCutFaces,
-    CutFacesAndCutBodies,
-    CutFacesWithOriginalBodies,
-    OnlyOriginalBodies,
-}
 
 /// <summary>3D section views of parts, sheet metal and assemblies, as the Section command of the View tab makes them.</summary>
 [McpServerToolType]
@@ -78,12 +46,12 @@ public sealed class SectionViewTools(ToolRunner runner)
         return action switch
         {
             SectionViewAction.List => runner.RunAsync(tool, act, c => SectionViewService.List(c, document), cancellationToken),
-            SectionViewAction.Add => runner.RunAsync(tool, act, c => SectionViewService.Add(c, document, sketch, Snake(keep), depth, Snake(direction),
-                caption, cutHardware ?? false, display is { } look ? Snake(look) : null, opacity, showPlane, plane), cancellationToken),
+            SectionViewAction.Add => runner.RunAsync(tool, act, c => SectionViewService.Add(c, document, sketch, keep, depth, direction,
+                caption, cutHardware ?? false, display, opacity, showPlane, plane), cancellationToken),
             SectionViewAction.Show => runner.RunAsync(tool, act, c => SectionViewService.Show(c, document, section, true), cancellationToken),
             SectionViewAction.Hide => runner.RunAsync(tool, act, c => SectionViewService.Show(c, document, section, false), cancellationToken),
             SectionViewAction.Edit => runner.RunAsync(tool, act, c => SectionViewService.Edit(c, document, section, caption,
-                display is { } d ? Snake(d) : null, opacity, showPlane, cutHardware), cancellationToken),
+                display, opacity, showPlane, cutHardware), cancellationToken),
             SectionViewAction.Delete => runner.RunAsync(tool, act, c => SectionViewService.Delete(c, document, section), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };

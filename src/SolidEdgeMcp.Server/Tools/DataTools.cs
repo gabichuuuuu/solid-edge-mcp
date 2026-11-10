@@ -6,77 +6,10 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum VariableAction
-{
-    List,
-    Get,
-    Set,
-    Add,
-    Delete,
-    Rename,
-    Comment,
-    Expose,
-    Limits,
-    GoalSeek,
-    Adjustable,
-}
-
-public enum VariableKind
-{
-    All,
-    User,
-    Dimension,
-    Physical,
-}
-
-public enum VariableUnits
-{
-    Distance,
-    Angle,
-    Area,
-    Volume,
-    Mass,
-    Scalar,
-}
-
-public enum PropertyAction
-{
-    List,
-    Set,
-    Delete,
-}
-
-public enum PartFamilyAction
-{
-    List,
-    AddVariables,
-    RemoveVariable,
-    AddMember,
-    EditMember,
-    Apply,
-    Populate,
-    CopyMember,
-    DeleteMember,
-}
-
-public enum MaterialAction
-{
-    Current,
-    Apply,
-    Libraries,
-    List,
-    Info,
-}
-
-public enum MaterialFolder
-{
-    Options,
-    Installation,
-}
 
 /// <summary>Document data: variable table, properties and material.</summary>
 [McpServerToolType]
@@ -125,13 +58,13 @@ public sealed class DataTools(ToolRunner runner)
         return action switch
         {
             VariableAction.List => runner.RunAsync(tool, actionName, c => VariableService.List(c, document, filter,
-                FeatureTools.Snake(kind), offset, limit), cancellationToken),
+                kind, offset, limit), cancellationToken),
             VariableAction.Get => runner.RunAsync(tool, actionName, c => VariableService.Get(c, document,
                 ToolRunner.Require(name, "name", "get")), cancellationToken),
             VariableAction.Set => runner.RunAsync(tool, actionName, c => VariableService.Set(c, document,
                 ToolRunner.Require(name, "name", "set"), value, formula), cancellationToken),
             VariableAction.Add => runner.RunAsync(tool, actionName, c => VariableService.Add(c, document,
-                ToolRunner.Require(name, "name", "add"), value, formula, FeatureTools.Snake(units)), cancellationToken),
+                ToolRunner.Require(name, "name", "add"), value, formula, units), cancellationToken),
             VariableAction.Delete => runner.RunAsync(tool, actionName, c => VariableService.Delete(c, document,
                 ToolRunner.Require(name, "name", "delete")), cancellationToken),
             VariableAction.Rename => runner.RunAsync(tool, actionName, c => VariableService.Rename(c, document,
@@ -261,16 +194,15 @@ public sealed class DataTools(ToolRunner runner)
     {
         const string tool = "se_material";
         string actionName = FeatureTools.Snake(action);
-        string? from = folder is { } f ? FeatureTools.Snake(f) : null;
         return action switch
         {
             MaterialAction.Current => runner.RunAsync(tool, actionName, c => MaterialService.Current(c, document), cancellationToken),
             MaterialAction.Apply => runner.RunAsync(tool, actionName, c => MaterialService.Apply(c, document,
-                ToolRunner.Require(name, "name", actionName), library, from), cancellationToken),
-            MaterialAction.Libraries => runner.RunAsync(tool, actionName, c => MaterialService.Libraries(c, from), cancellationToken),
-            MaterialAction.List => runner.RunAsync(tool, actionName, c => MaterialService.List(c, library, filter, from), cancellationToken),
+                ToolRunner.Require(name, "name", actionName), library, folder), cancellationToken),
+            MaterialAction.Libraries => runner.RunAsync(tool, actionName, c => MaterialService.Libraries(c, folder), cancellationToken),
+            MaterialAction.List => runner.RunAsync(tool, actionName, c => MaterialService.List(c, library, filter, folder), cancellationToken),
             MaterialAction.Info => runner.RunAsync(tool, actionName, c => MaterialService.Info(c,
-                ToolRunner.Require(name, "name", actionName), library, from), cancellationToken),
+                ToolRunner.Require(name, "name", actionName), library, folder), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
     }

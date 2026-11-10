@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="SolidEdgeMcp.Integration.Tests" />
+    <InternalsVisibleTo Include="SolidEdgeMcp.Server.Tests" />
     <!-- InteropBootstrap finds Edge.exe with SolidEdgeLauncher before the interop can be loaded. -->
     <InternalsVisibleTo Include="SolidEdgeMcp.Server" />
   </ItemGroup>

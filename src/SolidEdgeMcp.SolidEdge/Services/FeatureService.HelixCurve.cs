@@ -4,6 +4,7 @@
 using System.Runtime.InteropServices;
 using SolidEdgeGeometry;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -20,7 +21,7 @@ public static partial class FeatureService
     /// 40 mm: 316.696 mm = 5 x sqrt((20π)² + 8²).
     /// </summary>
     public static object HelixCurve(SeContext context, string? documentHandle, string[]? faces, string[]? edges, string? plane, double? diameter,
-        double? pitch, double? turns, double? height, string hand, bool reverse)
+        double? pitch, double? turns, double? height, HelixHand hand, bool reverse)
     {
         bool byFace = faces is { Length: > 0 };
         if (byFace == edges is { Length: > 0 } || (byFace ? faces! : edges!).Length != 1)
@@ -70,9 +71,9 @@ public static partial class FeatureService
         (double h, double p, double n) = HelixSize(pitch, turns, height);
         bool right = hand switch
         {
-            "right" => true,
-            "left" => false,
-            _ => throw ToolException.InvalidArgument($"Unknown hand '{hand}'.", "Use right or left."),
+            HelixHand.Right => true,
+            HelixHand.Left => false,
+            _ => throw new ArgumentOutOfRangeException(nameof(hand)),
         };
 
         object basePlane = model.ResolvePlaneSource(context, start, "plane");
@@ -121,7 +122,7 @@ public static partial class FeatureService
                 double[] last = ReferenceEquals(first, ends[0]) ? ends[1] : ends[0];
                 if (Math.Sign(Dot3(Sub3(last, first), direction)) != wanted)
                 {
-                    TryDeleteCurve(curve);
+                    Late.TryDelete(curve);
                     problem = "it climbed the other way";
                     continue;
                 }

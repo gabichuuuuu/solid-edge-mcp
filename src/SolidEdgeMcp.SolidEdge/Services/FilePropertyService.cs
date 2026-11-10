@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using Path = System.IO.Path;
@@ -133,13 +134,19 @@ public static class FilePropertyService
     }
 
     /// <summary>The document status of closed files (Status of the ExtendedSummaryInformation set), each read back.</summary>
-    public static object SetStatus(SeContext context, string[]? files, string status)
+    public static object SetStatus(SeContext context, string[]? files, DocumentStatus status)
     {
-        int code = Array.IndexOf(StatusNames, status);
-        if (code < 0)
+        int code = status switch
         {
-            throw ToolException.InvalidArgument($"Unknown status '{status}'.", $"Use one of: {string.Join(", ", StatusNames)}.");
-        }
+            DocumentStatus.Available => 0,
+            DocumentStatus.InWork => 1,
+            DocumentStatus.InReview => 2,
+            DocumentStatus.Released => 3,
+            DocumentStatus.Baselined => 4,
+            DocumentStatus.Obsolete => 5,
+            _ => throw new ArgumentOutOfRangeException(nameof(status)),
+        };
+        string name = ArgumentNames.Snake(status);
 
         if (files is not { Length: > 0 })
         {
@@ -155,7 +162,7 @@ public static class FilePropertyService
             // could be written backwards, so the same rule is kept here.
             if ((was is 3 or 4 && code < 3) || (was == 5 && code != 5))
             {
-                throw new ToolException("status_refused", $"'{Path.GetFileName(file)}' is {StatusNames.ElementAtOrDefault(was)}: Solid Edge's workflow does not take it back to {status}.",
+                throw new ToolException("status_refused", $"'{Path.GetFileName(file)}' is {StatusNames.ElementAtOrDefault(was)}: Solid Edge's workflow does not take it back to {name}.",
                     "Revise it (se_design_manager revise) to get a new revision to work on.");
             }
         }
@@ -181,16 +188,16 @@ public static class FilePropertyService
             int after = ReadStatus(file);
             if (after != code)
             {
-                throw new ToolException("write_failed", $"The status of '{file}' reads {StatusNames.ElementAtOrDefault(after) ?? after.ToString(CultureInfo.InvariantCulture)} after writing {status}.",
+                throw new ToolException("write_failed", $"The status of '{file}' reads {StatusNames.ElementAtOrDefault(after) ?? after.ToString(CultureInfo.InvariantCulture)} after writing {name}.",
                     "Check that the file is not read-only.");
             }
 
-            changed.Add(new { file, from = before, to = status });
+            changed.Add(new { file, from = before, to = name });
         }
 
         return new
         {
-            status,
+            status = name,
             count = changed.Count,
             files = changed,
             note = code is 3 or 4 or 5 ? "Solid Edge opens released, baselined and obsolete documents read-only." : null,

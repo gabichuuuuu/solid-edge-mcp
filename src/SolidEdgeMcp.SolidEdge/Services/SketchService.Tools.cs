@@ -3,6 +3,7 @@
 
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -181,7 +182,7 @@ public static partial class SketchService
     /// saved part); the same call again adds the section to every sketch on those planes, without new sketches. So when a
     /// sketch is empty the call is repeated once and the copies it adds to the sketches already filled are deleted.
     /// </summary>
-    public static object Sections(SeContext context, string? documentHandle, string? plane, string[]? bodies, int? count, double? spacing, string side)
+    public static object Sections(SeContext context, string? documentHandle, string? plane, string[]? bodies, int? count, double? spacing, SectionSide side)
     {
         ModelDocument model = ModelDocument.Get(context, documentHandle);
         if (model.Document is not PartDocument and not SheetMetalDocument)
@@ -208,9 +209,10 @@ public static partial class SketchService
 
         SectionSketchesPlanesDirection direction = side switch
         {
-            "both" => SectionSketchesPlanesDirection.seSectionSketchesPlaneBothSide,
-            "reverse" => SectionSketchesPlanesDirection.seSectionSketchesPlaneReverseNormalSide,
-            _ => SectionSketchesPlanesDirection.seSectionSketchesPlaneNormalSide,
+            SectionSide.Both => SectionSketchesPlanesDirection.seSectionSketchesPlaneBothSide,
+            SectionSide.Reverse => SectionSketchesPlanesDirection.seSectionSketchesPlaneReverseNormalSide,
+            SectionSide.Normal => SectionSketchesPlanesDirection.seSectionSketchesPlaneNormalSide,
+            _ => throw new ArgumentOutOfRangeException(nameof(side)),
         };
         Sketchs sketches = model.Sketches;
         int before = sketches.Count;

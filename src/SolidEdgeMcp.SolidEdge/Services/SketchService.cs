@@ -44,7 +44,7 @@ public static partial class SketchService
             sketch,
             plane = context.Register(refPlane, "refplane", model.Document),
             frame = Frame(profile),
-            note = switched ? "The document was switched to ordered modeling." : null,
+            note = switched ? "The document was switched to ordered modelling." : null,
         };
     }
 
@@ -251,7 +251,7 @@ public static partial class SketchService
             Math.Abs(x - a.X) + Math.Abs(y - a.Y) < tolerance || Math.Abs(x - b.X) + Math.Abs(y - b.Y) < tolerance;
 
         Lines2d lines = profile.Lines2d;
-        for (int i = 1; i <= lines.Count; i++)
+        for (int i = 1, count = lines.Count; i <= count; i++)
         {
             ((double X, double Y) s, (double X, double Y) e) = Ends(lines.Item(i));
             bool same = (Touches(s.X, s.Y) && Touches(e.X, e.Y)) && Math.Abs(s.X - e.X) + Math.Abs(s.Y - e.Y) > tolerance;
@@ -262,7 +262,7 @@ public static partial class SketchService
         }
 
         Arcs2d arcs = profile.Arcs2d;
-        for (int i = 1; i <= arcs.Count; i++)
+        for (int i = 1, count = arcs.Count; i <= count; i++)
         {
             Arc2d arc = arcs.Item(i);
             arc.GetStartPoint(out double x1, out double y1);

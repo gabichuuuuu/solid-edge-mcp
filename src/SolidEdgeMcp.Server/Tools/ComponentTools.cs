@@ -6,77 +6,11 @@ using System.Text.Json.Serialization;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum ComponentGroupAction
-{
-    List,
-    Create,
-    Add,
-    Remove,
-    Rename,
-    Show,
-    Hide,
-    Ungroup,
-    Pack,
-    Unpack,
-    Delete,
-}
-
-public enum ComponentQueryAction
-{
-    Find,
-    Zone,
-    Run,
-    List,
-    Rename,
-    Delete,
-}
-
-public enum ComponentProperty
-{
-    Name,
-    Title,
-    Subject,
-    Author,
-    Manager,
-    Company,
-    Category,
-    Keywords,
-    Comments,
-    DocumentNumber,
-    Revision,
-    Project,
-    Material,
-    Custom,
-    Status,
-}
-
-public enum ComponentCondition
-{
-    Contains,
-    Is,
-    IsNot,
-}
-
-public enum ComponentScope
-{
-    All,
-    Shown,
-    Hidden,
-    Selected,
-}
-
-public enum ComponentDisplay
-{
-    Select,
-    ShowOnly,
-    Hide,
-    Show,
-}
 
 /// <summary>One criterion of a component query.</summary>
 public sealed record ComponentCriterionArgument(
@@ -164,14 +98,13 @@ public sealed class ComponentTools(ToolRunner runner)
     {
         const string tool = "se_component_query";
         string act = Snake(action);
-        string shown = Snake(display);
         return action switch
         {
             ComponentQueryAction.Find => runner.RunAsync(tool, act, c => ComponentQueryService.Find(c, document,
-                criteria?.Select(k => new ComponentCriterion(Snake(k.Property), Snake(k.Condition), k.Value, k.Custom)).ToArray(),
-                Snake(scope), subassemblies, name, shown, limit), cancellationToken),
-            ComponentQueryAction.Zone => runner.RunAsync(tool, act, c => ComponentQueryService.Zone(c, document, box, overlap, name, shown, limit), cancellationToken),
-            ComponentQueryAction.Run => runner.RunAsync(tool, act, c => ComponentQueryService.Run(c, document, name, shown, limit), cancellationToken),
+                criteria?.Select(k => new ComponentCriterion(k.Property, k.Condition, k.Value, k.Custom)).ToArray(),
+                scope, subassemblies, name, display, limit), cancellationToken),
+            ComponentQueryAction.Zone => runner.RunAsync(tool, act, c => ComponentQueryService.Zone(c, document, box, overlap, name, display, limit), cancellationToken),
+            ComponentQueryAction.Run => runner.RunAsync(tool, act, c => ComponentQueryService.Run(c, document, name, display, limit), cancellationToken),
             ComponentQueryAction.List => runner.RunAsync(tool, act, c => ComponentQueryService.List(c, document), cancellationToken),
             ComponentQueryAction.Rename => runner.RunAsync(tool, act, c => ComponentQueryService.Rename(c, document, name, newName), cancellationToken),
             ComponentQueryAction.Delete => runner.RunAsync(tool, act, c => ComponentQueryService.Delete(c, document, name), cancellationToken),

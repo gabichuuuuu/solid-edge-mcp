@@ -26,7 +26,7 @@
 ?~ dt.members ModelingMode
 @rp = se_com_items {"target":"active_document","member":"RefPlanes"}
 ?= rp.count 3
-# Plate 100x60x10 = 60000 mm3 = 6e-5 m3 (the COM layer works in meters)
+# Plate 100x60x10 = 60000 mm3 = 6e-5 m3 (the COM layer works in metres)
 @k1 = se_sketch {"action":"create","plane":"1"}
 se_sketch {"action":"rectangle","sketch":"{{k1.sketch}}","points":[0,0,100,60]}
 se_sketch {"action":"close","sketch":"{{k1.sketch}}"}

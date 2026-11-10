@@ -4,6 +4,7 @@
 using System.Runtime.InteropServices;
 using SolidEdgeDraft;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using Balloon = SolidEdgeFrameworkSupport.Balloon;
@@ -46,11 +47,6 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class DrawingService
 {
-    public static readonly IReadOnlyList<string> AnnotationKinds =
-        ["text", "balloon", "center_mark", "centerline", "leader", "surface_finish", "datum", "feature_control_frame", "weld", "bolt_circle", "datum_target", "datum_point", "corner", "gost_weld"];
-
-    public static readonly IReadOnlyList<string> FinishTypes = ["basic", "machined", "no_material_removal"];
-
     /// <summary>
     /// Codes of the geometric characteristics in the text of a feature control frame, verified by drawing them: %ST is the
     /// statistical tolerance, not straightness, and %PA/%PE are not codes.
@@ -69,19 +65,14 @@ public static partial class DrawingService
     /// <summary>Default offset (m of sheet) of a balloon or leader end from the point it points at.</summary>
     internal const double AnnotationOffset = 0.015;
 
-    public static object Annotations(SeContext context, string? documentHandle, string? sheetRef, string? kind, int offset, int limit)
+    public static object Annotations(SeContext context, string? documentHandle, string? sheetRef, AnnotationKind? kind, int offset, int limit)
     {
-        if (kind is not null && !AnnotationKinds.Contains(kind))
-        {
-            throw ToolException.InvalidArgument($"Unknown annotation kind '{kind}'.", $"Use one of: {string.Join(", ", AnnotationKinds)}.");
-        }
-
         DraftDocument draft = DraftFor(context, documentHandle, sheetRef);
         Sheet sheet = ResolveSheet(context, draft, sheetRef);
         var rows = new List<object>();
         foreach ((string name, object item) in AnnotationsOf(sheet))
         {
-            if (kind is null || kind == name)
+            if (kind is null || ArgumentNames.Snake(kind.Value) == name)
             {
                 rows.Add(DescribeAnnotation(context, draft, name, item));
             }
@@ -330,19 +321,22 @@ public static partial class DrawingService
         });
     }
 
-    public static readonly IReadOnlyList<string> LineUpAlignments = ["left", "right", "center", "bottom", "top", "middle"];
-
     /// <summary>
     /// Line Up Text: moves text boxes so that their left, right or centre (x) or bottom, top or middle (y) matches a source
     /// text box, which stays where it is (Sheet.LineupTextEx). Each target is measured afterwards.
     /// </summary>
-    public static object LineUpText(SeContext context, string? sourceHandle, string[]? targetHandles, string align)
+    public static object LineUpText(SeContext context, string? sourceHandle, string[]? targetHandles, TextAlignment align)
     {
-        int index = LineUpAlignments.ToList().IndexOf(align);
-        if (index < 0)
+        int index = align switch
         {
-            throw ToolException.InvalidArgument($"Unknown alignment '{align}'.", $"Use one of: {string.Join(", ", LineUpAlignments)}.");
-        }
+            TextAlignment.Left => 0,
+            TextAlignment.Right => 1,
+            TextAlignment.Center => 2,
+            TextAlignment.Bottom => 3,
+            TextAlignment.Top => 4,
+            TextAlignment.Middle => 5,
+            _ => throw new ArgumentOutOfRangeException(nameof(align)),
+        };
 
         TextBox source = TextBoxOf(context, sourceHandle ?? throw ToolException.InvalidArgument("'item' is required: the text box the others line up with."), "item");
         if (targetHandles is not { Length: > 0 } || targetHandles.Distinct(StringComparer.Ordinal).Count() != targetHandles.Length || targetHandles.Contains(sourceHandle))
@@ -374,7 +368,7 @@ public static partial class DrawingService
         return new
         {
             source = DescribeAnnotation(context, draft, "text", source),
-            align,
+            align = ArgumentNames.Snake(align),
             moved = targets.Select(t => DescribeAnnotation(context, draft, "text", t)).ToArray(),
         };
     }
@@ -414,7 +408,7 @@ public static partial class DrawingService
     /// <summary>
     /// Surface finish symbol on the edge picked by a model point; with a position, at the end of a leader from the edge.
     /// </summary>
-    public static object AddSurfaceFinish(SeContext context, string? viewHandle, double[]? points, double[]? position, string? roughness, string finish)
+    public static object AddSurfaceFinish(SeContext context, string? viewHandle, double[]? points, double[]? position, string? roughness, SurfaceFinishType finish)
     {
         FinishType type = ParseFinish(finish);
         DrawingView view = ResolveView(context, viewHandle);
@@ -430,12 +424,12 @@ public static partial class DrawingService
         });
     }
 
-    internal static FinishType ParseFinish(string finish) => finish switch
+    internal static FinishType ParseFinish(SurfaceFinishType finish) => finish switch
     {
-        "basic" => FinishType.igDimSurfaceFinishBasic,
-        "machined" => FinishType.igDimSurfaceFinishMachined,
-        "no_material_removal" => FinishType.igDimSurfaceFinishNoMaterialRemoval,
-        _ => throw ToolException.InvalidArgument($"Unknown finish '{finish}'.", $"Use one of: {string.Join(", ", FinishTypes)}."),
+        SurfaceFinishType.Basic => FinishType.igDimSurfaceFinishBasic,
+        SurfaceFinishType.Machined => FinishType.igDimSurfaceFinishMachined,
+        SurfaceFinishType.NoMaterialRemoval => FinishType.igDimSurfaceFinishNoMaterialRemoval,
+        _ => throw new ArgumentOutOfRangeException(nameof(finish)),
     };
 
     internal static void SetFinish(SurfaceFinishSymbol symbol, FinishType type, string? roughness)
@@ -625,7 +619,7 @@ public static partial class DrawingService
     /// rows below it, each with its own characteristic or, in a composite frame, sharing the characteristic of the first.
     /// </summary>
     public static object AddFeatureControlFrame(SeContext context, string? documentHandle, string? sheetRef, string? viewHandle, double[]? points,
-        double[]? position, string? characteristic, string? tolerance, string[]? datums, string? text, string[]? rows = null, bool composite = false)
+        double[]? position, GeometricCharacteristic? characteristic, string? tolerance, string[]? datums, string? text, string[]? rows = null, bool composite = false)
     {
         string content = string.IsNullOrEmpty(text) ? FrameText(characteristic, tolerance, datums) : text;
         string[] extra = RowTexts(rows, composite);
@@ -665,13 +659,15 @@ public static partial class DrawingService
     }
 
     /// <summary>Frame text: characteristic | tolerance | datums. ⌀ or Ø in the tolerance becomes the diameter code.</summary>
-    internal static string FrameText(string? characteristic, string? tolerance, string[]? datums)
+    internal static string FrameText(GeometricCharacteristic? characteristic, string? tolerance, string[]? datums)
     {
-        if (characteristic is null || !Characteristics.TryGetValue(characteristic, out string? code))
+        if (characteristic is not { } named)
         {
-            throw ToolException.InvalidArgument(characteristic is null ? "'characteristic' is required (or the whole frame in 'text')." : $"Unknown characteristic '{characteristic}'.",
+            throw ToolException.InvalidArgument("'characteristic' is required (or the whole frame in 'text').",
                 $"Use one of: {string.Join(", ", Characteristics.Keys)}.");
         }
+
+        string code = Characteristics[ArgumentNames.Snake(named)];
 
         string value = RequireText(tolerance, "tolerance").Replace("⌀", "%DI", StringComparison.Ordinal).Replace("Ø", "%DI", StringComparison.Ordinal);
         var cells = new List<string> { code, value };
@@ -771,25 +767,27 @@ public static partial class DrawingService
     /// Weld types and their constants for the arrow side (below the reference line, "Bottom" in the API); the other side
     /// ("Top") is the same type 21 lower.
     /// </summary>
-    public static readonly IReadOnlyDictionary<string, WeldType> WeldTypes = new Dictionary<string, WeldType>
+    public static readonly IReadOnlyDictionary<Arguments.WeldType, WeldType> WeldTypes = new Dictionary<Arguments.WeldType, WeldType>
     {
-        ["fillet"] = WeldType.igDimWeldBottomFillet,
-        ["square"] = WeldType.igDimWeldBottomSquare,
-        ["v_groove"] = WeldType.igDimWeldBottomVGroove,
-        ["bevel"] = WeldType.igDimWeldBottomBevel,
-        ["u_groove"] = WeldType.igDimWeldBottomUGroove,
-        ["j_groove"] = WeldType.igDimWeldBottomJGroove,
-        ["spot"] = WeldType.igDimWeldBottomSpot,
-        ["seam"] = WeldType.igDimWeldBottomSeam,
-        ["plug"] = WeldType.igDimWeldBottomSlot,
-        ["backing"] = WeldType.igDimWeldBottomBacking,
-        ["surfacing"] = WeldType.igDimWeldBottomSurfacing,
-        ["flare_v"] = WeldType.igDimWeldBottomFlareV,
-        ["flare_bevel"] = WeldType.igDimWeldBottomFlareBevel,
-        ["edge"] = WeldType.igDimWeldBottomEdgeWeld,
+        [Arguments.WeldType.Fillet] = WeldType.igDimWeldBottomFillet,
+        [Arguments.WeldType.Square] = WeldType.igDimWeldBottomSquare,
+        [Arguments.WeldType.VGroove] = WeldType.igDimWeldBottomVGroove,
+        [Arguments.WeldType.Bevel] = WeldType.igDimWeldBottomBevel,
+        [Arguments.WeldType.UGroove] = WeldType.igDimWeldBottomUGroove,
+        [Arguments.WeldType.JGroove] = WeldType.igDimWeldBottomJGroove,
+        [Arguments.WeldType.Spot] = WeldType.igDimWeldBottomSpot,
+        [Arguments.WeldType.Seam] = WeldType.igDimWeldBottomSeam,
+        [Arguments.WeldType.Plug] = WeldType.igDimWeldBottomSlot,
+        [Arguments.WeldType.Backing] = WeldType.igDimWeldBottomBacking,
+        [Arguments.WeldType.Surfacing] = WeldType.igDimWeldBottomSurfacing,
+        [Arguments.WeldType.FlareV] = WeldType.igDimWeldBottomFlareV,
+        [Arguments.WeldType.FlareBevel] = WeldType.igDimWeldBottomFlareBevel,
+        [Arguments.WeldType.Edge] = WeldType.igDimWeldBottomEdgeWeld,
     };
 
-    public static readonly IReadOnlyList<string> WeldSides = ["arrow", "other", "both"];
+    /// <summary>The name of a weld type read from a symbol, or <c>null</c> for one the tools do not place.</summary>
+    internal static string? WeldName(WeldType arrow) =>
+        WeldTypes.Where(w => w.Value == arrow).Select(w => ArgumentNames.Snake(w.Key)).FirstOrDefault();
 
     internal const int WeldOtherSide = WeldType.igDimWeldBottomFillet - WeldType.igDimWeldTopFillet;
 
@@ -801,8 +799,8 @@ public static partial class DrawingService
     /// or note (e.g. 'a5'), and the all-around and field-weld flags; the leader ends at the position (default 15 mm up-right),
     /// where the reference line starts.
     /// </summary>
-    public static object AddWeld(SeContext context, string? viewHandle, double[]? points, double[]? position, string weld,
-        string side, string? size, bool allAround, bool field)
+    public static object AddWeld(SeContext context, string? viewHandle, double[]? points, double[]? position, Arguments.WeldType weld,
+        WeldSide side, string? size, bool allAround, bool field)
     {
         (WeldType arrow, bool onArrow, bool onOther) = ParseWeld(weld, side);
         DrawingView view = ResolveView(context, viewHandle);
@@ -832,16 +830,8 @@ public static partial class DrawingService
         });
     }
 
-    internal static (WeldType Arrow, bool OnArrow, bool OnOther) ParseWeld(string weld, string side)
-    {
-        WeldType arrow = WeldTypes.TryGetValue(weld, out WeldType type) ? type
-            : throw ToolException.InvalidArgument($"Unknown weld '{weld}'.", $"Use one of: {string.Join(", ", WeldTypes.Keys)}.");
-        bool onArrow = side is "arrow" or "both";
-        bool onOther = side is "other" or "both";
-        return !onArrow && !onOther
-            ? throw ToolException.InvalidArgument($"Unknown side '{side}'.", $"Use one of: {string.Join(", ", WeldSides)}.")
-            : (arrow, onArrow, onOther);
-    }
+    internal static (WeldType Arrow, bool OnArrow, bool OnOther) ParseWeld(Arguments.WeldType weld, WeldSide side) =>
+        (WeldTypes[weld], side is WeldSide.Arrow or WeldSide.Both, side is WeldSide.Other or WeldSide.Both);
 
     /// <summary>Weld type and size on the chosen sides, the flags and the break line; checked by reading them back.</summary>
     internal static void SetWeld(WeldSymbol symbol, (WeldType Arrow, bool OnArrow, bool OnOther) weld, string? size, bool allAround, bool field)
@@ -971,7 +961,7 @@ public static partial class DrawingService
         }
         catch (Exception ex) when (ex is ToolException or COMException && !ComErrors.IsGone(ex))
         {
-            TryDelete(annotation);
+            Late.TryDelete(annotation);
             if (ex is ToolException)
             {
                 throw;
@@ -1206,7 +1196,7 @@ public static partial class DrawingService
                 bool arrowSide = weld.BottomType != WeldType.igDimWeldTypeNone;
                 bool otherSide = weld.TopType != WeldType.igDimWeldTypeNone;
                 WeldType shown = arrowSide ? weld.BottomType : weld.TopType + WeldOtherSide;
-                info["weld"] = WeldTypes.FirstOrDefault(w => w.Value == shown).Key;
+                info["weld"] = WeldName(shown);
                 info["side"] = arrowSide && otherSide ? "both" : arrowSide ? "arrow" : otherSide ? "other" : null;
                 info["text"] = arrowSide ? weld.BottomNote1 : weld.TopNote1;
                 info["allAround"] = weld.WeldAllAround;

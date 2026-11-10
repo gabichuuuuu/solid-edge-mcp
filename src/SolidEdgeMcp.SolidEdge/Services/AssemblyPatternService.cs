@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -153,15 +154,13 @@ public static class AssemblyPatternService
         return new { pattern = Describe(context, assembly, created), added, occurrences = assembly.Occurrences.Count };
     }
 
-    public static readonly IReadOnlyList<string> CloneRelations = ["ground", "none", "repair"];
-
     /// <summary>
     /// Clone Component: copies of occurrences on every place of other occurrences that matches the faces they sit on.
     /// Verified in Solid Edge 2026: a pin on the first of three Ø10 holes of a plate, CreateCloneComponents([pin],
     /// [reference of that hole's face], [the plate], ground relations, automatic match) added pins on the other two holes
     /// (x = 50 and 80); the same with no relations, or with the other holes' faces as the environment.
     /// </summary>
-    public static object Clone(SeContext context, string[]? occurrenceHandles, string[]? faceHandles, string[]? targetHandles, string relations, bool exact, bool group)
+    public static object Clone(SeContext context, string[]? occurrenceHandles, string[]? faceHandles, string[]? targetHandles, CloneRelation relations, bool exact, bool group)
     {
         if (occurrenceHandles is not { Length: > 0 })
         {
@@ -181,10 +180,10 @@ public static class AssemblyPatternService
 
         CloneComponentOptions option = relations switch
         {
-            "ground" => CloneComponentOptions.seCreateGroundRelationships,
-            "none" => CloneComponentOptions.seDoNotCreateRelationships,
-            "repair" => CloneComponentOptions.seRepairUnsatisfiedRelationships,
-            _ => throw ToolException.InvalidArgument($"Unknown relations '{relations}'.", $"Use one of: {string.Join(", ", CloneRelations)}."),
+            CloneRelation.Ground => CloneComponentOptions.seCreateGroundRelationships,
+            CloneRelation.None => CloneComponentOptions.seDoNotCreateRelationships,
+            CloneRelation.Repair => CloneComponentOptions.seRepairUnsatisfiedRelationships,
+            _ => throw new ArgumentOutOfRangeException(nameof(relations)),
         };
         Occurrence[] sources = occurrenceHandles.Select(h => Occurrence(context, h, "occurrences")).ToArray();
         AssemblyDocument assembly = sources[0].TopLevelDocument;
@@ -395,7 +394,7 @@ public static class AssemblyPatternService
         assembly.AssemblyPatterns.Delete(pattern.Name);
         foreach (Occurrence copy in copies)
         {
-            if (context.Handles.TryGetId(copy, out string? id) && id is not null)
+            if (context.Handles.TryGetId(copy, out string? id))
             {
                 context.Handles.Remove(id, "its pattern was deleted");
             }

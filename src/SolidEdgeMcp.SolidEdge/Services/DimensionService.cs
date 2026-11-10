@@ -5,13 +5,14 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_dimension does: the action, the dimension and its tolerance or texts.</summary>
-public sealed record DimensionSpec(string Action, string? Dimension, string? Tolerance = null, string? Upper = null, string? Lower = null,
+public sealed record DimensionSpec(DimensionAction Action, string? Dimension, DimensionTolerance? Tolerance = null, string? Upper = null, string? Lower = null,
     string? Hole = null, string? Shaft = null, string? Prefix = null, string? Suffix = null, string? Override = null);
 
 /// <summary>
@@ -21,8 +22,6 @@ public sealed record DimensionSpec(string Action, string? Dimension, string? Tol
 /// </summary>
 public static partial class DimensionService
 {
-    public static readonly IReadOnlyList<string> Actions = ["get", "tolerance", "text"];
-
     public static readonly IReadOnlyList<string> Kinds = ["nominal", "plus_minus", "limits", "fit", "fit_plus_minus", "fit_limits", "basic", "reference"];
 
     public static object Run(SeContext context, DimensionSpec spec)
@@ -33,10 +32,10 @@ public static partial class DimensionService
         Dimension dimension = context.Handles.Resolve<Dimension>(handle, "dimension");
         return spec.Action switch
         {
-            "get" => Describe(dimension, handle),
-            "tolerance" => Tolerance(dimension, handle, spec),
-            "text" => Text(dimension, handle, spec),
-            _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", Actions)}."),
+            DimensionAction.Get => Describe(dimension, handle),
+            DimensionAction.Tolerance => Tolerance(dimension, handle, spec),
+            DimensionAction.Text => Text(dimension, handle, spec),
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
     }
 
@@ -44,16 +43,16 @@ public static partial class DimensionService
     {
         DimDispTypeConstants type = spec.Tolerance switch
         {
-            "nominal" => DimDispTypeConstants.igDimDisplayTypeNominal,
-            "plus_minus" => DimDispTypeConstants.igDimDisplayTypeTolerance,
-            "limits" => DimDispTypeConstants.igDimDisplayTypeLimits,
-            "fit" => DimDispTypeConstants.igDimDisplayTypeClassfit,
-            "fit_plus_minus" => DimDispTypeConstants.igDimDisplayTypeClassPlusMinus,
-            "fit_limits" => DimDispTypeConstants.igDimDisplayTypeFitWithLimits,
-            "basic" => DimDispTypeConstants.igDimDisplayTypeBasic,
-            "reference" => DimDispTypeConstants.igDimDisplayTypeReference,
+            DimensionTolerance.Nominal => DimDispTypeConstants.igDimDisplayTypeNominal,
+            DimensionTolerance.PlusMinus => DimDispTypeConstants.igDimDisplayTypeTolerance,
+            DimensionTolerance.Limits => DimDispTypeConstants.igDimDisplayTypeLimits,
+            DimensionTolerance.Fit => DimDispTypeConstants.igDimDisplayTypeClassfit,
+            DimensionTolerance.FitPlusMinus => DimDispTypeConstants.igDimDisplayTypeClassPlusMinus,
+            DimensionTolerance.FitLimits => DimDispTypeConstants.igDimDisplayTypeFitWithLimits,
+            DimensionTolerance.Basic => DimDispTypeConstants.igDimDisplayTypeBasic,
+            DimensionTolerance.Reference => DimDispTypeConstants.igDimDisplayTypeReference,
             null => throw ToolException.InvalidArgument("tolerance requires 'tolerance': the kind of tolerance.", $"Use one of: {string.Join(", ", Kinds)}."),
-            _ => throw ToolException.InvalidArgument($"Unknown tolerance '{spec.Tolerance}'.", $"Use one of: {string.Join(", ", Kinds)}."),
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
 
         bool deviations = type is DimDispTypeConstants.igDimDisplayTypeTolerance or DimDispTypeConstants.igDimDisplayTypeLimits;
@@ -63,19 +62,19 @@ public static partial class DimensionService
         string? lower = Deviation(spec.Lower, "lower");
         if (deviations && (upper is null || lower is null))
         {
-            throw ToolException.InvalidArgument($"'{spec.Tolerance}' requires 'upper' and 'lower': the deviations in the dimension's units, e.g. \"0.1\" and \"-0.2\".");
+            throw ToolException.InvalidArgument($"'{ArgumentNames.Snake(spec.Tolerance.Value)}' requires 'upper' and 'lower': the deviations in the dimension's units, e.g. \"0.1\" and \"-0.2\".");
         }
 
         string? hole = FitClass(spec.Hole, "hole", upperCase: true);
         string? shaft = FitClass(spec.Shaft, "shaft", upperCase: false);
         if (fit && hole is null && shaft is null)
         {
-            throw ToolException.InvalidArgument($"'{spec.Tolerance}' requires a fit: 'hole' (e.g. H7) and/or 'shaft' (e.g. g6).");
+            throw ToolException.InvalidArgument($"'{ArgumentNames.Snake(spec.Tolerance.Value)}' requires a fit: 'hole' (e.g. H7) and/or 'shaft' (e.g. g6).");
         }
 
         if (!deviations && (upper is not null || lower is not null) || !fit && (hole is not null || shaft is not null))
         {
-            throw ToolException.InvalidArgument($"'{spec.Tolerance}' takes {(deviations ? "'upper' and 'lower'" : fit ? "'hole' and/or 'shaft'" : "no deviations or fit")}.");
+            throw ToolException.InvalidArgument($"'{ArgumentNames.Snake(spec.Tolerance.Value)}' takes {(deviations ? "'upper' and 'lower'" : fit ? "'hole' and/or 'shaft'" : "no deviations or fit")}.");
         }
 
         var before = (dimension.DisplayType, dimension.PrimaryUpperTolerance, dimension.PrimaryLowerTolerance, dimension.HoleClassString, dimension.ShaftClassString);

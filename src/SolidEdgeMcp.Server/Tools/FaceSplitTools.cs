@@ -5,17 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum FaceSplitAction
-{
-    Split,
-    Parting,
-    OffsetEdge,
-}
 
 /// <summary>Faces of the design body split into more faces, the volume unchanged: by tools, at a parting line or along an edge.</summary>
 [McpServerToolType]
@@ -41,7 +35,7 @@ public sealed class FaceSplitTools(ToolRunner runner)
         CancellationToken cancellationToken = default)
     {
         string act = Snake(action);
-        var spec = new FaceSplitSpec(act, faces, tools, plane, edge, distance);
+        var spec = new FaceSplitSpec(action, faces, tools, plane, edge, distance);
         return runner.RunAsync("se_face_split", act, c => FeatureService.FaceSplit(c, document, spec), cancellationToken);
     }
 }

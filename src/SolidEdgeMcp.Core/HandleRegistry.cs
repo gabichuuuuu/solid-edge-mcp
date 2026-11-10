@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Gabriel Spoleto Couto
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
@@ -119,7 +120,7 @@ public sealed partial class HandleRegistry
         }
     }
 
-    public bool TryGetId(object value, out string? id)
+    public bool TryGetId(object value, [NotNullWhen(true)] out string? id)
     {
         lock (_gate)
         {

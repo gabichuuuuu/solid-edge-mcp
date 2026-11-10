@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using Path = System.IO.Path;
@@ -101,27 +102,27 @@ public static class DesignManagerService
     /// use them are updated. For rename and move, the documents of <paramref name="folders"/> (default the folders of the
     /// files and of the top document) outside the set that use them are pointed at the new files too.
     /// </summary>
-    public static object Act(SeContext context, string action, string? path, string[]? files, string[]? to, string[]? folders, bool subfolders)
+    public static object Act(SeContext context, DesignManagerAction action, string? path, string[]? files, string[]? to, string[]? folders, bool subfolders)
     {
         int code = action switch
         {
-            "rename" => RenameAction,
-            "copy" => CopyAction,
-            "replace" => ReplaceAction,
-            "move" => MoveAction,
-            "revise" => ReviseAction,
-            "release" => ReleaseAction,
-            _ => throw ToolException.InvalidArgument($"Unknown action '{action}'.", "Use rename, copy, replace, move, revise or release."),
+            DesignManagerAction.Rename => RenameAction,
+            DesignManagerAction.Copy => CopyAction,
+            DesignManagerAction.Replace => ReplaceAction,
+            DesignManagerAction.Move => MoveAction,
+            DesignManagerAction.Revise => ReviseAction,
+            DesignManagerAction.Release => ReleaseAction,
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
         string top = Existing(context, path, "path");
         if (files is not { Length: > 0 })
         {
-            throw ToolException.InvalidArgument($"{action} needs 'files' (files of the set of 'path').");
+            throw ToolException.InvalidArgument($"{ArgumentNames.Snake(action)} needs 'files' (files of the set of 'path').");
         }
 
         if (code != ReleaseAction && (to is null || to.Length != files.Length))
         {
-            throw ToolException.InvalidArgument($"{action} needs 'to': one {(code == ReplaceAction ? "existing file" : code == MoveAction ? "folder or new path" : "new name or path")} for each file, in the same order.");
+            throw ToolException.InvalidArgument($"{ArgumentNames.Snake(action)} needs 'to': one {(code == ReplaceAction ? "existing file" : code == MoveAction ? "folder or new path" : "new name or path")} for each file, in the same order.");
         }
 
         string[] sources = [.. files.Select(f => Existing(context, Resolve(Path.GetDirectoryName(top)!, f), "files"))];
@@ -135,7 +136,7 @@ public static class DesignManagerService
         int topIndex = Array.FindIndex(sources, s => Same(s, top));
         if (topIndex >= 0 && code != CopyAction)
         {
-            throw ToolException.InvalidArgument($"'{Path.GetFileName(top)}' is the top document of the set: Design Manager {action}s the files it refers to.",
+            throw ToolException.InvalidArgument($"'{Path.GetFileName(top)}' is the top document of the set: Design Manager {ArgumentNames.Snake(action)}s the files it refers to.",
                 code == ReleaseAction
                     ? "Release it with action 'status' and status 'released'."
                     : "Give as 'path' a document that uses it (e.g. its drawing); only copy takes the top document itself, with its files.");
@@ -259,7 +260,7 @@ public static class DesignManagerService
             {
                 // Design Manager cannot undo: say what it did.
                 throw new ToolException("design_manager_failed",
-                    $"Design Manager did not finish the {action}: {string.Join("; ", problems)}.{(done.Count > 0 ? $" Done: {string.Join("; ", done)}." : "")}",
+                    $"Design Manager did not finish the {ArgumentNames.Snake(action)}: {string.Join("; ", problems)}.{(done.Count > 0 ? $" Done: {string.Join("; ", done)}." : "")}",
                     "Check the set with action 'links' and the files in their folders.");
             }
 
@@ -283,7 +284,7 @@ public static class DesignManagerService
 
             return new
             {
-                action,
+                action = ArgumentNames.Snake(action),
                 document = top,
                 copy = topCopy,
                 changed,

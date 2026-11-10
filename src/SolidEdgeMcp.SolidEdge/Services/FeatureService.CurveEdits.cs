@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -33,7 +34,7 @@ public static partial class FeatureService
     private const double CrossingTolerance = 1e-6;
 
     /// <summary>Isocline: where the normal of the faces makes <paramref name="angle"/> degrees with the plane.</summary>
-    public static object IsoclineCurve(SeContext context, string? documentHandle, string[]? faces, string? plane, double? angle, string direction)
+    public static object IsoclineCurve(SeContext context, string? documentHandle, string[]? faces, string? plane, double? angle, FeatureDirection direction)
     {
         if (faces is not { Length: > 0 })
         {
@@ -48,9 +49,9 @@ public static partial class FeatureService
 
         IsoclineDirectionConstants side = direction switch
         {
-            "normal" => IsoclineDirectionConstants.igIsoclineRight,
-            "reverse" => IsoclineDirectionConstants.igIsoclineleft,
-            _ => throw ToolException.InvalidArgument($"Unknown direction '{direction}' for an isocline.",
+            FeatureDirection.Normal => IsoclineDirectionConstants.igIsoclineRight,
+            FeatureDirection.Reverse => IsoclineDirectionConstants.igIsoclineleft,
+            _ => throw ToolException.InvalidArgument($"Unknown direction '{ArgumentNames.Snake(direction)}' for an isocline.",
                 "Use normal (the face normal tilts towards the side the plane normal points to) or reverse."),
         };
         ModelDocument model = ModelDocument.For(context, documentHandle, faces[0]);
@@ -142,7 +143,7 @@ public static partial class FeatureService
         catch (Exception ex) when (made.Count > 0 && !ComErrors.IsGone(ex))
         {
             made.Reverse();
-            made.ForEach(TryDeleteCurve);
+            made.ForEach(Late.TryDelete);
             context.ModelChanged(model.Document, "the model changed (curve split deleted)");
             throw ex is ToolException failure
                 ? new ToolException(failure.Code, $"{failure.Message} The split was deleted.", failure.NextStep, failure)
@@ -213,7 +214,7 @@ public static partial class FeatureService
         if (tool is RefPlane plane)
         {
             (double[] root, double[] normal) = PlaneFrame(plane);
-            double Side(double[] p) => Dot(Minus(p, root), normal);
+            double Side(double[] p) => Geo.Dot(Geo.Minus(p, root), normal);
             double[] side = [.. points.Select(Side)];
             for (int i = 0; i + 1 < Samples; i++)
             {
@@ -235,7 +236,7 @@ public static partial class FeatureService
                 for (int j = 0; j + 1 < Samples; j++)
                 {
                     (double distance, double s, double t) = SegmentDistance(points[i], points[i + 1], otherPoints[j], otherPoints[j + 1]);
-                    if (distance <= CrossingTolerance && Parallel(Minus(points[i + 1], points[i]), Minus(otherPoints[j + 1], otherPoints[j])))
+                    if (distance <= CrossingTolerance && Parallel(Geo.Minus(points[i + 1], points[i]), Geo.Minus(otherPoints[j + 1], otherPoints[j])))
                     {
                         throw ToolException.InvalidArgument("A tool runs along the curve instead of crossing it.",
                             "Pass reference planes or curves that cross the curve.");
@@ -371,18 +372,18 @@ public static partial class FeatureService
         {
             (double[] p, double[] dp) = PointAndDerivative(edge, t);
             (double[] q, double[] dq) = PointAndDerivative(other, u);
-            double[] r = Minus(p, q);
-            if (Math.Sqrt(Dot(r, r)) <= 1e-10)
+            double[] r = Geo.Minus(p, q);
+            if (Math.Sqrt(Geo.Dot(r, r)) <= 1e-10)
             {
                 break;
             }
 
             // Least squares step of p(t + dt) - q(u + du) = 0 with the first derivatives.
-            double a = Dot(dp, dp);
-            double b = -Dot(dp, dq);
-            double c = Dot(dq, dq);
-            double e = -Dot(dp, r);
-            double f = Dot(dq, r);
+            double a = Geo.Dot(dp, dp);
+            double b = -Geo.Dot(dp, dq);
+            double c = Geo.Dot(dq, dq);
+            double e = -Geo.Dot(dp, r);
+            double f = Geo.Dot(dq, r);
             double determinant = (a * c) - (b * b);
             if (Math.Abs(determinant) <= 1e-30)
             {
@@ -406,12 +407,12 @@ public static partial class FeatureService
     /// <summary>Closest points of two segments: their distance and the fractions along each (0 to 1).</summary>
     private static (double Distance, double S, double T) SegmentDistance(double[] p0, double[] p1, double[] q0, double[] q1)
     {
-        double[] d1 = Minus(p1, p0);
-        double[] d2 = Minus(q1, q0);
-        double[] r = Minus(p0, q0);
-        double a = Dot(d1, d1);
-        double e = Dot(d2, d2);
-        double f = Dot(d2, r);
+        double[] d1 = Geo.Minus(p1, p0);
+        double[] d2 = Geo.Minus(q1, q0);
+        double[] r = Geo.Minus(p0, q0);
+        double a = Geo.Dot(d1, d1);
+        double e = Geo.Dot(d2, d2);
+        double f = Geo.Dot(d2, r);
         double s;
         double t;
         if (a <= 1e-30 && e <= 1e-30)
@@ -424,14 +425,14 @@ public static partial class FeatureService
         }
         else
         {
-            double c = Dot(d1, r);
+            double c = Geo.Dot(d1, r);
             if (e <= 1e-30)
             {
                 (s, t) = (Math.Clamp(-c / a, 0, 1), 0);
             }
             else
             {
-                double b = Dot(d1, d2);
+                double b = Geo.Dot(d1, d2);
                 double denominator = (a * e) - (b * b);
                 s = denominator > 1e-30 ? Math.Clamp(((b * f) - (c * e)) / denominator, 0, 1) : 0;
                 t = ((b * s) + f) / e;

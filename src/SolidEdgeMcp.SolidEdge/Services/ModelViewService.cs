@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -18,7 +19,6 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static class ModelViewService
 {
-    private static readonly string[] Orientations = ["front", "back", "left", "right", "top", "bottom", "dimetric", "isometric", "trimetric"];
     private static readonly string[] RenderModes = ["none", "visible_edges", "visible_and_hidden_edges", "shaded", "shaded_with_visible_edges"];
 
     public static object List(SeContext context, string? documentHandle)
@@ -29,17 +29,17 @@ public static class ModelViewService
     }
 
     /// <summary>A model view in a standard orientation (replacing one of the same orientation if asked), or of the current view.</summary>
-    public static object Add(SeContext context, string? documentHandle, string? orientation, string? name, string? render, bool replace)
+    public static object Add(SeContext context, string? documentHandle, ModelViewOrientation? orientation, string? name, ModelViewRender? render, bool replace)
     {
         (SolidEdgeDocument document, PMIModelViews views) = Open(context, documentHandle);
-        PMIRenderModeConstants mode = (PMIRenderModeConstants)Index(RenderModes, render ?? "shaded_with_visible_edges", "render");
+        PMIRenderModeConstants mode = RenderMode(render ?? ModelViewRender.ShadedWithVisibleEdges);
         int before = views.Count;
         PMIModelView view;
         try
         {
-            view = orientation is null
+            view = orientation is not { } standard
                 ? views.Add(Name(name, "add without 'orientation' needs 'name': the view takes the current orientation of the window."), mode)
-                : views.AddByStandardViewOrientation((PMIModelViewStandardOrientationConstants)Index(Orientations, orientation, "orientation"), mode, replace ? 1 : 0);
+                : views.AddByStandardViewOrientation(Orientation(standard), mode, replace ? 1 : 0);
         }
         catch (COMException ex)
         {
@@ -58,7 +58,7 @@ public static class ModelViewService
     }
 
     /// <summary>Renames a view, changes its render mode or its 3D PDF flag.</summary>
-    public static object Set(SeContext context, string? documentHandle, string? viewName, string? name, string? render, bool? pdf)
+    public static object Set(SeContext context, string? documentHandle, string? viewName, string? name, ModelViewRender? render, bool? pdf)
     {
         (SolidEdgeDocument document, PMIModelView view) = Find(context, documentHandle, viewName);
         if (name is null && render is null && pdf is null)
@@ -66,9 +66,9 @@ public static class ModelViewService
             throw ToolException.InvalidArgument("set needs 'name', 'render' or 'pdf'.");
         }
 
-        if (render is not null)
+        if (render is { } look)
         {
-            view.RenderMode = (PMIRenderModeConstants)Index(RenderModes, render, "render");
+            view.RenderMode = RenderMode(look);
         }
 
         if (pdf is { } include)
@@ -83,7 +83,7 @@ public static class ModelViewService
 
         view.Update();
         object result = Describe(context, document, view);
-        bool ok = (render is null || RenderName(view) == render) && (pdf is null || view.IncludeIn3dPdfPublish == pdf)
+        bool ok = (render is null || RenderName(view) == ArgumentNames.Snake(render.Value)) && (pdf is null || view.IncludeIn3dPdfPublish == pdf)
             && (string.IsNullOrWhiteSpace(name) || view.Name == name.Trim());
         return ok ? result : throw new ToolException("model_view_failed", $"Solid Edge did not change the model view '{view.Name}' as asked.", "Read it with action 'list'.");
     }
@@ -192,11 +192,29 @@ public static class ModelViewService
         return code >= 0 && code < RenderModes.Length ? RenderModes[code] : code.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static int Index(string[] names, string value, string argument)
+    private static PMIRenderModeConstants RenderMode(ModelViewRender render) => render switch
     {
-        int index = Array.IndexOf(names, value.Trim().ToLowerInvariant());
-        return index >= 0 ? index : throw ToolException.InvalidArgument($"Unknown {argument} '{value}'.", $"Use one of: {string.Join(", ", names)}.");
-    }
+        ModelViewRender.None => PMIRenderModeConstants.sePMIModelViewRenderModeNone,
+        ModelViewRender.VisibleEdges => PMIRenderModeConstants.sePMIModelViewRenderModeVisibleEdges,
+        ModelViewRender.VisibleAndHiddenEdges => PMIRenderModeConstants.sePMIModelViewRenderModeVisibleAndHiddenEdges,
+        ModelViewRender.Shaded => PMIRenderModeConstants.sePMIModelViewRenderModeShaded,
+        ModelViewRender.ShadedWithVisibleEdges => PMIRenderModeConstants.sePMIModelViewRenderModeShadedWithVisibleEdges,
+        _ => throw new ArgumentOutOfRangeException(nameof(render)),
+    };
+
+    private static PMIModelViewStandardOrientationConstants Orientation(ModelViewOrientation orientation) => orientation switch
+    {
+        ModelViewOrientation.Front => PMIModelViewStandardOrientationConstants.sePMIModelViewFront,
+        ModelViewOrientation.Back => PMIModelViewStandardOrientationConstants.sePMIModelViewBack,
+        ModelViewOrientation.Left => PMIModelViewStandardOrientationConstants.sePMIModelViewLeft,
+        ModelViewOrientation.Right => PMIModelViewStandardOrientationConstants.sePMIModelViewRight,
+        ModelViewOrientation.Top => PMIModelViewStandardOrientationConstants.sePMIModelViewTop,
+        ModelViewOrientation.Bottom => PMIModelViewStandardOrientationConstants.sePMIModelViewBottom,
+        ModelViewOrientation.Dimetric => PMIModelViewStandardOrientationConstants.sePMIModelViewDimetric,
+        ModelViewOrientation.Isometric => PMIModelViewStandardOrientationConstants.sePMIModelViewIsometric,
+        ModelViewOrientation.Trimetric => PMIModelViewStandardOrientationConstants.sePMIModelViewTrimetric,
+        _ => throw new ArgumentOutOfRangeException(nameof(orientation)),
+    };
 
     private static string Name(string? name, string missing) => string.IsNullOrWhiteSpace(name) ? throw ToolException.InvalidArgument(missing) : name.Trim();
 

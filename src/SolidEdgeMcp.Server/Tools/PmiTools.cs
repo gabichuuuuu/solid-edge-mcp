@@ -5,49 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum PmiAction
-{
-    List,
-    Set,
-    Lock,
-    Unlock,
-    Delete,
-    Display,
-    SetDisplay,
-    Copy,
-    Size,
-    Plane,
-    Axis,
-    Dimension,
-    Move,
-}
-
-public enum PmiDimensionType
-{
-    Linear,
-    Diameter,
-    Radius,
-    Angle,
-}
-
-public enum PmiCopyKind
-{
-    All,
-    Dimensions,
-    Annotations,
-}
-
-public enum PmiDirection
-{
-    Measure,
-    Origin,
-    Symmetric,
-}
 
 /// <summary>PMI (3D) dimensions of parts and sheet metal: list, place, drive, lock, delete, copy from a feature, and the PMI display.</summary>
 [McpServerToolType]
@@ -88,9 +50,8 @@ public sealed class PmiTools(ToolRunner runner)
         [Description("Part or sheet metal document handle; default: the document of the dimensions or the active one.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
-        string act = Snake(action);
-        var spec = new PmiSpec(act, dimensions, value, Snake(direction), locked, showDimensions, showAnnotations, feature, Snake(kind), plane, edge, pixelMode, pixelSize,
-            points, type is { } t ? Snake(t) : null, distance);
-        return runner.RunAsync("se_pmi", act, c => PmiService.Run(c, document, spec), cancellationToken);
+        var spec = new PmiSpec(action, dimensions, value, direction, locked, showDimensions, showAnnotations, feature, kind, plane, edge, pixelMode, pixelSize,
+            points, type, distance);
+        return runner.RunAsync("se_pmi", Snake(action), c => PmiService.Run(c, document, spec), cancellationToken);
     }
 }

@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -35,13 +36,13 @@ public static partial class AssemblyFeatureService
     /// Extruded cutout through <paramref name="occurrenceHandles"/>, through all or to a depth (mm), on the side given or, with
     /// "auto", along the plane normal and then against it.
     /// </summary>
-    public static object Cut(SeContext context, string? sketch, string[]? occurrenceHandles, double? depth, string side, string? name)
+    public static object Cut(SeContext context, string? sketch, string[]? occurrenceHandles, double? depth, PartFeatureSide side, string? name)
     {
         Occurrence[] scope = Scope(context, occurrenceHandles, "cut");
         Profile profile = SketchService.ResolveDefined(context, sketch ?? throw ToolException.InvalidArgument(
             "'sketch' is required: a closed sketch made in the assembly (se_sketch create with an assembly plane, then close)."));
         double distance = depth is { } d ? Units.MmToM(Units.RequirePositive(d, "depth")) : 0;
-        FeaturePropertyConstants[] sides = Sides(side, true);
+        FeaturePropertyConstants[] sides = Sides(ArgumentNames.Snake(side), true);
         AssemblyDocument assembly = scope[0].TopLevelDocument;
         CheckName(assembly, name);
         CheckUnused(assembly, profile);
@@ -65,7 +66,7 @@ public static partial class AssemblyFeatureService
     /// Revolved cutout through <paramref name="occurrenceHandles"/>: a closed sketch made in the assembly turned about its axis
     /// (se_sketch 'axis' before 'close') by an angle in degrees (360 by default), on the side given or, with "auto", both.
     /// </summary>
-    public static object Revolve(SeContext context, string? sketch, string? axis, string[]? occurrenceHandles, double? angle, string side, string? name)
+    public static object Revolve(SeContext context, string? sketch, string? axis, string[]? occurrenceHandles, double? angle, PartFeatureSide side, string? name)
     {
         Occurrence[] scope = Scope(context, occurrenceHandles, "cut");
         Profile profile = SketchService.ResolveDefined(context, sketch ?? throw ToolException.InvalidArgument(
@@ -78,7 +79,7 @@ public static partial class AssemblyFeatureService
             throw ToolException.InvalidArgument("'angle' must be greater than 0 and at most 360 degrees.");
         }
 
-        FeaturePropertyConstants[] sides = Sides(side, true);
+        FeaturePropertyConstants[] sides = Sides(ArgumentNames.Snake(side), true);
         AssemblyDocument assembly = scope[0].TopLevelDocument;
         CheckName(assembly, name);
         CheckUnused(assembly, profile);
@@ -112,13 +113,13 @@ public static partial class AssemblyFeatureService
         }
 
         List<(double X, double Y, double Z)> centers = Geo.Points3(spec.Centers, "centers", 1);
-        if (spec.Type is "tapped")
+        if (spec.Type is HoleType.Tapped)
         {
             throw ToolException.InvalidArgument("Assembly holes are simple, countersink or counterbore: a tapped hole is made in the part.",
                 "Make tapped holes in the part (se_hole) or thread them with se_thread.");
         }
 
-        bool counterbore = spec.Type == "counterbore";
+        bool counterbore = spec.Type == HoleType.Counterbore;
         (double Diameter, double Depth) bore = default;
         if (counterbore)
         {
@@ -130,25 +131,25 @@ public static partial class AssemblyFeatureService
                 throw ToolException.InvalidArgument("'counterboreDiameter' must be larger than the hole 'diameter'.");
             }
 
-            if (spec.Extent == "finite" && spec.Depth is { } holeDepth && bore.Depth >= holeDepth)
+            if (spec.Extent == SimpleExtent.Finite && spec.Depth is { } holeDepth && bore.Depth >= holeDepth)
             {
                 throw ToolException.InvalidArgument("'counterboreDepth' must be smaller than the hole 'depth'.");
             }
 
-            spec = spec with { Type = "simple" };
+            spec = spec with { Type = HoleType.Simple };
         }
 
         FeaturePropertyConstants holeType = FeatureService.HoleTypeOf(spec);
         FeaturePropertyConstants extentType = spec.Extent switch
         {
-            "finite" => FeaturePropertyConstants.igFinite,
-            "through_all" => FeaturePropertyConstants.igThroughAll,
-            _ => throw ToolException.InvalidArgument($"Unknown extent '{spec.Extent}'.", "Use finite or through_all."),
+            SimpleExtent.Finite => FeaturePropertyConstants.igFinite,
+            SimpleExtent.ThroughAll => FeaturePropertyConstants.igThroughAll,
+            _ => throw ToolException.InvalidArgument($"Unknown extent '{ArgumentNames.Snake(spec.Extent)}'.", "Use finite or through_all."),
         };
         double depth = extentType == FeaturePropertyConstants.igFinite
             ? Units.MmToM(Units.RequirePositive(spec.Depth ?? throw ToolException.InvalidArgument("Extent 'finite' requires 'depth' (mm)."), "depth"))
             : 0;
-        FeaturePropertyConstants[] sides = Sides(spec.Direction, false);
+        FeaturePropertyConstants[] sides = Sides(ArgumentNames.Snake(spec.Direction), false);
         AssemblyDocument assembly = documentHandle is null ? scope[0].TopLevelDocument : Assembly(context, documentHandle);
         CheckName(assembly, name);
         string? boreName = counterbore && name is not null ? $"{name} counterbore" : null;
@@ -172,7 +173,7 @@ public static partial class AssemblyFeatureService
             }
             catch (ToolException)
             {
-                sets.ForEach(TryDelete);
+                sets.ForEach(Late.TryDelete);
                 throw;
             }
         }
@@ -203,7 +204,7 @@ public static partial class AssemblyFeatureService
                 Discard(made!);
             }
 
-            sets.ForEach(TryDelete);
+            sets.ForEach(Late.TryDelete);
             throw;
         }
     }
@@ -234,7 +235,7 @@ public static partial class AssemblyFeatureService
             }
             catch (ToolException)
             {
-                circles.ForEach(c => TryDelete(c.Parent));
+                circles.ForEach(c => Late.TryDelete(c.Parent));
                 throw;
             }
         }
@@ -702,7 +703,7 @@ public static partial class AssemblyFeatureService
             _ = occurrence.Name;
             return true;
         }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80010108))
+        catch (COMException ex) when (ex.HResult == ComErrors.RpcEDisconnected)
         {
             return false;
         }
@@ -754,7 +755,7 @@ public static partial class AssemblyFeatureService
     {
         foreach (object profile in ProfilesOf(feature))
         {
-            TryDelete(profile);
+            Late.TryDelete(profile);
         }
 
         TryDeleteFeature(feature);
@@ -816,7 +817,7 @@ public static partial class AssemblyFeatureService
         {
             DeleteFeature(feature);
         }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
+        catch (Exception ex) when (Late.IsMemberFailure(ex) && !ComErrors.IsGone(ex))
         {
             // The error being reported is the original one.
         }
@@ -831,18 +832,6 @@ public static partial class AssemblyFeatureService
         catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Affects only the presentation; the feature is already created and verified.
-        }
-    }
-
-    private static void TryDelete(object item)
-    {
-        try
-        {
-            Late.Call(item, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
-        {
-            // The error being reported is the original one.
         }
     }
 }

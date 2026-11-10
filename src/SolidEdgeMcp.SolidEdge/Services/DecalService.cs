@@ -61,19 +61,19 @@ public static class DecalService
         }
         catch (ToolException)
         {
-            TryDelete(profile.Parent);
+            Late.TryDelete(profile.Parent);
             throw;
         }
         catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
-            TryDelete(profile.Parent);
+            Late.TryDelete(profile.Parent);
             throw new ToolException("decal_failed", $"Solid Edge could not place the decal: {ex.Message.Trim()}",
                 "Use a face of the part and a picture file Solid Edge reads (png, jpg, bmp, tif).", ex);
         }
 
         if (part.Decals.Count != count + 1 || decal.GetStatusEx(out _) != FeatureStatusConstants.igFeatureOK)
         {
-            TryDelete(decal);
+            Late.TryDelete(decal);
             throw new ToolException("decal_failed", "Solid Edge left the decal failed.", "Use a face of the part the picture can lie on.");
         }
 
@@ -134,21 +134,4 @@ public static class DecalService
     private static PartDocument Part(SeContext context, string? documentHandle) =>
         context.GetDocument(documentHandle) as PartDocument
             ?? throw new ToolException("wrong_document_type", "Decals are made in part documents.", "Activate or pass a part document.");
-
-    private static void TryDelete(object? value)
-    {
-        if (value is null)
-        {
-            return;
-        }
-
-        try
-        {
-            Late.Call(value, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
-        {
-            // Left for the person to see.
-        }
-    }
 }

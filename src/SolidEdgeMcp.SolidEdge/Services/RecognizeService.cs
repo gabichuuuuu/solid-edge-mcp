@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -28,13 +29,14 @@ public static class RecognizeService
 {
     private const int NotSupported = unchecked((int)0x80004021);
 
-    public static object Run(SeContext context, string? documentHandle, string action, string[]? features)
+    public static object Run(SeContext context, string? documentHandle, RecognizeAction action, string[]? features)
     {
+        string what = ArgumentNames.Snake(action);
         ModelDocument model = features is { Length: > 0 } ? ModelDocument.For(context, documentHandle, features[0]) : ModelDocument.Get(context, documentHandle);
         Model target = model.RequireModel();
         if (Late.Items(target.Features).FirstOrDefault(IsOrdered) is { } ordered)
         {
-            throw new ToolException("not_supported", $"Solid Edge recognises {action} only on synchronous geometry, and '{Late.TryGetString(ordered, "Name")}' of '{model.Document.Name}' is an ordered feature.",
+            throw new ToolException("not_supported", $"Solid Edge recognises {what} only on synchronous geometry, and '{Late.TryGetString(ordered, "Name")}' of '{model.Document.Name}' is an ordered feature.",
                 "Move the ordered features to synchronous first: se_feature_edit move_to_synchronous on the first of them (se_feature_tree).");
         }
 
@@ -45,35 +47,36 @@ public static class RecognizeService
         {
             made = action switch
             {
-                "holes" => Holes(target),
-                "patterns" => Patterns(context, target, features),
-                "chamfers" => Chamfers(target),
-                _ => throw ToolException.InvalidArgument($"Unknown action '{action}'.", "Use holes, patterns or chamfers."),
+                RecognizeAction.Holes => Holes(target),
+                RecognizeAction.Patterns => Patterns(context, target, features),
+                RecognizeAction.Chamfers => Chamfers(target),
+                _ => throw new ArgumentOutOfRangeException(nameof(action)),
             };
         }
         catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException { HResult: NotSupported })
         {
-            Restore(model, switched);
-            throw new ToolException("not_supported", $"Solid Edge cannot recognise {action} on ordered features of '{model.Document.Name}'.",
+            model.RestoreOrdered(switched);
+            throw new ToolException("not_supported", $"Solid Edge cannot recognise {what} on ordered features of '{model.Document.Name}'.",
                 "Move the body feature to synchronous first: se_feature_edit move_to_synchronous (se_feature_tree gives its handle).", ex);
         }
         catch (Exception ex) when (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsGone(com))
         {
-            Restore(model, switched);
-            throw new ToolException("nothing_recognized", $"Solid Edge recognised no {action} in '{model.Document.Name}' ({com.Message.Trim()}).",
+            model.RestoreOrdered(switched);
+            throw new ToolException("nothing_recognized", $"Solid Edge recognised no {what} in '{model.Document.Name}' ({com.Message.Trim()}).",
                 action switch
                 {
-                    "holes" => "Recognition looks for cylindrical cuts in the synchronous design body.",
-                    "patterns" => "Give two or more alike features in a regular layout (default: all the holes; se_feature_tree).",
+                    RecognizeAction.Holes => "Recognition looks for cylindrical cuts in the synchronous design body.",
+                    RecognizeAction.Patterns => "Give two or more alike features in a regular layout (default: all the holes; se_feature_tree).",
                     _ => "Recognition looks for flat bevels between faces of the synchronous design body.",
                 }, ex);
         }
 
-        context.ModelChanged(model.Document, $"the model changed (recognise {action})");
+        context.ModelChanged(model.Document, $"the model changed (recognise {what})");
         double after = model.Volume();
         if (made.Length == 0)
         {
-            throw new ToolException("nothing_recognized", $"Solid Edge recognised no {action} in '{model.Document.Name}'.");
+            model.RestoreOrdered(switched);
+            throw new ToolException("nothing_recognized", $"Solid Edge recognised no {what} in '{model.Document.Name}'.");
         }
 
         return new
@@ -88,14 +91,6 @@ public static class RecognizeService
 
     private static bool IsOrdered(object feature) =>
         Late.TryGet(feature, "ModelingModeType") is { } mode && Convert.ToInt32(mode, System.Globalization.CultureInfo.InvariantCulture) == (int)ModelingModeConstants.seModelingModeOrdered;
-
-    private static void Restore(ModelDocument model, bool switched)
-    {
-        if (switched)
-        {
-            model.EnsureOrdered();
-        }
-    }
 
     private static object[] Holes(Model target)
     {

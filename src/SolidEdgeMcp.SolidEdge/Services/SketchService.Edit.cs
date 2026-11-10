@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text.Json;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -164,17 +165,12 @@ public static partial class SketchService
     /// <paramref name="at"/>) and, on an open chain, caps joining the copies' ends round each end of the chain.
     /// </summary>
     public static object Offset(SeContext context, string sketch, double[]? at, double[]? side, double? distance, bool symmetric = false,
-        string cap = "arc")
+        OffsetCap cap = OffsetCap.Arc)
     {
         Canvas2d canvas = ResolveCanvas(context, sketch);
         (double x, double y) = Geo.Point2(at, "at");
         (double sx, double sy) = Geo.Point2(side, "side");
         double d = Units.MmToM(Units.RequirePositive(distance ?? throw ToolException.InvalidArgument("Action 'offset' requires 'distance' (mm)."), "distance"));
-        if (cap is not ("arc" or "line" or "none"))
-        {
-            throw ToolException.InvalidArgument($"Unknown cap '{cap}'.", "Use arc, line or none.");
-        }
-
         if (symmetric && Gap((x, y), (sx, sy)) < 1e-9)
         {
             throw ToolException.InvalidArgument("'side' must be a point off the chain.", "Give a point a little off the chain, straight across from 'at'.");
@@ -197,7 +193,7 @@ public static partial class SketchService
             throw;
         }
 
-        List<object> caps = cap == "none" ? [] : Caps(canvas, elements, created, other, d, cap == "arc");
+        List<object> caps = cap == OffsetCap.None ? [] : Caps(canvas, elements, created, other, d, cap == OffsetCap.Arc);
         return new
         {
             chain,
@@ -622,16 +618,17 @@ public static partial class SketchService
     /// Bring to Front, Send to Back, Bring Forward and Send Backward on elements of a drawing sheet. Verified: they change
     /// ZOrder (lines at 5, 6, 7; the first brought to front: 7, 5, 6).
     /// </summary>
-    public static object Order(SeContext context, string sketch, string[]? elements, string? to)
+    public static object Order(SeContext context, string sketch, string[]? elements, DrawOrder? to)
     {
         Sheet sheet = SheetOnly(ResolveCanvas(context, sketch), "order");
-        string method = to switch
+        DrawOrder order = to ?? throw ToolException.InvalidArgument("Action 'order' requires 'to': front, back, forward or backward.");
+        string method = order switch
         {
-            "front" => "BringToFront",
-            "back" => "SendToBack",
-            "forward" => "BringForward",
-            "backward" => "SendBackward",
-            _ => throw ToolException.InvalidArgument("Action 'order' requires 'to': front, back, forward or backward."),
+            DrawOrder.Front => "BringToFront",
+            DrawOrder.Back => "SendToBack",
+            DrawOrder.Forward => "BringForward",
+            DrawOrder.Backward => "SendBackward",
+            _ => throw new ArgumentOutOfRangeException(nameof(to)),
         };
         object[] e = EditedElements(context, elements, "order");
         var rows = new List<object>();
@@ -649,7 +646,7 @@ public static partial class SketchService
                 throw ToolException.InvalidArgument($"'{elements![i]}' has no drawing order on '{sheet.Name}'.", "Give 2D elements, text or annotations of the sheet.");
             }
 
-            if (to is "front" or "forward" ? after < before : after > before)
+            if (order is DrawOrder.Front or DrawOrder.Forward ? after < before : after > before)
             {
                 throw new ToolException("edit_failed", $"Solid Edge moved '{elements![i]}' the wrong way ({before} to {after}).", "Check the order with se_sketch info.");
             }
@@ -657,7 +654,7 @@ public static partial class SketchService
             rows.Add(new { element = elements![i], zOrder = after, previous = before });
         }
 
-        return new { to, elements = rows };
+        return new { to = ArgumentNames.Snake(order), elements = rows };
     }
 
     /// <summary>
@@ -867,7 +864,7 @@ public static partial class SketchService
             {
                 foreach (Relation2d relation in made)
                 {
-                    TryDelete(relation);
+                    Late.TryDelete(relation);
                 }
 
                 throw new ToolException("relation_failed",
@@ -975,7 +972,7 @@ public static partial class SketchService
         {
             foreach (object copy in copies)
             {
-                TryDelete(copy);
+                Late.TryDelete(copy);
             }
 
             if (ex is ToolException)
@@ -1056,7 +1053,7 @@ public static partial class SketchService
 
         Relations2d relations = canvas.Relations2d;
         var joints = new List<(int A, int KeyA, int B, int KeyB)>();
-        for (int r = 1; r <= relations.Count; r++)
+        for (int r = 1, total = relations.Count; r <= total; r++)
         {
             Relation2d relation = relations.Item(r);
             if ((SolidEdgeFramework.ObjectType)relation.Type != SolidEdgeFramework.ObjectType.igKeyPointRelation2d)
@@ -1193,7 +1190,7 @@ public static partial class SketchService
 
         var inner = new List<(Relation2d, Bond)>();
         Relations2d relations = canvas.Relations2d;
-        for (int i = 1; i <= relations.Count; i++)
+        for (int i = 1, total = relations.Count; i <= total; i++)
         {
             Relation2d relation = relations.Item(i);
             relation.GetRelatedObjectCount(out int count);
@@ -1218,7 +1215,7 @@ public static partial class SketchService
         }
 
         Dimensions dimensions = canvas.Dimensions;
-        for (int i = 1; i <= dimensions.Count; i++)
+        for (int i = 1, total = dimensions.Count; i <= total; i++)
         {
             SolidEdgeFrameworkSupport.Dimension dimension = dimensions.Item(i);
             if (!dimension.Constraint)
@@ -1328,10 +1325,10 @@ public static partial class SketchService
         int wanted = originals.Length * (occurrences - 1);
         if (created.Count != wanted || !expected.All(p => firsts.Any(q => Gap(p, q) <= EditTolerance)))
         {
-            TryDelete(pattern);
+            Late.TryDelete(pattern);
             foreach (object o in NewElements(canvas, before).ToList())
             {
-                TryDelete(o);
+                Late.TryDelete(o);
             }
 
             throw new ToolException("pattern_failed",
@@ -1381,18 +1378,6 @@ public static partial class SketchService
         ElementCollections.Any(c => Late.Items(c(canvas)).Any(o => ReferenceEquals(o, element)));
 
     private static string Fingerprint(object element) => JsonSerializer.Serialize(Describe2d(element));
-
-    private static void TryDelete(object element)
-    {
-        try
-        {
-            Late.Call(element, "Delete");
-        }
-        catch (Exception ex) when (ComErrors.IsCallFailure(ex) || Late.IsMemberFailure(ex))
-        {
-            // Cleaning up after a failure: the error that stopped the edit is the one reported.
-        }
-    }
 
     private static string Mm(double x, double y) =>
         string.Create(CultureInfo.InvariantCulture, $"({Geo.Mm(x)}, {Geo.Mm(y)}) mm");

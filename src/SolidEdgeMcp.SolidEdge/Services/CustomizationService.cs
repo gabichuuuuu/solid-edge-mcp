@@ -263,7 +263,7 @@ public static class CustomizationService
     {
         (SeEnvironment env, Accelerator table) = Keys(context, environment);
         var items = new List<object>();
-        for (int i = 1; i <= table.Count; i++)
+        for (int i = 1, count = table.Count; i <= count; i++)
         {
             KeyBinding binding = table.Item(i);
             items.Add(DescribeBinding(binding));
@@ -546,7 +546,7 @@ public static class CustomizationService
 
         Accelerators tables = env.Accelerators;
         Accelerator? main = null;
-        for (int i = 1; i <= tables.Count; i++)
+        for (int i = 1, count = tables.Count; i <= count; i++)
         {
             Accelerator table = tables.Item(i);
             if (table.Type == AcceleratorTypeConstants.seExecutable)

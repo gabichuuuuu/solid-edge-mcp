@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using Face = SolidEdgeGeometry.Face;
@@ -12,9 +13,9 @@ using Face = SolidEdgeGeometry.Face;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_pmi does: the action and its inputs. Lengths in mm, angles in degrees.</summary>
-public sealed record PmiSpec(string Action, string[]? Dimensions = null, double? Value = null, string Direction = "measure", bool? Locked = null,
-    bool? ShowDimensions = null, bool? ShowAnnotations = null, string? Feature = null, string Kind = "all", string? Plane = null, string? Edge = null,
-    bool? PixelMode = null, int? PixelSize = null, double[]? Points = null, string? Type = null, double? Distance = null);
+public sealed record PmiSpec(PmiAction Action, string[]? Dimensions = null, double? Value = null, PmiDirection Direction = PmiDirection.Measure, bool? Locked = null,
+    bool? ShowDimensions = null, bool? ShowAnnotations = null, string? Feature = null, PmiCopyKind Kind = PmiCopyKind.All, string? Plane = null, string? Edge = null,
+    bool? PixelMode = null, int? PixelSize = null, double[]? Points = null, PmiDimensionType? Type = null, double? Distance = null);
 
 /// <summary>
 /// PMI (3D) dimensions of a part or sheet metal document and the PMI display. Verified in Solid Edge 2026 on se_primitive
@@ -42,9 +43,6 @@ public sealed record PmiSpec(string Action, string[]? Dimensions = null, double?
 /// </summary>
 public static partial class PmiService
 {
-    public static readonly IReadOnlyList<string> Actions = ["list", "set", "lock", "unlock", "delete", "display", "set_display", "copy", "size", "plane", "axis", "dimension", "move"];
-
-    public static readonly IReadOnlyList<string> CopyKinds = ["dimensions", "annotations", "all"];
 
     /// <summary>Metres (0.0001 mm).</summary>
     private const double LengthTolerance = 1e-7;
@@ -52,25 +50,22 @@ public static partial class PmiService
     /// <summary>Radians (about 0.00001 degrees).</summary>
     private const double AngleTolerance = 2e-7;
 
-    /// <summary>Cubic metres (0.001 mm³).</summary>
-    private const double VolumeTolerance = 1e-12;
-
     public static object Run(SeContext context, string? documentHandle, PmiSpec spec) => spec.Action switch
     {
-        "list" => List(context, documentHandle),
-        "set" => Set(context, documentHandle, spec),
-        "lock" => Lock(context, documentHandle, spec.Dimensions, locked: true),
-        "unlock" => Lock(context, documentHandle, spec.Dimensions, locked: false),
-        "delete" => Delete(context, documentHandle, spec.Dimensions),
-        "display" => Display(context, documentHandle),
-        "set_display" => SetDisplay(context, documentHandle, spec),
-        "copy" => Copy(context, documentHandle, spec),
-        "size" => Size(context, documentHandle, spec.PixelMode, spec.PixelSize),
-        "plane" => Plane(context, documentHandle, spec.Plane),
-        "axis" => Axis(context, documentHandle, spec.Edge),
-        "dimension" => AddDimension(context, documentHandle, spec),
-        "move" => Move(context, documentHandle, spec),
-        _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", Actions)}."),
+        PmiAction.List => List(context, documentHandle),
+        PmiAction.Set => Set(context, documentHandle, spec),
+        PmiAction.Lock => Lock(context, documentHandle, spec.Dimensions, locked: true),
+        PmiAction.Unlock => Lock(context, documentHandle, spec.Dimensions, locked: false),
+        PmiAction.Delete => Delete(context, documentHandle, spec.Dimensions),
+        PmiAction.Display => Display(context, documentHandle),
+        PmiAction.SetDisplay => SetDisplay(context, documentHandle, spec),
+        PmiAction.Copy => Copy(context, documentHandle, spec),
+        PmiAction.Size => Size(context, documentHandle, spec.PixelMode, spec.PixelSize),
+        PmiAction.Plane => Plane(context, documentHandle, spec.Plane),
+        PmiAction.Axis => Axis(context, documentHandle, spec.Edge),
+        PmiAction.Dimension => AddDimension(context, documentHandle, spec),
+        PmiAction.Move => Move(context, documentHandle, spec),
+        _ => throw new ArgumentOutOfRangeException(nameof(spec)),
     };
 
     private static object List(SeContext context, string? documentHandle)
@@ -100,10 +95,10 @@ public static partial class PmiService
         double requested = Units.RequireFinite(spec.Value ?? throw ToolException.InvalidArgument("set needs 'value': the new value in mm (degrees for an angle)."), "value");
         PMIEditDirectionConstants direction = spec.Direction switch
         {
-            "measure" => PMIEditDirectionConstants.seMoveMeasureParent,
-            "origin" => PMIEditDirectionConstants.seMoveOriginParent,
-            "symmetric" => PMIEditDirectionConstants.seMoveParentsSymmetrically,
-            _ => throw ToolException.InvalidArgument($"Unknown direction '{spec.Direction}'.", "Use measure, origin or symmetric."),
+            PmiDirection.Measure => PMIEditDirectionConstants.seMoveMeasureParent,
+            PmiDirection.Origin => PMIEditDirectionConstants.seMoveOriginParent,
+            PmiDirection.Symmetric => PMIEditDirectionConstants.seMoveParentsSymmetrically,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         ModelDocument model = DocumentOf(context, documentHandle, spec.Dimensions);
         Dimensions dimensions = DimensionsOf(model);
@@ -160,7 +155,7 @@ public static partial class PmiService
         }
         finally
         {
-            Restore(model, switched);
+            model.RestoreOrdered(switched);
         }
 
         double after = model.Volume();
@@ -168,7 +163,7 @@ public static partial class PmiService
         if (problem is not null)
         {
             string state = restored ? " The old value was put back." : "";
-            string changed = Math.Abs(after - before) > VolumeTolerance
+            string changed = Math.Abs(after - before) > Geo.VolumeDrift
                 ? $" The volume went from {Geo.Mm3(before)} to {Geo.Mm3(after)} mm³: check the model (se_geometry, se_view)."
                 : "";
             throw new ToolException("value_rejected", $"'{DisplayName(dimension)}' did not reach {Text(target, angle)}: {problem}.{state}{changed}",
@@ -482,10 +477,10 @@ public static partial class PmiService
         string handle = spec.Feature is { Length: > 0 } f ? f : throw ToolException.InvalidArgument("copy needs 'feature': a feature handle from se_feature_tree or from the action that created it.");
         SolidEdgePart.seCopytoPMIConstants type = spec.Kind switch
         {
-            "dimensions" => SolidEdgePart.seCopytoPMIConstants.seCopytoPMIConstantsDimension,
-            "annotations" => SolidEdgePart.seCopytoPMIConstants.seCopytoPMIConstantsAnnotation,
-            "all" => SolidEdgePart.seCopytoPMIConstants.seCopytoPMIConstantsAll,
-            _ => throw ToolException.InvalidArgument($"Unknown kind '{spec.Kind}'.", $"Use one of: {string.Join(", ", CopyKinds)}."),
+            PmiCopyKind.Dimensions => SolidEdgePart.seCopytoPMIConstants.seCopytoPMIConstantsDimension,
+            PmiCopyKind.Annotations => SolidEdgePart.seCopytoPMIConstants.seCopytoPMIConstantsAnnotation,
+            PmiCopyKind.All => SolidEdgePart.seCopytoPMIConstants.seCopytoPMIConstantsAll,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         ModelDocument model = ModelDocument.For(context, documentHandle, handle);
         object feature = context.Handles.Resolve(handle, "feature");
@@ -516,7 +511,7 @@ public static partial class PmiService
         int annotations = AnnotationCount(PmiOf(model)) - annotationsBefore;
         if (count == before && annotations == 0)
         {
-            throw new ToolException("nothing_copied", $"'{handle}' has no {(spec.Kind == "all" ? "dimensions or annotations" : spec.Kind)} to copy to PMI.",
+            throw new ToolException("nothing_copied", $"'{handle}' has no {(spec.Kind == PmiCopyKind.All ? "dimensions or annotations" : ArgumentNames.Snake(spec.Kind))} to copy to PMI.",
                 "Copy to PMI takes the dimensions of the feature's sketch: dimension the sketch (se_sketch dimension) first.");
         }
 
@@ -524,7 +519,7 @@ public static partial class PmiService
         {
             document = context.DocumentHandle(model.Document),
             feature = handle,
-            kind = spec.Kind,
+            kind = ArgumentNames.Snake(spec.Kind),
             copied = count - before,
             annotations,
             dimensions = Enumerable.Range(before + 1, count - before).Select(i => Describe(context, model, dimensions.Item(i), i)).ToArray(),
@@ -694,21 +689,4 @@ public static partial class PmiService
 
     private static string Text(double apiValue, bool angle) =>
         Value(apiValue, angle).ToString(CultureInfo.InvariantCulture) + (angle ? " degrees" : " mm");
-
-    private static void Restore(ModelDocument model, bool switched)
-    {
-        if (!switched)
-        {
-            return;
-        }
-
-        try
-        {
-            model.EnsureOrdered();
-        }
-        catch (COMException ex) when (!ComErrors.IsGone(ex))
-        {
-            // The document stays in synchronous modelling; the next ordered operation switches it.
-        }
-    }
 }

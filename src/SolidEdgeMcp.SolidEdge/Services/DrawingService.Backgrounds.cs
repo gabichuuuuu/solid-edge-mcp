@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeDraft;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -26,7 +27,7 @@ public static partial class DrawingService
     /// <summary>Tolerance of the content comparison and of the sheet edge (m).</summary>
     private const double ContentTolerance = 1e-6;
 
-    public static object AddBackground(SeContext context, string? documentHandle, string? name, string? paper, bool portrait, double? width, double? height)
+    public static object AddBackground(SeContext context, string? documentHandle, string? name, PaperSize? paper, bool portrait, double? width, double? height)
     {
         DraftDocument draft = Draft(context, documentHandle);
         if (name is not null)
@@ -39,7 +40,7 @@ public static partial class DrawingService
             : draft.Sheets.AddSheet(name, SheetSectionTypeConstants.igBackgroundSection);
         if (!IsBackground(sheet))
         {
-            TryDelete(sheet);
+            Late.TryDelete(sheet);
             throw new ToolException("sheet_failed", "Solid Edge did not add a background sheet.");
         }
 
@@ -116,8 +117,6 @@ public static partial class DrawingService
             warning,
         };
     }
-
-    // Helpers
 
     private static bool IsBackground(Sheet sheet) => sheet.SectionType == SheetSectionTypeConstants.igBackgroundSection;
 

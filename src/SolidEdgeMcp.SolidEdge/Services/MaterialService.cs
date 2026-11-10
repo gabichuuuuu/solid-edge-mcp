@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -30,16 +31,13 @@ public static class MaterialService
         (MatTablePropIndex.seSpecificHeat, "specificHeatJPerKgK", 1),
     ];
 
-    /// <summary>The materials folder set in the Solid Edge options (default) or the libraries installed with Solid Edge.</summary>
-    public static readonly IReadOnlyList<string> Folders = ["options", "installation"];
-
-    public static object Libraries(SeContext context, string? folder = null) =>
+    public static object Libraries(SeContext context, MaterialFolder? folder = null) =>
         InFolder(context, folder, table => new { folder = FolderName(folder), libraries = LibraryNames(table) });
 
-    public static object List(SeContext context, string? library, string? filter, string? folder = null) =>
+    public static object List(SeContext context, string? library, string? filter, MaterialFolder? folder = null) =>
         InFolder(context, folder, table => List(context, table, library, filter, folder));
 
-    private static object List(SeContext context, MatTable table, string? library, string? filter, string? folder)
+    private static object List(SeContext context, MatTable table, string? library, string? filter, MaterialFolder? folder)
     {
         int budget = context.MaxListItems;
         var result = new List<object>();
@@ -61,7 +59,7 @@ public static class MaterialService
     /// </summary>
     internal static string RequireMaterial(SeContext context, string name) => FindLibrary(Table(context), name, null).Name;
 
-    public static object Info(SeContext context, string name, string? library, string? folder = null) => InFolder(context, folder, table =>
+    public static object Info(SeContext context, string name, string? library, MaterialFolder? folder = null) => InFolder(context, folder, table =>
     {
         (string lib, string found) = FindLibrary(table, name, library);
         return new { material = found, library = lib, folder = FolderName(folder), properties = Properties(index =>
@@ -126,7 +124,7 @@ public static class MaterialService
     /// Applies a library material to the document and checks that it was assigned. The document keeps a copy of the
     /// properties, so a material applied from the installed libraries stays when the folder of the options is put back.
     /// </summary>
-    public static object Apply(SeContext context, string? documentHandle, string name, string? library, string? folder = null)
+    public static object Apply(SeContext context, string? documentHandle, string name, string? library, MaterialFolder? folder = null)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         return InFolder(context, folder, table =>
@@ -218,8 +216,8 @@ public static class MaterialService
     /// ApplyGageFromLibraryToDoc(doc, "10 gage", "Materials") sets thickness and bend radius to 3.581 mm. Without a library,
     /// each one is tried until the document reports the gauge. <paramref name="folder"/>: as in <see cref="Apply"/>.
     /// </summary>
-    public static string ApplyGauge(SeContext context, SolidEdgeDocument document, string gauge, string? library, string? folder = null) =>
-        InFolder(context, FolderName(folder), table =>
+    public static string ApplyGauge(SeContext context, SolidEdgeDocument document, string gauge, string? library, MaterialFolder? folder = null) =>
+        InFolder(context, folder, table =>
         {
             foreach (string lib in library is null ? LibraryNames(table) : [RequireLibrary(table, library)])
             {
@@ -290,24 +288,24 @@ public static class MaterialService
 
     private static MatTable Table(SeContext context) => context.Application.GetMaterialTable();
 
-    private static string? FolderName(string? folder) => folder is null or "options" ? null : folder;
+    private static string? FolderName(MaterialFolder? folder) => folder is null or MaterialFolder.Options ? null : ArgumentNames.Snake(folder.Value);
 
     /// <summary>
     /// Runs <paramref name="work"/> on the libraries of <paramref name="folder"/>. MatTable only reads the libraries of the
     /// materials folder set in the options, so for the installed ones that folder is switched to a copy of them in the work
     /// folder of the server (Program Files is neither pointed at nor written) and put back afterwards, also when the work fails.
     /// </summary>
-    private static T InFolder<T>(SeContext context, string? folder, Func<MatTable, T> work)
+    private static T InFolder<T>(SeContext context, MaterialFolder? folder, Func<MatTable, T> work)
     {
         MatTable table = Table(context);
-        if (folder is null or "options")
+        if (folder is null or MaterialFolder.Options)
         {
             return work(table);
         }
 
-        if (folder != "installation")
+        if (folder != MaterialFolder.Installation)
         {
-            throw ToolException.InvalidArgument($"Unknown folder '{folder}'.", $"Use one of: {string.Join(", ", Folders)}.");
+            throw new ArgumentOutOfRangeException(nameof(folder));
         }
 
         string copy = InstalledCopy(context);

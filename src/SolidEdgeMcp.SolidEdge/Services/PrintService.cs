@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeDraft;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -27,17 +28,17 @@ public static class PrintService
 {
     private static readonly TimeSpan SpoolWait = TimeSpan.FromSeconds(120);
 
-    private static readonly Dictionary<string, DraftPrintPaperSizeConstants> Papers = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<PrintPaper, DraftPrintPaperSizeConstants> Papers = new()
     {
-        ["a2"] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A2,
-        ["a3"] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A3,
-        ["a4"] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A4,
-        ["a5"] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A5,
-        ["a6"] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A6,
-        ["letter"] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_LETTER,
-        ["legal"] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_LEGAL,
-        ["tabloid"] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_TABLOID,
-        ["ledger"] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_LEDGER,
+        [PrintPaper.A2] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A2,
+        [PrintPaper.A3] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A3,
+        [PrintPaper.A4] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A4,
+        [PrintPaper.A5] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A5,
+        [PrintPaper.A6] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_A6,
+        [PrintPaper.Letter] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_LETTER,
+        [PrintPaper.Legal] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_LEGAL,
+        [PrintPaper.Tabloid] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_TABLOID,
+        [PrintPaper.Ledger] = DraftPrintPaperSizeConstants.igDraftPrintPaperSize_LEDGER,
     };
 
     /// <summary>The printers of this Windows user and the print settings of Solid Edge.</summary>
@@ -65,7 +66,7 @@ public static class PrintService
     }
 
     public static object Print(SeContext context, string? documentHandle, string[]? sheets, string? printer, string? folder, int copies,
-        string paper, string orientation, double? scale, bool black, bool overwrite)
+        PrintPaper paper, PrintOrientation orientation, double? scale, bool black, bool overwrite)
     {
         DraftDocument draft = context.GetDocument<DraftDocument>(documentHandle, "draft");
         WindowsPrinter device = Printer(printer);
@@ -86,14 +87,9 @@ public static class PrintService
             throw ToolException.InvalidArgument("'scale' must be greater than 0: 1 prints the sheet at full size, 0.5 at half size; leave it out to fit the paper.");
         }
 
-        DraftPrintPaperSizeConstants? paperSize = string.Equals(paper, "printer", StringComparison.OrdinalIgnoreCase) ? null
+        DraftPrintPaperSizeConstants? paperSize = paper == PrintPaper.Printer ? null
             : Papers.TryGetValue(paper, out DraftPrintPaperSizeConstants size) ? size
-            : throw ToolException.InvalidArgument($"Unknown paper '{paper}'.", $"Use printer (its own paper) or one of: {string.Join(", ", Papers.Keys)}.");
-        string mode = orientation.ToLowerInvariant();
-        if (mode is not ("auto" or "portrait" or "landscape"))
-        {
-            throw ToolException.InvalidArgument($"Unknown orientation '{orientation}'.", "Use auto, portrait or landscape.");
-        }
+            : throw new ArgumentOutOfRangeException(nameof(paper));
 
         List<Sheet> chosen = Sheets(draft, sheets);
         string stem = Path.GetFileNameWithoutExtension(SeContext.SafeName((SolidEdgeDocument)draft));
@@ -126,7 +122,7 @@ public static class PrintService
             {
                 try
                 {
-                    used = Apply(utility, device.Name, paperSize, mode, scale, black, copies, scratch);
+                    used = Apply(utility, device.Name, paperSize, orientation, scale, black, copies, scratch);
                     utility.RemoveAllDocuments();
                     if (sheets is { Length: > 0 })
                     {
@@ -198,7 +194,7 @@ public static class PrintService
         }
     }
 
-    private static Settings Apply(DraftPrintUtility utility, string printer, DraftPrintPaperSizeConstants? paper, string orientation, double? scale,
+    private static Settings Apply(DraftPrintUtility utility, string printer, DraftPrintPaperSizeConstants? paper, PrintOrientation orientation, double? scale,
         bool black, int copies, string? folder)
     {
         // Setting the printer resets the paper to that printer's default.
@@ -217,10 +213,10 @@ public static class PrintService
             }
         }
 
-        utility.AutoOrient = orientation == "auto";
-        if (orientation != "auto")
+        utility.AutoOrient = orientation == PrintOrientation.Auto;
+        if (orientation != PrintOrientation.Auto)
         {
-            utility.Orientation = orientation == "portrait" ? DraftPrintOrientationConstants.igDraftPrintPortrait : DraftPrintOrientationConstants.igDraftPrintLandscape;
+            utility.Orientation = orientation == PrintOrientation.Portrait ? DraftPrintOrientationConstants.igDraftPrintPortrait : DraftPrintOrientationConstants.igDraftPrintLandscape;
         }
 
         utility.BestFit = scale is null;
@@ -404,7 +400,7 @@ public static class PrintService
         ?? throw new ToolException("print_failed", "Solid Edge did not give its print utility.");
 
     private static string PaperName(DraftPrintPaperSizeConstants paper) =>
-        Papers.FirstOrDefault(p => p.Value == paper).Key
+        Papers.Where(p => p.Value == paper).Select(p => ArgumentNames.Snake(p.Key)).FirstOrDefault()
         ?? (paper == DraftPrintPaperSizeConstants.igDraftPrintPaperSize_Custom ? "custom" : paper.ToString().Replace("igDraftPrintPaperSize_", "", StringComparison.Ordinal).ToLowerInvariant());
 
     private static void Try(Action action)
@@ -425,13 +421,9 @@ public static class PrintService
         {
             Directory.Delete(folder, recursive: true);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // A file the spooler still holds: the folder stays in the work folder.
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Idem.
         }
     }
 

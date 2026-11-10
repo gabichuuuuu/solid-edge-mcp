@@ -6,28 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SketchUtilityAction
-{
-    Clean,
-    Convert,
-    Origin,
-    Image,
-    Sections,
-    Length,
-    Copy,
-}
-
-public enum SectionSide
-{
-    Normal,
-    Both,
-    Reverse,
-}
 
 /// <summary>Sketch tools of the ribbon that are not drawing or editing: clean, convert to curve, origin, image, section sketches, total length, copy sketch.</summary>
 [McpServerToolType]
@@ -81,7 +64,7 @@ public sealed class SketchUtilityTools(ToolRunner runner, PathGuard guard)
             SketchUtilityAction.Origin => runner.RunAsync(tool, act, c => SketchService.Origin(c, Sketch(), origin, angle), cancellationToken),
             SketchUtilityAction.Image => runner.RunAsync(tool, act, c => SketchService.Image(c, Sketch(), path, position, width, link), cancellationToken,
                 precheck: path is null ? null : () => guard.Check(path)),
-            SketchUtilityAction.Sections => runner.RunAsync(tool, act, c => SketchService.Sections(c, document, plane, bodies, count, spacing, Snake(side)), cancellationToken),
+            SketchUtilityAction.Sections => runner.RunAsync(tool, act, c => SketchService.Sections(c, document, plane, bodies, count, spacing, side), cancellationToken),
             SketchUtilityAction.Length => runner.RunAsync(tool, act, c => SketchService.TotalLength(c, Sketch(), elements), cancellationToken),
             SketchUtilityAction.Copy => runner.RunAsync(tool, act, c => SketchService.CopyToPart(c, Sketch(), occurrence, associative), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),

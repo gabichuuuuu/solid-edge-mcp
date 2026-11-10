@@ -5,49 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum FaceRelationAction
-{
-    List,
-    Coplanar,
-    Offset,
-    Parallel,
-    Perpendicular,
-    Tangent,
-    Concentric,
-    Fix,
-    Edit,
-    Delete,
-    LiveRules,
-    SetLiveRules,
-    RestoreLiveRules,
-}
-
-public enum LiveRule
-{
-    Concentric,
-    Coplanar,
-    TangentEdge,
-    TangentTouching,
-    Parallel,
-    Perpendicular,
-    Symmetric,
-    SymmetricXy,
-    SymmetricYz,
-    SymmetricZx,
-    MaintainRadius,
-    OrthoLocking,
-    CoplanarAxes,
-    CoplanarAxesX,
-    CoplanarAxesY,
-    CoplanarAxesZ,
-    ThicknessChain,
-    Offset,
-}
 
 /// <summary>3D relations between faces of a part (Relate commands of synchronous modelling) and live rules.</summary>
 [McpServerToolType]
@@ -83,7 +45,7 @@ public sealed class FaceRelationTools(ToolRunner runner)
         CancellationToken cancellationToken = default)
     {
         string act = Snake(action);
-        var spec = new FaceRelationSpec(act, faces, target, distance, relation, rules?.Select(r => Snake(r)).ToArray(), maintain, values);
+        var spec = new FaceRelationSpec(action, faces, target, distance, relation, rules, maintain, values);
         return runner.RunAsync("se_face_relation", act, c => FaceRelationService.Run(c, document, spec), cancellationToken);
     }
 }

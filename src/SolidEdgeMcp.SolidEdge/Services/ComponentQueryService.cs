@@ -5,14 +5,15 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using static SolidEdgeMcp.SolidEdge.Services.AssemblyService;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
-/// <summary>A query criterion: property (snake_case), condition (contains | is | is_not), value and custom property name.</summary>
-public sealed record ComponentCriterion(string Property, string Condition, string? Value, string? Custom);
+/// <summary>A query criterion: property, condition, value and custom property name.</summary>
+public sealed record ComponentCriterion(ComponentProperty Property, ComponentCondition Condition, string? Value, string? Custom);
 
 /// <summary>
 /// Component queries and zones of an assembly, as the Select Tools of PathFinder use them. Verified in Solid Edge 2026:
@@ -29,38 +30,38 @@ public static class ComponentQueryService
 {
     private const string QuickQuery = "__SolidEdgeQuickQuery__";
 
-    private static readonly Dictionary<string, QueryPropertyConstants> Properties = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<ComponentProperty, QueryPropertyConstants> Properties = new()
     {
-        ["name"] = QueryPropertyConstants.seQueryPropertyName,
-        ["title"] = QueryPropertyConstants.seQueryPropertyTitle,
-        ["subject"] = QueryPropertyConstants.seQueryPropertySubject,
-        ["author"] = QueryPropertyConstants.seQueryPropertyAuthor,
-        ["manager"] = QueryPropertyConstants.seQueryPropertyManager,
-        ["company"] = QueryPropertyConstants.seQueryPropertyCompany,
-        ["category"] = QueryPropertyConstants.seQueryPropertyCategory,
-        ["keywords"] = QueryPropertyConstants.seQueryPropertyKeywords,
-        ["comments"] = QueryPropertyConstants.seQueryPropertyComments,
-        ["document_number"] = QueryPropertyConstants.seQueryPropertyDocumentNumber,
-        ["revision"] = QueryPropertyConstants.seQueryPropertyRevisionNumber,
-        ["project"] = QueryPropertyConstants.seQueryPropertyProject,
-        ["material"] = QueryPropertyConstants.seQueryPropertyMaterial,
-        ["custom"] = QueryPropertyConstants.seQueryPropertyCustom,
-        ["status"] = QueryPropertyConstants.seQueryPropertyStatus,
+        [ComponentProperty.Name] = QueryPropertyConstants.seQueryPropertyName,
+        [ComponentProperty.Title] = QueryPropertyConstants.seQueryPropertyTitle,
+        [ComponentProperty.Subject] = QueryPropertyConstants.seQueryPropertySubject,
+        [ComponentProperty.Author] = QueryPropertyConstants.seQueryPropertyAuthor,
+        [ComponentProperty.Manager] = QueryPropertyConstants.seQueryPropertyManager,
+        [ComponentProperty.Company] = QueryPropertyConstants.seQueryPropertyCompany,
+        [ComponentProperty.Category] = QueryPropertyConstants.seQueryPropertyCategory,
+        [ComponentProperty.Keywords] = QueryPropertyConstants.seQueryPropertyKeywords,
+        [ComponentProperty.Comments] = QueryPropertyConstants.seQueryPropertyComments,
+        [ComponentProperty.DocumentNumber] = QueryPropertyConstants.seQueryPropertyDocumentNumber,
+        [ComponentProperty.Revision] = QueryPropertyConstants.seQueryPropertyRevisionNumber,
+        [ComponentProperty.Project] = QueryPropertyConstants.seQueryPropertyProject,
+        [ComponentProperty.Material] = QueryPropertyConstants.seQueryPropertyMaterial,
+        [ComponentProperty.Custom] = QueryPropertyConstants.seQueryPropertyCustom,
+        [ComponentProperty.Status] = QueryPropertyConstants.seQueryPropertyStatus,
     };
 
-    private static readonly Dictionary<string, QueryConditionConstants> Conditions = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<ComponentCondition, QueryConditionConstants> Conditions = new()
     {
-        ["contains"] = QueryConditionConstants.seQueryConditionContains,
-        ["is"] = QueryConditionConstants.seQueryConditionIs,
-        ["is_not"] = QueryConditionConstants.seQueryConditionIsNot,
+        [ComponentCondition.Contains] = QueryConditionConstants.seQueryConditionContains,
+        [ComponentCondition.Is] = QueryConditionConstants.seQueryConditionIs,
+        [ComponentCondition.IsNot] = QueryConditionConstants.seQueryConditionIsNot,
     };
 
-    private static readonly Dictionary<string, QueryScopeConstants> Scopes = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<ComponentScope, QueryScopeConstants> Scopes = new()
     {
-        ["all"] = QueryScopeConstants.seQueryScopeAllParts,
-        ["shown"] = QueryScopeConstants.seQueryScopeShownParts,
-        ["hidden"] = QueryScopeConstants.seQueryScopeHiddenParts,
-        ["selected"] = QueryScopeConstants.seQueryScopeSelectedParts,
+        [ComponentScope.All] = QueryScopeConstants.seQueryScopeAllParts,
+        [ComponentScope.Shown] = QueryScopeConstants.seQueryScopeShownParts,
+        [ComponentScope.Hidden] = QueryScopeConstants.seQueryScopeHiddenParts,
+        [ComponentScope.Selected] = QueryScopeConstants.seQueryScopeSelectedParts,
     };
 
     /// <summary>
@@ -101,8 +102,8 @@ public static class ComponentQueryService
     /// <summary>A matched component: top-level occurrence and, for a part inside a subassembly, the names down to it.</summary>
     private sealed record Match(Occurrence Top, string[] Chain, string File);
 
-    public static object Find(SeContext context, string? documentHandle, IReadOnlyList<ComponentCriterion>? criteria, string scope,
-        bool subassemblies, string? name, string display, int limit)
+    public static object Find(SeContext context, string? documentHandle, IReadOnlyList<ComponentCriterion>? criteria, ComponentScope scope,
+        bool subassemblies, string? name, ComponentDisplay display, int limit)
     {
         using var active = new ActiveAssembly(context, documentHandle);
         AssemblyDocument assembly = active.Assembly;
@@ -172,7 +173,7 @@ public static class ComponentQueryService
         return Result(context, assembly, matches, display, limit, title is null ? null : ("query", title));
     }
 
-    public static object Zone(SeContext context, string? documentHandle, double[]? box, bool overlap, string? name, string display, int limit)
+    public static object Zone(SeContext context, string? documentHandle, double[]? box, bool overlap, string? name, ComponentDisplay display, int limit)
     {
         using var active = new ActiveAssembly(context, documentHandle);
         AssemblyDocument assembly = active.Assembly;
@@ -235,7 +236,7 @@ public static class ComponentQueryService
     }
 
     /// <summary>Runs a saved query (on the current selection when its scope is 'selected') or a saved zone.</summary>
-    public static object Run(SeContext context, string? documentHandle, string? name, string display, int limit)
+    public static object Run(SeContext context, string? documentHandle, string? name, ComponentDisplay display, int limit)
     {
         using var active = new ActiveAssembly(context, documentHandle);
         AssemblyDocument assembly = active.Assembly;
@@ -414,7 +415,7 @@ public static class ComponentQueryService
         return new Match((Occurrence)top, chain, leaf?.OccurrenceFileName ?? "");
     }
 
-    private static object Result(SeContext context, AssemblyDocument assembly, List<Match> matches, string display, int limit, (string Kind, string Name)? saved)
+    private static object Result(SeContext context, AssemblyDocument assembly, List<Match> matches, ComponentDisplay display, int limit, (string Kind, string Name)? saved)
     {
         var document = (SolidEdgeDocument)assembly;
         int take = Math.Clamp(limit, 1, context.MaxListItems);
@@ -434,7 +435,7 @@ public static class ComponentQueryService
             result[kept.Kind] = kept.Name;
         }
 
-        if (!string.Equals(display, "select", StringComparison.OrdinalIgnoreCase))
+        if (display != ComponentDisplay.Select)
         {
             if (matches.Count == 0)
             {
@@ -461,7 +462,7 @@ public static class ComponentQueryService
     /// everything in it) and hides every other component, down into the subassemblies. Lists the components whose
     /// visibility changed; if Solid Edge refuses one, the changes made before it are undone.
     /// </summary>
-    private static object Display(AssemblyDocument assembly, List<Match> matches, string display, int limit)
+    private static object Display(AssemblyDocument assembly, List<Match> matches, ComponentDisplay display, int limit)
     {
         var changes = new List<(string Path, bool Visible, Action<bool> Write)>();
         int unchanged = 0;
@@ -525,14 +526,13 @@ public static class ComponentQueryService
             }
         }
 
-        string mode = display.ToLowerInvariant();
         try
         {
-            switch (mode)
+            switch (display)
             {
-                case "hide":
-                case "show":
-                    bool visible = mode == "show";
+                case ComponentDisplay.Hide:
+                case ComponentDisplay.Show:
+                    bool visible = display == ComponentDisplay.Show;
                     foreach (Match match in matches)
                     {
                         if (match.Chain.Length == 0)
@@ -563,7 +563,7 @@ public static class ComponentQueryService
                     }
 
                     break;
-                case "show_only":
+                case ComponentDisplay.ShowOnly:
                     HashSet<string> topMatches = matches.Where(m => m.Chain.Length == 0).Select(m => m.Top.Name).ToHashSet(StringComparer.Ordinal);
                     Dictionary<string, List<string[]>> nested = matches.Where(m => m.Chain.Length > 0)
                         .GroupBy(m => m.Top.Name, StringComparer.Ordinal)
@@ -585,7 +585,7 @@ public static class ComponentQueryService
 
                     break;
                 default:
-                    throw ToolException.InvalidArgument($"Unknown display '{display}'.", "Use select, show_only, hide or show.");
+                    throw new ArgumentOutOfRangeException(nameof(display));
             }
         }
         catch
@@ -610,7 +610,7 @@ public static class ComponentQueryService
         string[] hidden = changes.Where(c => !c.Visible).Select(c => c.Path).ToArray();
         return new
         {
-            mode,
+            mode = ArgumentNames.Snake(display),
             shown = shown.Take(limit).ToArray(),
             hidden = hidden.Take(limit).ToArray(),
             unchanged,
@@ -634,10 +634,10 @@ public static class ComponentQueryService
 
         return criteria.Select((c, i) =>
         {
-            QueryPropertyConstants property = Properties.TryGetValue(c.Property ?? "", out QueryPropertyConstants p) ? p
-                : throw ToolException.InvalidArgument($"criteria[{i}]: unknown property '{c.Property}'.", $"Use one of: {string.Join(", ", Properties.Keys)}.");
-            QueryConditionConstants condition = Conditions.TryGetValue(c.Condition ?? "contains", out QueryConditionConstants k) ? k
-                : throw ToolException.InvalidArgument($"criteria[{i}]: unknown condition '{c.Condition}'.", "Use contains, is or is_not.");
+            QueryPropertyConstants property = Properties.TryGetValue(c.Property, out QueryPropertyConstants p) ? p
+                : throw new ArgumentOutOfRangeException(nameof(criteria));
+            QueryConditionConstants condition = Conditions.TryGetValue(c.Condition, out QueryConditionConstants k) ? k
+                : throw new ArgumentOutOfRangeException(nameof(criteria));
             string custom = "";
             if (property == QueryPropertyConstants.seQueryPropertyCustom)
             {
@@ -661,11 +661,12 @@ public static class ComponentQueryService
         }).ToArray();
     }
 
-    private static QueryScopeConstants ScopeOf(string scope) =>
+    private static QueryScopeConstants ScopeOf(ComponentScope scope) =>
         Scopes.TryGetValue(scope, out QueryScopeConstants value) ? value
-            : throw ToolException.InvalidArgument($"Unknown scope '{scope}'.", "Use all, shown, hidden or selected.");
+            : throw new ArgumentOutOfRangeException(nameof(scope));
 
-    private static string ScopeName(QueryScopeConstants scope) => Scopes.FirstOrDefault(s => s.Value == scope).Key ?? scope.ToString();
+    private static string ScopeName(QueryScopeConstants scope) =>
+        Scopes.Where(s => s.Value == scope).Select(s => ArgumentNames.Snake(s.Key)).FirstOrDefault() ?? scope.ToString();
 
     private static double[] Box(double[]? box)
     {
@@ -752,7 +753,7 @@ public static class ComponentQueryService
         {
             zones.Delete(zone.Name);
         }
-        catch (COMException)
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
             // Best effort: the caller reports the original result or failure.
         }

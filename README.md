@@ -12,9 +12,7 @@ Claude Desktop, Codex or any other MCP client.**
 ![Version 1.0.4](https://img.shields.io/badge/version-1.0.4-2F6FEB)
 ![Status: stable](https://img.shields.io/badge/status-stable-2EA043)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](#license)
-![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
 ![Siemens Solid Edge 2026](https://img.shields.io/badge/Siemens%20Solid%20Edge-2026-009999)
-![MCP stdio](https://img.shields.io/badge/MCP-stdio-111111?logo=modelcontextprotocol&logoColor=white)
 ![87 tools](https://img.shields.io/badge/tools-87-2F6FEB)
 
 [Quick start](#quick-start) · [Examples](docs/EXAMPLES.md) · [Tools](docs/TOOLS.md) · [Coverage](docs/COVERAGE.md) · [Limitations](docs/LIMITATIONS.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
@@ -28,7 +26,7 @@ changes. Nothing in it is tied to particular files or workflows.
 
 - Parts, sheet metal, assemblies, drawings, simulation, export and Design Manager with 87 tools, plus a generic layer
   for the rest of the Solid Edge API.
-- Each modeling operation is measured. If it fails or has no effect, it is undone and the error explains why and what
+- Each modelling operation is measured. If it fails or has no effect, it is undone and the error explains why and what
   to do next.
 - Files are opened and saved only inside the folders you allow, and tools that can change anything are flagged so your
   MCP client asks for your approval.
@@ -50,7 +48,7 @@ the generated files. [More examples](docs/EXAMPLES.md).
 |---|---|---|
 | Sheet metal part with a 100 × 60 tab and two 20 flanges; flat pattern to DXF and an A3 drawing with the flat pattern and an isometric view to PDF | Claude Code | 9,871.239 mm³ = 6000 + 2·(75π + 1700); box 100 × 60 × 21; DXF with the contour and 2 bend lines; one-page A3 PDF |
 | Assembly with a 120 × 80 × 10 base and two 20 × 20 × 30 blocks: mates, interference check, bill of materials, and an A3 drawing with a parts list to PDF | Claude Code | 50 calls, 0 errors; 6 mates solved and both blocks fully defined; no interference; BOM 1 + 2; one-page A3 PDF |
-| Plate with 4 holes and 4 R5 fillets, 6061-T6 aluminum, exported to STEP | Codex | 20 calls, 0 errors; 58,416.92 mm³ = 58,631.52 − 4·(25 − 25π/4)·10; 0.15843 kg |
+| Plate with 4 holes and 4 R5 fillets, 6061-T6 aluminium, exported to STEP | Codex | 20 calls, 0 errors; 58,416.92 mm³ = 58,631.52 − 4·(25 − 25π/4)·10; 0.15843 kg |
 
 ## Quick start
 
@@ -62,7 +60,7 @@ the generated files. [More examples](docs/EXAMPLES.md).
   interop, and the plugin to install the server.
 - To build from source, the .NET 10 SDK (version pinned in `global.json`).
 
-The Community Edition, and Foundation with a license server, get the license through the machine
+The Community Edition, and Foundation with a licence server, get the licence through the machine
 variable `SE_LICENSE_SERVER`. Processes opened before Solid Edge was installed do not have it; the
 server copies it when it starts `Edge.exe`.
 
@@ -85,11 +83,11 @@ Or from a terminal:
 claude plugin install solid-edge-mcp --marketplace gabichuuuuu/solid-edge-mcp
 ```
 
-On its first start the plugin downloads the server package of its version from the GitHub release,
-checks it against the SHA-256 published with it and installs it in
-`%LocalAppData%\SolidEdgeMcp\server\<version>`; it then starts the server from there. The download takes
-about 40 MB: its tools appear when it ends, in the same session. Its tools are named `mcp__plugin_solid-edge-mcp_solid-edge__se_*`. Then write
-your policy (below).
+On its first start the plugin downloads the server package of its version from the GitHub release
+(about 40 MB), checks it against the SHA-256 published with it and installs it in
+`%LocalAppData%\SolidEdgeMcp\server\<version>`; it then starts the server from there. The tools appear
+when the download ends, in the same session, named `mcp__plugin_solid-edge-mcp_solid-edge__se_*`. Then
+write your policy (below).
 
 **From the release package**, for any MCP client: download `solid-edge-mcp-<version>-win-x64.zip` and
 its `.sha256` from the [releases](https://github.com/gabichuuuuu/solid-edge-mcp/releases), check the
@@ -143,7 +141,9 @@ loads `%LocalAppData%\SolidEdgeMcp\policy.json`.
 claude mcp add -s user solid-edge -- "<path>\publish\SolidEdgeMcp.Server.exe" --policy "<path>\policy.json"
 ```
 
-If long operations exceed the client's limit, adjust the `MCP_TOOL_TIMEOUT` variable. When the client asks for progress notifications, the server sends one every 5 seconds while a call runs, so clients that reset their time limit on progress keep waiting.
+If long operations exceed the client's limit, adjust the `MCP_TOOL_TIMEOUT` variable. When the client
+asks for progress notifications, the server sends one every 5 seconds while a call runs, so clients
+that reset their time limit on progress keep waiting.
 
 <details>
 <summary><b>Claude Desktop</b> (<code>claude_desktop_config.json</code>)</summary>
@@ -177,18 +177,18 @@ tool_timeout_sec = 300
 
 ## How it works
 
-- **Few tools, many actions.** Each `se_<area>` tool groups its operations under an `action`
-  parameter, so the model does not have to load hundreds of schemas.
-- **Millimeters and degrees.** Lengths in mm and angles in degrees. Only the generic `se_com_*`
-  layer uses API units (meters and radians, collections starting at 1).
-- **Handles.** Objects are returned as identifiers (`doc:3`, `sketch:5`, `face:12`) that are passed
+- Each `se_<area>` tool groups its operations under an `action` parameter, so the model does not
+  have to load hundreds of schemas.
+- Lengths are in mm and angles in degrees. Only the generic `se_com_*` layer uses API units (metres
+  and radians, collections starting at 1).
+- Objects are returned as handles (`doc:3`, `sketch:5`, `face:12`), identifiers that are passed
   unchanged to other calls. They expire when the document is closed, undone or recalculated; face
   and edge handles also expire when the model changes.
-- **Verification.** Each new operation is checked (status and volume change). If it fails or has no
-  effect, it is deleted or undone, and the error carries a code, the cause and the next step.
-- **Three layers.** Specific tools verified for common tasks; access to any API object and method
-  (`se_com_*`); and any interface command (`se_command`). What each route covers, function by
-  function: [docs/COVERAGE.md](docs/COVERAGE.md).
+- Each new operation is checked (status and volume change). If it fails or has no effect, it is
+  deleted or undone, and the error carries a code, the cause and the next step.
+- There are three layers: specific tools verified for common tasks; access to any API object and
+  method (`se_com_*`); and any interface command (`se_command`). What each route covers, function
+  by function: [docs/COVERAGE.md](docs/COVERAGE.md).
 
 Illustrative example of the sequence an assistant follows for a 100 × 50 × 20 mm block:
 
@@ -243,10 +243,11 @@ Full example in [config/policy.example.json](config/policy.example.json). `se_se
 effective folders and the configuration warnings.
 
 Logs go to `%LocalAppData%\SolidEdgeMcp\logs` (one UTF-8 file per day; each operation with its
-`op#`, time and result size). Standard output is reserved for the MCP protocol. When a packaged client such as Claude Desktop starts the
-server, Windows keeps what the server writes under `%LocalAppData%` in that client's own folder, for Claude Desktop
-`%LocalAppData%\Packages\Claude_<id>\LocalCache\Local\SolidEdgeMcp` (logs, interop and work files); `se_server_info`
-shows the folders in use.
+`op#`, time and result size). Standard output is reserved for the MCP protocol. When a packaged
+client such as Claude Desktop starts the server, Windows keeps what the server writes under
+`%LocalAppData%` in that client's own folder, for Claude Desktop
+`%LocalAppData%\Packages\Claude_<id>\LocalCache\Local\SolidEdgeMcp` (logs, interop and work files);
+`se_server_info` shows the folders in use.
 
 ## Security
 
@@ -268,7 +269,6 @@ shows the folders in use.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
-
 ## Privacy
 
 - **The server collects nothing.** It has no telemetry or accounts and makes no network connections
@@ -277,12 +277,12 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
   captures of your documents, go to the MCP client, which may send them to its AI provider under that
   provider's terms. Only use it on documents you are allowed to share that way.
 - **Local files.** The policy, the generated interop, the installed server and the logs stay in
-  `%LocalAppData%\SolidEdgeMcp` (or in the client's own folder, see [Configuration](#configuration)). The logs record operations and can include file paths; they are
-  kept for 14 days and never sent anywhere.
+  `%LocalAppData%\SolidEdgeMcp` (or in the client's own folder, see [Configuration](#configuration)).
+  The logs record operations and can include file paths; they are kept for 14 days and never sent
+  anywhere.
 - **Network use.** The plugin only downloads the server package from the GitHub release on its first
   start for each version, and GitHub handles that request under its own terms. Solid Edge contacts its
-  license server on its own.
-
+  licence server on its own.
 
 ## Documentation
 
@@ -298,11 +298,9 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Project status
 
-Stable. The current version (1.0.4) covers the base program and the programs installed with Solid Edge where their
-automation allows ([what it cannot do](docs/LIMITATIONS.md)), and it installs without compiling, from the release package
-or as a Claude Code plugin. Maintained by
-a single author: fixes go to `main` and to the next release, and versions follow Semantic Versioning. Change history in
-[CHANGELOG.md](CHANGELOG.md).
+The current version covers the base program and the programs installed with Solid Edge where their
+automation allows ([what it cannot do](docs/LIMITATIONS.md)). The project has a single maintainer:
+fixes go to `main` and to the next release. Change history in [CHANGELOG.md](CHANGELOG.md).
 
 ## Acknowledgements
 

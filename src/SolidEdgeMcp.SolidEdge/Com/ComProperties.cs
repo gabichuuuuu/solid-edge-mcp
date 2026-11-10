@@ -112,22 +112,6 @@ public static class ComProperties
     public static bool IsColor(PropertyInfo property) =>
         property.PropertyType == typeof(int) && property.Name.Contains("Color", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>#RRGGBB of a COLORREF (0x00BBGGRR).</summary>
-    public static string Hex(int colorRef) =>
-        $"#{colorRef & 0xFF:X2}{(colorRef >> 8) & 0xFF:X2}{(colorRef >> 16) & 0xFF:X2}";
-
-    /// <summary>COLORREF (0x00BBGGRR) of #RRGGBB.</summary>
-    public static int ColorRef(string hex, string argument)
-    {
-        string text = hex.Trim();
-        if (text.Length != 7 || text[0] != '#' || !int.TryParse(text.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb))
-        {
-            throw ToolException.InvalidArgument($"'{argument}': '{hex}' is not a #RRGGBB colour.");
-        }
-
-        return ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF);
-    }
-
     /// <summary>Value of an enumeration by its name, the end of its name ('gradient') or its number.</summary>
     public static object EnumValue(Type type, JsonElement value, string argument)
     {
@@ -172,7 +156,7 @@ public static class ComProperties
         Type type = property.PropertyType;
         if (IsColor(property) && value.ValueKind == JsonValueKind.String)
         {
-            return ColorRef(value.GetString()!, property.Name);
+            return Rgb.ColorRef(value.GetString()!, property.Name);
         }
 
         if (type.IsEnum)
@@ -196,7 +180,7 @@ public static class ComProperties
             Enum.IsDefined(property.PropertyType, Enum.ToObject(property.PropertyType, raw))
                 ? Enum.GetName(property.PropertyType, Enum.ToObject(property.PropertyType, raw))
                 : System.Convert.ToInt64(raw, CultureInfo.InvariantCulture),
-        int color when IsColor(property) => Hex(color),
+        int color when IsColor(property) => Rgb.HexOfColorRef(color),
         double d => double.IsFinite(d) ? d : d.ToString(CultureInfo.InvariantCulture),
         float f => float.IsFinite(f) ? (double)f : f.ToString(CultureInfo.InvariantCulture),
         _ => raw,

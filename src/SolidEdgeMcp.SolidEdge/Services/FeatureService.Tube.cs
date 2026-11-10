@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeGeometry;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -19,7 +20,7 @@ public static partial class FeatureService
     /// gives E_NOINTERFACE (AddNormalToCurve takes edges), so for a sketch path the plane is set normal to a short construction
     /// curve drawn along the tangent at the start of the path. The volume of a swept circle is its area times the path length.
     /// </summary>
-    public static object Tube(SeContext context, string? documentHandle, string? pathHandle, double? outerDiameter, double? wall, string operation)
+    public static object Tube(SeContext context, string? documentHandle, string? pathHandle, double? outerDiameter, double? wall, FeatureOperation operation)
     {
         string handle = pathHandle ?? throw ToolException.InvalidArgument("tube needs 'path': an open chain of lines and arcs (se_sketch, close with open: true) or a curve (se_curve, se_sketch3d).");
         double outer = Units.RequirePositive(outerDiameter ?? throw ToolException.InvalidArgument("tube needs 'outerDiameter' (mm)."), "outerDiameter");
@@ -86,8 +87,8 @@ public static partial class FeatureService
 
             string sectionHandle = context.Register(profile, "sketch", model.Document);
             // Verified: an annulus (two circles) sweeps only the inner disk, so the wall is the sweep's thin wall inside the circle.
-            object swept = LoftSweep(context, documentHandle, new SweepSpec("sweep", operation, [sectionHandle], handle,
-                ThinWall: thickness > 0 ? new ThinWallSpec(thickness, "inside") : null));
+            object swept = LoftSweep(context, documentHandle, new SweepSpec(SweepAction.Sweep, operation, [sectionHandle], handle,
+                ThinWall: thickness > 0 ? new ThinWallSpec(thickness, WallSide.Inside) : null));
             double inner = outer - 2 * thickness;
             double expected = Math.PI / 4 * (outer * outer - (thickness > 0 ? inner * inner : 0)) * Units.MToMm(length);
             return new
@@ -97,13 +98,13 @@ public static partial class FeatureService
                 wall = thickness > 0 ? thickness : (double?)null,
                 pathLength = Geo.Mm(length),
                 expectedVolume = Geo.R(expected),
-                note = switched ? "The document was switched to ordered modeling." : null,
+                note = switched ? "The document was switched to ordered modelling." : null,
             };
         }
         catch (ToolException)
         {
-            TryDeleteObject(section);
-            TryDeleteObject(helper);
+            Late.TryDelete(section);
+            Late.TryDelete(helper);
             throw;
         }
     }
@@ -222,22 +223,5 @@ public static partial class FeatureService
         Array normal = new double[3];
         plane.GetNormal(ref normal);
         return [.. Geo.Doubles(normal)];
-    }
-
-    private static void TryDeleteObject(object? value)
-    {
-        if (value is null)
-        {
-            return;
-        }
-
-        try
-        {
-            Late.Call(value, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) || ComErrors.Unwrap(ex) is COMException)
-        {
-            // The error being reported is the original one.
-        }
     }
 }

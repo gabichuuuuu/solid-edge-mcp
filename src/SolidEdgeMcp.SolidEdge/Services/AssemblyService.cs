@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -354,16 +355,11 @@ public static partial class AssemblyService
     /// Solid Edge 2026 with a plain and a threaded M10 pin in tapped M10 holes (1 and 2, true, 3): not offered.
     /// </summary>
     public static object Interference(SeContext context, string? documentHandle, string[]? occurrences, string[]? against,
-        string compare = "auto")
+        InterferenceCompare compare = InterferenceCompare.Auto)
     {
-        if (compare is not ("auto" or "others" or "visible"))
+        if (compare != InterferenceCompare.Auto && (occurrences is not { Length: > 0 } || against is { Length: > 0 }))
         {
-            throw ToolException.InvalidArgument($"Unknown comparison '{compare}'.", "Use auto, others or visible.");
-        }
-
-        if (compare != "auto" && (occurrences is not { Length: > 0 } || against is { Length: > 0 }))
-        {
-            throw ToolException.InvalidArgument($"compare {compare} checks 'occurrences' against the {(compare == "others" ? "other" : "visible")} occurrences: give 'occurrences' and no 'against'.");
+            throw ToolException.InvalidArgument($"compare {ArgumentNames.Snake(compare)} checks 'occurrences' against the {(compare == InterferenceCompare.Others ? "other" : "visible")} occurrences: give 'occurrences' and no 'against'.");
         }
 
         AssemblyDocument assembly = occurrences is { Length: > 0 } ? Occurrence(context, occurrences[0], "occurrences").TopLevelDocument : Assembly(context, documentHandle);
@@ -373,7 +369,7 @@ public static partial class AssemblyService
             ? occurrences.Select(h => (object)Checked(Occurrence(context, h, "occurrences"))).ToArray()
             : Items<Occurrence>(assembly.Occurrences).Where(o => o.IncludeInInterference).Cast<object>().ToArray();
         object[]? set2 = against is { Length: > 0 } ? against.Select(h => (object)Checked(Occurrence(context, h, "against"))).ToArray() : null;
-        if (set2 is null && set1.Length < 2 && compare == "auto")
+        if (set2 is null && set1.Length < 2 && compare == InterferenceCompare.Auto)
         {
             throw occurrences is { Length: > 0 }
                 ? ToolException.InvalidArgument("Interference needs at least two occurrences, or 'against'.")
@@ -382,7 +378,7 @@ public static partial class AssemblyService
         }
 
         // 1: set 1 against set 2; 2: against all the others; 3: against the visible ones; 4: set 1 against itself.
-        int method = compare switch { "others" => 2, "visible" => 3, _ => set2 is null ? 4 : 1 };
+        int method = compare switch { InterferenceCompare.Others => 2, InterferenceCompare.Visible => 3, _ => set2 is null ? 4 : 1 };
         Array first = set1;
 
         // The output lists of the API come back empty in Solid Edge 2026 (verified): the pairs and the common volume are
@@ -446,14 +442,14 @@ public static partial class AssemblyService
     /// Bill of materials. top: top-level occurrences grouped by file (subassemblies count as
     /// one line); flat: parts only, with the quantities multiplied by those of their subassemblies.
     /// </summary>
-    public static object Bom(SeContext context, string? documentHandle, string structure, string? path = null, bool overwrite = false)
+    public static object Bom(SeContext context, string? documentHandle, BomStructure structure, string? path = null, bool overwrite = false)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
         bool flat = structure switch
         {
-            "top" => false,
-            "flat" => true,
-            _ => throw ToolException.InvalidArgument($"Unknown structure '{structure}'.", "Use top or flat."),
+            BomStructure.Top => false,
+            BomStructure.Flat => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(structure)),
         };
         var lines = new Dictionary<string, BomLine>(StringComparer.OrdinalIgnoreCase);
         foreach (Occurrence occurrence in Items<Occurrence>(assembly.Occurrences))
@@ -480,7 +476,7 @@ public static partial class AssemblyService
         return new
         {
             document = context.DocumentHandle((SolidEdgeDocument)assembly),
-            structure,
+            structure = ArgumentNames.Snake(structure),
             lines = ordered.Select(l => new { item = l.Name, file = l.File, kind = l.Kind, quantity = l.Quantity }).ToList(),
             totalQuantity = lines.Values.Sum(l => l.Quantity),
             savedTo,
@@ -512,13 +508,9 @@ public static partial class AssemblyService
     internal static List<SuppressComponent> SuppressedComponents(AssemblyDocument assembly)
     {
         object?[] args = [(int)AssemblyComponentTypeConstants.seAssemblyComponentTypeAll, 0, Array.Empty<SuppressComponent>()];
-        var modifier = new ParameterModifier(3);
-        modifier[1] = true;
-        modifier[2] = true;
         try
         {
-            assembly.GetType().InvokeMember("GetSuppressedComponents", BindingFlags.InvokeMethod, null, assembly, args, [modifier],
-                CultureInfo.InvariantCulture, null);
+            Late.CallByRef(assembly, "GetSuppressedComponents", args, 1, 2);
             return args[2] is Array components ? components.OfType<SuppressComponent>().ToList() : [];
         }
         catch (Exception ex) when (ex is COMException or TargetInvocationException or NullReferenceException && !ComErrors.IsGone(ex))

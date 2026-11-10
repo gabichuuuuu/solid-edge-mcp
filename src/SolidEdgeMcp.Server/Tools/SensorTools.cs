@@ -5,43 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SensorAction
-{
-    List,
-    AddVariable,
-    AddDistance,
-    AddArea,
-    AddChecker,
-    Update,
-    Set,
-}
-
-public enum SensorOperator
-{
-    GreaterThan,
-    LessThan,
-    EqualTo,
-    NotEqualTo,
-    Between,
-    NotBetween,
-}
-
-public enum SensorDisplay
-{
-    Range,
-    TrueFalse,
-}
-
-public enum SensorUpdate
-{
-    Automatic,
-    Manual,
-}
 
 /// <summary>Sensors of parts, sheet metal and assemblies: watched values with a condition (Sensors tab of PathFinder).</summary>
 [McpServerToolType]
@@ -75,9 +43,8 @@ public sealed class SensorTools(ToolRunner runner)
         [Description("Part, sheet metal or assembly document handle; default: the document of the elements or the active one.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
-        string act = Snake(action);
-        var spec = new SensorSpec(act, sensor, name, description, variable, elements, faces, @operator is { } o ? Snake(o) : null, threshold, range,
-            displayRange, display is { } d ? Snake(d) : null, update is { } u ? Snake(u) : null, features);
-        return runner.RunAsync("se_sensor", act, c => SensorService.Run(c, document, spec), cancellationToken);
+        var spec = new SensorSpec(action, sensor, name, description, variable, elements, faces, @operator, threshold, range,
+            displayRange, display, update, features);
+        return runner.RunAsync("se_sensor", Snake(action), c => SensorService.Run(c, document, spec), cancellationToken);
     }
 }

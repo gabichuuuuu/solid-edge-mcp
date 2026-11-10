@@ -55,7 +55,7 @@ public static class ApplicationService
     {
         AddIns addIns = context.Application.AddIns;
         var items = new List<object>();
-        for (int i = 1; i <= addIns.Count; i++)
+        for (int i = 1, count = addIns.Count; i <= count; i++)
         {
             items.Add(Describe(addIns.Item(i), i));
         }
@@ -319,7 +319,7 @@ public static class ApplicationService
     {
         string wanted = text.Trim();
         var all = new List<(AddIn AddIn, int Index, string Text)>();
-        for (int i = 1; i <= addIns.Count; i++)
+        for (int i = 1, count = addIns.Count; i <= count; i++)
         {
             AddIn candidate = addIns.Item(i);
             string progId = Late.TryGetString(candidate, "ProgID") ?? "";

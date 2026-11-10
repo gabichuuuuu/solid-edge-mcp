@@ -29,26 +29,24 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class Sketch3dService
 {
-    private const int EFail = unchecked((int)0x80004005);
-
     /// <summary>Arc from 'points' = [start, a point on the arc, end]: its centre is the circumcentre of the three.</summary>
     private static object ArcThrough(SeContext context, Sketch3dSpec spec)
     {
         (Sketch3D sketch, SolidEdgeDocument document) = Resolve(context, spec.Sketch);
         double[][] p = PointList(spec.Points, 3, "arc_through", exactly: 3);
         double[] start = p[0], through = p[1], end = p[2];
-        double[] a = Sub(through, start), b = Sub(end, start);
+        double[] a = Geo.Minus(through, start), b = Geo.Minus(end, start);
         double[] axb = Geo.Cross(a, b);
-        double n2 = Dot(axb, axb);
+        double n2 = Geo.Dot(axb, axb);
         if (n2 < 1e-18)
         {
             throw ToolException.InvalidArgument("The three points of arc_through are in line (or two are the same): no arc passes through them.");
         }
 
-        double[] offset = Geo.Cross(Sub(Scale(b, Dot(a, a)), Scale(a, Dot(b, b))), axb);
+        double[] offset = Geo.Cross(Geo.Minus(Geo.Scale(b, Geo.Dot(a, a)), Geo.Scale(a, Geo.Dot(b, b))), axb);
         double[] center = [.. start.Zip(offset, (s, o) => s + o / (2 * n2))];
         double radius = Geo.Distance(start, center);
-        double[] normal = Unit(axb)!;
+        double[] normal = Geo.TryUnit(axb)!;
         Arc3D arc = Make("arc", () => sketch.Arcs3D.AddByStartEndCenterNormal(start[0], start[1], start[2], end[0], end[1], end[2],
             center[0], center[1], center[2], normal[0], normal[1], normal[2], radius));
         Check(arc, Math.Abs(arc.Radius - radius) < Tolerance, $"its radius is {Geo.Mm(arc.Radius)} mm instead of {Geo.Mm(radius)} mm");
@@ -77,13 +75,13 @@ public static partial class Sketch3dService
         double[] lineStart = Keypoint(line, KeyType.igSketch3DStartPoint) ?? throw new ToolException("feature_failed", "Solid Edge did not give the start of the line.");
         double[] lineEnd = Keypoint(line, KeyType.igSketch3DEndPoint) ?? throw new ToolException("feature_failed", "Solid Edge did not give the end of the line.");
         double[] start = key == KeyType.igSketch3DEndPoint ? lineEnd : lineStart;
-        double[] tangent = Unit(key == KeyType.igSketch3DEndPoint ? Sub(lineEnd, lineStart) : Sub(lineStart, lineEnd))!;
+        double[] tangent = Geo.TryUnit(key == KeyType.igSketch3DEndPoint ? Geo.Minus(lineEnd, lineStart) : Geo.Minus(lineStart, lineEnd))!;
         double[] end = PointList(spec.Points, 1, "tangent_arc", exactly: 1)[0];
-        double[] chord = Sub(end, start);
-        double[] normal = Unit(Geo.Cross(tangent, chord))
+        double[] chord = Geo.Minus(end, start);
+        double[] normal = Geo.TryUnit(Geo.Cross(tangent, chord))
             ?? throw ToolException.InvalidArgument("The end of tangent_arc lies on the line's direction: a tangent arc cannot reach it.");
-        double[] inward = Unit(Geo.Cross(normal, tangent))!;
-        double radius = Dot(chord, chord) / (2 * Dot(chord, inward));
+        double[] inward = Geo.TryUnit(Geo.Cross(normal, tangent))!;
+        double radius = Geo.Dot(chord, chord) / (2 * Geo.Dot(chord, inward));
         double[] center = [.. start.Zip(inward, (s, u) => s + radius * u)];
         Arc3D arc = Make("arc", () => sketch.Arcs3D.AddByStartEndCenterNormal(start[0], start[1], start[2], end[0], end[1], end[2],
             center[0], center[1], center[2], normal[0], normal[1], normal[2], radius));
@@ -96,7 +94,7 @@ public static partial class Sketch3dService
         }
         catch
         {
-            TryDelete(arc);
+            Late.TryDelete(arc);
             throw;
         }
 
@@ -116,7 +114,7 @@ public static partial class Sketch3dService
         double width = Units.MmToM(Units.RequirePositive(spec.Width ?? throw ToolException.InvalidArgument("rectangle requires 'width' (mm)."), "width"));
         double height = Units.MmToM(Units.RequirePositive(spec.Height ?? throw ToolException.InvalidArgument("rectangle requires 'height' (mm)."), "height"));
         double[] along = spec.Direction is { } given ? Direction(given, "direction") : DefaultAlong(n);
-        double[] u = Unit(Sub(along, Scale(n, Dot(along, n))))
+        double[] u = Geo.TryUnit(Geo.Minus(along, Geo.Scale(n, Geo.Dot(along, n))))
             ?? throw ToolException.InvalidArgument("'direction' is along 'normal': the width must run in the plane of the rectangle.");
         Array lines = Array.Empty<object>();
         int before = sketch.Lines3D.Count;
@@ -129,7 +127,7 @@ public static partial class Sketch3dService
         double[] sides = [.. made.Select(l => l.Length).Order()];
         if (made.Length != 4 || Math.Abs(sides[0] - Math.Min(width, height)) > Tolerance || Math.Abs(sides[3] - Math.Max(width, height)) > Tolerance)
         {
-            made.ToList().ForEach(TryDelete);
+            made.ToList().ForEach(Late.TryDelete);
             throw new ToolException("feature_failed", "Solid Edge did not make the rectangle as asked; its lines were deleted.");
         }
 
@@ -233,7 +231,7 @@ public static partial class Sketch3dService
         {
             if (curve is not null)
             {
-                TryDelete(curve);
+                Late.TryDelete(curve);
             }
 
             throw new ToolException("feature_failed", code switch
@@ -265,7 +263,7 @@ public static partial class Sketch3dService
             {
                 sketch.IncludeEdge(edge);
             }
-            catch (COMException ex) when (ex.HResult == EFail)
+            catch (COMException ex) when (ex.HResult == ComErrors.EFail)
             {
                 // IncludeEdge reports E_FAIL even when it adds the element: the count below decides.
             }
@@ -289,8 +287,4 @@ public static partial class Sketch3dService
 
     private static double[] DefaultAlong(double[] normal) =>
         Math.Abs(normal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
-
-    private static double Dot(double[] a, double[] b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-
-    private static double[] Scale(double[] v, double k) => [v[0] * k, v[1] * k, v[2] * k];
 }

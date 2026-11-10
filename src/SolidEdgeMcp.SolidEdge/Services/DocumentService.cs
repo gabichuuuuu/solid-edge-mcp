@@ -5,8 +5,10 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
+using DocumentStatus = SolidEdgeFramework.DocumentStatus;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
@@ -331,7 +333,7 @@ public static class DocumentService
         }
         catch (COMException ex) when (existed && !ComErrors.IsGone(ex))
         {
-            // Seen on 2026-10-13: after some assemblies were closed, Solid Edge kept refusing to replace the files of their parts
+            // Seen once: after some assemblies were closed, Solid Edge kept refusing to replace the files of their parts
             // (DISP_E_EXCEPTION) for as long as it ran (over 12 minutes), with no document open and the file not locked.
             throw new ToolException("file_in_use", $"Solid Edge did not replace '{target}' ({ex.Message.Trim()}): it may still hold that file for a document closed earlier.",
                 "Save under another name, or close Solid Edge and open it again before replacing the file.");
@@ -452,7 +454,7 @@ public static class DocumentService
         HashSet<object> open = AfterClose(() =>
         {
             var listed = new HashSet<object>(ReferenceEqualityComparer.Instance);
-            for (int i = 1; i <= documents.Count; i++)
+            for (int i = 1, count = documents.Count; i <= count; i++)
             {
                 listed.Add(documents.Item(i));
             }
@@ -519,20 +521,26 @@ public static class DocumentService
     /// Life-cycle status of a document (File > Properties > Status). Without <paramref name="value"/> it is read; with it, set
     /// and read back. Verified: a new part is available and goes to in review and released; released to available gives E_FAIL.
     /// </summary>
-    public static object Status(SeContext context, string? handle, string? value)
+    public static object Status(SeContext context, string? handle, DocumentLifeStatus? value)
     {
         SolidEdgeDocument document = context.GetDocument(handle);
         string before = StatusName(document);
-        if (value is null)
+        if (value is not { } wanted)
         {
             return new { document = context.DocumentHandle(document), status = before };
         }
 
-        int code = Array.IndexOf(Statuses, value);
-        if (code is < 0 or > (int)DocumentStatus.igStatusObsolete)
+        int code = wanted switch
         {
-            throw ToolException.InvalidArgument($"Unknown status '{value}'.", "Use available, in_work, in_review, released, baselined or obsolete.");
-        }
+            DocumentLifeStatus.Available => 0,
+            DocumentLifeStatus.InWork => 1,
+            DocumentLifeStatus.InReview => 2,
+            DocumentLifeStatus.Released => 3,
+            DocumentLifeStatus.Baselined => 4,
+            DocumentLifeStatus.Obsolete => 5,
+            _ => throw new ArgumentOutOfRangeException(nameof(value)),
+        };
+        string name = ArgumentNames.Snake(wanted);
 
         try
         {
@@ -540,14 +548,14 @@ public static class DocumentService
         }
         catch (COMException ex)
         {
-            throw new ToolException("status_refused", $"Solid Edge did not change the status of '{document.Name}' to {value}: {ex.Message.Trim()}",
+            throw new ToolException("status_refused", $"Solid Edge did not change the status of '{document.Name}' to {name}: {ex.Message.Trim()}",
                 "Solid Edge's workflow moves forward: a released document does not go back to available (E_FAIL).", ex);
         }
 
         string after = StatusName(document);
-        return after == value
+        return after == name
             ? new { document = context.DocumentHandle(document), status = after, previous = before, readOnly = document.ReadOnly }
-            : throw new ToolException("status_refused", $"Solid Edge kept '{document.Name}' {after} instead of {value}.",
+            : throw new ToolException("status_refused", $"Solid Edge kept '{document.Name}' {after} instead of {name}.",
                 "Some changes need the document saved or another status first (Solid Edge's workflow).");
     }
 
@@ -557,7 +565,7 @@ public static class DocumentService
     /// are ordered and switch it. In synchronous mode Solid Edge does not compute the ordered features, so the body read there
     /// holds only the synchronous ones.
     /// </summary>
-    public static object ModelingMode(SeContext context, string? handle, string? mode)
+    public static object ModelingMode(SeContext context, string? handle, DocumentModelingMode? mode)
     {
         ModelDocument model = ModelDocument.Get(context, handle);
         string before = model.ModelingMode;
@@ -568,9 +576,9 @@ public static class DocumentService
 
         bool changed = mode switch
         {
-            "synchronous" => model.EnsureSynchronous(),
-            "ordered" => model.EnsureOrdered(),
-            _ => throw ToolException.InvalidArgument($"Unknown modelling mode '{mode}'.", "Use synchronous or ordered."),
+            DocumentModelingMode.Synchronous => model.EnsureSynchronous(),
+            DocumentModelingMode.Ordered => model.EnsureOrdered(),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };
         if (changed)
         {
@@ -624,7 +632,7 @@ public static class DocumentService
         try
         {
             object?[] args = action == "recompute" ? [] : [count];
-            document.GetType().InvokeMember(member, BindingFlags.InvokeMethod, null, document, args, System.Globalization.CultureInfo.InvariantCulture);
+            Com.Late.Call(document, member, args);
         }
         catch (Exception ex) when (Com.ComErrors.Unwrap(ex) is COMException { HResult: Com.ComErrors.DispEMemberNotFound or Com.ComErrors.DispEUnknownName })
         {
@@ -662,8 +670,7 @@ public static class DocumentService
     {
         try
         {
-            return Convert.ToInt32(document.GetType().InvokeMember(counter, BindingFlags.InvokeMethod, null, document, null,
-                System.Globalization.CultureInfo.InvariantCulture), System.Globalization.CultureInfo.InvariantCulture);
+            return Convert.ToInt32(Com.Late.Call(document, counter), System.Globalization.CultureInfo.InvariantCulture);
         }
         catch (Exception ex) when (Com.ComErrors.Unwrap(ex) is COMException or MissingMethodException)
         {
@@ -680,6 +687,7 @@ public static class DocumentService
         }
         catch (COMException)
         {
+            // Not every document gives it: listed as writable.
         }
 
         string? path = PathOf(document);
@@ -728,7 +736,7 @@ public static class DocumentService
     internal static SolidEdgeDocument? FindOpen(SeContext context, string path)
     {
         Documents documents = context.Application.Documents;
-        for (int i = 1; i <= documents.Count; i++)
+        for (int i = 1, count = documents.Count; i <= count; i++)
         {
             if (documents.Item(i) is SolidEdgeDocument document
                 && string.Equals(PathOf(document), path, StringComparison.OrdinalIgnoreCase))
@@ -826,8 +834,9 @@ public static class DocumentService
         {
             readOnly = document.ReadOnly;
         }
-        catch (COMException)
+        catch (COMException ex) when (!ComErrors.IsGone(ex))
         {
+            // Not every document gives it: the save reports its own error.
             return;
         }
 
@@ -912,6 +921,7 @@ public static class DocumentService
         }
         catch (COMException)
         {
+            // No template folder set: only the allowed folders count.
         }
 
         try
@@ -924,6 +934,7 @@ public static class DocumentService
         }
         catch (COMException)
         {
+            // No default template for this type.
         }
 
         return folders;

@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -13,13 +14,10 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
 /// Variable table (user variables and dimensions). Values are given in the units of the
-/// tools (mm, degrees, mm², mm³); internally Solid Edge uses meters and radians.
+/// tools (mm, degrees, mm², mm³); internally Solid Edge uses metres and radians.
 /// </summary>
 public static partial class VariableService
 {
-    public static readonly IReadOnlyList<string> Kinds = ["all", "user", "dimension", "physical"];
-    public static readonly IReadOnlyList<string> UnitNames = ["distance", "angle", "area", "volume", "mass", "scalar"];
-
     // Values of SolidEdgeConstants.VariableNameBy and VariableVarType (the API receives them as VARIANT).
     private const int NamedByBoth = 2;
     private const int VarTypeDimension = 1;
@@ -32,16 +30,16 @@ public static partial class VariableService
     private const int RangeMaxExclusive = 4;
     private const int RangeMaxInclusive = 8;
 
-    public static object List(SeContext context, string? documentHandle, string? filter, string kind, int offset, int limit)
+    public static object List(SeContext context, string? documentHandle, string? filter, VariableKind kind, int offset, int limit)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         int varType = kind switch
         {
-            "all" => VarTypeBoth,
-            "user" => VarTypeVariable,
-            "dimension" => VarTypeDimension,
-            "physical" => VarTypePhysical,
-            _ => throw ToolException.InvalidArgument($"Unknown kind '{kind}'.", $"Use one of: {string.Join(", ", Kinds)}."),
+            VariableKind.All => VarTypeBoth,
+            VariableKind.User => VarTypeVariable,
+            VariableKind.Dimension => VarTypeDimension,
+            VariableKind.Physical => VarTypePhysical,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
         if (varType == VarTypePhysical)
         {
@@ -123,18 +121,18 @@ public static partial class VariableService
     }
 
     /// <summary>Creates a user variable with a value (tool units) or a formula.</summary>
-    public static object Add(SeContext context, string? documentHandle, string name, double? value, string? formula, string units)
+    public static object Add(SeContext context, string? documentHandle, string name, double? value, string? formula, VariableUnits units)
     {
         SolidEdgeDocument document = context.GetDocument(documentHandle);
         int unitsType = units switch
         {
-            "distance" => (int)UnitTypeConstants.igUnitDistance,
-            "angle" => (int)UnitTypeConstants.igUnitAngle,
-            "area" => (int)UnitTypeConstants.igUnitArea,
-            "volume" => (int)UnitTypeConstants.igUnitVolume,
-            "mass" => (int)UnitTypeConstants.igUnitMass,
-            "scalar" => (int)UnitTypeConstants.igUnitScalar,
-            _ => throw ToolException.InvalidArgument($"Unknown units '{units}'.", $"Use one of: {string.Join(", ", UnitNames)}."),
+            VariableUnits.Distance => (int)UnitTypeConstants.igUnitDistance,
+            VariableUnits.Angle => (int)UnitTypeConstants.igUnitAngle,
+            VariableUnits.Area => (int)UnitTypeConstants.igUnitArea,
+            VariableUnits.Volume => (int)UnitTypeConstants.igUnitVolume,
+            VariableUnits.Mass => (int)UnitTypeConstants.igUnitMass,
+            VariableUnits.Scalar => (int)UnitTypeConstants.igUnitScalar,
+            _ => throw new ArgumentOutOfRangeException(nameof(units)),
         };
         if (string.IsNullOrWhiteSpace(name))
         {

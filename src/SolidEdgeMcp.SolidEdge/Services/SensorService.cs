@@ -5,15 +5,16 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_sensor does: the action and its inputs, in the units of the tools (mm, mm², degrees).</summary>
-public sealed record SensorSpec(string Action, string? Sensor = null, string? Name = null, string? Description = null, string? Variable = null,
-    string[]? Elements = null, string[]? Faces = null, string? Operator = null, double? Threshold = null, double[]? Range = null,
-    double[]? DisplayRange = null, string? Display = null, string? Update = null, string[]? Features = null);
+public sealed record SensorSpec(SensorAction Action, string? Sensor = null, string? Name = null, string? Description = null, string? Variable = null,
+    string[]? Elements = null, string[]? Faces = null, SensorOperator? Operator = null, double? Threshold = null, double[]? Range = null,
+    double[]? DisplayRange = null, SensorDisplay? Display = null, SensorUpdate? Update = null, string[]? Features = null);
 
 /// <summary>
 /// Sensors of a part, sheet metal or assembly document: they watch a variable, the minimum distance between two elements or
@@ -40,7 +41,7 @@ public sealed record SensorSpec(string Action, string? Sensor = null, string? Na
 /// </summary>
 public static class SensorService
 {
-    public static readonly IReadOnlyList<string> Actions = ["list", "add_variable", "add_distance", "add_area", "add_checker", "update", "set"];
+
     public static readonly IReadOnlyList<string> CheckerFeatures =
         ["exterior_edges", "interior_edges", "cutouts", "holes", "dimples", "louvers", "drawn_cutouts", "beads"];
     public static readonly IReadOnlyList<string> Operators = ["greater_than", "less_than", "equal_to", "not_equal_to", "between", "not_between"];
@@ -63,14 +64,14 @@ public static class SensorService
 
     public static object Run(SeContext context, string? documentHandle, SensorSpec spec) => spec.Action switch
     {
-        "list" => List(context, Document(context, documentHandle, spec)),
-        "add_variable" => AddVariable(context, Document(context, documentHandle, spec), spec),
-        "add_distance" => AddDistance(context, Document(context, documentHandle, spec), spec),
-        "add_area" => AddArea(context, Document(context, documentHandle, spec), spec),
-        "add_checker" => AddChecker(context, Document(context, documentHandle, spec), spec),
-        "update" => Update(context, Document(context, documentHandle, spec), spec),
-        "set" => Set(context, Document(context, documentHandle, spec), spec),
-        _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", Actions)}."),
+        SensorAction.List => List(context, Document(context, documentHandle, spec)),
+        SensorAction.AddVariable => AddVariable(context, Document(context, documentHandle, spec), spec),
+        SensorAction.AddDistance => AddDistance(context, Document(context, documentHandle, spec), spec),
+        SensorAction.AddArea => AddArea(context, Document(context, documentHandle, spec), spec),
+        SensorAction.AddChecker => AddChecker(context, Document(context, documentHandle, spec), spec),
+        SensorAction.Update => Update(context, Document(context, documentHandle, spec), spec),
+        SensorAction.Set => Set(context, Document(context, documentHandle, spec), spec),
+        _ => throw new ArgumentOutOfRangeException(nameof(spec)),
     };
 
     private static SolidEdgeDocument Document(SeContext context, string? documentHandle, SensorSpec spec)
@@ -464,17 +465,17 @@ public static class SensorService
 
     private static Condition NewCondition(SensorSpec spec, int units)
     {
-        if (string.IsNullOrWhiteSpace(spec.Operator))
+        if (spec.Operator is not { } op)
         {
             throw ToolException.InvalidArgument("Adding a sensor requires 'operator' and its threshold: greater_than, less_than, equal_to or not_equal_to with 'threshold'; between or not_between with 'range' [min, max].");
         }
 
-        return Parse(spec.Operator, spec.Threshold, spec.Range, units);
+        return Parse(ArgumentNames.Snake(op), spec.Threshold, spec.Range, units);
     }
 
     private static Condition ChangedCondition(Sensor sensor, SensorSpec spec, int units)
     {
-        string op = spec.Operator ?? OperatorName(sensor.Operator);
+        string op = spec.Operator is { } given ? ArgumentNames.Snake(given) : OperatorName(sensor.Operator);
         bool range = op is "between" or "not_between";
         double? threshold = spec.Threshold ?? (range || spec.Operator is not null ? null : VariableService.FromDatabase(sensor.MinimumThreshold, units));
         double[]? limits = spec.Range ?? (!range || spec.Operator is not null ? null
@@ -569,18 +570,18 @@ public static class SensorService
                 "Leave it out (the sensor name is used) or give some text.");
     }
 
-    private static SensorDisplayTypeConstants DisplayOf(string? display) => display switch
+    private static SensorDisplayTypeConstants DisplayOf(SensorDisplay? display) => display switch
     {
-        null or "range" => SensorDisplayTypeConstants.seSensorDisplayTypeHorizontalRange,
-        "true_false" => SensorDisplayTypeConstants.seSensorDisplayTypeTrueFalse,
-        _ => throw ToolException.InvalidArgument($"Unknown display '{display}'.", "Use range or true_false."),
+        null or SensorDisplay.Range => SensorDisplayTypeConstants.seSensorDisplayTypeHorizontalRange,
+        SensorDisplay.TrueFalse => SensorDisplayTypeConstants.seSensorDisplayTypeTrueFalse,
+        _ => throw new ArgumentOutOfRangeException(nameof(display)),
     };
 
-    private static SensorUpdateMechanismConstants UpdateOf(string? update) => update switch
+    private static SensorUpdateMechanismConstants UpdateOf(SensorUpdate? update) => update switch
     {
-        null or "automatic" => SensorUpdateMechanismConstants.seSensorUpdateMechanismAutomatic,
-        "manual" => SensorUpdateMechanismConstants.seSensorUpdateMechanismManual,
-        _ => throw ToolException.InvalidArgument($"Unknown update '{update}'.", "Use automatic or manual."),
+        null or SensorUpdate.Automatic => SensorUpdateMechanismConstants.seSensorUpdateMechanismAutomatic,
+        SensorUpdate.Manual => SensorUpdateMechanismConstants.seSensorUpdateMechanismManual,
+        _ => throw new ArgumentOutOfRangeException(nameof(update)),
     };
 
     private static void Remember(Sensor sensor, int units, string? variable)

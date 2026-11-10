@@ -54,7 +54,7 @@ public static partial class RefPlaneService
         bool At(AsmRefPlane candidate, double expected)
         {
             (double[] root, double[] normal) = PlaneData(candidate);
-            return Math.Abs(Math.Abs(Dot(normal, from.Normal)) - 1) < 1e-6 && Math.Abs(Dot(from.Normal, Minus(root, from.Root)) - expected) < Tolerance;
+            return Math.Abs(Math.Abs(Geo.Dot(normal, from.Normal)) - 1) < 1e-6 && Math.Abs(Geo.Dot(from.Normal, Geo.Minus(root, from.Root)) - expected) < Tolerance;
         }
 
         if (distance != 0 && !At(plane, distance) && At(plane, -distance))
@@ -105,9 +105,9 @@ public static partial class RefPlaneService
 
         (double[] root, double[] normal) = PlaneData(plane);
         double[] line = HingePoint(from, hinge);
-        bool turned = Math.Abs(Dot(normal, Unit(axis))) < 1e-6
-            && Math.Abs(Math.Abs(Dot(normal, from.Normal)) - Math.Abs(Math.Cos(radians))) < 1e-6
-            && Math.Abs(Dot(normal, Minus(line, root))) < Tolerance;
+        bool turned = Math.Abs(Geo.Dot(normal, Geo.Unit(axis))) < 1e-6
+            && Math.Abs(Math.Abs(Geo.Dot(normal, from.Normal)) - Math.Abs(Math.Cos(radians))) < 1e-6
+            && Math.Abs(Geo.Dot(normal, Geo.Minus(line, root))) < Tolerance;
         return turned ? DescribeAssembly(context, assembly, plane, planes.Count) : DiscardAssembly(plane, "angle");
     }
 
@@ -130,14 +130,14 @@ public static partial class RefPlaneService
         edge.GetEndPoints(ref start, ref end);
         double[] s = placement?.Point(Geo.Doubles(start).ToArray()) ?? Geo.Doubles(start).ToArray();
         double[] e = placement?.Point(Geo.Doubles(end).ToArray()) ?? Geo.Doubles(end).ToArray();
-        double[] chord = Minus(e, s);
+        double[] chord = Geo.Minus(e, s);
         if (Geo.Length(chord) < 1e-9)
         {
             throw ToolException.InvalidArgument("The edge is closed (a full circle); pick an open edge.");
         }
 
         AsmRefPlane orientation = OrientedPlanes.Bases(Late.Items(assembly.AsmRefPlanes)).OfType<AsmRefPlane>()
-            .MinBy(p => Math.Abs(Dot(PlaneData(p).Normal, Unit(chord))))!;
+            .MinBy(p => Math.Abs(Geo.Dot(PlaneData(p).Normal, Geo.Unit(chord))))!;
         object reference = element.Reference(assembly);
         bool line = edge.Geometry is SolidEdgeGeometry.Line;
         double[] origin = from == ReferenceElementConstants.igCurveStart ? s : e;
@@ -150,7 +150,7 @@ public static partial class RefPlaneService
             double metres = Units.MmToM(Units.RequirePositive(d, "distance"));
             plane = CreatedInAssembly(planes, () => planes.AddNormalToCurveAtDistanceAlongCurve(reference, orientation, metres, 0,
                 ReferenceElementConstants.igNormalSide, from));
-            double[] direction = Unit(Minus(other, origin));
+            double[] direction = Geo.Unit(Geo.Minus(other, origin));
             point = line ? origin.Select((c, k) => c + direction[k] * metres).ToArray() : null;
         }
         else
@@ -162,8 +162,8 @@ public static partial class RefPlaneService
         }
 
         (double[] root, double[] normal) = PlaneData(plane);
-        bool normalOk = !line || Math.Abs(Math.Abs(Dot(normal, Unit(chord))) - 1) < 1e-6;
-        bool pointOk = point is null || Math.Abs(Dot(normal, Minus(point, root))) < Tolerance;
+        bool normalOk = !line || Math.Abs(Math.Abs(Geo.Dot(normal, Geo.Unit(chord))) - 1) < 1e-6;
+        bool pointOk = point is null || Math.Abs(Geo.Dot(normal, Geo.Minus(point, root))) < Tolerance;
         return normalOk && pointOk ? DescribeAssembly(context, assembly, plane, planes.Count) : DiscardAssembly(plane, "normal to edge");
     }
 
@@ -183,7 +183,7 @@ public static partial class RefPlaneService
         {
             return index >= 1 && index <= planes.Count
                 ? FromPlane(planes.Item(index))
-                : throw ToolException.InvalidArgument($"Assembly plane index {index} is out of range (1–{planes.Count}).", "List the planes with action 'list'.");
+                : throw ToolException.InvalidArgument($"Assembly plane index {index} is out of range (1 to {planes.Count}).", "List the planes with action 'list'.");
         }
 
         switch (context.Handles.Resolve(value, argumentName))
@@ -194,7 +194,7 @@ public static partial class RefPlaneService
                 Placement? placement = InspectService.GeometryPlacement(element.Occurrence);
                 double[] root = PlaneData(face).Root;
                 double[] normal = InspectService.FaceNormal(face);
-                return new AssemblyParent(element.Reference(assembly), placement?.Point(root) ?? root, Unit(placement?.Vector(normal) ?? normal));
+                return new AssemblyParent(element.Reference(assembly), placement?.Point(root) ?? root, Geo.Unit(placement?.Vector(normal) ?? normal));
             case OccurrenceElement { Element: Face }:
                 throw ToolException.InvalidArgument($"'{value}' in '{argumentName}' is not a planar face.", "Use se_geometry faces with type 'plane'.");
             default:
@@ -212,9 +212,9 @@ public static partial class RefPlaneService
     /// <summary>A point of the line where two non-parallel planes meet.</summary>
     private static double[] HingePoint(AssemblyParent a, AssemblyParent b)
     {
-        double c = Dot(a.Normal, b.Normal);
-        double d1 = Dot(a.Normal, a.Root);
-        double d2 = Dot(b.Normal, b.Root);
+        double c = Geo.Dot(a.Normal, b.Normal);
+        double d1 = Geo.Dot(a.Normal, a.Root);
+        double d2 = Geo.Dot(b.Normal, b.Root);
         double k = 1 - (c * c);
         double s = (d1 - (d2 * c)) / k;
         double t = (d2 - (d1 * c)) / k;

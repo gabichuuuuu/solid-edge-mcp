@@ -4,6 +4,7 @@
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -21,15 +22,15 @@ public static partial class SimplifyService
     private static AssemblyDocument? AssemblyTarget(SeContext context, string? documentHandle, string[]? faces, string? feature) =>
         faces is { Length: > 0 } || feature is not null ? null : context.GetDocument(documentHandle) as AssemblyDocument;
 
-    private static object RunAssembly(SeContext context, AssemblyDocument assembly, string action, string[]? occurrences, double? ratio, string? path, bool bodies) => action switch
+    private static object RunAssembly(SeContext context, AssemblyDocument assembly, SimplifyAction action, string[]? occurrences, double? ratio, string? path, bool bodies) => action switch
     {
-        "status" => AssemblyStatus(context, assembly),
-        "create" => CreateAssembly(context, assembly, occurrences, ratio),
-        "delete" => DeleteAssembly(context, assembly),
-        "save_as" => SaveAssembly(context, assembly, path),
-        "visible_faces" => VisibleFaces(context, assembly, occurrences, ratio, bodies),
-        "update" => UpdateAssembly(context, assembly),
-        _ => throw ToolException.InvalidArgument($"An assembly is simplified with status, create, visible_faces, update, delete and save_as, not '{action}'.",
+        SimplifyAction.Status => AssemblyStatus(context, assembly),
+        SimplifyAction.Create => CreateAssembly(context, assembly, occurrences, ratio),
+        SimplifyAction.Delete => DeleteAssembly(context, assembly),
+        SimplifyAction.SaveAs => SaveAssembly(context, assembly, path),
+        SimplifyAction.VisibleFaces => VisibleFaces(context, assembly, occurrences, ratio, bodies),
+        SimplifyAction.Update => UpdateAssembly(context, assembly),
+        _ => throw ToolException.InvalidArgument($"An assembly is simplified with status, create, visible_faces, update, delete and save_as, not '{ArgumentNames.Snake(action)}'.",
             "Simplify a part (holes, rounds, faces) in the part document."),
     };
 

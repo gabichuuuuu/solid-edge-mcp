@@ -5,20 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum AppearanceAction
-{
-    List,
-    Create,
-    Delete,
-    Get,
-    Apply,
-    Reset,
-}
 
 /// <summary>Colours (face styles) of parts, sheet metal and assembly components.</summary>
 [McpServerToolType]

@@ -6,145 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SheetMetalAction
-{
-    Settings,
-    SetSettings,
-    Gauge,
-    Tab,
-    ContourFlange,
-    Flange,
-    Hem,
-    BreakCorner,
-    Flatten,
-    BendAngle,
-    BendRadius,
-    Convert,
-    Transform,
-    MatchFace,
-    Louver,
-    TabSlot,
-    Unbend,
-    Gusset,
-    BendTable,
-}
-
-public enum GussetShape
-{
-    Round,
-    Square,
-}
-
-public enum SheetMetalSide
-{
-    Inside,
-    Outside,
-    BendOutside,
-}
-
-public enum FlangeDimension
-{
-    Inside,
-    Outside,
-}
-
-public enum HemType
-{
-    Closed,
-    Open,
-    SFlange,
-    ClosedLoop,
-}
-
-public enum CornerType
-{
-    Round,
-    Chamfer,
-}
-
-public enum LouverEnd
-{
-    Lanced,
-    Formed,
-}
-
-public enum ChainSide
-{
-    Right,
-    Left,
-}
-
-public enum SheetFormAction
-{
-    Dimple,
-    DrawnCutout,
-    NormalCutout,
-    Etch,
-    Jog,
-    Bend,
-    Bead,
-}
-
-public enum FormDirection
-{
-    Auto,
-    Normal,
-    Reverse,
-}
-
-public enum MovingSide
-{
-    Right,
-    Left,
-}
-
-/// <summary>Side of the thickness for the tab or contour flange; 'symmetric' does not exist in sheet metal.</summary>
-public enum SheetDirection
-{
-    Normal,
-    Reverse,
-}
-
-public enum BendPosition
-{
-    Inside,
-    Outside,
-    Symmetric,
-}
-
-public enum BeadType
-{
-    U,
-    V,
-    Circular,
-}
-
-public enum CutoutExtent
-{
-    ThroughAll,
-    ThroughNext,
-    Finite,
-    FromTo,
-}
-
-public enum BeadEnd
-{
-    Lanced,
-    Punched,
-    Formed,
-}
-
-public enum CutoutMethod
-{
-    Thickness,
-    MidPlane,
-    Clearance,
-}
 
 /// <summary>Sheet metal: tabs, flanges, hems, corners, flat pattern and sketch-based operations (mm and degrees).</summary>
 [McpServerToolType]
@@ -225,15 +91,15 @@ public sealed class SheetMetalTools(ToolRunner runner)
             SheetMetalAction.SetSettings => runner.RunAsync(tool, name, c => FeatureService.SetSheetSettings(c, document,
                 new SheetMetalValues(thickness, bendRadius, reliefWidth, reliefDepth, neutralFactor)), cancellationToken),
             SheetMetalAction.Gauge => runner.RunAsync(tool, name, c => FeatureService.SheetGauge(c, document, gauge, library,
-                folder is { } f ? Snake(f) : null), cancellationToken),
-            SheetMetalAction.Tab => runner.RunAsync(tool, name, c => FeatureService.Tab(c, document, RequireSketch(sketch, name), Snake(direction), newBody), cancellationToken),
+                folder), cancellationToken),
+            SheetMetalAction.Tab => runner.RunAsync(tool, name, c => FeatureService.Tab(c, document, RequireSketch(sketch, name), direction, newBody), cancellationToken),
             SheetMetalAction.ContourFlange => runner.RunAsync(tool, name, c => FeatureService.ContourFlange(c, document, RequireSketch(sketch, name),
-                width, Snake(direction), Snake(materialSide), radius), cancellationToken),
+                width, direction, materialSide, radius), cancellationToken),
             SheetMetalAction.Flange => runner.RunAsync(tool, name, c => FeatureService.Flange(c, document,
-                new FlangeSpec(edges, length, angle, Snake(side), radius, Snake(dimension))), cancellationToken),
+                new FlangeSpec(edges, length, angle, side, radius, dimension)), cancellationToken),
             SheetMetalAction.Hem => runner.RunAsync(tool, name, c => FeatureService.Hem(c, document,
-                new HemSpec(edges, Snake(hemType), length, radius, length2, radius2, Snake(side))), cancellationToken),
-            SheetMetalAction.BreakCorner => runner.RunAsync(tool, name, c => FeatureService.BreakCorner(c, document, edges, Snake(cornerType), size), cancellationToken),
+                new HemSpec(edges, hemType, length, radius, length2, radius2, side)), cancellationToken),
+            SheetMetalAction.BreakCorner => runner.RunAsync(tool, name, c => FeatureService.BreakCorner(c, document, edges, cornerType, size), cancellationToken),
             SheetMetalAction.Flatten => runner.RunAsync(tool, name, c => FeatureService.Flatten(c, document), cancellationToken),
             SheetMetalAction.BendAngle => runner.RunAsync(tool, name, c => FeatureService.BendAngle(c, document, faces, fixedFace, angle), cancellationToken),
             SheetMetalAction.BendRadius => runner.RunAsync(tool, name, c => FeatureService.BendRadius(c, document, faces, radius), cancellationToken),
@@ -241,12 +107,12 @@ public sealed class SheetMetalTools(ToolRunner runner)
             SheetMetalAction.Transform => runner.RunAsync(tool, name, c => FeatureService.TransformToSheet(c, document, faces, edges), cancellationToken),
             SheetMetalAction.MatchFace => runner.RunAsync(tool, name, c => FeatureService.MatchFace(c, document, faces, plane, distance), cancellationToken),
             SheetMetalAction.Louver => runner.RunAsync(tool, name, c => FeatureService.Louver(c, document,
-                new LouverSpec(faces, point, along, length, width, height, Snake(louverEnd), radius)), cancellationToken),
+                new LouverSpec(faces, point, along, length, width, height, louverEnd, radius)), cancellationToken),
             SheetMetalAction.TabSlot => runner.RunAsync(tool, name, c => FeatureService.TabSlot(c, document,
                 new TabSlotSpec(edges, faces, length, count, spacing, distance, gap, depth)), cancellationToken),
             SheetMetalAction.Unbend => runner.RunAsync(tool, name, c => FeatureService.Unbend(c, document, fixedFace, faces), cancellationToken),
             SheetMetalAction.Gusset => runner.RunAsync(tool, name, c => FeatureService.Gusset(c, document,
-                new GussetSpec(faces, edges, depth, width, Snake(gussetShape), radius, count, spacing, distance)), cancellationToken),
+                new GussetSpec(faces, edges, depth, width, gussetShape, radius, count, spacing, distance)), cancellationToken),
             SheetMetalAction.BendTable => runner.RunAsync(tool, name, c => FeatureService.BendTable(c, document, sequence), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
@@ -254,7 +120,7 @@ public sealed class SheetMetalTools(ToolRunner runner)
 
     [McpServerTool(Name = "se_sheetmetal_form", Title = "Sheet metal forming and cutting", Destructive = false, OpenWorld = false)]
     [Description($$"""
-        Sketch-based sheet metal features (ordered modeling), in mm and degrees. Draw the sketch on the sheet (se_sketch 'create' on a sheet face or a plane of it) and close it.
+        Sketch-based sheet metal features (ordered modelling), in mm and degrees. Draw the sketch on the sheet (se_sketch 'create' on a sheet face or a plane of it) and close it.
         dimple (closed sketch; depth) | drawn_cutout (closed sketch; depth) | normal_cutout (closed sketch; cuts through the thickness; method thickness | mid_plane | clearance; extent through_all | through_next | finite (depth) | from_to (to)) | etch (lines marked on the face; also in a part) |
         jog (one line across the sheet; height; side inside | outside | bend_outside) | bend (one line; angle between the bent part and the sheet: 90 = perpendicular, 60 folds it back over the sheet; position of the bend relative to the line: inside = outer face of the bent part on the line | outside | symmetric) | bead (open path; beadType u | v | circular; height, width; beadEnd lanced | punched | formed).
         direction: auto (default; normal_cutout cuts into the material when the sketch lies on a sheet face, otherwise tries the sketch normal and then the other side; the rest use normal) | normal (towards the sketch normal returned by se_sketch create; for dimple, drawn_cutout, jog, bend and bead it is the side the form rises to) | reverse.
@@ -281,8 +147,8 @@ public sealed class SheetMetalTools(ToolRunner runner)
         [Description("normal_cutout from_to: the plane the cut ends at, as an index or handle from se_ref_plane, or a planar face.")] string? to = null,
         [Description("Document handle; default: the sketch's document.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_sheetmetal_form", Snake(action), c => FeatureService.SheetForm(c, document, new SheetFormSpec(sketch, Snake(action),
-            depth, height, width, angle, Snake(direction), Snake(movingSide), Snake(position), Snake(side), Snake(beadType), Snake(method), Snake(beadEnd), punchWidth, Snake(extent), to)),
+        runner.RunAsync("se_sheetmetal_form", Snake(action), c => FeatureService.SheetForm(c, document, new SheetFormSpec(sketch, action,
+            depth, height, width, angle, direction, movingSide, position, side, beadType, method, beadEnd, punchWidth, extent, to)),
             cancellationToken);
 
     private static string RequireSketch(string? sketch, string action) => string.IsNullOrWhiteSpace(sketch)

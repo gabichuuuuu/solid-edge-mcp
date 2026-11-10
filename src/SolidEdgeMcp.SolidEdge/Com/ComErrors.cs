@@ -13,6 +13,7 @@ public static class ComErrors
     public const int EFail = unchecked((int)0x80004005);
     public const int ENotImpl = unchecked((int)0x80004001);
     public const int ENoInterface = unchecked((int)0x80004002);
+    public const int EPointer = unchecked((int)0x80004003);
     public const int EInvalidArg = unchecked((int)0x80070057);
     public const int EAccessDenied = unchecked((int)0x80070005);
     public const int DispEMemberNotFound = unchecked((int)0x80020003);
@@ -33,6 +34,7 @@ public static class ComErrors
     public const int CoEObjNotConnected = unchecked((int)0x800401FD);
     public const int CoEServerExecFailure = unchecked((int)0x80080005);
     public const int RegDbEClassNotReg = unchecked((int)0x80040154);
+    public const int StgEFileNotFound = unchecked((int)0x80030002);
 
     /// <summary>Does the error indicate that the Solid Edge process is no longer running?</summary>
     public static bool IsDisconnected(Exception ex) => Unwrap(ex) switch
@@ -166,7 +168,7 @@ public static class ComErrors
                 $"'{operation}': access denied ({code}).{detail}", "Check file permissions and that the file is not open elsewhere or read-only.", com),
             CoEServerExecFailure => new ToolException("solid_edge_start_failed",
                 $"Solid Edge could not be started ({code}).",
-                "Start Solid Edge manually once and check its license (SE_LICENSE_SERVER).", com),
+                "Start Solid Edge manually once and check its licence (SE_LICENSE_SERVER).", com),
             // Solid Edge itself answered: a component it needs for the operation is missing (verified: SaveCopyAs of an
             // assembly or sheet metal to .catproduct). A Solid Edge that is not installed is reported when it is started.
             RegDbEClassNotReg => new ToolException("component_not_registered",

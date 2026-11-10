@@ -50,7 +50,7 @@ public static partial class SketchService
             fill = canvas.Boundaries2d.AddByPoints(corners.Count, ref flat);
             if (!(fill.Area > 0))
             {
-                TryDelete(fill);
+                Late.TryDelete(fill);
                 throw ToolException.InvalidArgument("The polygon of 'points' encloses no area.", "Give at least three corners that are not on one line.");
             }
         }
@@ -66,7 +66,7 @@ public static partial class SketchService
         }
         catch
         {
-            TryDelete(fill);
+            Late.TryDelete(fill);
             throw;
         }
 
@@ -117,7 +117,7 @@ public static partial class SketchService
         }
         finally
         {
-            TryDelete(check);
+            Late.TryDelete(check);
         }
 
         Region2d.Moments outer = Measure(canvas, objects, p);
@@ -216,7 +216,7 @@ public static partial class SketchService
         fill.GetFloodPoint(out double x, out double y);
         if (Math.Abs(x - p.X) > RegionJoin || Math.Abs(y - p.Y) > RegionJoin)
         {
-            TryDelete(fill);
+            Late.TryDelete(fill);
             throw new ToolException("region_with_island",
                 "A closed loop of the elements lies inside the region round 'point' (an island): Solid Edge fills that loop instead, so the fill was removed.",
                 "Leave the inner loop out of 'elements'. For a fill with a hole, draw a line across the hole and fill each side; for its area, pass the hole as 'holes' in action 'area'.");
@@ -224,7 +224,7 @@ public static partial class SketchService
 
         if (fill.State != Boundary2dStateConstants.igBoundary2dUpToDate || !(fill.Area > 0))
         {
-            TryDelete(fill);
+            Late.TryDelete(fill);
             throw new ToolException("region_failed", "Solid Edge could not compute the region round 'point'.",
                 "Check that the elements close the region (se_sketch info) and pick another point inside it.");
         }
@@ -244,7 +244,7 @@ public static partial class SketchService
         }
         finally
         {
-            TryDelete(properties);
+            Late.TryDelete(properties);
         }
     }
 
@@ -457,7 +457,7 @@ public static partial class SketchService
 
         if (look.Color is { } color)
         {
-            style.FillColor = ComProperties.ColorRef(color, "color");
+            style.FillColor = Rgb.ColorRef(color, "color");
         }
 
         if (look.Angle is { } angle)
@@ -483,7 +483,7 @@ public static partial class SketchService
             perimeter = Geo.Mm(fill.Perimeter),
             centroid = new[] { Geo.Mm(x), Geo.Mm(y) },
             style = style.FillName,
-            color = color >= 0 ? ComProperties.Hex(color) : "default",
+            color = color >= 0 ? Rgb.HexOfColorRef(color) : "default",
             angle = Geo.R(Units.RadToDeg(style.Rotation)),
             spacing = Geo.Mm(style.spacing),
             elements = fill.BoundingObjects.Count,

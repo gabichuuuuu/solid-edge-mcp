@@ -5,20 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum LayerAction
-{
-    List,
-    Create,
-    Activate,
-    Set,
-    Delete,
-    Assign,
-}
 
 /// <summary>Layers of models (sketch geometry) and of drawing sheets (views, dimensions, annotations, 2D geometry).</summary>
 [McpServerToolType]

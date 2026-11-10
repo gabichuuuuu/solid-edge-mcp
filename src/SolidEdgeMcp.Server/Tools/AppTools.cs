@@ -5,24 +5,10 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum CommandAction
-{
-    Find,
-    Run,
-    Check,
-}
-
-public enum SelectionAction
-{
-    Get,
-    Set,
-    Add,
-    Clear,
-}
 
 /// <summary>Export, UI commands and selection.</summary>
 [McpServerToolType]

@@ -6,34 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum FrameAction
-{
-    Library,
-    List,
-    Frame,
-    Pipe,
-    Delete,
-    Repair,
-}
-
-public enum FrameLibrary
-{
-    Frames,
-    Pipes,
-}
-
-public enum FrameEndCondition
-{
-    Miter,
-    Butt1,
-    Butt2,
-    None,
-}
 
 /// <summary>Structural frames and pipes of an assembly.</summary>
 [McpServerToolType]
@@ -89,11 +66,11 @@ public sealed class FrameTools(ToolRunner runner, PathGuard guard)
         };
         return action switch
         {
-            FrameAction.Library => runner.RunAsync(tool, act, c => FrameService.Library(c, Snake(kind), filter, offset, limit, folder), cancellationToken,
+            FrameAction.Library => runner.RunAsync(tool, act, c => FrameService.Library(c, kind, filter, offset, limit, folder), cancellationToken,
                 precheck: folder is null ? null : () => guard.Check(folder, "folder")),
             FrameAction.List => runner.RunAsync(tool, act, c => FrameService.List(c, document), cancellationToken),
             FrameAction.Frame => runner.RunAsync(tool, act, c => FrameService.Frame(c, document, section, points, lines,
-                endCondition is { } e ? Snake(e) : null, name), cancellationToken, precheck: precheck),
+                endCondition, name), cancellationToken, precheck: precheck),
             FrameAction.Pipe => runner.RunAsync(tool, act, c => FrameService.Pipe(c, document, diameter, points, lines,
                 new PipeParts(pipe, elbow, tee, cross, coupling), name), cancellationToken, precheck: precheck),
             FrameAction.Delete => runner.RunAsync(tool, act, c => FrameService.Delete(c, document, name), cancellationToken),

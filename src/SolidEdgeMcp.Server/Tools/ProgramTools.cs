@@ -6,44 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Core;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum AppAction
-{
-    Info,
-    Addins,
-    SetAddin,
-    Templates,
-    SetTemplate,
-    Recent,
-    SuspendRecent,
-    ResumeRecent,
-    ClearRecent,
-    AiDrawingData,
-    Numbering,
-    ResetDxfSettings,
-}
-
-public enum CustomizeAction
-{
-    RibbonThemes,
-    CreateRibbonTheme,
-    ActivateRibbonTheme,
-    RemoveRibbonTheme,
-    SetRibbonTheme,
-    AddTab,
-    AddGroup,
-    AddCommand,
-    SetItem,
-    RemoveItem,
-    Shortcuts,
-    AddShortcut,
-    RemoveShortcut,
-    ResetShortcuts,
-}
 
 /// <summary>Solid Edge as a program: application information, add-ins, templates, recent files and customization.</summary>
 [McpServerToolType]

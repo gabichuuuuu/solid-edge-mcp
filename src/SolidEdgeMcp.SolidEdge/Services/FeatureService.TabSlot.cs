@@ -84,13 +84,13 @@ public static partial class FeatureService
         double tabChange = ((Body)owner.Body).Volume - tabBefore;
         double slotChange = ((Body)slotted.Body).Volume - slotBefore;
         string? problem = status == "failed" ? "Solid Edge reports it as failed"
-            : tabChange <= VolumeTolerance ? "it added no tabs"
-            : slotChange >= -VolumeTolerance ? "it cut no slots"
+            : tabChange <= Geo.VolumeTolerance ? "it added no tabs"
+            : slotChange >= -Geo.VolumeTolerance ? "it cut no slots"
             : null;
         if (problem is not null)
         {
             string name = Late.TryGetString(feature, "Name") ?? "The tab and slot";
-            TryDelete(feature);
+            Late.TryDelete(feature);
             throw new ToolException("feature_failed", $"{name} was deleted because {problem}.", TabSlotHint);
         }
 

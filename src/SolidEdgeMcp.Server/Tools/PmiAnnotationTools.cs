@@ -5,32 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum PmiAnnotationAction
-{
-    List,
-    Text,
-    Balloon,
-    Callout,
-    Leader,
-    Datum,
-    DatumTarget,
-    DatumPoint,
-    SurfaceFinish,
-    FeatureControlFrame,
-    Weld,
-    GostWeld,
-    Corner,
-    CenterMark,
-    Centerline,
-    BoltCircle,
-    Move,
-    Delete,
-}
 
 /// <summary>PMI (3D) annotations of parts and sheet metal, attached to the edges of the model.</summary>
 [McpServerToolType]
@@ -73,9 +52,8 @@ public sealed class PmiAnnotationTools(ToolRunner runner)
         [Description("Part or sheet metal document handle; default: the active document.")] string? document = null,
         CancellationToken cancellationToken = default)
     {
-        string act = Snake(action);
-        var spec = new PmiAnnotationSpec(act, plane, points, position, text, Snake(finish), characteristic is { } g ? Snake(g) : null, tolerance, datums, rows,
-            composite, Snake(weld), Snake(weldSide), allAround, field, annotation, kind is { } k ? Snake(k) : null);
-        return runner.RunAsync("se_pmi_annotation", act, c => PmiAnnotationService.Run(c, document, spec), cancellationToken);
+        var spec = new PmiAnnotationSpec(action, plane, points, position, text, finish, characteristic, tolerance, datums, rows,
+            composite, weld, weldSide, allAround, field, annotation, kind);
+        return runner.RunAsync("se_pmi_annotation", Snake(action), c => PmiAnnotationService.Run(c, document, spec), cancellationToken);
     }
 }

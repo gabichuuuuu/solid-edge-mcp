@@ -249,7 +249,7 @@ public static partial class AssemblyService
                 ? assembly.AssemblyCopies.Add(file, AssemblyCopyComponentConstants.seAssemblyCopyComponentsIncludeAll)
                 : assembly.AssemblyCopies.Add(file, AssemblyCopyComponentConstants.seAssemblyCopyComponentsIncludeAll, mirror);
         }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+        catch (COMException ex) when (ex.HResult == ComErrors.EFail)
         {
             // Verified with an assembly that has alternate positions.
             throw new ToolException("copy_failed", $"Solid Edge could not copy '{System.IO.Path.GetFileName(file)}' (E_FAIL): an assembly with alternate positions or a family is not copied.",

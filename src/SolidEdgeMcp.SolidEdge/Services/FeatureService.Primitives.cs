@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -11,28 +12,21 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>
 /// Primitives: box, cylinder and sphere, added or cut, placed by a centre on a plane. Solid Edge 2026 builds them only in
-/// synchronous modeling (in ordered mode the same calls are rejected with E_INVALIDARG), so they are created like the
+/// synchronous modelling (in ordered mode the same calls are rejected with E_INVALIDARG), so they are created like the
 /// synchronous sheet metal features: switch, create, check the volume, switch back, and undo everything if a check fails.
 /// </summary>
 public static partial class FeatureService
 {
-    public static readonly IReadOnlyList<string> PrimitiveShapes = ["box", "cylinder", "sphere"];
-
     /// <summary>How far (m) the centre may be from the plane.</summary>
     private const double OnPlaneTolerance = 1e-6;
 
     public static object Primitive(SeContext context, string? documentHandle, PrimitiveSpec spec)
     {
-        if (!PrimitiveShapes.Contains(spec.Shape))
-        {
-            throw ToolException.InvalidArgument($"Unknown primitive '{spec.Shape}'.", $"Use one of: {string.Join(", ", PrimitiveShapes)}.");
-        }
-
         bool cut = spec.Operation switch
         {
-            "add" => false,
-            "cut" => true,
-            _ => throw ToolException.InvalidArgument($"Unknown operation '{spec.Operation}'.", "Use add or cut."),
+            FeatureOperation.Add => false,
+            FeatureOperation.Cut => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
         ModelDocument model = ModelDocument.For(context, documentHandle, spec.Plane ?? "1");
         if (model.Document is not PartDocument)
@@ -48,7 +42,7 @@ public static partial class FeatureService
         List<(double X, double Y, double Z)>? corners = null;
         if (spec.Corners is not null)
         {
-            if (spec.Shape != "box" || spec.Centre is not null || spec.Size is not null || spec.Angle is not null)
+            if (spec.Shape != PrimitiveShape.Box || spec.Centre is not null || spec.Size is not null || spec.Angle is not null)
             {
                 throw ToolException.InvalidArgument("'corners' place a box (2 opposite corners, or 3 points: the ends of one edge and a point on the opposite edge); give them instead of center, size and angle.");
             }
@@ -68,12 +62,12 @@ public static partial class FeatureService
 
         (double X, double Y, double Z) centre = centres[0];
         double width = 0, height = 0, depth = 0, radius = 0, angle = 0;
-        if (spec.Angle is not null && spec.Shape != "box")
+        if (spec.Angle is not null && spec.Shape != PrimitiveShape.Box)
         {
             throw ToolException.InvalidArgument("'angle' rotates a box; a cylinder or a sphere has no angle.");
         }
 
-        if (spec.Shape == "box" && corners is null)
+        if (spec.Shape == PrimitiveShape.Box && corners is null)
         {
             angle = Units.DegToRad(spec.Angle ?? 0);
             if (spec.Size is not { Length: 2 } size)
@@ -84,14 +78,14 @@ public static partial class FeatureService
             width = Units.MmToM(Units.RequirePositive(size[0], "size[0]"));
             height = Units.MmToM(Units.RequirePositive(size[1], "size[1]"));
         }
-        else if (spec.Shape != "box")
+        else if (spec.Shape != PrimitiveShape.Box)
         {
-            radius = Units.MmToM(Units.RequirePositive(spec.Radius ?? throw ToolException.InvalidArgument($"'radius' in mm is required for a {spec.Shape}."), "radius"));
+            radius = Units.MmToM(Units.RequirePositive(spec.Radius ?? throw ToolException.InvalidArgument($"'radius' in mm is required for a {ArgumentNames.Snake(spec.Shape)}."), "radius"));
         }
 
-        if (spec.Shape != "sphere")
+        if (spec.Shape != PrimitiveShape.Sphere)
         {
-            depth = Units.MmToM(Units.RequirePositive(spec.Depth ?? throw ToolException.InvalidArgument($"'depth' in mm is required for a {spec.Shape}."), "depth"));
+            depth = Units.MmToM(Units.RequirePositive(spec.Depth ?? throw ToolException.InvalidArgument($"'depth' in mm is required for a {ArgumentNames.Snake(spec.Shape)}."), "depth"));
         }
 
         object source = model.ResolvePlaneSource(context, spec.Plane ?? "1");
@@ -111,15 +105,15 @@ public static partial class FeatureService
         // The side to try first: along the normal to add, against it to cut (into the part under a face). A sphere has no side.
         FeaturePropertyConstants[] sides = spec.Side switch
         {
-            "auto" => spec.Shape == "sphere" ? [FeaturePropertyConstants.igRight]
+            PartFeatureSide.Auto => spec.Shape == PrimitiveShape.Sphere ? [FeaturePropertyConstants.igRight]
                 : cut ? [FeaturePropertyConstants.igLeft, FeaturePropertyConstants.igRight]
                 : [FeaturePropertyConstants.igRight, FeaturePropertyConstants.igLeft],
-            "normal" => [FeaturePropertyConstants.igRight],
-            "reverse" => [FeaturePropertyConstants.igLeft],
-            "symmetric" => [FeaturePropertyConstants.igSymmetric],
-            _ => throw ToolException.InvalidArgument($"Unknown side '{spec.Side}'.", "Use auto, normal, reverse or symmetric."),
+            PartFeatureSide.Normal => [FeaturePropertyConstants.igRight],
+            PartFeatureSide.Reverse => [FeaturePropertyConstants.igLeft],
+            PartFeatureSide.Symmetric => [FeaturePropertyConstants.igSymmetric],
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         };
-        string what = $"{spec.Shape} {(cut ? "cut" : "")}".Trim();
+        string what = $"{ArgumentNames.Snake(spec.Shape)} {(cut ? "cut" : "")}".Trim();
         string nextStep = cut
             ? "Place the primitive so that it overlaps the part, or try another side."
             : "Place the primitive so that it adds material outside the part, or try another side.";
@@ -161,13 +155,13 @@ public static partial class FeatureService
         {
             if (own is not null)
             {
-                TryDelete(own);
+                Late.TryDelete(own);
             }
         }
     }
 
     /// <summary>
-    /// Creates one feature in synchronous modeling and checks it with the volume measured in the document's own mode before
+    /// Creates one feature in synchronous modelling and checks it with the volume measured in the document's own mode before
     /// and after (in synchronous mode the body of a part with only ordered features cannot be read: E_FAIL). If Solid Edge
     /// rejects it (a cut that removes nothing gives E_INVALIDARG) or the check fails, everything done in the call is undone.
     /// </summary>
@@ -232,7 +226,7 @@ public static partial class FeatureService
 
         if (switched && model.ModelingMode != "ordered")
         {
-            warnings.Add("The document could not return to ordered modeling.");
+            warnings.Add("The document could not return to ordered modelling.");
         }
 
         return new
@@ -280,12 +274,12 @@ public static partial class FeatureService
         double[] normal = [.. n.Cast<double>()];
         double[] v = Geo.Cross(normal, u);
         double[][] p = [.. corners.Select(c => new[] { c.X, c.Y, c.Z })];
-        double[] edge = Minus(p[1], p[0]);
+        double[] edge = Geo.Minus(p[1], p[0]);
         double width, height, angle;
         double[] centre;
         if (p.Length == 2)
         {
-            (width, height, angle) = (Math.Abs(Dot(edge, u)), Math.Abs(Dot(edge, v)), 0);
+            (width, height, angle) = (Math.Abs(Geo.Dot(edge, u)), Math.Abs(Geo.Dot(edge, v)), 0);
             centre = [.. p[0].Select((c, k) => c + edge[k] / 2)];
         }
         else
@@ -293,8 +287,8 @@ public static partial class FeatureService
             width = Geo.Length(edge);
             double[] along = [.. edge.Select(c => c / Math.Max(width, double.Epsilon))];
             double[] across = Geo.Cross(normal, along);
-            double offset = Dot(Minus(p[2], p[0]), across);
-            (height, angle) = (Math.Abs(offset), Math.Atan2(Dot(along, v), Dot(along, u)));
+            double offset = Geo.Dot(Geo.Minus(p[2], p[0]), across);
+            (height, angle) = (Math.Abs(offset), Math.Atan2(Geo.Dot(along, v), Geo.Dot(along, u)));
             centre = [.. p[0].Select((c, k) => c + edge[k] / 2 + across[k] * offset / 2)];
         }
 
@@ -307,7 +301,7 @@ public static partial class FeatureService
         return ((centre[0], centre[1], centre[2]), width, height, angle);
     }
 
-    private static object? AddPrimitive(ModelDocument model, string shape, bool cut, RefPlane plane, (double X, double Y, double Z) c,
+    private static object? AddPrimitive(ModelDocument model, PrimitiveShape shape, bool cut, RefPlane plane, (double X, double Y, double Z) c,
         double width, double height, double angle, double depth, double radius, FeaturePropertyConstants side)
     {
         // Verified: with vbKeyPointExtent false the key point object must be empty (VT_EMPTY); a null object (VT_DISPATCH) gives E_NOINTERFACE.
@@ -317,24 +311,24 @@ public static partial class FeatureService
         {
             Model created = shape switch
             {
-                "box" => model.Models.AddBoxByCenter(c.X, c.Y, c.Z, width, height, angle, depth, plane, side, false, null, ref flags),
-                "cylinder" => model.Models.AddCylinderByCenterAndRadius(c.X, c.Y, c.Z, radius, depth, plane, side, false, null, ref flags),
+                PrimitiveShape.Box => model.Models.AddBoxByCenter(c.X, c.Y, c.Z, width, height, angle, depth, plane, side, false, null, ref flags),
+                PrimitiveShape.Cylinder => model.Models.AddCylinderByCenterAndRadius(c.X, c.Y, c.Z, radius, depth, plane, side, false, null, ref flags),
                 _ => model.Models.AddSphereByCenterAndRadius(c.X, c.Y, c.Z, radius, plane, side, false, false, null, ref flags),
             };
             return shape switch
             {
-                "box" => LastFeature(model, created.BoxFeatures),
-                "cylinder" => LastFeature(model, created.CylinderFeatures),
+                PrimitiveShape.Box => LastFeature(model, created.BoxFeatures),
+                PrimitiveShape.Cylinder => LastFeature(model, created.CylinderFeatures),
                 _ => LastFeature(model, created.SphereFeatures),
             };
         }
 
         return (shape, cut) switch
         {
-            ("box", false) => target.BoxFeatures.AddByCenter(c.X, c.Y, c.Z, width, height, angle, depth, plane, side, false, null, ref flags),
-            ("box", true) => target.BoxFeatures.AddCutoutByCenter(c.X, c.Y, c.Z, width, height, angle, depth, plane, inside, side, false, null, ref flags),
-            ("cylinder", false) => target.CylinderFeatures.AddByCenterAndRadius(c.X, c.Y, c.Z, radius, depth, plane, side, false, null, ref flags),
-            ("cylinder", true) => target.CylinderFeatures.AddCutoutByCenterAndRadius(c.X, c.Y, c.Z, radius, depth, plane, inside, side, false, null, ref flags),
+            (PrimitiveShape.Box, false) => target.BoxFeatures.AddByCenter(c.X, c.Y, c.Z, width, height, angle, depth, plane, side, false, null, ref flags),
+            (PrimitiveShape.Box, true) => target.BoxFeatures.AddCutoutByCenter(c.X, c.Y, c.Z, width, height, angle, depth, plane, inside, side, false, null, ref flags),
+            (PrimitiveShape.Cylinder, false) => target.CylinderFeatures.AddByCenterAndRadius(c.X, c.Y, c.Z, radius, depth, plane, side, false, null, ref flags),
+            (PrimitiveShape.Cylinder, true) => target.CylinderFeatures.AddCutoutByCenterAndRadius(c.X, c.Y, c.Z, radius, depth, plane, inside, side, false, null, ref flags),
             (_, false) => target.SphereFeatures.AddByCenterAndRadius(c.X, c.Y, c.Z, radius, plane, side, false, false, null, ref flags),
             (_, true) => target.SphereFeatures.AddCutoutByCenterAndRadius(c.X, c.Y, c.Z, radius, plane, inside, side, false, false, null, ref flags),
         };
@@ -342,5 +336,5 @@ public static partial class FeatureService
 }
 
 /// <summary>Arguments of a primitive (mm). Shape: box | cylinder | sphere; operation: add | cut; side: auto | normal | reverse | symmetric.</summary>
-public sealed record PrimitiveSpec(string Shape, string Operation, string? Plane, double[]? Centre, double[]? Size, double? Radius, double? Depth, string Side,
+public sealed record PrimitiveSpec(PrimitiveShape Shape, FeatureOperation Operation, string? Plane, double[]? Centre, double[]? Size, double? Radius, double? Depth, PartFeatureSide Side,
     double? Angle = null, double[]? Corners = null);

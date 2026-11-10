@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using SolidEdgeFrameworkSupport;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using Body = SolidEdgeGeometry.Body;
@@ -17,10 +18,10 @@ using TopologyQuery = SolidEdgeGeometry.FeatureTopologyQueryTypeConstants;
 namespace SolidEdgeMcp.SolidEdge.Services;
 
 /// <summary>What se_pmi_annotation does. Model points and positions in mm.</summary>
-public sealed record PmiAnnotationSpec(string Action, string? Plane = null, double[]? Points = null, double[]? Position = null, string? Text = null,
-    string Finish = "machined", string? Characteristic = null, string? Tolerance = null, string[]? Datums = null, string[]? Rows = null,
-    bool Composite = false, string Weld = "fillet", string WeldSide = "arrow", bool AllAround = false, bool Field = false,
-    string? Annotation = null, string? Kind = null);
+public sealed record PmiAnnotationSpec(PmiAnnotationAction Action, string? Plane = null, double[]? Points = null, double[]? Position = null, string? Text = null,
+    SurfaceFinishType Finish = SurfaceFinishType.Machined, GeometricCharacteristic? Characteristic = null, string? Tolerance = null, string[]? Datums = null, string[]? Rows = null,
+    bool Composite = false, WeldType Weld = WeldType.Fillet, WeldSide WeldSide = WeldSide.Arrow, bool AllAround = false, bool Field = false,
+    string? Annotation = null, AnnotationKind? Kind = null);
 
 /// <summary>
 /// PMI (3D) annotations of a part or sheet metal document, attached to the edges of its bodies. Verified in Solid Edge 2026 on
@@ -48,8 +49,6 @@ public sealed record PmiAnnotationSpec(string Action, string? Plane = null, doub
 /// </summary>
 public static class PmiAnnotationService
 {
-    public static readonly IReadOnlyList<string> Actions = ["list", "text", "balloon", "callout", "leader", "datum", "datum_target", "datum_point",
-        "surface_finish", "feature_control_frame", "weld", "gost_weld", "corner", "center_mark", "centerline", "bolt_circle", "move", "delete"];
 
     public static readonly IReadOnlyList<string> Kinds = ["text", "balloon", "leader", "datum", "datum_target", "datum_point", "surface_finish",
         "feature_control_frame", "weld", "gost_weld", "corner", "center_mark", "centerline", "bolt_circle"];
@@ -62,26 +61,25 @@ public static class PmiAnnotationService
 
     public static object Run(SeContext context, string? documentHandle, PmiAnnotationSpec spec) => spec.Action switch
     {
-        "list" => List(context, documentHandle, spec.Kind),
-        "delete" => Delete(context, spec.Annotation),
-        "move" => Move(context, documentHandle, spec),
-        "text" => AddText(context, documentHandle, spec),
-        "center_mark" or "centerline" or "bolt_circle" or "datum_point" => AddOnElements(context, documentHandle, spec),
-        _ when Actions.Contains(spec.Action) => AddOnLeader(context, documentHandle, spec),
-        _ => throw ToolException.InvalidArgument($"Unknown action '{spec.Action}'.", $"Use one of: {string.Join(", ", Actions)}."),
+        PmiAnnotationAction.List => List(context, documentHandle, spec.Kind),
+        PmiAnnotationAction.Delete => Delete(context, spec.Annotation),
+        PmiAnnotationAction.Move => Move(context, documentHandle, spec),
+        PmiAnnotationAction.Text => AddText(context, documentHandle, spec),
+        PmiAnnotationAction.CenterMark or PmiAnnotationAction.Centerline or PmiAnnotationAction.BoltCircle or PmiAnnotationAction.DatumPoint
+            => AddOnElements(context, documentHandle, spec),
+        PmiAnnotationAction.Balloon or PmiAnnotationAction.Callout or PmiAnnotationAction.Leader or PmiAnnotationAction.Datum
+            or PmiAnnotationAction.DatumTarget or PmiAnnotationAction.SurfaceFinish or PmiAnnotationAction.FeatureControlFrame
+            or PmiAnnotationAction.Weld or PmiAnnotationAction.GostWeld or PmiAnnotationAction.Corner => AddOnLeader(context, documentHandle, spec),
+        _ => throw new ArgumentOutOfRangeException(nameof(spec)),
     };
 
-    private static object List(SeContext context, string? documentHandle, string? kind)
+    private static object List(SeContext context, string? documentHandle, AnnotationKind? kind)
     {
-        if (kind is not null && !Kinds.Contains(kind))
-        {
-            throw ToolException.InvalidArgument($"Unknown annotation kind '{kind}'.", $"Use one of: {string.Join(", ", Kinds)}.");
-        }
-
+        string? only = kind is { } wanted ? ArgumentNames.Snake(wanted) : null;
         ModelDocument model = ModelDocument.Get(context, documentHandle);
         PMI pmi = PmiService.PmiOf(model);
         var rows = new List<object>();
-        foreach (string name in Kinds.Where(k => kind is null || k == kind))
+        foreach (string name in Kinds.Where(k => only is null || k == only))
         {
             if (CollectionOf(pmi, name) is { } collection)
             {
@@ -127,8 +125,8 @@ public static class PmiAnnotationService
         if (annotation is TextBox text)
         {
             Frame frame = FrameOf(context, model, PmiService.PmiOf(model), spec.Plane);
-            double[] relative = Minus(target, RefPlaneService.PlaneData(frame.Plane).Root);
-            (double tx, double ty) = (Dot(relative, frame.X), Dot(relative, frame.Y));
+            double[] relative = Geo.Minus(target, RefPlaneService.PlaneData(frame.Plane).Root);
+            (double tx, double ty) = (Geo.Dot(relative, frame.X), Geo.Dot(relative, frame.Y));
             text.GetOrigin(out double x0, out double y0, out double z0);
             text.SetOrigin(tx, ty, z0);
             text.GetOrigin(out double x1, out double y1, out _);
@@ -148,10 +146,10 @@ public static class PmiAnnotationService
         }
 
         double[] terminator = ToModel(annotation, 0, 0);
-        double[] x = Unit(Minus(ToModel(annotation, 1e-3, 0), terminator));
-        double[] y = Unit(Minus(ToModel(annotation, 0, 1e-3), terminator));
-        double[] offset = Minus(target, terminator);
-        (double U, double V) end = (Dot(offset, x), Dot(offset, y));
+        double[] x = Geo.Unit(Geo.Minus(ToModel(annotation, 1e-3, 0), terminator));
+        double[] y = Geo.Unit(Geo.Minus(ToModel(annotation, 0, 1e-3), terminator));
+        double[] offset = Geo.Minus(target, terminator);
+        (double U, double V) end = (Geo.Dot(offset, x), Geo.Dot(offset, y));
         if (Math.Sqrt((end.U * end.U) + (end.V * end.V)) < PickTolerance)
         {
             throw ToolException.InvalidArgument("'position' is on the annotation's edge point (once projected onto its plane): the leader would have no length.",
@@ -237,37 +235,38 @@ public static class PmiAnnotationService
     /// </summary>
     private static object AddOnLeader(SeContext context, string? documentHandle, PmiAnnotationSpec spec)
     {
-        string kind = spec.Action == "callout" ? "balloon" : spec.Action;
-        Action<object> content = Content(spec, kind);
+        string kind = spec.Action == PmiAnnotationAction.Callout ? "balloon" : ArgumentNames.Snake(spec.Action);
+        Action<object> content = Content(spec);
         ModelDocument model = ModelDocument.Get(context, documentHandle);
         PMI pmi = PmiService.PmiOf(model);
         Frame frame = FrameOf(context, model, pmi, spec.Plane);
         EdgePick pick = PickEdge(model, ModelPoints(spec.Points, "points", 1, "on the edge or vertex the annotation points at")[0], "edge", _ => true);
-        bool leader = spec.Position is not null || kind is "balloon" or "leader" or "feature_control_frame" or "weld" or "gost_weld";
+        bool leader = spec.Position is not null || spec.Action is PmiAnnotationAction.Balloon or PmiAnnotationAction.Callout or PmiAnnotationAction.Leader
+            or PmiAnnotationAction.FeatureControlFrame or PmiAnnotationAction.Weld or PmiAnnotationAction.GostWeld;
         (double U, double V) end = Offsets(frame, pick.Point, spec.Position);
         object collection = CollectionOf(pmi, kind)!;
         int before = Late.Count(collection);
         AnnotInitData data = Init(collection, frame);
         data.SetTerminatorElementEx(pick.Edge, pick.KeyPoint, pick.Point[0], pick.Point[1], pick.Point[2]);
-        object annotation = Create(collection, before, kind, () => kind switch
+        object annotation = Create(collection, before, kind, () => spec.Action switch
         {
-            "balloon" => ((Balloons)collection).AddBalloon(data),
-            "leader" => ((Leaders)collection).AddLeader(data, end.U, end.V, 0),
-            "datum" => ((DatumFrames)collection).AddDatumFrame(data),
-            "datum_target" => ((DatumTargets)collection).AddDatumTarget(data),
-            "surface_finish" => ((SurfaceFinishSymbols)collection).AddSurfaceFinishSymbol(data),
-            "feature_control_frame" => ((FeatureControlFrames)collection).AddFeatureControlFrame(data),
-            "weld" => ((WeldSymbols)collection).AddWeldSymbol(data),
-            "gost_weld" => ((GostWeldSymbols)collection).AddGostWeldSymbol(data),
-            "corner" => ((CornerAnnotations)collection).AddCornerAnnotation(data),
-            _ => throw new InvalidOperationException(kind),
+            PmiAnnotationAction.Balloon or PmiAnnotationAction.Callout => ((Balloons)collection).AddBalloon(data),
+            PmiAnnotationAction.Leader => ((Leaders)collection).AddLeader(data, end.U, end.V, 0),
+            PmiAnnotationAction.Datum => ((DatumFrames)collection).AddDatumFrame(data),
+            PmiAnnotationAction.DatumTarget => ((DatumTargets)collection).AddDatumTarget(data),
+            PmiAnnotationAction.SurfaceFinish => ((SurfaceFinishSymbols)collection).AddSurfaceFinishSymbol(data),
+            PmiAnnotationAction.FeatureControlFrame => ((FeatureControlFrames)collection).AddFeatureControlFrame(data),
+            PmiAnnotationAction.Weld => ((WeldSymbols)collection).AddWeldSymbol(data),
+            PmiAnnotationAction.GostWeld => ((GostWeldSymbols)collection).AddGostWeldSymbol(data),
+            PmiAnnotationAction.Corner => ((CornerAnnotations)collection).AddCornerAnnotation(data),
+            _ => throw new ArgumentOutOfRangeException(nameof(spec)),
         });
         string what = Name(kind);
         (double U, double V) drawn = end;
         return Checked(context, model, collection, before, annotation, kind, () =>
         {
             // Verified (as in drawings): a weld or GOST weld symbol takes its leader before its content.
-            bool leaderFirst = kind is "weld" or "gost_weld";
+            bool leaderFirst = spec.Action is PmiAnnotationAction.Weld or PmiAnnotationAction.GostWeld;
             if (leader && leaderFirst)
             {
                 PutOnLeader(annotation, end);
@@ -279,7 +278,7 @@ public static class PmiAnnotationService
                 DrawingService.SetShelf(gost, DrawingService.GostNotes(spec.Text), left: end.U < 0);
             }
 
-            if (leader && !leaderFirst && kind != "leader")
+            if (leader && !leaderFirst && spec.Action != PmiAnnotationAction.Leader)
             {
                 PutOnLeader(annotation, end);
             }
@@ -291,19 +290,19 @@ public static class PmiAnnotationService
 
             if (leader)
             {
-                drawn = RequireEnd(annotation, end, what, lengthOnly: kind == "datum");
+                drawn = RequireEnd(annotation, end, what, lengthOnly: spec.Action == PmiAnnotationAction.Datum);
             }
         }, () => new Placed(frame.Name, pick.Point, leader ? Position(frame, pick.Point, drawn) : null));
     }
 
     /// <summary>The content of an annotation on a leader, checked on the inputs before anything is placed.</summary>
-    private static Action<object> Content(PmiAnnotationSpec spec, string kind)
+    private static Action<object> Content(PmiAnnotationSpec spec)
     {
-        switch (kind)
+        switch (spec.Action)
         {
-            case "balloon":
+            case PmiAnnotationAction.Balloon or PmiAnnotationAction.Callout:
                 string label = DrawingService.RequireText(spec.Text, "text");
-                bool callout = spec.Action == "callout";
+                bool callout = spec.Action == PmiAnnotationAction.Callout;
                 return a =>
                 {
                     var balloon = (Balloon)a;
@@ -318,16 +317,16 @@ public static class PmiAnnotationService
                         throw new ToolException("annotation_failed", "Solid Edge did not keep the text of the balloon.", "Avoid control characters in 'text'.");
                     }
                 };
-            case "datum":
+            case PmiAnnotationAction.Datum:
                 string letter = DrawingService.RequireText(spec.Text, "text");
                 return a => DrawingService.SetDatum((DatumFrame)a, letter);
-            case "datum_target":
+            case PmiAnnotationAction.DatumTarget:
                 (string Letter, string Number) target = DrawingService.DatumTargetLabel(spec.Text);
                 return a => DrawingService.SetLabel((DatumTarget)a, target);
-            case "surface_finish":
+            case PmiAnnotationAction.SurfaceFinish:
                 DimSurfTextureSymTypeConstants finish = DrawingService.ParseFinish(spec.Finish);
                 return a => DrawingService.SetFinish((SurfaceFinishSymbol)a, finish, spec.Text);
-            case "feature_control_frame":
+            case PmiAnnotationAction.FeatureControlFrame:
                 string frame = string.IsNullOrEmpty(spec.Text) ? DrawingService.FrameText(spec.Characteristic, spec.Tolerance, spec.Datums) : spec.Text;
                 string[] rows = DrawingService.RowTexts(spec.Rows, spec.Composite);
                 return a =>
@@ -336,10 +335,10 @@ public static class PmiAnnotationService
                     DrawingService.SetFrame(control, frame);
                     SetRows(control, rows, spec.Composite);
                 };
-            case "weld":
+            case PmiAnnotationAction.Weld:
                 (DimWeldTypeConstants, bool, bool) weld = DrawingService.ParseWeld(spec.Weld, spec.WeldSide);
                 return a => DrawingService.SetWeld((WeldSymbol)a, weld, spec.Text, spec.AllAround, spec.Field);
-            case "gost_weld":
+            case PmiAnnotationAction.GostWeld:
                 _ = DrawingService.GostNotes(spec.Text);
                 return a =>
                 {
@@ -347,7 +346,7 @@ public static class PmiAnnotationService
                     symbol.WeldAllAround = spec.AllAround;
                     symbol.WeldInField = spec.Field;
                 };
-            case "corner":
+            case PmiAnnotationAction.Corner:
                 string[] deviations = DrawingService.CornerDeviations(spec.Text);
                 return a => DrawingService.SetDeviations((CornerAnnotation)a, deviations);
             default:
@@ -384,22 +383,22 @@ public static class PmiAnnotationService
     /// <summary>Centre marks, centre lines, bolt hole circles and datum points: placed on the picked edges themselves.</summary>
     private static object AddOnElements(SeContext context, string? documentHandle, PmiAnnotationSpec spec)
     {
-        string kind = spec.Action;
-        (int count, string expected) = kind switch
+        string kind = ArgumentNames.Snake(spec.Action);
+        (int count, string expected) = spec.Action switch
         {
-            "center_mark" => (1, "on the circular edge"),
-            "centerline" => (2, "on two straight edges (their mid line) or two circular edges (centre to centre)"),
-            "bolt_circle" => (3, "on the circular edges of three holes"),
+            PmiAnnotationAction.CenterMark => (1, "on the circular edge"),
+            PmiAnnotationAction.Centerline => (2, "on two straight edges (their mid line) or two circular edges (centre to centre)"),
+            PmiAnnotationAction.BoltCircle => (3, "on the circular edges of three holes"),
             _ => (1, "a vertex or a point on an edge"),
         };
         List<double[]> points = ModelPoints(spec.Points, "points", count, expected);
         ModelDocument model = ModelDocument.Get(context, documentHandle);
         PMI pmi = PmiService.PmiOf(model);
         Frame frame = FrameOf(context, model, pmi, spec.Plane);
-        EdgePick[] picks = kind switch
+        EdgePick[] picks = spec.Action switch
         {
-            "center_mark" or "bolt_circle" => [.. points.Select(p => PickEdge(model, p, "circular edge", IsCircle))],
-            "centerline" => [.. points.Select(p => PickEdge(model, p, "straight or circular edge", e => IsLine(e) || IsCircle(e)))],
+            PmiAnnotationAction.CenterMark or PmiAnnotationAction.BoltCircle => [.. points.Select(p => PickEdge(model, p, "circular edge", IsCircle))],
+            PmiAnnotationAction.Centerline => [.. points.Select(p => PickEdge(model, p, "straight or circular edge", e => IsLine(e) || IsCircle(e)))],
             _ => [PickEdge(model, points[0], "edge", _ => true)],
         };
         if (picks.Select(p => p.Edge).Distinct(SameEdge.Instance).Count() != picks.Length)
@@ -408,25 +407,25 @@ public static class PmiAnnotationService
         }
 
         bool circles = picks.All(p => IsCircle(p.Edge));
-        if (kind == "centerline" && !circles && !picks.All(p => IsLine(p.Edge)))
+        if (spec.Action == PmiAnnotationAction.Centerline && !circles && !picks.All(p => IsLine(p.Edge)))
         {
             throw ToolException.InvalidArgument("A centre line joins two straight edges or two circular edges, not one of each.");
         }
 
         double[] at;
         double? radius = null;
-        if (kind == "bolt_circle")
+        if (spec.Action == PmiAnnotationAction.BoltCircle)
         {
             (at, double r) = Circumcircle([.. picks.Select(p => CircleOf(p.Edge).Centre)]);
             radius = r;
         }
         else
         {
-            at = kind switch
+            at = spec.Action switch
             {
-                "center_mark" => CircleOf(picks[0].Edge).Centre,
-                "centerline" when circles => Mid(CircleOf(picks[0].Edge).Centre, CircleOf(picks[1].Edge).Centre),
-                "centerline" => Mid(Mid(Ends(picks[0].Edge)), Mid(Ends(picks[1].Edge))),
+                PmiAnnotationAction.CenterMark => CircleOf(picks[0].Edge).Centre,
+                PmiAnnotationAction.Centerline when circles => Mid(CircleOf(picks[0].Edge).Centre, CircleOf(picks[1].Edge).Centre),
+                PmiAnnotationAction.Centerline => Mid(Mid(Ends(picks[0].Edge)), Mid(Ends(picks[1].Edge))),
                 _ => picks[0].Point,
             };
         }
@@ -446,13 +445,13 @@ public static class PmiAnnotationService
             set(edge, keyPoint, p[0], p[1], p[2]);
         }
 
-        object annotation = Create(collection, before, kind, () => kind switch
+        object annotation = Create(collection, before, kind, () => spec.Action switch
         {
-            "center_mark" => ((CenterMarks)collection).AddCenterMark(data),
+            PmiAnnotationAction.CenterMark => ((CenterMarks)collection).AddCenterMark(data),
             // bIsBy2Lines: 1 = between two straight edges, 0 = between two circles.
-            "centerline" => ((CenterLines)collection).AddCenterLine(data, circles ? 0 : 1),
+            PmiAnnotationAction.Centerline => ((CenterLines)collection).AddCenterLine(data, circles ? 0 : 1),
             // bIsByCenterRadius 0: through the centres of the three holes.
-            "bolt_circle" => ((BoltHoleCircles)collection).AddBoltHoleCircle(data, 0),
+            PmiAnnotationAction.BoltCircle => ((BoltHoleCircles)collection).AddBoltHoleCircle(data, 0),
             _ => ((DatumPoints)collection).AddDatumPoint(data),
         });
         return Checked(context, model, collection, before, annotation, kind, () =>
@@ -485,9 +484,9 @@ public static class PmiAnnotationService
             "PMI is drawn in reference planes: pass '1'-'3' or a plane handle (se_ref_plane list).");
         double[] normal = RefPlaneService.PlaneData(refPlane).Normal;
         double[] x = RefPlaneService.XAxis(refPlane) is { } axis && Geo.Length(axis) > 0
-            ? Unit(axis)
+            ? Geo.Unit(axis)
             : throw new ToolException("plane_failed", "Solid Edge gives no reference direction for the plane.", "Use another reference plane.");
-        return new Frame(refPlane, x, Unit(Geo.Cross(normal, x)), plane ?? "active");
+        return new Frame(refPlane, x, Geo.Unit(Geo.Cross(normal, x)), plane ?? "active");
     }
 
     /// <summary>An edge picked by a model point (m): the point, moved onto the vertex when it is at an end of the edge.</summary>
@@ -627,7 +626,7 @@ public static class PmiAnnotationService
         {
             foreach (object extra in Late.Items(collection).Skip(before).ToList())
             {
-                TryDelete(extra);
+                Late.TryDelete(extra);
             }
 
             if (ex is ToolException)
@@ -657,7 +656,7 @@ public static class PmiAnnotationService
         }
         catch (Exception ex) when (ex is ToolException || (ComErrors.Unwrap(ex) is COMException com && !ComErrors.IsGone(com)))
         {
-            TryDelete(annotation);
+            Late.TryDelete(annotation);
             if (ex is ToolException)
             {
                 throw;
@@ -787,8 +786,8 @@ public static class PmiAnnotationService
             return (DrawingService.AnnotationOffset, DrawingService.AnnotationOffset);
         }
 
-        double[] relative = Minus(ModelPoints(position, "position", 1, "the end of the leader")[0], terminator);
-        (double u, double v) = (Dot(relative, frame.X), Dot(relative, frame.Y));
+        double[] relative = Geo.Minus(ModelPoints(position, "position", 1, "the end of the leader")[0], terminator);
+        (double u, double v) = (Geo.Dot(relative, frame.X), Geo.Dot(relative, frame.Y));
         return Math.Sqrt((u * u) + (v * v)) < PickTolerance
             ? throw ToolException.InvalidArgument("'position' is on the picked point (once projected onto the plane): the leader would have no length.",
                 "Give a position away from the edge, in the plane.")
@@ -801,47 +800,23 @@ public static class PmiAnnotationService
     /// <summary>Centre and radius (m) of the circle through three points.</summary>
     private static (double[] Centre, double Radius) Circumcircle(double[][] p)
     {
-        double[] a = Minus(p[0], p[2]);
-        double[] b = Minus(p[1], p[2]);
+        double[] a = Geo.Minus(p[0], p[2]);
+        double[] b = Geo.Minus(p[1], p[2]);
         double[] axb = Geo.Cross(a, b);
-        double area = Dot(axb, axb);
+        double area = Geo.Dot(axb, axb);
         if (area < 1e-18)
         {
             throw ToolException.InvalidArgument("The three hole centres are in a line: they do not make a circle.");
         }
 
-        double[] offset = Geo.Cross(Minus(Scale(b, Dot(a, a)), Scale(a, Dot(b, b))), axb);
+        double[] offset = Geo.Cross(Geo.Minus(Geo.Scale(b, Geo.Dot(a, a)), Geo.Scale(a, Geo.Dot(b, b))), axb);
         double[] centre = [.. p[2].Select((c, k) => c + (offset[k] / (2 * area)))];
         return (centre, Geo.Distance(centre, p[0]));
-    }
-
-    private static void TryDelete(object annotation)
-    {
-        try
-        {
-            Late.Call(annotation, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex) || ex is COMException)
-        {
-            // Already gone.
-        }
     }
 
     private static double[] Mid((double[] Start, double[] End) ends) => Mid(ends.Start, ends.End);
 
     private static double[] Mid(double[] a, double[] b) => [.. a.Select((c, k) => (c + b[k]) / 2)];
-
-    private static double[] Minus(double[] a, double[] b) => [.. a.Select((c, k) => c - b[k])];
-
-    private static double[] Scale(double[] a, double factor) => [.. a.Select(c => c * factor)];
-
-    private static double Dot(double[] a, double[] b) => a.Select((c, k) => c * b[k]).Sum();
-
-    private static double[] Unit(double[] v)
-    {
-        double length = Geo.Length(v);
-        return [.. v.Select(c => c / length)];
-    }
 
     /// <summary>Edges are the same when Solid Edge says so (two wrappers can stand for one edge).</summary>
     private sealed class SameEdge : IEqualityComparer<Edge>

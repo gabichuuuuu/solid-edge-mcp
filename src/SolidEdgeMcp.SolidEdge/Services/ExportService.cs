@@ -344,6 +344,7 @@ public static class ExportService
             }
             catch (COMException ex) when (!ComErrors.IsGone(ex))
             {
+                // The export is done; the drawing stays active.
             }
         }
     }

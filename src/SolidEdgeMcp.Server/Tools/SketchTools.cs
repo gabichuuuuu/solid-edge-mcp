@@ -6,93 +6,11 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SketchAction
-{
-    Create,
-    Line,
-    Rectangle,
-    Polyline,
-    Polygon,
-    Circle,
-    Arc,
-    Ellipse,
-    Spline,
-    Conic,
-    Point,
-    Fillet,
-    Chamfer,
-    Project,
-    Axis,
-    Close,
-    Info,
-    Delete,
-    TearOff,
-    Blocks,
-    CreateBlock,
-    PlaceBlock,
-    DeleteBlock,
-}
-
-public enum SketchConstraintAction
-{
-    Relation,
-    Dimension,
-    List,
-    Delete,
-    Autoscale,
-}
-
-public enum SketchRelation
-{
-    Horizontal,
-    Vertical,
-    Fix,
-    Parallel,
-    Perpendicular,
-    Equal,
-    Tangent,
-    Concentric,
-    Colinear,
-    Connect,
-    Symmetric,
-}
-
-public enum SketchDimension
-{
-    Length,
-    Radius,
-    Diameter,
-    Distance,
-    Angle,
-}
-
-public enum RefPlaneAction
-{
-    List,
-    Offset,
-    Angle,
-    ThreePoints,
-    Mid,
-    NormalToEdge,
-    Tangent,
-    CoordinateSystem,
-    CoordinateSystems,
-    Show,
-    Hide,
-    Rename,
-    Delete,
-}
-
-public enum EdgeEnd
-{
-    Start,
-    End,
-}
 
 /// <summary>Sketches and reference planes (ordered modelling). Coordinates in mm.</summary>
 [McpServerToolType]
@@ -208,9 +126,9 @@ public sealed class SketchTools(ToolRunner runner)
         return action switch
         {
             SketchConstraintAction.Relation => runner.RunAsync(tool, name, c => SketchService.Relate(c, handle,
-                Snake(relation ?? throw ToolException.InvalidArgument("Action 'relation' requires 'relation' (the relation type).")), elements, keypoints), cancellationToken),
+                (relation ?? throw ToolException.InvalidArgument("Action 'relation' requires 'relation' (the relation type).")), elements, keypoints), cancellationToken),
             SketchConstraintAction.Dimension => runner.RunAsync(tool, name, c => SketchService.Dimension(c, handle,
-                Snake(dimension ?? throw ToolException.InvalidArgument("Action 'dimension' requires 'dimension' (the dimension type).")), elements, keypoints, value), cancellationToken),
+                (dimension ?? throw ToolException.InvalidArgument("Action 'dimension' requires 'dimension' (the dimension type).")), elements, keypoints, value), cancellationToken),
             SketchConstraintAction.List => runner.RunAsync(tool, name, c => SketchService.Constraints(c, handle), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
@@ -264,12 +182,12 @@ public sealed class SketchTools(ToolRunner runner)
             RefPlaneAction.Offset => runner.RunAsync(tool, actionName, c => RefPlaneService.Offset(c, document,
                 ToolRunner.Require(plane, "plane", "offset"), distance, flip), cancellationToken),
             RefPlaneAction.Angle => runner.RunAsync(tool, actionName, c => RefPlaneService.Angle(c, document,
-                ToolRunner.Require(plane, "plane", "angle"), ToolRunner.Require(pivot, "pivot", "angle"), angle, flip, Snake(at)), cancellationToken),
+                ToolRunner.Require(plane, "plane", "angle"), ToolRunner.Require(pivot, "pivot", "angle"), angle, flip, at), cancellationToken),
             RefPlaneAction.ThreePoints => runner.RunAsync(tool, actionName, c => RefPlaneService.ThreePoints(c, document, points), cancellationToken),
             RefPlaneAction.Mid => runner.RunAsync(tool, actionName, c => RefPlaneService.Mid(c, document,
                 ToolRunner.Require(plane, "plane", "mid"), ToolRunner.Require(plane2, "plane2", "mid")), cancellationToken),
             RefPlaneAction.NormalToEdge => runner.RunAsync(tool, actionName, c => RefPlaneService.NormalToEdge(c, document,
-                ToolRunner.Require(edge, "edge", "normal_to_edge"), Snake(at), distance, ratio), cancellationToken),
+                ToolRunner.Require(edge, "edge", "normal_to_edge"), at, distance, ratio), cancellationToken),
             RefPlaneAction.Tangent => runner.RunAsync(tool, actionName, c => RefPlaneService.Tangent(c, document,
                 plane, ToolRunner.Require(face, "face", "tangent"), flip, points, angle), cancellationToken),
             RefPlaneAction.CoordinateSystem => runner.RunAsync(tool, actionName, c => RefPlaneService.AddCoordinateSystem(c, document, origin, angles, edges), cancellationToken),

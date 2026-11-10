@@ -87,6 +87,7 @@ public static class InteropCatalog
         }
         catch (COMException)
         {
+            // The name stays without its library.
         }
 
         string qualified = string.IsNullOrEmpty(library) ? name : $"{library}.{name}";

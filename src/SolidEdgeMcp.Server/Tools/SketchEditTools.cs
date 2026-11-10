@@ -5,45 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SketchEditAction
-{
-    Move,
-    Rotate,
-    Scale,
-    Mirror,
-    Trim,
-    Extend,
-    Split,
-    Corner,
-    Offset,
-    Construction,
-    PatternRectangular,
-    PatternCircular,
-    Delete,
-    Order,
-    Group,
-    Ungroup,
-}
-
-public enum OffsetCap
-{
-    Arc,
-    Line,
-    None,
-}
-
-public enum DrawOrder
-{
-    Front,
-    Back,
-    Forward,
-    Backward,
-}
 
 /// <summary>Editing of sketch and drawing sheet geometry, as the sketch editing commands do.</summary>
 [McpServerToolType]
@@ -101,12 +67,12 @@ public sealed class SketchEditTools(ToolRunner runner)
             SketchEditAction.Split => runner.RunAsync(tool, act, c => SketchService.Split(c, handle,
                 ToolRunner.Require(element, "element", act), at), cancellationToken),
             SketchEditAction.Corner => runner.RunAsync(tool, act, c => SketchService.Corner(c, handle, elements, keep), cancellationToken),
-            SketchEditAction.Offset => runner.RunAsync(tool, act, c => SketchService.Offset(c, handle, at, side, distance, symmetric, Snake(cap)), cancellationToken),
+            SketchEditAction.Offset => runner.RunAsync(tool, act, c => SketchService.Offset(c, handle, at, side, distance, symmetric, cap), cancellationToken),
             SketchEditAction.Construction => runner.RunAsync(tool, act, c => SketchService.Construction(c, handle, elements, value ?? true), cancellationToken),
             SketchEditAction.PatternRectangular => runner.RunAsync(tool, act, c => SketchService.RectangularPattern(c, handle, elements, count, rows, spacing, angle), cancellationToken),
             SketchEditAction.PatternCircular => runner.RunAsync(tool, act, c => SketchService.CircularPattern(c, handle, elements, center, count, angle), cancellationToken),
             SketchEditAction.Delete => runner.RunAsync(tool, act, c => SketchService.DeleteElements(c, handle, elements), cancellationToken),
-            SketchEditAction.Order => runner.RunAsync(tool, act, c => SketchService.Order(c, handle, elements, to is { } o ? Snake(o) : null), cancellationToken),
+            SketchEditAction.Order => runner.RunAsync(tool, act, c => SketchService.Order(c, handle, elements, to), cancellationToken),
             SketchEditAction.Group => runner.RunAsync(tool, act, c => SketchService.Group(c, handle, elements), cancellationToken),
             SketchEditAction.Ungroup => runner.RunAsync(tool, act, c => SketchService.Ungroup(c, handle, element), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),

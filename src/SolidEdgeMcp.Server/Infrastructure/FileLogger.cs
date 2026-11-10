@@ -72,6 +72,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // An old log that cannot be deleted stays until the next start.
         }
     }
 

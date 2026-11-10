@@ -5,31 +5,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum SimplifyAction
-{
-    Status,
-    Create,
-    DeleteHoles,
-    DeleteRounds,
-    DeleteFaces,
-    DeleteRegion,
-    Activate,
-    Delete,
-    SaveAs,
-    VisibleFaces,
-    Update,
-}
-
-public enum SimplifyModel
-{
-    Design,
-    Simplified,
-}
 
 /// <summary>The simplified model of a part (Simplify tab) or of an assembly.</summary>
 [McpServerToolType]
@@ -60,6 +40,6 @@ public sealed class SimplifyTools(ToolRunner runner)
         [Description("Assembly visible_faces: copy whole bodies instead of the visible faces.")] bool bodies = false,
         [Description("Document handle; default: the document of the faces or the active one.")] string? document = null,
         CancellationToken cancellationToken = default) =>
-        runner.RunAsync("se_simplify", Snake(action), c => SimplifyService.Run(c, document, Snake(action), diameter, faces,
-            model is { } m ? Snake(m) : null, feature, edges, occurrences, ratio, path, bodies), cancellationToken);
+        runner.RunAsync("se_simplify", Snake(action), c => SimplifyService.Run(c, document, action, diameter, faces,
+            model, feature, edges, occurrences, ratio, path, bodies), cancellationToken);
 }

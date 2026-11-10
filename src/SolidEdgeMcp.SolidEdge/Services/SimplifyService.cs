@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using SolidEdgePart;
@@ -26,25 +27,25 @@ public static partial class SimplifyService
     private const int FaceCollection = 1;
     private const int EdgeCollection = 2;
 
-    public static object Run(SeContext context, string? documentHandle, string action, double? diameter, string[]? faces, string? model, string? feature,
+    public static object Run(SeContext context, string? documentHandle, SimplifyAction action, double? diameter, string[]? faces, SimplifyModel? model, string? feature,
         string[]? edges = null, string[]? occurrences = null, double? ratio = null, string? path = null, bool bodies = false) =>
         AssemblyTarget(context, documentHandle, faces, feature) is { } assembly
             ? RunAssembly(context, assembly, action, occurrences, ratio, path, bodies)
             : RunPart(context, documentHandle, action, diameter, faces, model, feature, edges, path);
 
-    private static object RunPart(SeContext context, string? documentHandle, string action, double? diameter, string[]? faces, string? model, string? feature,
+    private static object RunPart(SeContext context, string? documentHandle, SimplifyAction action, double? diameter, string[]? faces, SimplifyModel? model, string? feature,
         string[]? edges, string? path) => action switch
     {
-        "status" => Status(context, Document(context, documentHandle, faces, feature)),
-        "create" => Create(context, Document(context, documentHandle, faces, feature)),
-        "delete_holes" => DeleteHoles(context, Document(context, documentHandle, faces, feature), diameter),
-        "delete_rounds" => DeleteFaces(context, Document(context, documentHandle, faces, feature), faces, rounds: true),
-        "delete_faces" => DeleteFaces(context, Document(context, documentHandle, faces, feature), faces, rounds: false),
-        "delete_region" => DeleteRegion(context, Document(context, documentHandle, faces, feature), faces, edges),
-        "activate" => Activate(context, Document(context, documentHandle, faces, feature), model),
-        "delete" => DeleteFeature(context, Document(context, documentHandle, faces, feature), feature),
-        "save_as" => SavePart(context, Document(context, documentHandle, faces, feature), path),
-        _ => throw ToolException.InvalidArgument($"Unknown action '{action}'.", $"Use one of: {string.Join(", ", Actions)}."),
+        SimplifyAction.Status => Status(context, Document(context, documentHandle, faces, feature)),
+        SimplifyAction.Create => Create(context, Document(context, documentHandle, faces, feature)),
+        SimplifyAction.DeleteHoles => DeleteHoles(context, Document(context, documentHandle, faces, feature), diameter),
+        SimplifyAction.DeleteRounds => DeleteFaces(context, Document(context, documentHandle, faces, feature), faces, rounds: true),
+        SimplifyAction.DeleteFaces => DeleteFaces(context, Document(context, documentHandle, faces, feature), faces, rounds: false),
+        SimplifyAction.DeleteRegion => DeleteRegion(context, Document(context, documentHandle, faces, feature), faces, edges),
+        SimplifyAction.Activate => Activate(context, Document(context, documentHandle, faces, feature), model),
+        SimplifyAction.Delete => DeleteFeature(context, Document(context, documentHandle, faces, feature), feature),
+        SimplifyAction.SaveAs => SavePart(context, Document(context, documentHandle, faces, feature), path),
+        _ => throw ToolException.InvalidArgument($"Unknown action '{ArgumentNames.Snake(action)}'.", $"Use one of: {string.Join(", ", Actions)}."),
     };
 
     private static ModelDocument Document(SeContext context, string? documentHandle, string[]? faces, string? feature) =>
@@ -74,7 +75,7 @@ public static partial class SimplifyService
         Body? body = Late.TryGet(simplified, "Body") as Body;
         Features features = simplified.Features;
         var list = new List<object>();
-        for (int i = 1; i <= features.Count; i++)
+        for (int i = 1, count = features.Count; i <= count; i++)
         {
             list.Add(FeatureService.Describe(context, model, features.Item(i), i));
         }
@@ -115,7 +116,7 @@ public static partial class SimplifyService
 
         context.ModelChanged(model.Document, "the model changed (simplified model)");
         object status = Status(context, model);
-        return switched ? new { result = status, warnings = new[] { "The document was switched to ordered modeling." } } : status;
+        return switched ? new { result = status, warnings = new[] { "The document was switched to ordered modelling." } } : status;
     }
 
     private static object DeleteHoles(SeContext context, ModelDocument model, double? diameter)
@@ -211,9 +212,9 @@ public static partial class SimplifyService
         Body? body = Late.TryGet(simplified, "Body") as Body;
         double after = body?.Volume ?? before;
         int facesAfter = body is null ? facesBefore : Late.Count(body.Faces[SolidEdgeGeometry.FeatureTopologyQueryTypeConstants.igQueryAll]);
-        if (status == "failed" || (Math.Abs(after - before) <= 1e-12 && facesAfter == facesBefore))
+        if (status == "failed" || (Math.Abs(after - before) <= Geo.VolumeTolerance && facesAfter == facesBefore))
         {
-            TryDelete(feature);
+            Late.TryDelete(feature);
             context.ModelChanged(model.Document, $"the model changed ({what} deleted)");
             throw new ToolException("feature_failed", $"The {what} was deleted because {(status == "failed" ? "Solid Edge reports it as failed" : "it did not change the simplified body")}.", hint);
         }
@@ -225,20 +226,19 @@ public static partial class SimplifyService
             volumeChange = Geo.Mm3(after - before),
             faces = facesAfter,
             designVolume = Geo.Mm3(model.Volume()),
-            designChanged = Math.Abs(model.Volume() - designBefore) > 1e-12,
+            designChanged = Math.Abs(model.Volume() - designBefore) > Geo.VolumeDrift,
             warnings = status == "warning" ? new[] { "Solid Edge reports a warning on this feature." } : null,
         };
     }
 
-    private static object Activate(SeContext context, ModelDocument model, string? which)
+    private static object Activate(SeContext context, ModelDocument model, SimplifyModel? which)
     {
-        string target = (which ?? "").Trim().ToLowerInvariant();
-        if (target is not ("design" or "simplified"))
+        if (which is not { } target)
         {
             throw ToolException.InvalidArgument("activate requires 'model': design or simplified.");
         }
 
-        if (target == "design")
+        if (target == SimplifyModel.Design)
         {
             Late.Call(model.RequireModel(), "MakeActive");
         }
@@ -275,17 +275,5 @@ public static partial class SimplifyService
         Late.Call(feature, "Delete");
         context.ModelChanged(model.Document, "the model changed (simplification deleted)");
         return Status(context, model);
-    }
-
-    private static void TryDelete(object feature)
-    {
-        try
-        {
-            Late.Call(feature, "Delete");
-        }
-        catch (Exception ex) when (Late.IsMemberFailure(ex))
-        {
-            // The error already reports the failure.
-        }
     }
 }

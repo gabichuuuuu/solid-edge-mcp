@@ -6,40 +6,11 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SolidEdgeMcp.Server.Infrastructure;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Services;
 using static SolidEdgeMcp.Server.Tools.FeatureTools;
 
 namespace SolidEdgeMcp.Server.Tools;
-
-public enum StyleAction
-{
-    Types,
-    List,
-    Get,
-    Set,
-    Activate,
-    Add,
-    Remove,
-    Import,
-    Lights,
-    SetLight,
-}
-
-public enum StyleType
-{
-    Dimension,
-    Text,
-    Character,
-    Line,
-    Fill,
-    Hatch,
-    Dash,
-    DrawingView,
-    Table,
-    Frame,
-    View,
-    Face,
-}
 
 /// <summary>Styles of a document: the Styles dialog of drafts and the view and face styles of 3D documents.</summary>
 [McpServerToolType]
@@ -78,7 +49,7 @@ public sealed class StyleTools(ToolRunner runner)
     {
         const string tool = "se_styles";
         string actionName = Snake(action);
-        string Type() => Snake(ToolRunner.RequireValue(type, "type", actionName));
+        StyleType Type() => ToolRunner.RequireValue(type, "type", actionName);
         string Name() => ToolRunner.Require(name, "name", actionName);
         return action switch
         {

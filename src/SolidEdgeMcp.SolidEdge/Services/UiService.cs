@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -18,7 +19,6 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 public static class UiService
 {
     public static readonly IReadOnlyList<string> WindowStates = ["normal", "minimized", "maximized"];
-    public static readonly IReadOnlyList<string> ArrangeStyles = ["tiled", "horizontal", "vertical", "cascade"];
 
     public static object Status(SeContext context)
     {
@@ -92,7 +92,7 @@ public static class UiService
             "startup_screen" => Flag(key, () => app.ShowStartupScreen, v => app.ShowStartupScreen = v, value, null),
             "recent_files" => Flag(key, () => app.DisplayRecentFiles, v => app.DisplayRecentFiles = v, value, null),
             "recent_files_count" => Number(key, () => app.DisplayRecentFilesCount, v => app.DisplayRecentFilesCount = v, value, null),
-            "theme" => OptionService.Set(context, "application", null, "ColorTheme", value),
+            "theme" => OptionService.Set(context, OptionScope.Application, null, "ColorTheme", value),
             "left" => Geometry(app, key, () => app.Left, v => app.Left = v, value),
             "top" => Geometry(app, key, () => app.Top, v => app.Top = v, value),
             "width" => Geometry(app, key, () => app.Width, v => app.Width = v, value),
@@ -232,28 +232,30 @@ public static class UiService
         return new { activated = DescribeWindow(context, target, null, hwnd), activeEnvironment = context.Application.ActiveEnvironment };
     }
 
-    public static object Arrange(SeContext context, string style)
+    public static object Arrange(SeContext context, ArrangeStyle style)
     {
         ArrangeWindowsStyles value = style switch
         {
-            "tiled" => ArrangeWindowsStyles.igWindowsTiled,
-            "horizontal" => ArrangeWindowsStyles.igWindowsHorizontal,
-            "vertical" => ArrangeWindowsStyles.igWindowsVertical,
-            "cascade" => ArrangeWindowsStyles.igWindowsCascade,
-            _ => throw ToolException.InvalidArgument($"Unknown arrangement '{style}'.", $"Use one of: {string.Join(", ", ArrangeStyles)}."),
+            ArrangeStyle.Tiled => ArrangeWindowsStyles.igWindowsTiled,
+            ArrangeStyle.Horizontal => ArrangeWindowsStyles.igWindowsHorizontal,
+            ArrangeStyle.Vertical => ArrangeWindowsStyles.igWindowsVertical,
+            ArrangeStyle.Cascade => ArrangeWindowsStyles.igWindowsCascade,
+            _ => throw new ArgumentOutOfRangeException(nameof(style)),
         };
         context.Application.ArrangeWindows(value);
         return Windows(context);
     }
 
     /// <summary>State of the main window (without <paramref name="window"/>) or of a document window.</summary>
-    public static object SetState(SeContext context, string? window, string state)
+    public static object SetState(SeContext context, string? window, WindowStateKind state)
     {
-        int wanted = WindowStates.ToList().IndexOf(state);
-        if (wanted < 0)
+        int wanted = state switch
         {
-            throw ToolException.InvalidArgument($"Unknown window state '{state}'.", $"Use one of: {string.Join(", ", WindowStates)}.");
-        }
+            WindowStateKind.Normal => 0,
+            WindowStateKind.Minimized => 1,
+            WindowStateKind.Maximized => 2,
+            _ => throw new ArgumentOutOfRangeException(nameof(state)),
+        };
 
         object target = window is null ? context.Application : ResolveWindow(context, window);
         int before = Convert.ToInt32(Late.Get(target, "WindowState"), CultureInfo.InvariantCulture);
@@ -261,7 +263,7 @@ public static class UiService
         int after = Convert.ToInt32(Late.Get(target, "WindowState"), CultureInfo.InvariantCulture);
         if (after != wanted)
         {
-            throw new ToolException("ui_failed", $"Solid Edge kept the window {StateName(after)} instead of {state}.");
+            throw new ToolException("ui_failed", $"Solid Edge kept the window {StateName(after)} instead of {ArgumentNames.Snake(state)}.");
         }
 
         return new { target = window ?? "application", previous = StateName(before), state = StateName(after) };

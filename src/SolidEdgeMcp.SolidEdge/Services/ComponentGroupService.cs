@@ -590,7 +590,7 @@ public static class ComponentGroupService
 
     private static void Forget(SeContext context, object value, string reason)
     {
-        if (context.Handles.TryGetId(value, out string? id) && id is not null)
+        if (context.Handles.TryGetId(value, out string? id))
         {
             context.Handles.Remove(id, reason);
         }

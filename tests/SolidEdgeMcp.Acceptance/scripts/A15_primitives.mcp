@@ -1,4 +1,4 @@
-# A15: primitives (se_primitive). Solid Edge builds them only in synchronous modeling; the document goes back to ordered.
+# A15: primitives (se_primitive). Solid Edge builds them only in synchronous modelling; the document goes back to ordered.
 # Box 100x60x20 on the XY plane centred at (50,30,0): 120000, box (0,0,0)-(100,60,20).
 #   + cylinder r10 x 30 on the top face at (50,30,20): pi*100*30 = 9424.778 -> 129424.778, top at z=50
 #   - cylinder r5 x 10 cut from the top face at (20,30,20), auto side = into the part: pi*25*10 = 785.398 -> 128639.380

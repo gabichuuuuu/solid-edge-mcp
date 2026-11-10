@@ -4,6 +4,7 @@
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using static SolidEdgeMcp.SolidEdge.Services.AssemblyService;
@@ -23,8 +24,6 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static class InternalComponentService
 {
-    public static readonly IReadOnlyList<string> Kinds = ["part", "sheet_metal", "assembly"];
-
     public static object List(SeContext context, string? documentHandle)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
@@ -32,7 +31,7 @@ public static class InternalComponentService
         return new { document = context.DocumentHandle((SolidEdgeDocument)assembly), count = components.Length, components };
     }
 
-    public static object Create(SeContext context, string? documentHandle, string? name, string kind, bool ground)
+    public static object Create(SeContext context, string? documentHandle, string? name, InternalComponentKind kind, bool ground)
     {
         AssemblyDocument assembly = Assembly(context, documentHandle);
         string title = string.IsNullOrWhiteSpace(name)
@@ -45,10 +44,10 @@ public static class InternalComponentService
 
         (InternalComponentTypeConstant type, string extension) = kind switch
         {
-            "part" => (InternalComponentTypeConstant.InternalComponentTypeConstant_Part, ".par"),
-            "sheet_metal" => (InternalComponentTypeConstant.InternalComponentTypeConstant_SheetMetal, ".psm"),
-            "assembly" => (InternalComponentTypeConstant.InternalComponentTypeConstant_Assembly, ".asm"),
-            _ => throw ToolException.InvalidArgument($"Unknown kind '{kind}'.", $"Use one of: {string.Join(", ", Kinds)}."),
+            InternalComponentKind.Part => (InternalComponentTypeConstant.InternalComponentTypeConstant_Part, ".par"),
+            InternalComponentKind.SheetMetal => (InternalComponentTypeConstant.InternalComponentTypeConstant_SheetMetal, ".psm"),
+            InternalComponentKind.Assembly => (InternalComponentTypeConstant.InternalComponentTypeConstant_Assembly, ".asm"),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 
         string fullName = title + extension;

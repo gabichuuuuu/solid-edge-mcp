@@ -24,7 +24,7 @@ public static class PropertyService
         var sets = (PropertySets)document.Properties;
         var result = new List<object>();
         int budget = context.MaxListItems;
-        for (int i = 1; i <= sets.Count; i++)
+        for (int i = 1, count = sets.Count; i <= count; i++)
         {
             Properties properties = sets.Item(i);
             if (set is not null && !string.Equals(properties.Name, set, StringComparison.OrdinalIgnoreCase))
@@ -112,7 +112,7 @@ public static class PropertyService
     private static (Properties Set, Property Property)? StandardProperty(SolidEdgeDocument document, string name)
     {
         var sets = (PropertySets)document.Properties;
-        for (int i = 1; i <= sets.Count; i++)
+        for (int i = 1, count = sets.Count; i <= count; i++)
         {
             var candidate = (Properties)sets.Item(i);
             if (!string.Equals(candidate.Name, CustomSet, StringComparison.OrdinalIgnoreCase) && Find(candidate, name) is { } property)
@@ -127,7 +127,7 @@ public static class PropertyService
     private static Properties FindSet(SolidEdgeDocument document, string name)
     {
         var sets = (PropertySets)document.Properties;
-        for (int i = 1; i <= sets.Count; i++)
+        for (int i = 1, count = sets.Count; i <= count; i++)
         {
             Properties properties = sets.Item(i);
             if (string.Equals(properties.Name, name, StringComparison.OrdinalIgnoreCase))
@@ -146,7 +146,7 @@ public static class PropertyService
             throw ToolException.InvalidArgument("'name' is required.");
         }
 
-        for (int i = 1; i <= properties.Count; i++)
+        for (int i = 1, count = properties.Count; i <= count; i++)
         {
             Property property = properties.Item(i);
             if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))

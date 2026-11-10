@@ -16,7 +16,7 @@ public sealed class SolidEdgePrompts
 {
     private const string Common = """
         Use only the solid-edge tools. Start with se_session connect. Lengths are in mm and angles in degrees. Every
-        modeling call is verified: when one fails, read the error and its next step, fix the input and try again; do not
+        modelling call is verified: when one fails, read the error and its next step, fix the input and try again; do not
         work around it with the generic se_com_* tools unless no specific tool covers the step. Do not close, save or
         overwrite documents you did not open or create. Check the result with measurements (se_physical, se_geometry,
         se_measure) and a picture (se_view capture), and end with a short report of what was made, the measured values

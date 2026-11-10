@@ -4,6 +4,7 @@
 using System.Text.Json;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 
@@ -21,11 +22,11 @@ public static partial class ViewService
     /// Kinds that can be set. Verified in Solid Edge 2026: the environment kinds (static and immersive) fall back to solid
     /// through the API, even with a sky image (SetSkyboxSkyFile), so they are only reported.
     /// </summary>
-    private static readonly Dictionary<string, SeBackgroundType> Backgrounds = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<BackgroundKind, SeBackgroundType> Backgrounds = new()
     {
-        ["solid"] = SeBackgroundType.seBackgroundTypeSolid,
-        ["gradient"] = SeBackgroundType.seBackgroundTypeGradient,
-        ["image"] = SeBackgroundType.seBackgroundTypeImage,
+        [BackgroundKind.Solid] = SeBackgroundType.seBackgroundTypeSolid,
+        [BackgroundKind.Gradient] = SeBackgroundType.seBackgroundTypeGradient,
+        [BackgroundKind.Image] = SeBackgroundType.seBackgroundTypeImage,
     };
 
     private static readonly Dictionary<SeBackgroundType, string> OtherBackgrounds = new()
@@ -35,19 +36,15 @@ public static partial class ViewService
         [SeBackgroundType.seBackgroundTypeImmersiveEnvironment] = "immersive_environment",
     };
 
-    private static readonly Dictionary<string, SeGradientType> Gradients = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<GradientShape, SeGradientType> Gradients = new()
     {
-        ["horizontal"] = SeGradientType.seGradientTypeHorizontal,
-        ["vertical"] = SeGradientType.seGradientTypeVertical,
-        ["diagonal_up"] = SeGradientType.seGradientTypeDiagonalUp,
-        ["diagonal_down"] = SeGradientType.seGradientTypeDiagonalDown,
-        ["square_spot"] = SeGradientType.seGradientTypeSquareSpot,
-        ["circular_spot"] = SeGradientType.seGradientTypeCircularSpot,
+        [GradientShape.Horizontal] = SeGradientType.seGradientTypeHorizontal,
+        [GradientShape.Vertical] = SeGradientType.seGradientTypeVertical,
+        [GradientShape.DiagonalUp] = SeGradientType.seGradientTypeDiagonalUp,
+        [GradientShape.DiagonalDown] = SeGradientType.seGradientTypeDiagonalDown,
+        [GradientShape.SquareSpot] = SeGradientType.seGradientTypeSquareSpot,
+        [GradientShape.CircularSpot] = SeGradientType.seGradientTypeCircularSpot,
     };
-
-    public static IReadOnlyCollection<string> BackgroundNames => Backgrounds.Keys;
-
-    public static IReadOnlyCollection<string> GradientNames => Gradients.Keys;
 
     /// <summary>View style of the window; without a name, the current one and those the document has.</summary>
     public static object Style(SeContext context, string? handle, string? name)
@@ -78,13 +75,13 @@ public static partial class ViewService
     /// solid colour is made as a gradient with that colour at both ends; a horizontal gradient has its first colour at the
     /// top and a vertical one at the left.
     /// </summary>
-    public static object Background(SeContext context, string? handle, string? kind, string[]? colors, string? gradient, string? image)
+    public static object Background(SeContext context, string? handle, BackgroundKind? kind, string[]? colors, GradientShape? gradient, string? image)
     {
         SolidEdgeDocument document = Activate(context, handle);
         View view = Window3D(document).View;
         ViewStyle style = StyleOf(document, view);
         Backdrop previous = BackdropOf(style);
-        if (string.IsNullOrWhiteSpace(kind))
+        if (kind is not { } wantedKind)
         {
             if (colors is { Length: > 0 } || gradient is not null || image is not null)
             {
@@ -94,7 +91,7 @@ public static partial class ViewService
             return new { document = document.Name, style = style.StyleName, background = Describe(previous), images = InstalledImages(context) };
         }
 
-        Backdrop wanted = Wanted(context, kind, colors ?? [], gradient, image, previous);
+        Backdrop wanted = Wanted(context, wantedKind, colors ?? [], gradient, image, previous);
         try
         {
             Apply(style, wanted);
@@ -116,7 +113,7 @@ public static partial class ViewService
                 "The previous background was put back.");
         }
 
-        bool solidColor = string.Equals(kind.Trim(), "solid", StringComparison.OrdinalIgnoreCase) && colors is { Length: > 0 };
+        bool solidColor = wantedKind == BackgroundKind.Solid && colors is { Length: > 0 };
         return new
         {
             document = document.Name,
@@ -168,13 +165,13 @@ public static partial class ViewService
                 : throw ToolException.InvalidArgument("'angle' is the field of view of a perspective camera: pass perspective = true.");
         }
 
-        double[] direction = Minus(t, e);
-        if (Length(direction) < 1e-9)
+        double[] direction = Geo.Minus(t, e);
+        if (Geo.Length(direction) < 1e-9)
         {
             throw ToolException.InvalidArgument("'eye' and 'target' must be different points.");
         }
 
-        if (Length(Cross(direction, u)) < 1e-6 * Length(direction) * Length(u))
+        if (Geo.Length(Geo.Cross(direction, u)) < 1e-6 * Geo.Length(direction) * Geo.Length(u))
         {
             throw ToolException.InvalidArgument("'up' must not be parallel to the viewing direction (target - eye).");
         }
@@ -216,9 +213,9 @@ public static partial class ViewService
             profile.Convert2DCoordinate(1, 0, out double xx, out double xy, out double xz);
             profile.Convert2DCoordinate(0, 1, out double yx, out double yy, out double yz);
             root = [ox, oy, oz];
-            double[] xAxis = Minus([xx, xy, xz], root), yAxis = Minus([yx, yy, yz], root);
-            normal = Unit(Cross(xAxis, yAxis));
-            up = Unit(yAxis);
+            double[] xAxis = Geo.Minus([xx, xy, xz], root), yAxis = Geo.Minus([yx, yy, yz], root);
+            normal = Geo.Unit(Geo.Cross(xAxis, yAxis));
+            up = Geo.Unit(yAxis);
         }
         else
         {
@@ -230,16 +227,16 @@ public static partial class ViewService
             {
                 // A face is seen from outside the body: its plane's normal may point inward.
                 double[] outward = InspectService.FaceNormal(face);
-                normal = Dot(outward, normal) < 0 ? [-normal[0], -normal[1], -normal[2]] : normal;
+                normal = Geo.Dot(outward, normal) < 0 ? [-normal[0], -normal[1], -normal[2]] : normal;
             }
 
             double[] axis = Math.Abs(normal[2]) > 0.99 ? [0, 1, 0] : [0, 0, 1];
-            double along = Dot(axis, normal);
-            up = Unit([axis[0] - along * normal[0], axis[1] - along * normal[1], axis[2] - along * normal[2]]);
+            double along = Geo.Dot(axis, normal);
+            up = Geo.Unit([axis[0] - along * normal[0], axis[1] - along * normal[1], axis[2] - along * normal[2]]);
         }
 
         Camera before = CameraOf(Window3D(document).View);
-        double distance = Math.Max(Length(Minus(before.Eye, before.Target)), 1.0);
+        double distance = Math.Max(Geo.Length(Geo.Minus(before.Eye, before.Target)), 1.0);
         double[] target = root.Select(Units.MToMm).ToArray();
         double[] eye = root.Select((c, k) => Units.MToMm(c + normal[k] * distance)).ToArray();
         object view = SetCamera(context, handle, eye, target, up, null, null, fit: true);
@@ -266,7 +263,7 @@ public static partial class ViewService
         view.Update();
         Camera after = CameraOf(view);
         bool zoomed = before.Perspective
-            ? Math.Abs(after.Scale - before.Scale) > 1e-12 || Length(Minus(after.Eye, before.Eye)) > 1e-12
+            ? Math.Abs(after.Scale - before.Scale) > 1e-12 || Geo.Length(Geo.Minus(after.Eye, before.Eye)) > 1e-12
             : Math.Abs((after.Scale / before.Scale) - factor) < 0.01 * factor;
         return zoomed || Math.Abs(factor - 1) < 1e-9
             ? new { document = document.Name, factor, camera = DescribeCamera(after), previous = DescribeCamera(before) }
@@ -285,12 +282,12 @@ public static partial class ViewService
         View view = window.View;
         using var shown = new ShownWindow(context.Application, window);
         Camera before = CameraOf(view);
-        double[] a = Unit(axis is null ? before.Up : Vector(axis, "axis"));
+        double[] a = Geo.Unit(axis is null ? before.Up : Vector(axis, "axis"));
         view.RotateCamera(angle, before.Target[0], before.Target[1], before.Target[2], a[0], a[1], a[2]);
         view.Update();
         Camera after = CameraOf(view);
         double radians = Units.DegToRad(angle);
-        if (!LooksAlong(after, Turn(Minus(before.Target, before.Eye), a, radians), Turn(before.Up, a, radians)))
+        if (!LooksAlong(after, Turn(Geo.Minus(before.Target, before.Eye), a, radians), Turn(before.Up, a, radians)))
         {
             throw new ToolException("view_failed", "The camera did not turn as asked.", "Try again with the window shown.");
         }
@@ -303,8 +300,8 @@ public static partial class ViewService
     {
         double cos = Math.Cos(radians);
         double sin = Math.Sin(radians);
-        double[] cross = Cross(axis, v);
-        double dot = Dot(axis, v) * (1 - cos);
+        double[] cross = Geo.Cross(axis, v);
+        double dot = Geo.Dot(axis, v) * (1 - cos);
         return [(v[0] * cos) + (cross[0] * sin) + (axis[0] * dot), (v[1] * cos) + (cross[1] * sin) + (axis[1] * dot), (v[2] * cos) + (cross[2] * sin) + (axis[2] * dot)];
     }
 
@@ -318,14 +315,14 @@ public static partial class ViewService
         double fieldOfView = angle ?? camera.Scale;
         view.GetModelRange(out double lx, out double ly, out double lz, out double hx, out double hy, out double hz);
         double[] center = [(lx + hx) / 2, (ly + hy) / 2, (lz + hz) / 2];
-        double radius = Length([hx - lx, hy - ly, hz - lz]) / 2;
+        double radius = Geo.Length([hx - lx, hy - ly, hz - lz]) / 2;
         if (!camera.Perspective || radius < 1e-9 || fieldOfView is <= 0 or >= Math.PI)
         {
             view.Fit();
             return;
         }
 
-        double[] eye = Minus(center, Scale(Unit(Minus(camera.Target, camera.Eye)), radius / Math.Sin(fieldOfView / 2)));
+        double[] eye = Geo.Minus(center, Geo.Scale(Geo.Unit(Geo.Minus(camera.Target, camera.Eye)), radius / Math.Sin(fieldOfView / 2)));
         view.SetCamera(eye[0], eye[1], eye[2], center[0], center[1], center[2], camera.Up[0], camera.Up[1], camera.Up[2], true, fieldOfView);
     }
 
@@ -337,18 +334,17 @@ public static partial class ViewService
         return new Backdrop(style.BackgroundType, gradient, first, second, Late.TryGetString(style, "BackgroundImageFile"));
     }
 
-    private static Backdrop Wanted(SeContext context, string kind, string[] colors, string? gradient, string? image, Backdrop previous)
+    private static Backdrop Wanted(SeContext context, BackgroundKind kind, string[] colors, GradientShape? gradient, string? image, Backdrop previous)
     {
-        string key = kind.Trim();
-        if (!Backgrounds.TryGetValue(key, out SeBackgroundType type))
+        if (!Backgrounds.TryGetValue(kind, out SeBackgroundType type))
         {
-            throw ToolException.InvalidArgument($"Unknown background '{kind}'.", $"Use one of: {string.Join(", ", Backgrounds.Keys)}.");
+            throw new ArgumentOutOfRangeException(nameof(kind));
         }
 
         bool colored = type is SeBackgroundType.seBackgroundTypeSolid or SeBackgroundType.seBackgroundTypeGradient;
         if (colors.Length > (type == SeBackgroundType.seBackgroundTypeGradient ? 2 : colored ? 1 : 0))
         {
-            throw ToolException.InvalidArgument(colored ? "Too many 'colors': a solid background takes one, a gradient one or two." : $"A '{key}' background takes no 'colors'.");
+            throw ToolException.InvalidArgument(colored ? "Too many 'colors': a solid background takes one, a gradient one or two." : $"A '{ArgumentNames.Snake(kind)}' background takes no 'colors'.");
         }
 
         if (gradient is not null && type != SeBackgroundType.seBackgroundTypeGradient)
@@ -368,13 +364,13 @@ public static partial class ViewService
                 throw ToolException.InvalidArgument("A gradient background needs 'colors': one or two '#RRGGBB'.");
             }
 
-            int first = ComProperties.ColorRef(colors[0], "colors[0]");
-            int second = colors.Length > 1 ? ComProperties.ColorRef(colors[1], "colors[1]") : first;
-            SeGradientType shape = gradient is null
+            int first = Rgb.ColorRef(colors[0], "colors[0]");
+            int second = colors.Length > 1 ? Rgb.ColorRef(colors[1], "colors[1]") : first;
+            SeGradientType shape = gradient is not { } wantedShape
                 ? SeGradientType.seGradientTypeHorizontal
-                : Gradients.TryGetValue(gradient.Trim(), out SeGradientType g)
+                : Gradients.TryGetValue(wantedShape, out SeGradientType g)
                     ? g
-                    : throw ToolException.InvalidArgument($"Unknown gradient '{gradient}'.", $"Use one of: {string.Join(", ", Gradients.Keys)}.");
+                    : throw new ArgumentOutOfRangeException(nameof(gradient));
             return previous with { Type = SeBackgroundType.seBackgroundTypeGradient, Gradient = shape, Color1 = first, Color2 = second };
         }
 
@@ -426,10 +422,10 @@ public static partial class ViewService
         bool image = backdrop.Type is SeBackgroundType.seBackgroundTypeImage or SeBackgroundType.seBackgroundTypeImageReference;
         return new
         {
-            kind = Backgrounds.FirstOrDefault(p => p.Value == backdrop.Type).Key
+            kind = Backgrounds.Where(p => p.Value == backdrop.Type).Select(p => ArgumentNames.Snake(p.Key)).FirstOrDefault()
                 ?? OtherBackgrounds.GetValueOrDefault(backdrop.Type) ?? ((int)backdrop.Type).ToString(System.Globalization.CultureInfo.InvariantCulture),
-            colors = gradient ? new[] { ComProperties.Hex(backdrop.Color1), ComProperties.Hex(backdrop.Color2) } : null,
-            gradient = gradient ? Gradients.FirstOrDefault(p => p.Value == backdrop.Gradient).Key ?? backdrop.Gradient.ToString() : null,
+            colors = gradient ? new[] { Rgb.HexOfColorRef(backdrop.Color1), Rgb.HexOfColorRef(backdrop.Color2) } : null,
+            gradient = gradient ? Gradients.Where(p => p.Value == backdrop.Gradient).Select(p => ArgumentNames.Snake(p.Key)).FirstOrDefault() ?? backdrop.Gradient.ToString() : null,
             path = image ? backdrop.Image : null,
             // Verified: the API neither reads nor changes the colour of a solid background, and other kinds leave it as it was.
             note = backdrop.Type == SeBackgroundType.seBackgroundTypeSolid
@@ -510,12 +506,12 @@ public static partial class ViewService
 
     private static object DescribeCamera(Camera camera)
     {
-        double[] direction = Unit(Minus(camera.Target, camera.Eye));
+        double[] direction = Geo.Unit(Geo.Minus(camera.Target, camera.Eye));
         return new
         {
             eye = camera.Eye.Select(Geo.Mm).ToArray(),
             target = camera.Target.Select(Geo.Mm).ToArray(),
-            up = Unit(camera.Up).Select(Geo.R).ToArray(),
+            up = Geo.Unit(camera.Up).Select(Geo.R).ToArray(),
             direction = direction.Select(Geo.R).ToArray(),
             perspective = camera.Perspective,
             angle = camera.Perspective ? Math.Round(Units.RadToDeg(camera.Scale), 6) : (double?)null,
@@ -526,10 +522,10 @@ public static partial class ViewService
     /// <summary>Whether the camera looks along the direction with that up vector (its part across the direction), within 0.001.</summary>
     private static bool LooksAlong(Camera camera, double[] direction, double[] up)
     {
-        static double[] Across(double[] v, double[] d) => Unit(Minus(v, Scale(d, Dot(v, d))));
+        static double[] Across(double[] v, double[] d) => Geo.Unit(Geo.Minus(v, Geo.Scale(d, Geo.Dot(v, d))));
         static bool Close(double[] x, double[] y) => x.Zip(y, (p, q) => Math.Abs(p - q)).Max() < 1e-3;
-        double[] wanted = Unit(direction);
-        double[] actual = Unit(Minus(camera.Target, camera.Eye));
+        double[] wanted = Geo.Unit(direction);
+        double[] actual = Geo.Unit(Geo.Minus(camera.Target, camera.Eye));
         return Close(actual, wanted) && Close(Across(camera.Up, actual), Across(up, wanted));
     }
 
@@ -540,26 +536,9 @@ public static partial class ViewService
             : throw ToolException.InvalidArgument($"'{argument}' must be three numbers [x, y, z] in mm.");
 
     private static double[] Vector(double[] value, string argument) =>
-        value.Length == 3 && value.All(double.IsFinite) && Length(value) > 1e-12
+        value.Length == 3 && value.All(double.IsFinite) && Geo.Length(value) > 1e-12
             ? value
             : throw ToolException.InvalidArgument($"'{argument}' must be three numbers [x, y, z], not all zero.");
-
-    private static double[] Minus(double[] a, double[] b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-
-    private static double[] Scale(double[] v, double s) => [v[0] * s, v[1] * s, v[2] * s];
-
-    private static double Dot(double[] a, double[] b) => (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
-
-    private static double[] Cross(double[] a, double[] b) =>
-        [(a[1] * b[2]) - (a[2] * b[1]), (a[2] * b[0]) - (a[0] * b[2]), (a[0] * b[1]) - (a[1] * b[0])];
-
-    private static double Length(double[] v) => Math.Sqrt(Dot(v, v));
-
-    private static double[] Unit(double[] v)
-    {
-        double length = Length(v);
-        return length < 1e-12 ? v : Scale(v, 1 / length);
-    }
 
     /// <summary>Colour (#RRGGBB) of some pixels of a picture: corners, middle of the top and bottom edges, centre.</summary>
     internal static Dictionary<string, string> Pixels(Picture picture)

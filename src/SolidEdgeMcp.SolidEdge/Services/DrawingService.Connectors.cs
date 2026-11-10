@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using SolidEdgeDraft;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using Connector = SolidEdgeFrameworkSupport.Connector;
@@ -22,12 +23,10 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class DrawingService
 {
-    public static readonly IReadOnlyList<string> ConnectorTypes = ["line", "jump", "corner", "step", "gap"];
-
     /// <summary>Ends of a connector farther than this from the asked point (m) mean it was not placed as asked.</summary>
     private const double ConnectorTolerance = 1e-6;
 
-    public static object AddConnector(SeContext context, string? documentHandle, string? sheetRef, string? type, double[]? points, string[]? targets)
+    public static object AddConnector(SeContext context, string? documentHandle, string? sheetRef, ConnectorType type, double[]? points, string[]? targets)
     {
         if (points is not { Length: 4 })
         {
@@ -37,12 +36,12 @@ public static partial class DrawingService
         double[] at = [.. points.Select(v => Units.MmToM(Units.RequireFinite(v, "points")))];
         ConnectorTypeConstants kind = type switch
         {
-            null or "line" => ConnectorTypeConstants.seLineConnector,
-            "jump" => ConnectorTypeConstants.seJumpConnector,
-            "corner" => ConnectorTypeConstants.seCornerConnector,
-            "step" => ConnectorTypeConstants.seStepConnector,
-            "gap" => ConnectorTypeConstants.seGapConnector,
-            _ => throw ToolException.InvalidArgument($"Unknown connector type '{type}'.", $"Use one of: {string.Join(", ", ConnectorTypes)}."),
+            ConnectorType.Line => ConnectorTypeConstants.seLineConnector,
+            ConnectorType.Jump => ConnectorTypeConstants.seJumpConnector,
+            ConnectorType.Corner => ConnectorTypeConstants.seCornerConnector,
+            ConnectorType.Step => ConnectorTypeConstants.seStepConnector,
+            ConnectorType.Gap => ConnectorTypeConstants.seGapConnector,
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
         };
 
         DraftDocument draft;

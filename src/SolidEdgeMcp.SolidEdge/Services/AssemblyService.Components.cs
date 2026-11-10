@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using SolidEdgeAssembly;
 using SolidEdgeFramework;
 using SolidEdgeMcp.Core;
+using SolidEdgeMcp.SolidEdge.Arguments;
 using SolidEdgeMcp.SolidEdge.Com;
 using SolidEdgeMcp.SolidEdge.Session;
 using Path = System.IO.Path;
@@ -17,8 +18,6 @@ namespace SolidEdgeMcp.SolidEdge.Services;
 /// </summary>
 public static partial class AssemblyService
 {
-    public static readonly IReadOnlyList<string> ReplaceSources = ["file", "copy", "new"];
-
     /// <summary>
     /// Places a new, empty part, sheet metal part or subassembly made from a template (the start of Create Part In-Place).
     /// Verified in Solid Edge 2026: Occurrences.AddByTemplate(file, template) writes the file and adds it at the origin,
@@ -117,9 +116,9 @@ public static partial class AssemblyService
     /// part from the template, and the occurrence (or every occurrence of its file) is replaced by it. Verified in Solid Edge
     /// 2026: Occurrence.Replace(file, false) takes the copy, and an empty new part too (its range is then empty).
     /// </summary>
-    public static object ReplaceWith(SeContext context, string? handle, string path, string source, bool all, string? template)
+    public static object ReplaceWith(SeContext context, string? handle, string path, ReplaceSource source, bool all, string? template)
     {
-        if (source == "file")
+        if (source == ReplaceSource.File)
         {
             return Replace(context, handle, path, all);
         }
@@ -130,7 +129,7 @@ public static partial class AssemblyService
         string current = occurrence.OccurrenceFileName;
         switch (source)
         {
-            case "copy":
+            case ReplaceSource.Copy:
                 if (!string.Equals(Path.GetExtension(file), Path.GetExtension(current), StringComparison.OrdinalIgnoreCase))
                 {
                     throw ToolException.InvalidArgument($"The copy must keep the extension of '{Path.GetFileName(current)}'.");
@@ -139,7 +138,7 @@ public static partial class AssemblyService
                 Directory.CreateDirectory(Path.GetDirectoryName(file)!);
                 File.Copy(current, file);
                 break;
-            case "new":
+            case ReplaceSource.New:
                 DocumentTypeConstants type = ComponentType(file);
                 string templatePath = DocumentService.TemplateFor(context, type, template);
                 Directory.CreateDirectory(Path.GetDirectoryName(file)!);
@@ -155,7 +154,7 @@ public static partial class AssemblyService
 
                 break;
             default:
-                throw ToolException.InvalidArgument($"Unknown source '{source}'.", $"Use one of: {string.Join(", ", ReplaceSources)}.");
+                throw new ArgumentOutOfRangeException(nameof(source));
         }
 
         occurrence.Replace(file, all);
