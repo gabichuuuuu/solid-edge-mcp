@@ -58,6 +58,112 @@ public static class PngFile
             ? (ReadBigEndian(png[16..]), ReadBigEndian(png[20..]))
             : throw new ArgumentException("Not a PNG file.", nameof(png));
 
+    /// <summary>
+    /// Pixels of an 8-bit RGB PNG that is not interlaced, the kind Solid Edge writes, as red, green and blue bytes with rows
+    /// from the top; null for any other kind or a damaged file.
+    /// </summary>
+    public static (int Width, int Height, byte[] Rgb)? Decode(ReadOnlySpan<byte> png)
+    {
+        if (png.Length < 8 || !png[..8].SequenceEqual(Signature))
+        {
+            return null;
+        }
+
+        int width = 0, height = 0;
+        using var compressed = new MemoryStream();
+        for (int offset = 8; offset + 12 <= png.Length;)
+        {
+            int length = ReadBigEndian(png[offset..]);
+            if (length < 0 || length > png.Length - offset - 12)
+            {
+                return null;
+            }
+
+            ReadOnlySpan<byte> type = png.Slice(offset + 4, 4);
+            ReadOnlySpan<byte> data = png.Slice(offset + 8, length);
+            if (type.SequenceEqual("IHDR"u8))
+            {
+                // Bit depth 8, colour type 2 (RGB), compression and filter method 0, no interlace.
+                if (length < 13 || data[8] != 8 || data[9] != 2 || data[10] != 0 || data[11] != 0 || data[12] != 0)
+                {
+                    return null;
+                }
+
+                (width, height) = (ReadBigEndian(data), ReadBigEndian(data[4..]));
+            }
+            else if (type.SequenceEqual("IDAT"u8))
+            {
+                compressed.Write(data);
+            }
+            else if (type.SequenceEqual("IEND"u8))
+            {
+                break;
+            }
+
+            offset += 12 + length;
+        }
+
+        long size = (3L * width + 1) * height;
+        if (width <= 0 || height <= 0 || size > Array.MaxLength)
+        {
+            return null;
+        }
+
+        byte[] filtered = new byte[size];
+        try
+        {
+            compressed.Position = 0;
+            using var zlib = new ZLibStream(compressed, CompressionMode.Decompress);
+            zlib.ReadExactly(filtered);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or EndOfStreamException)
+        {
+            return null;
+        }
+
+        // Each row starts with its filter type; the filters predict a byte from the one of the pixel to its left (a), above (b)
+        // and above-left (c), already decoded.
+        int stride = 3 * width;
+        byte[] rgb = new byte[stride * height];
+        for (int y = 0; y < height; y++)
+        {
+            byte filter = filtered[y * (stride + 1)];
+            ReadOnlySpan<byte> line = filtered.AsSpan(y * (stride + 1) + 1, stride);
+            Span<byte> row = rgb.AsSpan(y * stride, stride);
+            ReadOnlySpan<byte> above = y > 0 ? rgb.AsSpan((y - 1) * stride, stride) : new byte[stride];
+            for (int x = 0; x < stride; x++)
+            {
+                int a = x >= 3 ? row[x - 3] : 0;
+                int b = above[x];
+                int c = x >= 3 ? above[x - 3] : 0;
+                int predicted = filter switch
+                {
+                    0 => 0,
+                    1 => a,
+                    2 => b,
+                    3 => (a + b) / 2,
+                    4 => Paeth(a, b, c),
+                    _ => -1,
+                };
+                if (predicted < 0)
+                {
+                    return null;
+                }
+
+                row[x] = (byte)(line[x] + predicted);
+            }
+        }
+
+        return (width, height, rgb);
+    }
+
+    private static int Paeth(int a, int b, int c)
+    {
+        int p = a + b - c;
+        int pa = Math.Abs(p - a), pb = Math.Abs(p - b), pc = Math.Abs(p - c);
+        return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+    }
+
     /// <summary>CRC-32 of the PNG specification (ISO 3309), over the chunk type and data.</summary>
     internal static uint Crc(ReadOnlySpan<byte> bytes)
     {

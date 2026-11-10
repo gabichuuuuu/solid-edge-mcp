@@ -287,8 +287,8 @@ public static partial class ViewService
     }
 
     /// <summary>
-    /// Image of the window. With samples, also the colours of its corners, edges and centre, read from a second small BMP
-    /// of the same view (to check backgrounds and colours without looking at the image).
+    /// Image of the window. With samples, also the colours of its corners, edges and centre (to check backgrounds and colours
+    /// without looking at the image).
     /// </summary>
     public static CapturedImage Capture(SeContext context, string? handle, int width, int height, string? savePath, bool fit = true,
         bool samples = false)
@@ -323,22 +323,25 @@ public static partial class ViewService
         }
 
         object target = FirstWindow(document);
-        Dictionary<string, string>? colours;
-        string? single;
+        byte[] data;
+        Picture picture;
         using (new ShownWindow(context.Application, target))
         {
             Save(target, file, width, height, fit);
-            byte[] sample = SampleBmp(context, target, width, height);
-            colours = samples ? Pixels(sample) : null;
-            single = SingleColour(sample);
+            data = File.Exists(file) ? File.ReadAllBytes(file) : throw new ToolException("capture_failed", "Solid Edge did not write the image.");
+            // The colours are read from the image itself; only a JPEG needs a second, small image of the view, which costs
+            // Solid Edge about as long as the first (measured 0.4-0.8 s).
+            picture = Path.GetExtension(file).ToLowerInvariant() switch
+            {
+                ".png" => PngFile.Decode(data) is { } png ? new Picture(png.Width, png.Height, png.Rgb) : null,
+                ".bmp" => Picture.FromBmp(data),
+                _ => null,
+            } ?? Picture.FromBmp(SampleBmp(context, target, width, height))
+                ?? throw new ToolException("capture_failed", "Solid Edge wrote a sample image that cannot be read.");
         }
 
-        if (!File.Exists(file))
-        {
-            throw new ToolException("capture_failed", "Solid Edge did not write the image.");
-        }
-
-        byte[] data = File.ReadAllBytes(file);
+        Dictionary<string, string>? colours = samples ? Pixels(picture) : null;
+        string? single = SingleColour(picture);
         if (keep is null)
         {
             TryDelete(file);

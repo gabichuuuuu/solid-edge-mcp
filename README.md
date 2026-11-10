@@ -243,7 +243,7 @@ Full example in [config/policy.example.json](config/policy.example.json). `se_se
 effective folders and the configuration warnings.
 
 Logs go to `%LocalAppData%\SolidEdgeMcp\logs` (one UTF-8 file per day; each operation with its
-`op#`). Standard output is reserved for the MCP protocol. When a packaged client such as Claude Desktop starts the
+`op#`, time and result size). Standard output is reserved for the MCP protocol. When a packaged client such as Claude Desktop starts the
 server, Windows keeps what the server writes under `%LocalAppData%` in that client's own folder, for Claude Desktop
 `%LocalAppData%\Packages\Claude_<id>\LocalCache\Local\SolidEdgeMcp` (logs, interop and work files); `se_server_info`
 shows the folders in use.

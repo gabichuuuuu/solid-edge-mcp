@@ -713,10 +713,17 @@ public static partial class InspectService
     /// <summary>Page of a collection; with a filter, the count and the offset refer to the elements that match it.</summary>
     private static object Page(SeContext context, object collection, int offset, int limit, Func<object, bool>? filter, Func<object, object> describe)
     {
-        // A list gathers the elements of several bodies; anything else is a Solid Edge collection.
-        var list = collection as IReadOnlyList<object>;
-        int total = list?.Count ?? Late.Count(collection);
-        object? ItemAt(int i) => list is null ? Late.Call(collection, "Item", i) : list[i - 1];
+        // A list gathers the elements of several bodies; anything else is a Solid Edge collection, read through its interface
+        // when it is one of faces or edges (a call by name costs Solid Edge a second round trip per element).
+        (int Total, Func<int, object?> ItemAt) source = collection switch
+        {
+            IReadOnlyList<object> list => (list.Count, i => list[i - 1]),
+            Faces faces => (faces.Count, i => faces.Item(i)),
+            Edges edges => (edges.Count, i => edges.Item(i)),
+            _ => (Late.Count(collection), i => Late.Call(collection, "Item", i)),
+        };
+        int total = source.Total;
+        Func<int, object?> itemAt = source.ItemAt;
         int start = Math.Max(offset, 0);
         int take = Math.Clamp(limit, 1, context.MaxListItems);
         var items = new List<object>();
@@ -725,7 +732,7 @@ public static partial class InspectService
         {
             for (int i = start + 1; i <= total && items.Count < take; i++)
             {
-                if (ItemAt(i) is { } item)
+                if (itemAt(i) is { } item)
                 {
                     items.Add(describe(item));
                 }
@@ -737,7 +744,7 @@ public static partial class InspectService
             matched = 0;
             for (int i = 1; i <= total; i++)
             {
-                if (ItemAt(i) is { } item && filter(item) && matched++ >= start && items.Count < take)
+                if (itemAt(i) is { } item && filter(item) && matched++ >= start && items.Count < take)
                 {
                     items.Add(describe(item));
                 }

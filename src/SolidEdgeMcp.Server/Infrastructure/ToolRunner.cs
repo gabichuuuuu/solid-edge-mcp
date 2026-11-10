@@ -58,8 +58,9 @@ public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> log
         try
         {
             object? result = await work().ConfigureAwait(false);
-            logger.LogInformation("op#{Id} {Tool}.{Action} ok in {Ms} ms", id, tool, action, stopwatch.ElapsedMilliseconds);
-            return ToResult(result);
+            CallToolResult callResult = ToResult(result);
+            logger.LogInformation("op#{Id} {Tool}.{Action} ok in {Ms} ms, {Size}", id, tool, action, stopwatch.ElapsedMilliseconds, Size(callResult));
+            return callResult;
         }
         catch (ToolException ex)
         {
@@ -112,6 +113,27 @@ public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> log
             _ => JsonSerializer.Serialize(result, ResultJson),
         };
         return new CallToolResult { Content = [new TextContentBlock { Text = text }] };
+    }
+
+    /// <summary>What a result sends to the client: characters of text and bytes of image (for the log).</summary>
+    private static string Size(CallToolResult result)
+    {
+        int chars = 0;
+        int bytes = 0;
+        foreach (ContentBlock block in result.Content)
+        {
+            switch (block)
+            {
+                case TextContentBlock text:
+                    chars += text.Text.Length;
+                    break;
+                case ImageContentBlock image:
+                    bytes += image.DecodedData.Length;
+                    break;
+            }
+        }
+
+        return bytes == 0 ? $"{chars} chars" : $"{chars} chars + image {bytes} bytes";
     }
 
     /// <summary>Requires a mandatory argument for a specific action.</summary>

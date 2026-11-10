@@ -38,6 +38,74 @@ public sealed class PngFileTests
     public void Crc_matches_the_iend_chunk_of_every_png() =>
         Assert.Equal(0xAE426082u, PngFile.Crc(Encoding.ASCII.GetBytes("IEND")));
 
+    [Fact]
+    public void Reads_back_the_pixels_it_writes()
+    {
+        // 3 x 2: red, green, blue / white, black, grey (blue, green, red, unused per pixel).
+        byte[] bgrx = [0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0, 0, 0, 128, 128, 128, 0];
+
+        (int width, int height, byte[] rgb) = PngFile.Decode(PngFile.Encode(bgrx, 3, 2))!.Value;
+
+        Assert.Equal((3, 2), (width, height));
+        Assert.Equal(new byte[] { 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 128, 128, 128 }, rgb);
+    }
+
+    [Fact]
+    public void Undoes_each_row_filter()
+    {
+        // 2 x 4 pixels; each row filtered as the PNG specification defines, by hand: Sub, Up, Average and Paeth.
+        byte[] filtered =
+        [
+            1, 10, 20, 30, 40, 50, 60,
+            2, 2, 4, 6, 10, 10, 10,
+            3, 194, 88, 32, 20, 70, 95,
+            4, 61, 150, 78, 2, 9, 85,
+        ];
+
+        byte[] rgb = PngFile.Decode(Png(2, 4, colourType: 2, filtered))!.Value.Rgb;
+
+        Assert.Equal(new byte[]
+        {
+            10, 20, 30, 50, 70, 90,
+            12, 24, 36, 60, 80, 100,
+            200, 100, 50, 150, 160, 170,
+            5, 250, 128, 7, 3, 255,
+        }, rgb);
+    }
+
+    [Fact]
+    public void Reads_only_8_bit_rgb_that_is_not_interlaced()
+    {
+        byte[] row = [0, 1, 2, 3, 4, 5, 6];
+
+        Assert.NotNull(PngFile.Decode(Png(2, 1, colourType: 2, row)));
+        Assert.Null(PngFile.Decode(Png(2, 1, colourType: 6, row)));
+        Assert.Null(PngFile.Decode(Png(2, 2, colourType: 2, row)));
+        Assert.Null(PngFile.Decode(Png(2, 1, colourType: 2, [5, 1, 2, 3, 4, 5, 6])));
+        Assert.Null(PngFile.Decode("not a png"u8));
+    }
+
+    /// <summary>A PNG with the given rows (each with its filter byte) as its only image data.</summary>
+    private static byte[] Png(int width, int height, byte colourType, byte[] rows)
+    {
+        using var compressed = new MemoryStream();
+        using (var zlib = new ZLibStream(compressed, CompressionLevel.Optimal, leaveOpen: true))
+        {
+            zlib.Write(rows);
+        }
+
+        byte[] header = [.. BigEndian(width), .. BigEndian(height), 8, colourType, 0, 0, 0];
+        return [137, 80, 78, 71, 13, 10, 26, 10, .. Chunk("IHDR", header), .. Chunk("IDAT", compressed.ToArray()), .. Chunk("IEND", [])];
+
+        static byte[] Chunk(string type, byte[] data)
+        {
+            byte[] typed = [.. Encoding.ASCII.GetBytes(type), .. data];
+            return [.. BigEndian(data.Length), .. typed, .. BigEndian(unchecked((int)PngFile.Crc(typed)))];
+        }
+
+        static byte[] BigEndian(int value) => [(byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value];
+    }
+
     private static List<(string Type, byte[] Data)> Chunks(byte[] png)
     {
         var chunks = new List<(string, byte[])>();

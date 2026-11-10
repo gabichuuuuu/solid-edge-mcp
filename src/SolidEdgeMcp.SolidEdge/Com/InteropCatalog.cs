@@ -20,22 +20,7 @@ public static class InteropCatalog
     public static IReadOnlyList<Type> Enums => Data.Value.Enums;
 
     /// <summary>Interop type that describes the object, based on its COM type information.</summary>
-    public static Type? FindInterface(object comObject)
-    {
-        (Guid guid, string name)? info = GetTypeInfoIdentity(comObject);
-        if (info is null)
-        {
-            return null;
-        }
-
-        // The part library declares the draft's DrawingViews and block interfaces again under its own names
-        // (SketchDrawingViews, SketchBlocks...) with the same IIDs, so the library named by the type information decides.
-        Type? type = FindInterface(info.Value.guid);
-        return type is not null && !info.Value.name.StartsWith(type.Namespace + ".", StringComparison.Ordinal)
-            && FindByName(info.Value.name) is { } named && named.GUID == info.Value.guid
-                ? named
-                : type;
-    }
+    public static Type? FindInterface(object comObject) => Identify(comObject).Type;
 
     public static Type? FindInterface(Guid iid) =>
         Data.Value.InterfacesByGuid.TryGetValue(iid, out Type? type) ? type : null;
@@ -46,13 +31,8 @@ public static class InteropCatalog
     /// <summary>COM type name of the object (library.type), or <c>null</c> if it does not expose type information.</summary>
     public static string? GetTypeName(object comObject)
     {
-        Type? type = FindInterface(comObject);
-        if (type is not null)
-        {
-            return type.FullName;
-        }
-
-        return GetTypeInfoIdentity(comObject)?.name;
+        (Type? type, string? name) = Identify(comObject);
+        return type?.FullName ?? name;
     }
 
     /// <summary>All public members of the interface and of the interfaces it inherits from.</summary>
@@ -66,40 +46,52 @@ public static class InteropCatalog
     public static MemberInfo? FindMember(Type type, string name) =>
         GetMembers(type).FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    internal static (Guid guid, string name)? GetTypeInfoIdentity(object comObject)
+    /// <summary>
+    /// Interop type and COM type name (library.type) of an object, from its type information. Every call to the type
+    /// information is a round trip to Solid Edge, so only the IID is read when the interop declares it in one library. The
+    /// part library declares the draft's DrawingViews and block interfaces again under its own names (SketchDrawingViews,
+    /// SketchBlocks...) with the same IIDs: for those, and for types the interop does not have, the name is read too and the
+    /// library it names decides.
+    /// </summary>
+    private static (Type? Type, string? Name) Identify(object comObject)
     {
-        if (!Marshal.IsComObject(comObject) || comObject is not IDispatchTypeInfo dispatch)
-        {
-            return null;
-        }
-
-        if (dispatch.GetTypeInfoCount(out uint count) < 0 || count == 0
+        if (!Marshal.IsComObject(comObject) || comObject is not IDispatchTypeInfo dispatch
             || dispatch.GetTypeInfo(0, 0, out ComTypes.ITypeInfo? typeInfo) < 0 || typeInfo is null)
         {
-            return null;
+            return (null, null);
         }
 
         typeInfo.GetTypeAttr(out IntPtr attrPointer);
+        Guid guid;
         try
         {
-            ComTypes.TYPEATTR attr = Marshal.PtrToStructure<ComTypes.TYPEATTR>(attrPointer);
-            typeInfo.GetDocumentation(-1, out string name, out _, out _, out _);
-            string library = "";
-            try
-            {
-                typeInfo.GetContainingTypeLib(out ComTypes.ITypeLib lib, out _);
-                lib.GetDocumentation(-1, out library, out _, out _, out _);
-            }
-            catch (COMException)
-            {
-            }
-
-            return (attr.guid, string.IsNullOrEmpty(library) ? name : $"{library}.{name}");
+            guid = Marshal.PtrToStructure<ComTypes.TYPEATTR>(attrPointer).guid;
         }
         finally
         {
             typeInfo.ReleaseTypeAttr(attrPointer);
         }
+
+        Type? type = FindInterface(guid);
+        if (type is not null && !Data.Value.SharedIids.Contains(guid))
+        {
+            return (type, type.FullName);
+        }
+
+        typeInfo.GetDocumentation(-1, out string name, out _, out _, out _);
+        string library = "";
+        try
+        {
+            typeInfo.GetContainingTypeLib(out ComTypes.ITypeLib lib, out _);
+            lib.GetDocumentation(-1, out library, out _, out _, out _);
+        }
+        catch (COMException)
+        {
+        }
+
+        string qualified = string.IsNullOrEmpty(library) ? name : $"{library}.{name}";
+        return (type is not null && !qualified.StartsWith(type.Namespace + ".", StringComparison.Ordinal)
+            && FindByName(qualified) is { } named && named.GUID == guid ? named : type, qualified);
     }
 
     private static Index Build()
@@ -130,6 +122,8 @@ public static class InteropCatalog
         var byGuid = new Dictionary<Guid, Type>();
         var byName = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase);
         var enums = new List<Type>();
+        var namespaces = new Dictionary<Guid, string?>();
+        var shared = new HashSet<Guid>();
         foreach (Type type in assemblies.SelectMany(a => a.GetExportedTypes()))
         {
             if (type.IsEnum)
@@ -145,6 +139,11 @@ public static class InteropCatalog
             }
 
             byName.TryAdd(type.FullName!, type);
+            if (!namespaces.TryAdd(type.GUID, type.Namespace) && namespaces[type.GUID] != type.Namespace)
+            {
+                shared.Add(type.GUID);
+            }
+
             // The "coclass" interface (PartDocument) shares its IID with the real one (_IPartDocument...) and inherits
             // from it, so the one matched by name is preferred; GetMembers includes inherited members.
             if (!byGuid.TryGetValue(type.GUID, out Type? existing)
@@ -154,12 +153,14 @@ public static class InteropCatalog
             }
         }
 
-        return new Index(assemblies, byGuid, byName, enums.OrderBy(e => e.FullName, StringComparer.Ordinal).ToList());
+        return new Index(assemblies, byGuid, byName, enums.OrderBy(e => e.FullName, StringComparer.Ordinal).ToList(), shared);
     }
 
+    /// <param name="SharedIids">IIDs that interfaces of more than one library declare.</param>
     private sealed record Index(
         List<Assembly> Assemblies,
         Dictionary<Guid, Type> InterfacesByGuid,
         Dictionary<string, Type> InterfacesByName,
-        List<Type> Enums);
+        List<Type> Enums,
+        HashSet<Guid> SharedIids);
 }

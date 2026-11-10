@@ -561,67 +561,81 @@ public static partial class ViewService
         return length < 1e-12 ? v : Scale(v, 1 / length);
     }
 
-    /// <summary>Colour (#RRGGBB) of some pixels of a 24 or 32 bit BMP: corners, middle of the top and bottom edges, centre.</summary>
-    internal static Dictionary<string, string> Pixels(byte[] bmp)
+    /// <summary>Colour (#RRGGBB) of some pixels of a picture: corners, middle of the top and bottom edges, centre.</summary>
+    internal static Dictionary<string, string> Pixels(Picture picture)
     {
-        (int width, int height, Func<int, int, string> At) = Bmp(bmp);
+        (int width, int height) = (picture.Width, picture.Height);
         const int m = 2;
         return new Dictionary<string, string>
         {
-            ["topLeft"] = At(m, m),
-            ["top"] = At(width / 2, m),
-            ["topRight"] = At(width - 1 - m, m),
-            ["center"] = At(width / 2, height / 2),
-            ["bottomLeft"] = At(m, height - 1 - m),
-            ["bottom"] = At(width / 2, height - 1 - m),
-            ["bottomRight"] = At(width - 1 - m, height - 1 - m),
+            ["topLeft"] = picture.Hex(m, m),
+            ["top"] = picture.Hex(width / 2, m),
+            ["topRight"] = picture.Hex(width - 1 - m, m),
+            ["center"] = picture.Hex(width / 2, height / 2),
+            ["bottomLeft"] = picture.Hex(m, height - 1 - m),
+            ["bottom"] = picture.Hex(width / 2, height - 1 - m),
+            ["bottomRight"] = picture.Hex(width - 1 - m, height - 1 - m),
         };
     }
 
-    /// <summary>The colour of a BMP whose pixels are all the same (nothing was drawn), or null.</summary>
-    internal static string? SingleColour(byte[] bmp)
+    /// <summary>The colour of a picture whose pixels are all the same (nothing was drawn), or null.</summary>
+    internal static string? SingleColour(Picture picture)
     {
-        (int width, int height, Func<int, int, string> At) = Bmp(bmp);
-        string first = At(0, 0);
-        for (int y = 0; y < height; y++)
+        ReadOnlySpan<byte> pixels = picture.Rgb;
+        ReadOnlySpan<byte> first = pixels[..3];
+        for (int i = 3; i < pixels.Length; i += 3)
         {
-            for (int x = 0; x < width; x++)
+            if (!pixels.Slice(i, 3).SequenceEqual(first))
             {
-                if (At(x, y) != first)
-                {
-                    return null;
-                }
+                return null;
             }
         }
 
-        return first;
+        return picture.Hex(0, 0);
     }
 
-    private static (int Width, int Height, Func<int, int, string> At) Bmp(byte[] bmp)
+    /// <summary>Pixels of an image as red, green and blue bytes, with rows from the top.</summary>
+    internal sealed record Picture(int Width, int Height, byte[] Rgb)
     {
-        if (bmp.Length < 54 || bmp[0] != 'B' || bmp[1] != 'M')
+        public string Hex(int x, int y)
         {
-            throw new ToolException("capture_failed", "The sample image is not a BMP.");
+            int i = ((y * Width) + x) * 3;
+            return $"#{Rgb[i]:X2}{Rgb[i + 1]:X2}{Rgb[i + 2]:X2}";
         }
 
-        int offset = BitConverter.ToInt32(bmp, 10);
-        int width = BitConverter.ToInt32(bmp, 18);
-        int height = BitConverter.ToInt32(bmp, 22);
-        int bits = BitConverter.ToInt16(bmp, 28);
-        if (bits is not (24 or 32) || width < 8 || height == 0)
+        /// <summary>Picture of a 24 or 32 bit BMP, or null for any other kind.</summary>
+        public static Picture? FromBmp(byte[] bmp)
         {
-            throw new ToolException("capture_failed", $"Unexpected sample image ({width}×{height}, {bits} bits).");
-        }
+            if (bmp.Length < 54 || bmp[0] != 'B' || bmp[1] != 'M')
+            {
+                return null;
+            }
 
-        bool bottomUp = height > 0;
-        int rows = Math.Abs(height);
-        int stride = ((width * bits) + 31) / 32 * 4;
-        string At(int x, int y)
-        {
-            int i = offset + ((bottomUp ? rows - 1 - y : y) * stride) + (x * (bits / 8));
-            return i + 2 < bmp.Length ? $"#{bmp[i + 2]:X2}{bmp[i + 1]:X2}{bmp[i]:X2}" : throw new ToolException("capture_failed", "The sample image is truncated.");
-        }
+            int offset = BitConverter.ToInt32(bmp, 10);
+            int width = BitConverter.ToInt32(bmp, 18);
+            int height = BitConverter.ToInt32(bmp, 22);
+            int bits = BitConverter.ToInt16(bmp, 28);
+            int rows = Math.Abs(height);
+            int stride = ((width * bits) + 31) / 32 * 4;
+            if (bits is not (24 or 32) || width < 8 || height == 0 || offset < 0 || offset + ((long)stride * rows) > bmp.Length)
+            {
+                return null;
+            }
 
-        return (width, rows, At);
+            // Rows are stored from the bottom when the height is positive, each pixel as blue, green, red (and one byte more at 32 bits).
+            byte[] rgb = new byte[width * rows * 3];
+            for (int y = 0; y < rows; y++)
+            {
+                int row = offset + ((height > 0 ? rows - 1 - y : y) * stride);
+                for (int x = 0; x < width; x++)
+                {
+                    int i = row + (x * (bits / 8));
+                    int o = ((y * width) + x) * 3;
+                    (rgb[o], rgb[o + 1], rgb[o + 2]) = (bmp[i + 2], bmp[i + 1], bmp[i]);
+                }
+            }
+
+            return new Picture(width, rows, rgb);
+        }
     }
 }

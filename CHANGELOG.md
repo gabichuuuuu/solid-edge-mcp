@@ -6,6 +6,18 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `se_view capture` takes about 40 % less time: the colours it checks (`samples` and the single-colour warning) are read
+  from the image Solid Edge wrote, instead of from a second, small image of the view that took Solid Edge about as long
+  as the capture itself (0.4 to 0.8 s). A JPEG capture still needs that second image.
+- Fewer calls to Solid Edge: the type of an object (feature descriptions, `se_feature_tree`, the `se_com_*` layer) is
+  read with two calls instead of six, and faces and edges (`se_geometry`), occurrences, subassembly occurrences and
+  assembly relations with one call per item instead of two or three.
+- The published server is precompiled (ReadyToRun): it answers its client about 0.25 to 0.5 s sooner when it starts.
+  The package grows from 37.9 to 40.1 MB.
+- The server log gives the size of each result (characters of text and bytes of image) beside its time.
+
 ## [1.0.3] - 2026-11-07
 
 The first version under the PolyForm Noncommercial License 1.0.0, with a separate commercial license. The server

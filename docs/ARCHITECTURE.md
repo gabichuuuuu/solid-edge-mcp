@@ -25,7 +25,7 @@ flowchart LR
 
 - **`SolidEdgeMcp.Server`**: the executable. MCP host over stdio with the official
   `ModelContextProtocol` 2.2.0 SDK, the tools, argument validation and logging of each operation
-  with an `op#` number.
+  with an `op#` number, its time and the size of its result.
 - **`SolidEdgeMcp.SolidEdge`**: everything that talks COM. The session (attaches to Solid Edge or
   starts it), the services by area, the generic layer and `StaComDispatcher`, a single STA thread
   with an OLE message filter through which every COM call passes, one at a time and with a time

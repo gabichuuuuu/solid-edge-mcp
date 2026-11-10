@@ -579,7 +579,37 @@ public static partial class AssemblyService
         };
     }
 
-    internal static IEnumerable<T> Items<T>(object collection) => Late.Items(collection).OfType<T>();
+    /// <summary>
+    /// Items of an assembly collection. Occurrences, subassembly occurrences and relations, the long ones, are read through
+    /// their interfaces, since a call by name costs Solid Edge a second round trip per item. The type asked for tells which
+    /// collection it is, so no other collection is asked for an interface it lacks (also a round trip).
+    /// </summary>
+    internal static IEnumerable<T> Items<T>(object collection)
+    {
+        IEnumerable<object> items =
+            typeof(T) == typeof(Occurrence) && collection is Occurrences occurrences ? Typed(occurrences.Count, i => occurrences.Item(i))
+            : typeof(T) == typeof(SubOccurrence) && collection is SubOccurrences children ? Typed(children.Count, i => children.Item(i))
+            : typeof(T) == typeof(object) && collection is Relations3d relations ? Typed(relations.Count, i => relations.Item(i))
+            : Late.Items(collection);
+        foreach (object item in items)
+        {
+            if (item is T typed)
+            {
+                yield return typed;
+            }
+        }
+
+        static IEnumerable<object> Typed(int count, Func<int, object?> item)
+        {
+            for (int i = 1; i <= count; i++)
+            {
+                if (item(i) is { } value)
+                {
+                    yield return value;
+                }
+            }
+        }
+    }
 
     private static void AddSubOccurrences(SubOccurrences? children, string parent, List<object> rows)
     {
