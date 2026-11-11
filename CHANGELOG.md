@@ -6,6 +6,12 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The server instructions say that a script that drives Solid Edge through COM outside the server is not watched and
+  stops at any Solid Edge dialog until someone answers it, so the tools or `se_com_*` are the way to go; three of their
+  lines are shorter to make room. The tools list `se_session answer` in the documentation.
+
 ## [1.0.5] - 2026-11-11
 
 Fixes found in a review of the code, and a clean-up of how it is written. No tool or parameter changes.

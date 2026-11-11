@@ -18,7 +18,9 @@
   answered: the blocked call fails with `dialog_open` and names the dialog with its buttons and options,
   and `se_session status` lists it. `se_session answer` presses one of its buttons, after choosing one of
   its options, and the blocked call then finishes; an option such as "don't prompt me again" changes
-  Solid Edge's options, so it is chosen only when the person asks.
+  Solid Edge's options, so it is chosen only when the person asks. A script that drives Solid Edge through
+  COM outside the server is not watched: it waits on such a dialog until someone answers it, and
+  `se_session status` and `answer` still see the dialog.
 - The Boundary and SmoothBoundary display modes are not applied in Solid Edge 2026.
 - Program settings: suspending the recent files list (`se_app suspend_recent`) does not always stop Solid Edge
   2026 from adding the files saved with `save_as`; with no document window open Solid Edge cannot read some
