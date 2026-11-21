@@ -6,6 +6,11 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Dependencies: the MCP SDK `ModelContextProtocol` 2.4.0 (was 2.2.0) and `Microsoft.Extensions.Hosting` 11.0.0 (was
+  10.0.12). The tool list the server announces is unchanged.
+
 ## [1.0.6] - 2026-11-21
 
 Fixes found in a review of the server against MCP guidance: tool annotations, error messages and the size of the tool
