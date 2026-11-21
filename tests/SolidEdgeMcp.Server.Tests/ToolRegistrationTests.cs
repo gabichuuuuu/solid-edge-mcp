@@ -840,6 +840,50 @@ public sealed class ToolRegistrationTests
         Assert.Null(ArgumentValidator.Validate(tool, arguments));
     }
 
+    [Fact]
+    public void Tools_that_delete_or_overwrite_are_destructive()
+    {
+        using ServiceProvider provider = BuildProvider();
+        string[] wrong = [.. provider.GetServices<McpServerTool>()
+            .Select(t => t.ProtocolTool)
+            .Where(t => t.Annotations?.DestructiveHint != true && (t.Name == "se_session" || DeletesOrOverwrites(t.InputSchema)))
+            .Select(t => t.Name)];
+
+        Assert.True(wrong.Length == 0, "Not marked destructive: " + string.Join(", ", wrong));
+
+        static bool DeletesOrOverwrites(JsonElement schema) =>
+            schema.GetProperty("properties").EnumerateObject().Any(p => p.Name == "overwrite"
+                || (p.Value.TryGetProperty("enum", out JsonElement values) && values.EnumerateArray()
+                    .Any(v => v.ValueKind == JsonValueKind.String && (v.GetString()!.StartsWith("delete", StringComparison.Ordinal)
+                        || v.GetString()!.StartsWith("remove", StringComparison.Ordinal)))));
+    }
+
+    [Fact]
+    public void Schemas_carry_no_null_boilerplate()
+    {
+        using ServiceProvider provider = BuildProvider();
+        Dictionary<string, string> schemas = provider.GetServices<McpServerTool>()
+            .ToDictionary(t => t.ProtocolTool.Name, t => t.ProtocolTool.InputSchema.GetRawText());
+
+        string[] tokens = ["\"null\"", ":null", "[null", ",null"];
+        Assert.All(schemas, s => Assert.DoesNotContain(tokens, t => s.Value.Replace(" ", "", StringComparison.Ordinal).Contains(t, StringComparison.Ordinal)));
+        Assert.Contains("\"fillet\"", schemas["se_part_feature"], StringComparison.Ordinal);
+        Assert.Contains("\"default\":\"simple\"", schemas["se_hole"].Replace(" ", "", StringComparison.Ordinal), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Tool_errors_are_results_without_a_prefix()
+    {
+        using ServiceProvider provider = BuildProvider();
+        ToolRunner runner = provider.GetRequiredService<ToolRunner>();
+
+        CallToolResult result = await runner.RunLocalAsync("se_test", "fail",
+            () => throw new ToolException("not_found", "No such thing.", "List them first."));
+
+        Assert.True(result.IsError);
+        Assert.Equal("[not_found] No such thing. Next step: List them first.", Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
+    }
+
     private static ServiceProvider BuildProvider()
     {
         var services = new ServiceCollection();

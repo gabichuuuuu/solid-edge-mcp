@@ -14,7 +14,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class AppTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_export", Title = "Export to neutral formats", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_export", Title = "Export to neutral formats", Destructive = true, OpenWorld = false)]
     [Description("""
         Writes a copy of a document in another format; the format comes from the extension of 'path' (absolute, in an allowed folder). The document itself is not renamed.
         Part, sheet metal, assembly: .stp/.step, .igs/.iges, .x_t, .x_b, .stl, .jt, .sat, .3mf, .obj, .plmxml, .u3d, .xgl, .pdf (a page with a picture of the view; a 3D PDF is se_publish pdf3d); part and sheet metal also .catpart (CATIA V5); assembly also .catproduct (CATIA V5, a .CATPart per part beside it, replacing files of the same name); all three .model (CATIA V4). Files a translator writes beside the target (OBJ materials, PLM XML bodies) are listed in alsoWritten. Draft: .pdf (the sheets chosen by the PDF options: the active one by default), .dxf, .dwg, .igs, .tif. PDF results give their pages and page sizes in mm; STL files are written in mm (with their triangles and box).

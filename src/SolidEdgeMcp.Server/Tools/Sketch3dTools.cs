@@ -15,7 +15,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class Sketch3dTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_sketch3d", Title = "3D sketches", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_sketch3d", Title = "3D sketches", Destructive = true, OpenWorld = false)]
     [Description("""
         3D sketches of a part or sheet metal part: elements drawn in model space (mm), not on a plane. Each element is read back (ends, center, length, radius) and deleted if it differs.
         list | create (name) | info (elements with handles, relations) |

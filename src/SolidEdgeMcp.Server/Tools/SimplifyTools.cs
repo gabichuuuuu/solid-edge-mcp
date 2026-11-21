@@ -15,7 +15,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class SimplifyTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_simplify", Title = "Simplified model", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_simplify", Title = "Simplified model", Destructive = true, OpenWorld = false)]
     [Description("""
         The simplified model of a part or sheet metal part: a lighter copy of the design body, without small holes, rounds or chosen faces, that assemblies can show instead (se_options assembly simplification). The design body never changes. Lengths in mm.
         status: whether there is one, which model is active (design | simplified), the simplified body (handle, volume, faces) and its features |

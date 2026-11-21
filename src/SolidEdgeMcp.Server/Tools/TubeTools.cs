@@ -15,7 +15,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class TubeTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_tube", Title = "Assembly tubes", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_tube", Title = "Assembly tubes", Destructive = true, OpenWorld = false)]
     [Description("""
         Tubes of an assembly (XpresRoute): a tube part routed along a path of straight segments, bent at every corner. mm.
         list (each tube: outer diameter, wall, bend radius, flat length, material, volume, path points) |

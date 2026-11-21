@@ -134,7 +134,7 @@ public sealed class SketchTools(ToolRunner runner)
         };
     }
 
-    [McpServerTool(Name = "se_ref_plane", Title = "Reference planes and coordinate systems", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_ref_plane", Title = "Reference planes and coordinate systems", Destructive = true, OpenWorld = false)]
     [Description("""
         Reference planes and coordinate systems of a part, sheet metal or assembly. list (index, handle, name, normal, root point in mm) |
         offset (plane = index, 'xy'/'yz'/'xz' or plane / planar face handle; distance in mm, negative or flip=true for the other side) |

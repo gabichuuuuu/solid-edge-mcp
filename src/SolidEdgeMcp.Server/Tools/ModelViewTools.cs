@@ -15,7 +15,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class ModelViewTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_model_view", Title = "PMI model views", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_model_view", Title = "PMI model views", Destructive = true, OpenWorld = false)]
     [Description("""
         PMI model views of a part, sheet metal or assembly: a named orientation with a render mode and the section views, PMI dimensions and annotations it shows. Drawings place them (se_drawing base_view modelView) and se_publish pdf3d modelViews puts them all in a 3D PDF.
         list (name, render, pdf, section captions, dimension and annotation counts) |

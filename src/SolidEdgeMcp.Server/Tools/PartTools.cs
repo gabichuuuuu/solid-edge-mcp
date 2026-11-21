@@ -146,7 +146,7 @@ public sealed class PartTools(ToolRunner runner)
                 new SweepSpec(action, operation, sketches, path, origins, axis, pitch, turns, height, hand,
                     wall is { } thickness ? new ThinWallSpec(thickness, wallSide, endCaps) : null, taper)), cancellationToken);
 
-    [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part / welds", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_part_feature", Title = "Rib / thicken / mirror body / face edits / split and unite bodies / slot / web network / lip / scale / copy part / welds", Destructive = true, OpenWorld = false)]
     [Description($$"""
         Other part features (ordered modelling). Lengths in mm.
         rib: sketch = an open chain (se_sketch close open:true) across the part; thickness; side; depth |
@@ -201,7 +201,7 @@ public sealed class PartTools(ToolRunner runner)
             new PartFeatureSpec(action, faces, sketch, thickness, side, plane, depth, distance, diameter, width, squareEnds, scale, edges, height, path, counterbore, replaceWith, bodies, radius,
                 targetFaces, leg, leg2, angle, weld, weldSide, note, allAround, field, coaxial)), cancellationToken);
 
-    [McpServerTool(Name = "se_body", Title = "Bodies: list / subtract / intersect / unite / emboss / construction and design", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_body", Title = "Bodies: list / subtract / intersect / unite / emboss / construction and design", Destructive = true, OpenWorld = false)]
     [Description($$"""
         Design and construction bodies of a part (ordered modelling). Lengths in mm. Body handles come from action list; a surface (se_surface) or a face stands for its body.
         list: design bodies (volume, box) and construction bodies (kind solid = closed, surface or curve) |
@@ -268,7 +268,7 @@ public sealed class PartTools(ToolRunner runner)
         runner.RunAsync("se_primitive", Snake(shape), c => FeatureService.Primitive(c, document,
             new PrimitiveSpec(shape, operation, plane, center, size, radius, depth, side, angle, corners)), cancellationToken);
 
-    [McpServerTool(Name = "se_curve", Title = "Construction curves", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_curve", Title = "Construction curves", Destructive = true, OpenWorld = false)]
     [Description("""
         Construction curves of a part (they do not change the solid), e.g. as 3D paths: list (name, type, status, edges, length mm, ends, bounding box) |
         points (smooth curve through 'points' [x1,y1,z1,...] mm, >= 2 points; closed: true returns smoothly to the first point) |
@@ -329,7 +329,7 @@ public sealed class PartTools(ToolRunner runner)
         };
     }
 
-    [McpServerTool(Name = "se_surface", Title = "Construction surfaces", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_surface", Title = "Construction surfaces", Destructive = true, OpenWorld = false)]
     [Description("""
         Construction surfaces of a part (the solid is unchanged): list (name, type, status, faces, area mm², box) |
         extrude ('sketch', closed or se_sketch close open: true; 'depth' mm; direction normal | reverse | symmetric; endCaps) |

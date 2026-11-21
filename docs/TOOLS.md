@@ -105,5 +105,6 @@ assembly, to PDF) and `welded_frame` (plates, structural frames, fillet welds an
 
 ## Approval
 
-Each tool declares its MCP annotations (read-only, destructive…) so the client can decide when to ask for approval. What
+Each tool declares its MCP annotations (read-only, destructive…) so the client can decide when to ask for approval. A tool
+that can delete or overwrite anything (a delete action, an `overwrite` argument, closing Solid Edge) is destructive. What
 has no specific tool is done with `se_com_*` or `se_command`; see [COVERAGE.md](COVERAGE.md).

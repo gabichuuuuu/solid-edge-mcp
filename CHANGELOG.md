@@ -6,8 +6,21 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Every tool that can delete or overwrite something is now announced as destructive, so the client asks before it runs:
+  `se_session` (quit, restart, answering a dialog), the tools with a delete action (`se_curve`, `se_surface`,
+  `se_ref_plane`, `se_sketch3d`, `se_model_view`, `se_simulation`, `se_decal`, `se_simplify`, `se_view`,
+  `se_part_feature`) and those with `overwrite` (`se_export`, `se_body`, `se_tube`, `se_publish`, `se_print`, `se_bom`).
+  A unit test keeps the rule for new tools.
+- Tool errors reach the client as `[code] message. Next step: ...`, without the "An error occurred invoking" prefix the
+  SDK added to every error raised during an operation.
+
 ### Changed
 
+- The tool schemas no longer carry `"default": null`, `"null"` in the types and `null` in the enumerations of optional
+  arguments: the tool list is about 6 % shorter (284,748 characters instead of 304,029). An explicit null is still
+  accepted.
 - The server instructions say that a script that drives Solid Edge through COM outside the server is not watched and
   stops at any Solid Edge dialog until someone answers it, so the tools or `se_com_*` are the way to go; three of their
   lines are shorter to make room. The tools list `se_session answer` in the documentation.
