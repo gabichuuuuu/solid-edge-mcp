@@ -6,6 +6,11 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-11-21
+
+Fixes found in a review of the server against MCP guidance: tool annotations, error messages and the size of the tool
+schemas. No tool or parameter changes.
+
 ### Fixed
 
 - Every tool that can delete or overwrite something is now announced as destructive, so the client asks before it runs:
