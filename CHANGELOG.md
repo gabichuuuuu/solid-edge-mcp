@@ -6,15 +6,10 @@ Relevant changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
-### Changed
-
-- Dependencies: the MCP SDK `ModelContextProtocol` 2.4.0 (was 2.2.0) and `Microsoft.Extensions.Hosting` 11.0.0 (was
-  10.0.12). The tool list the server announces is unchanged.
-
 ## [1.0.6] - 2026-11-21
 
 Fixes found in a review of the server against MCP guidance: tool annotations, error messages and the size of the tool
-schemas. No tool or parameter changes.
+schemas, and an update of the MCP SDK. No tool or parameter changes.
 
 ### Fixed
 
@@ -34,6 +29,8 @@ schemas. No tool or parameter changes.
 - The server instructions say that a script that drives Solid Edge through COM outside the server is not watched and
   stops at any Solid Edge dialog until someone answers it, so the tools or `se_com_*` are the way to go; three of their
   lines are shorter to make room. The tools list `se_session answer` in the documentation.
+- Dependencies: the MCP SDK `ModelContextProtocol` 2.4.0 (was 2.2.0) and `Microsoft.Extensions.Hosting` 11.0.0 (was
+  10.0.12). The tool list the server announces is unchanged.
 
 ## [1.0.5] - 2026-11-11
 
