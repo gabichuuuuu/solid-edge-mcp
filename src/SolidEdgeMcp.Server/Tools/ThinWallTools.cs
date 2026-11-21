@@ -37,7 +37,7 @@ public sealed class ThinWallTools(ToolRunner runner)
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
 
-    [McpServerTool(Name = "se_decal", Title = "Decals", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_decal", Title = "Decals", Destructive = true, OpenWorld = false)]
     [Description("""
         Decals of a part: a picture wrapped on a face. mm.
         list (name, mapping, status, faces, offset) |

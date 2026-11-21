@@ -15,7 +15,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class PublishTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_publish", Title = "Publish 3D PDF", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_publish", Title = "Publish 3D PDF", Destructive = true, OpenWorld = false)]
     [Description("""
         Publishes saved models as 3D PDF documents with the 3D PDF templates of this installation (Application menu > Publish > 3D PDF): pages laid out by the template, with the model in 3D that the reader can turn.
         templates: the installed 3D PDF templates |

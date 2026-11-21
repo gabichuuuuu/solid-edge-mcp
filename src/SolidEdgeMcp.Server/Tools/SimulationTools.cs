@@ -15,7 +15,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class SimulationTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_simulation", Title = "Simulation", Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_simulation", Title = "Simulation", Destructive = true, OpenWorld = false)]
     [Description("""
         Finite element studies of a part or sheet metal document, solved by Simcenter Nastran (needs a Solid Edge licence with Simulation). Lengths mm, forces N, pressures and stresses MPa.
         list (studies: name, type, state, constraints, loads, handle; the constraint and load kinds the licence includes: Simulation Express has fixed, force and pressure, and static and modal studies) | create (type static|modal|buckling, modes for modal and buckling (default 5), bodies default all) |

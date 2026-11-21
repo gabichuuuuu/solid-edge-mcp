@@ -15,7 +15,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class PrintTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_print", Title = "Print drawings / 3D print mesh", Destructive = false, OpenWorld = true)]
+    [McpServerTool(Name = "se_print", Title = "Print drawings / 3D print mesh", Destructive = true, OpenWorld = true)]
     [Description("""
         Prints the sheets of a drawing as the Print command of Solid Edge does: on a printer of this Windows user, or to files.
         printers: the Windows printers (default, connection local | network | remote_desktop, port, driver, asksForFile, state) and the current print settings of Solid Edge |

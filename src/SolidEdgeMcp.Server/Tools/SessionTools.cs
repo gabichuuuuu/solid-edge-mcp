@@ -14,7 +14,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class SessionTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_session", Title = "Solid Edge session", Destructive = false, Idempotent = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_session", Title = "Solid Edge session", Destructive = true, Idempotent = false, OpenWorld = false)]
     [Description("Connection to Solid Edge. status: state without starting anything (busy operation, open documents, and any Solid Edge dialog that waits for the person, with its buttons and options: calls fail with dialog_open until it is answered). connect: attach to the running Solid Edge or start it (visible) if allowed. disconnect: release the connection without closing Solid Edge; all handles expire. quit: close Solid Edge (refused while a document has unsaved changes). restart: quit and start it again, e.g. when Solid Edge misbehaves (features failing that worked before). answer: answer the dialog that waits, pressing 'button' after choosing 'option' (a radio button or check box), by the text status shows; the call it blocked then finishes. Answer as the person would: an option such as \"don't prompt me again\" changes Solid Edge's options, so choose it only when the person asks.")]
     public Task<CallToolResult> Session(
         [Description("status | connect | disconnect | quit | restart | answer")] SessionAction action,

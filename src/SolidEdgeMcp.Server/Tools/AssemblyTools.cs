@@ -381,7 +381,7 @@ public sealed class AssemblyTools(ToolRunner runner, PathGuard guard)
         CancellationToken cancellationToken = default) =>
         runner.RunAsync("se_interference", "check", c => AssemblyService.Interference(c, document, occurrences, against, compare), cancellationToken);
 
-    [McpServerTool(Name = "se_bom", Title = "Bill of materials and assembly reports", ReadOnly = false, Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_bom", Title = "Bill of materials and assembly reports", Destructive = true, OpenWorld = false)]
     [Description("""
         Bill of materials and reports of an assembly (the Reports and Assembly Statistics dialogs). structure: top (parts list: top-level items grouped by file; a subassembly is one line) | flat (summary of atomic parts: only parts, quantities multiplied through subassemblies) |
         indented (bill of materials: each level under its subassembly, each part once per subassembly; item numbers 1, 1.1…) | exploded (exploded bill of materials: every occurrence on its own line, with its name) |

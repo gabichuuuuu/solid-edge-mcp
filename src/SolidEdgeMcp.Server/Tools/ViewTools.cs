@@ -15,7 +15,7 @@ namespace SolidEdgeMcp.Server.Tools;
 [McpServerToolType]
 public sealed class ViewTools(ToolRunner runner)
 {
-    [McpServerTool(Name = "se_view", Title = "Solid Edge view", ReadOnly = false, Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "se_view", Title = "Solid Edge view", Destructive = true, OpenWorld = false)]
     [Description("""
         Window view of a document. capture: image of the current view (width/height in pixels; path to also save it as .png/.jpg/.bmp in an allowed folder; samples = true adds the colours of its corners, edges and centre). fit: zoom to fit (drawings: the whole sheet with its title block). orient: standard view (iso, front, top...) and fit, or plane = a sketch, reference plane or planar face seen square (Sketch View). render_mode: SeRenderModeType name (seRenderModeSmooth, seRenderModeSmoothVHL, seRenderModeVHL, seRenderModeOutline, seRenderModeWireframe, seRenderModePhong).
         named_views | save_view (name, description: the current view of a 3D window) | apply_view (name) | delete_view (name, a saved one).

@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -106,15 +107,14 @@ public static class Program
             .WithTools((IEnumerable<Type>)ToolTypes, ToolJson)
             .WithPrompts<SolidEdgePrompts>()
             .WithRequestFilters(filters => filters.AddCallToolFilter(ArgumentValidator.Filter).AddCallToolFilter(ProgressHeartbeat.Filter));
-        NormalizeToolDescriptions(services);
+        NormalizeTools(services);
     }
 
     /// <summary>
-    /// The descriptions are raw string literals, so they carry the line endings of the checkout: with CRLF (.gitattributes
-    /// sets it for *.cs) each line adds a character, and several descriptions passed the 2,048 characters that Claude Code
-    /// keeps. Every tool registered by WithTools gets its description with LF line endings.
+    /// Every tool gets its description with LF line endings (CRLF checkouts pushed some past Claude Code's 2,048 characters)
+    /// and its schema without the null boilerplate of optional arguments (see <see cref="SlimSchema"/>).
     /// </summary>
-    private static void NormalizeToolDescriptions(IServiceCollection services)
+    private static void NormalizeTools(IServiceCollection services)
     {
         for (int i = 0; i < services.Count; i++)
         {
@@ -137,7 +137,59 @@ public static class Program
         static McpServerTool Normalize(McpServerTool tool)
         {
             tool.ProtocolTool.Description = tool.ProtocolTool.Description?.ReplaceLineEndings("\n");
+            tool.ProtocolTool.InputSchema = SlimSchema(tool.ProtocolTool.InputSchema);
             return tool;
+        }
+    }
+
+    /// <summary>
+    /// Drops <c>"default": null</c>, <c>"null"</c> in type unions and <c>null</c> in enumerations: an omitted optional
+    /// argument is already null, and ArgumentValidator still accepts an explicit null.
+    /// </summary>
+    public static JsonElement SlimSchema(JsonElement schema)
+    {
+        if (JsonNode.Parse(schema.GetRawText()) is not JsonObject root)
+        {
+            return schema;
+        }
+
+        Slim(root);
+        return JsonSerializer.SerializeToElement(root, McpJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonNode)));
+
+        static void Slim(JsonNode? node)
+        {
+            switch (node)
+            {
+                case JsonObject obj:
+                    if (obj.TryGetPropertyValue("default", out JsonNode? value) && value is null)
+                    {
+                        obj.Remove("default");
+                    }
+
+                    if (obj["type"] is JsonArray types && types.Count == 2 && types.Any(t => t?.GetValue<string>() == "null"))
+                    {
+                        obj["type"] = types.First(t => t?.GetValue<string>() != "null")!.GetValue<string>();
+                    }
+
+                    if (obj["enum"] is JsonArray options && options.Any(o => o is null))
+                    {
+                        obj["enum"] = new JsonArray([.. options.Where(o => o is not null).Select(o => o!.DeepClone())]);
+                    }
+
+                    foreach (KeyValuePair<string, JsonNode?> child in obj.ToArray())
+                    {
+                        Slim(child.Value);
+                    }
+
+                    break;
+                case JsonArray array:
+                    foreach (JsonNode? item in array)
+                    {
+                        Slim(item);
+                    }
+
+                    break;
+            }
         }
     }
 

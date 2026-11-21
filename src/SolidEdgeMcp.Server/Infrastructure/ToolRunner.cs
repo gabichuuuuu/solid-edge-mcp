@@ -66,7 +66,7 @@ public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> log
         {
             logger.LogWarning(ex.InnerException, "op#{Id} {Tool}.{Action} failed in {Ms} ms: {Code} {Message}", id, tool, action,
                 stopwatch.ElapsedMilliseconds, ex.Code, ex.Message);
-            throw new McpException(ex.ToClientMessage());
+            return Error(ex.ToClientMessage());
         }
         catch (OperationCanceledException)
         {
@@ -76,7 +76,7 @@ public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> log
         catch (Exception ex) when (InteropBootstrap.IsMissing(ex))
         {
             logger.LogError(ex, "op#{Id} {Tool}.{Action} failed: the Solid Edge interop is missing", id, tool, action);
-            throw new McpException(new ToolException(
+            return Error(new ToolException(
                 "interop_missing",
                 "The Solid Edge interop is not available: the server generates it from the installed Solid Edge when it starts, and it could not (the reason is at the start of the server log).",
                 "Check that Solid Edge is installed on this computer and that Windows PowerShell can run scripts, then restart the MCP server.").ToClientMessage());
@@ -84,9 +84,13 @@ public sealed class ToolRunner(SolidEdgeSession session, ILogger<ToolRunner> log
         catch (Exception ex)
         {
             logger.LogError(ex, "op#{Id} {Tool}.{Action} failed unexpectedly", id, tool, action);
-            throw new McpException($"[internal_error] {tool} '{action}' failed: {ex.GetType().Name}: {ex.Message} (details in the server log, op#{id}).");
+            return Error($"[internal_error] {tool} '{action}' failed: {ex.GetType().Name}: {ex.Message} (details in the server log, op#{id}).");
         }
     }
+
+    /// <summary>Tool error as a result: a thrown McpException would reach the client with the SDK's own prefix.</summary>
+    public static CallToolResult Error(string message) =>
+        new() { IsError = true, Content = [new TextContentBlock { Text = message }] };
 
     public static CallToolResult ToResult(object? result)
     {
